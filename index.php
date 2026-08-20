@@ -78,8 +78,11 @@ function moduleOptions(array $modules, string $placeholder = '— tidak dipakai 
                . ' data-nsfw="' . (int)($m['is_nsfw'] ?? 0) . '"'
                // latar berkategori "ring" sudah punya ringnya sendiri
                . ' data-category="' . e((string)($m['category'] ?? '')) . '"'
-               // pose yang punya arah memunculkan pilihan "siapa yang melakukan"
+               // pose yang punya arah memunculkan pilihan arah, dan
+               // pertanyaannya ikut pose itu — "Siapa yang tumbang?"
+               // untuk Knockdown, bukan "Siapa yang melakukan?"
                . ' data-directional="' . (int)($m['is_directional'] ?? 0) . '"'
+               . ' data-arah-label="' . e((string)($m['direction_label'] ?? '')) . '"'
                . (!empty($m['description']) ? ' title="' . e($m['description']) . '"' : '')
                . '>' . e($label) . '</option>';
     }
@@ -102,7 +105,8 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
             <div class="field-row">
                 <div class="field">
                     <label>Kategori</label>
-                    <select class="c-universe">
+                    <input type="text" class="cari-kecil c-universe-cari" placeholder="ketik untuk menyaring…">
+                    <select class="c-universe" size="1">
                         <option value="">Semua kategori</option>
                         <?php foreach ($universes as $u): ?>
                             <option value="<?= e($u['universe']) ?>">
@@ -113,6 +117,7 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
                 </div>
                 <div class="field">
                     <label>Judul</label>
+                    <input type="text" class="cari-kecil c-series-cari" placeholder="ketik judul, misal: street, touhou…">
                     <select class="c-series"><option value="">Semua judul</option></select>
                 </div>
             </div>

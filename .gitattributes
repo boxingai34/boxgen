@@ -1,0 +1,12 @@
+# Akhir baris dibakukan ke LF di dalam repo.
+#
+# Tanpa ini, Windows menyimpan CRLF sementara GitHub menyimpan LF, dan
+# setiap berkas terbaca "berubah" padahal isinya sama persis — 77 berkas
+# ditandai berubah padahal yang benar-benar disunting cuma belasan.
+* text=auto eol=lf
+
+# Berkas biner jangan diutak-atik.
+*.png binary
+*.jpg binary
+*.gif binary
+*.zip binary

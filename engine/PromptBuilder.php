@@ -27,10 +27,14 @@ final class PromptBuilder
         'appearance',
         'outfit',
         'condition',
+        // Tag aksi yang memang milik Boxer A ikut berdiri di dekat
+        // datanya sendiri, bukan menumpuk di blok bersama.
+        'interaction_a',
         'character_b',
         'appearance_b',
         'outfit_b',
         'condition_b',
+        'interaction_b',
         'interaction',
         'pose',
         'background',
@@ -166,19 +170,22 @@ final class PromptBuilder
         self::personItems($b, $charB, $allowNsfw, '_b', $items, $catatan, 'Boxer B', $potong);
 
         // interaksi
-        self::addModule($sel['interaction_id'] ?? null, 'interaction', 'interaction', $allowNsfw, $items);
+        self::addInteraksi($sel, $allowNsfw, $items);
 
-        // Arah serangan tidak bisa dinyatakan lewat tag. Tag "stomach_punch"
-        // hanya berarti "ada pukulan ke perut" — siapa memukul siapa
-        // ditebak sendiri oleh model. Katakan apa adanya daripada membuat
-        // user mengira pilihannya berpengaruh.
+        // Arahnya sekarang benar-benar tersampaikan di NovelAI dan Regional:
+        // tag yang memang milik satu orang masuk ke kotak orang itu. Yang
+        // masih belum bisa cuma keluaran Stable Diffusion satu kotak —
+        // di situ semua tag menumpuk jadi satu daftar dan model menebak
+        // sendiri. Katakan apa adanya, jangan biarkan user mengira
+        // pilihannya tidak berpengaruh sama sekali.
         if (!empty($sel['interaction_id'])) {
             $inter = self::loadModule((int)$sel['interaction_id'], $allowNsfw, 'interaction');
 
             if ($inter !== null && (int)($inter['is_directional'] ?? 0) === 1) {
-                $catatan[] = 'Pose "' . $inter['name'] . '" punya arah, tapi tag gambar tidak bisa '
-                    . 'menyatakan siapa memukul siapa — model akan menebak sendiri. '
-                    . 'Pakai mode Video kalau arahnya penting.';
+                $catatan[] = 'Pose "' . $inter['name'] . '" punya arah. Di keluaran NovelAI '
+                    . 'dan Regional, arahnya sudah terbagi ke kotak masing-masing petinju. '
+                    . 'Di keluaran Stable Diffusion satu kotak, semua tag menumpuk jadi '
+                    . 'satu daftar dan model menebak sendiri siapa yang mana.';
             }
         }
 
@@ -566,6 +573,58 @@ final class PromptBuilder
         return $id !== null ? (int)$id : null;
     }
 
+    /**
+     * Masukkan tag interaksi, DIBAGI ke pemiliknya masing-masing.
+     *
+     * Pose "Knockdown" menghasilkan defeat, on_ground, falling, DAN
+     * standing sekaligus. Kalau keempatnya ditumpuk di satu tempat,
+     * yang terbaca model cuma "ada yang tumbang dan ada yang berdiri"
+     * tanpa keterangan siapa — lalu sering keduanya digambar tumbang.
+     *
+     * Padahal keterangannya ada: kolom role di module_tags menyebut tag
+     * mana milik pelaku dan mana milik penerima, dan pilihan 'attacker'
+     * menyebut siapa pelakunya. Tinggal dipasangkan.
+     *
+     * Tag tanpa peran tetap di blok bersama — motion_lines dan
+     * speed_lines memang milik gambarnya, bukan milik salah satu orang.
+     */
+    private static function addInteraksi(array $sel, bool $allowNsfw, array &$items): void
+    {
+        $id = $sel['interaction_id'] ?? null;
+        if (empty($id)) {
+            return;
+        }
+
+        $mod = self::loadModule((int)$id, $allowNsfw, 'interaction');
+        if ($mod === null) {
+            return;
+        }
+
+        $pelaku = ($sel['attacker'] ?? 'a') === 'b' ? 'b' : 'a';
+
+        // Sebagian pose menanyakan siapa yang KENA, bukan siapa yang
+        // melakukan — "Siapa yang tumbang?" pada Knockdown. Di situ
+        // yang dipilih user adalah penerimanya, jadi perannya dibalik.
+        if ((int)($mod['direction_inverts'] ?? 0) === 1) {
+            $pelaku = $pelaku === 'a' ? 'b' : 'a';
+        }
+
+        $sufiks = ['source' => $pelaku === 'a' ? '_a' : '_b',
+                   'target' => $pelaku === 'a' ? '_b' : '_a'];
+
+        foreach ($mod['tags'] as $mt) {
+            $peran = $mt['role'] ?? null;
+
+            $items[] = [
+                'tag_id' => (int)$mt['tag_id'],
+                'name'   => $mt['name'],
+                'weight' => (float)$mt['weight'],
+                'block'  => 'interaction' . ($sufiks[$peran] ?? ''),
+                'from'   => $mod['name'],
+            ];
+        }
+    }
+
     private static function addModule($id, string $type, string $block, bool $allowNsfw, array &$items): void
     {
         if (empty($id)) {
@@ -744,7 +803,7 @@ final class PromptBuilder
         $nsfwFilter = $allowNsfw ? '' : ' AND t.is_nsfw = 0';
 
         $module['tags'] = Database::all(
-            "SELECT mt.weight, t.id AS tag_id, t.name, t.post_count
+            "SELECT mt.weight, mt.role, t.id AS tag_id, t.name, t.post_count
              FROM module_tags mt
              JOIN tags t ON t.id = mt.tag_id
              WHERE mt.module_id = ? AND t.is_blocked = 0 {$nsfwFilter}
@@ -799,7 +858,8 @@ final class PromptBuilder
         $nsfwFilter = $allowNsfw ? '' : ' AND is_nsfw = 0';
 
         return Database::all(
-            "SELECT id, type, category, slug, name, name_id, description, intensity, is_nsfw, is_directional
+            "SELECT id, type, category, slug, name, name_id, description, intensity, is_nsfw,
+                    is_directional, direction_label
              FROM modules
              WHERE type = ? AND is_active = 1 {$nsfwFilter}
              -- Urutan kelompok ditentukan oleh sort_order terkecil di dalamnya,

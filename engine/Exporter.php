@@ -72,7 +72,7 @@ final class Exporter
         foreach ($blocks as $block => $items) {
             if (str_ends_with($block, '_b')) {
                 $boxerB = array_merge($boxerB, $items);
-            } elseif (in_array($block, ['character', 'appearance', 'outfit', 'condition'], true)) {
+            } elseif (in_array($block, ['character', 'appearance', 'outfit', 'condition', 'interaction_a'], true)) {
                 $boxerA = array_merge($boxerA, $items);
             } else {
                 $umum = array_merge($umum, $items);
@@ -154,7 +154,9 @@ final class Exporter
             'appearance_b' => 'Boxer B appearance',
             'outfit_b'     => 'Boxer B outfit',
             'condition_b'  => 'Boxer B condition',
-            'interaction'  => 'Action between them',
+            'interaction'   => 'Action between them',
+            'interaction_a' => 'Boxer A action',
+            'interaction_b' => 'Boxer B action',
             'pose'         => 'Action',
             'condition'    => 'Condition',
             'background'   => 'Setting',
@@ -206,8 +208,12 @@ final class Exporter
     {
         $blocks = $built['blocks'];
 
-        $milikA = ['character', 'appearance', 'outfit', 'condition'];
-        $milikB = ['character_b', 'appearance_b', 'outfit_b', 'condition_b'];
+        // interaction_a / interaction_b berisi tag aksi yang memang milik
+        // satu orang: yang tumbang dapat defeat + on_ground, yang berdiri
+        // dapat standing. Blok 'interaction' polos tetap di Base — itu
+        // isinya efek gambar seperti motion_lines, bukan milik siapa pun.
+        $milikA = ['character', 'appearance', 'outfit', 'condition', 'interaction_a'];
+        $milikB = ['character_b', 'appearance_b', 'outfit_b', 'condition_b', 'interaction_b'];
 
         $adaB = !empty($blocks['character_b']) || !empty($blocks['outfit_b']);
 
@@ -276,7 +282,7 @@ final class Exporter
         }
 
         $mod = Database::one(
-            "SELECT action_tag, is_directional,
+            "SELECT action_tag, is_directional, direction_inverts,
                     (SELECT t.name FROM module_tags mt JOIN tags t ON t.id = mt.tag_id
                      WHERE mt.module_id = modules.id ORDER BY mt.sort_order LIMIT 1) AS tag_utama
              FROM modules WHERE id = ? AND type = 'interaction'",
@@ -298,6 +304,14 @@ final class Exporter
         }
 
         $penyerang = ($sel['attacker'] ?? 'a') === 'b' ? 'b' : 'a';
+
+        // Pose yang bertanya "Siapa yang tumbang?" memilih PENERIMA, bukan
+        // pelaku. Tanpa pembalikan ini, yang jatuh justru diberi awalan
+        // source# — persis kebalikan dari yang dimaksud user.
+        if ((int)($mod['direction_inverts'] ?? 0) === 1) {
+            $penyerang = $penyerang === 'a' ? 'b' : 'a';
+        }
+
         $penerima  = $penyerang === 'a' ? 'b' : 'a';
 
         return [

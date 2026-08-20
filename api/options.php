@@ -23,8 +23,17 @@ switch ($what) {
 
     case 'series':
         $universe = (string)($_GET['universe'] ?? '');
+        $cari     = (string)($_GET['cari'] ?? '');
+
+        // Batasnya dilonggarkan saat sedang mencari: tanpa kata kunci
+        // cukup 300 judul teratas, tapi begitu diketik, seluruh 5.676
+        // judul harus bisa terjangkau.
         jsonOk([
-            'results' => CharacterResolver::seriesList($universe !== '' ? $universe : null),
+            'results' => CharacterResolver::seriesList(
+                $universe !== '' ? $universe : null,
+                $cari !== '' ? 200 : 300,
+                $cari
+            ),
         ]);
         // no break — jsonOk berhenti sendiri
 

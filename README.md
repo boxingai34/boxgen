@@ -167,13 +167,14 @@ Ini **hanya** soal gambar pratinjau, sama sekali tidak menyaring prompt.
 
 ## Admin CMS
 
-Buka `http://localhost/boxgen/admin/`. Saat pertama kali dibuka dan belum ada
-akun, halamannya berubah jadi form pembuatan admin pertama — form itu hilang
-sendiri setelah satu akun dibuat, jadi orang lain tidak bisa mendaftar.
+Buka `http://localhost/boxgen/admin/`. Masuk pakai akun biasa yang kolom
+`role`-nya `admin` — tidak ada login terpisah lagi (lihat bagian **Akun &
+login**).
 
 | Halaman | Gunanya |
 |---|---|
 | Ringkasan | jumlah data, prompt terakhir, status sinkronisasi, peringatan |
+| Pengguna | setujui/tolak pendaftar, ganti password, hapus akun |
 | Modul | tambah/ubah/hapus seluruh pilihan menu, lengkap dengan editor tag |
 | Karakter | perbaiki nama, judul, dan tag penampilan; tandai sebagai kurasi |
 | Judul | kelompokkan 5.676 judul ke anime/game/vtuber/kartun/komik |
@@ -202,22 +203,30 @@ tag bebas apa pun divalidasi lewat kamus tag. Tag karangan otomatis dibuang
 dan ditampilkan ke user. Jadi prinsip "jangan pernah mengarang tag" tetap
 terjaga meskipun AI ikut bermain.
 
-Karena situs ini publik tanpa login, ada pembatas `AI_DAILY_LIMIT_PER_IP`
+Kuota AI itu uangmu sendiri, jadi tetap ada pembatas `AI_DAILY_LIMIT_PER_IP`
 (bawaan 30x per pengunjung per hari) dan cache jawaban — permintaan yang sama
-persis tidak memanggil API dua kali.
+persis tidak memanggil API dua kali. Sejak halaman utamanya butuh login,
+yang bisa memakainya hanya orang yang sudah kamu setujui.
 
 ---
 
 ## Peta folder
 
 ```
-index.php               halaman generator
+index.php               Prompt Generator (butuh login)
+login.php               masuk
+register.php            daftar (perlu disetujui admin)
+history.php             riwayat prompt + gambar hasil
+_page.php               kerangka halaman + penjaga login
 config.php              setting umum (aman diupload)
 config.local.php        password & API key  <-- JANGAN diupload publik
 engine/                 mesin: resolver, builder, optimizer, exporter, AI
+engine/Auth.php         akun, sesi, pendaftaran, persetujuan
 engine/Preset.php       simpan susunan + kode tautan berbagi
+engine/Riwayat.php      daftar & pemakaian ulang riwayat
 api/                    endpoint JSON yang dipanggil JavaScript
 api/preset.php          simpan / buka / daftar / hapus preset
+api/history.php         buka / simpan catatan / hapus riwayat
 admin/                  Admin CMS (dikunci login)
 tools/seed.php          pengisi data contoh
 tools/sync_danbooru.php penarik kamus tag
@@ -943,12 +952,133 @@ Sudah jalan:
   memisahkan dua karakter
 - AI optimizer (opsional) dengan validasi ketat
 - **Preset + tautan berbagi** — simpan susunan, buka lagi lewat satu tautan
+- **Akun & login** dengan persetujuan admin untuk pendaftar baru
+- **Riwayat per akun** — bisa dipakai ulang, diberi judul dan gambar hasil
+- **Jenis kelamin & mature** per petinju, menimpa data karakter
+- **Kamera memotong pakaian** yang di luar bingkai
 - Riwayat hasil tersimpan di tabel `generations`
 
 Seluruh daftar fitur di rencana awal sudah selesai.
 
 ---
 
+## Akun & login
+
+Halaman generator **tidak lagi terbuka untuk umum**. Semua orang harus
+punya akun, dan akun baru perlu disetujui admin dulu.
+
+### Tiga status akun
+
+| Status | Artinya |
+|---|---|
+| `pending` | baru daftar, BELUM bisa masuk |
+| `active` | sudah disetujui admin |
+| `rejected` | ditolak, tidak bisa masuk |
+
+Pendaftar masuk sebagai `pending`. Kamu menyetujuinya lewat
+**Admin -> Pengguna**, satu tombol. Tidak ada email verifikasi yang perlu
+disiapkan — untuk situs sekecil ini, kamu sendiri yang jadi penjaganya.
+
+Angka merah di menu **Pengguna** menandai berapa yang sedang menunggu,
+supaya tidak ada yang terlupa berhari-hari.
+
+### Kenapa pesan gagal login dibedakan
+
+Situs pada umumnya sengaja menyamarkan pesan login supaya penyerang tidak
+bisa menebak email mana yang terdaftar. Di sini justru dibedakan, dan itu
+keputusan sadar: karena pendaftarannya butuh persetujuan manual, orang
+WAJIB tahu bedanya "password salah" dengan "sudah benar, tapi admin belum
+menyetujuimu". Kalau disamarkan, mereka akan mencoba berkali-kali
+menyangka salah ketik.
+
+### Admin bukan sistem terpisah
+
+Satu tabel `users` untuk semua orang; yang membedakan admin cuma kolom
+`role`. Jadi tidak ada dua sistem login yang harus dijaga tetap seragam.
+`admin/login.php` sekarang tinggal pengalih ke halaman masuk biasa.
+
+### Akibat yang perlu kamu tahu
+
+Tautan berbagi preset (`?p=kode`) sekarang **hanya bisa dibuka orang yang
+punya akun**. Sebelum ini siapa pun bisa. Itu konsekuensi langsung dari
+mengunci halaman utama — bukan hal yang terlewat.
+
+---
+
+## Riwayat
+
+Menu **Riwayat** menampilkan seluruh prompt yang pernah kamu buat.
+Riwayatnya milik akun, bukan milik browser — ganti komputer pun tetap ada.
+
+| Tombol | Gunanya |
+|---|---|
+| Pakai lagi | memasang kembali susunannya ke Prompt Generator |
+| Salin | menyalin teks promptnya |
+| Judul & gambar | memberi judul, menempel gambar hasil, dan catatan |
+| Hapus | membuang satu baris riwayat |
+
+**Pakai lagi** memulihkan *pilihannya*, bukan teks promptnya — sama
+seperti preset. Jadi promptnya dibangun ulang dengan kamus tag terbaru,
+bukan diulang mentah-mentah.
+
+### Gambar hasilnya diisi tangan
+
+Website ini membuat prompt, bukan gambar. Tidak ada cara otomatis
+mengetahui hasil akhirnya seperti apa. Jadi setelah kamu membuat
+gambarnya di Stable Diffusion atau NovelAI, upload ke Imgur/Catbox lalu
+tempel alamat gambarnya di kolom yang tersedia.
+
+Alamat yang diterima hanya `http://` dan `https://`. Skema lain ditolak —
+alamat itu dipasang sebagai `<img src>`, dan tanpa saringan, `javascript:`
+bisa ikut masuk lalu berjalan di browser orang lain.
+
+---
+
+## Jenis kelamin & usia karakter
+
+Danbooru tidak menyediakan jenis kelamin di data tagnya. Jadi seluruh
+21.904 karakter masuk lewat impor massal dengan bawaan **perempuan** —
+dan untuk karakter laki-laki, itu salah.
+
+Karena itu ada menu **Jenis Kelamin** di tiap petinju, dan pilihanmu
+**menang** atas data karakternya. Kamu bisa membetulkannya sendiri tanpa
+menunggu adminnya menyunting karakter satu per satu.
+
+Pengaruhnya ke tag jumlah orang:
+
+| Pilihan | Tag yang keluar |
+|---|---|
+| 1 petinju perempuan | `1girl` |
+| 1 petinju laki-laki | `1boy` |
+| 2 perempuan | `2girls`, `multiple_girls` |
+| 2 laki-laki | `2boys`, `multiple_boys` |
+| campur | `1boy`, `1girl` |
+
+Centang **Dewasa (mature)** menambahkan `mature_female` (49.275 gambar)
+atau `mature_male` (44.788), mengikuti jenis kelaminnya. Tidak ada tag
+`mature` polos di Danbooru.
+
+---
+
+## Kamera memotong pakaian yang tidak terlihat
+
+Kalau kameranya close-up, menulis "boxing boots" di prompt bukan cuma
+sia-sia — model bisa memaksa kakinya masuk ke bingkai, atau memakai jatah
+tokennya untuk sesuatu yang tidak akan terlihat.
+
+Jadi slot pakaian yang di luar bingkai **dibuang otomatis**:
+
+| Jarak kamera | Yang dibuang |
+|---|---|
+| Close Up | bawahan, sepatu |
+| Setengah Badan | bawahan, sepatu |
+| Cowboy Shot | sepatu |
+| Seluruh Badan / Jauh | tidak ada |
+
+Sarung tinju tetap ikut di close-up — kalimat kameranya memang menyebut
+"face and gloves".
+
+---
 ## Preset & tautan berbagi
 
 Kotak **Preset & berbagi** di bawah tombol Generate menyimpan susunan

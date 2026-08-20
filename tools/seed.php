@@ -91,14 +91,16 @@ function saveModule(string $type, array $m): int
         $m['sentence'] ?? null,
         $m['intensity'] ?? null,
         $m['action'] ?? null,
+        $m['arah_label'] ?? null,
+        (int)($m['arah_terbalik'] ?? 0),
         (int)($m['is_nsfw'] ?? 0),
         (int)($m['sort_order'] ?? 0),
     ];
 
     if ($id === null) {
         Database::run(
-            'INSERT INTO modules (type, slug, category, name, name_id, description, sentence, intensity, action_tag, is_nsfw, sort_order)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO modules (type, slug, category, name, name_id, description, sentence, intensity, action_tag, direction_label, direction_inverts, is_nsfw, sort_order)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
             array_merge([$type, $m['slug']], $fields)
         );
         $id = Database::lastId();
@@ -106,7 +108,7 @@ function saveModule(string $type, array $m): int
         // perbarui isinya kalau file data diubah
         Database::run(
             'UPDATE modules SET category=?, name=?, name_id=?, description=?, sentence=?,
-                    intensity=?, action_tag=?, is_nsfw=?, sort_order=? WHERE id=?',
+                    intensity=?, action_tag=?, direction_label=?, direction_inverts=?, is_nsfw=?, sort_order=? WHERE id=?',
             array_merge($fields, [(int)$id])
         );
     }
@@ -115,18 +117,28 @@ function saveModule(string $type, array $m): int
     $order = 0;
     $keep = [];
 
+    // Peran tag: siapa pemiliknya di pose dua orang.
+    //   source = pelaku, target = penerima, tidak disebut = milik bersama
+    $peran = $m['roles'] ?? [];
+
     foreach (($m['tags'] ?? []) as $key => $val) {
         $name   = is_int($key) ? $val : $key;
         $weight = is_int($key) ? 1.0 : (float)$val;
+
+        $r = $peran[$name] ?? null;
+        if ($r !== 'source' && $r !== 'target') {
+            $r = null;
+        }
 
         $tagId  = TagResolver::getOrCreate($name, 0, $type);
         $keep[] = $tagId;
 
         Database::run(
-            'INSERT INTO module_tags (module_id, tag_id, weight, sort_order)
-             VALUES (?,?,?,?)
-             ON DUPLICATE KEY UPDATE weight = VALUES(weight), sort_order = VALUES(sort_order)',
-            [$id, $tagId, $weight, $order++]
+            'INSERT INTO module_tags (module_id, tag_id, weight, role, sort_order)
+             VALUES (?,?,?,?,?)
+             ON DUPLICATE KEY UPDATE weight = VALUES(weight), role = VALUES(role),
+                                     sort_order = VALUES(sort_order)',
+            [$id, $tagId, $weight, $r, $order++]
         );
     }
 

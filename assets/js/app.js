@@ -324,6 +324,14 @@ function updateArahBox() {
     const punyaArah = opt && opt.dataset.directional === '1';
 
     box.hidden = !(punyaArah && (mode === 'duo' || mode === 'seedance'));
+
+    // Pertanyaannya ikut posenya. "Siapa yang melakukan?" terdengar
+    // aneh untuk Knockdown — yang sebenarnya ditanya adalah siapa
+    // yang tumbang.
+    const tanya = $('.arah-label', box);
+    if (tanya && punyaArah) {
+        tanya.textContent = opt.dataset.arahLabel || 'Siapa yang melakukan?';
+    }
 }
 
 // ==================================================================
@@ -428,19 +436,62 @@ function renderCharSuggest(side, results) {
 async function loadSeries(side) {
     const p = panel(side);
     const universe = $('.c-universe', p).value;
+    const cari = $('.c-series-cari', p)?.value.trim() || '';
     const sel = $('.c-series', p);
+    const sebelumnya = sel.value;
 
     sel.innerHTML = '<option value="">Semua judul</option>';
 
     try {
-        const data = await getJson('api/options.php?what=series&universe=' + encodeURIComponent(universe));
+        const data = await getJson('api/options.php?' + new URLSearchParams({
+            what: 'series', universe, cari
+        }));
         data.results.forEach((s) => {
             const o = document.createElement('option');
             o.value = s.id;
             o.textContent = s.name;
             sel.appendChild(o);
         });
+
+        // Kalau judul yang tadi dipilih masih ada di hasil baru, jangan
+        // dilepas — mengetik di kotak cari tidak boleh membatalkan
+        // pilihan yang sudah benar.
+        if (sebelumnya && punyaOpsi(sel, sebelumnya)) {
+            sel.value = sebelumnya;
+        }
     } catch { /* biarkan kosong */ }
+}
+
+/**
+ * Saring isi sebuah <select> dari daftar aslinya.
+ *
+ * Menyembunyikan <option> dengan CSS tidak bisa diandalkan — sebagian
+ * browser mengabaikannya. Jadi daftarnya disimpan sekali lalu dibangun
+ * ulang setiap kali disaring.
+ */
+function saringSelect(select, kata) {
+    if (!select._asli) {
+        select._asli = Array.from(select.options).map((o) => ({
+            value: o.value, text: o.textContent.trim()
+        }));
+    }
+
+    const sebelumnya = select.value;
+    const q = kata.trim().toLowerCase();
+
+    select.innerHTML = '';
+    select._asli
+        .filter((o) => o.value === '' || o.text.toLowerCase().includes(q))
+        .forEach((o) => {
+            const el = document.createElement('option');
+            el.value = o.value;
+            el.textContent = o.text;
+            select.appendChild(el);
+        });
+
+    if (sebelumnya && punyaOpsi(select, sebelumnya)) {
+        select.value = sebelumnya;
+    }
 }
 
 /**
@@ -1461,6 +1512,20 @@ document.addEventListener('DOMContentLoaded', () => {
             searchCharacters(side);
         });
         $('.c-series', p).addEventListener('change', () => searchCharacters(side));
+
+        // Kategori cuma berisi beberapa pilihan, jadi disaring di browser.
+        $('.c-universe-cari', p).addEventListener('input', (e) => {
+            saringSelect($('.c-universe', p), e.target.value);
+        });
+
+        // Judul ada 5.676 dan yang dimuat cuma sebagian, jadi pencariannya
+        // harus sampai ke server — kalau tidak, judul di luar 300 teratas
+        // tidak akan pernah ketemu.
+        let tSeri = null;
+        $('.c-series-cari', p).addEventListener('input', () => {
+            clearTimeout(tSeri);
+            tSeri = setTimeout(() => loadSeries(side), 260);
+        });
 
         $('.m-outfit', p).addEventListener('change', () => applyOutfitDefaults(side));
         $('.btn-reset-slot', p).addEventListener('click', () => applyOutfitDefaults(side));

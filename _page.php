@@ -22,8 +22,19 @@ if (empty($BOLEH_TAMU)) {
     Auth::csrfCheck();
 }
 
+/**
+ * $polos = halaman Masuk/Daftar: tanpa menu, tanpa keterangan kaki.
+ *
+ * Keputusannya diingat di sini supaya halamanFooter() ikut tahu — kalau
+ * tidak, keterangan soal kamus tag dan tanda dewasa ikut muncul di
+ * halaman login, padahal sama sekali tidak ada urusannya di situ.
+ */
+$GLOBALS['halamanPolos'] = false;
+
 function halamanHeader(string $judul, string $aktif = '', bool $polos = false): void
 {
+    $GLOBALS['halamanPolos'] = $polos;
+
     $user = Auth::user();
     $f    = Auth::flash();
 
@@ -38,7 +49,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — <?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=13">
+<link rel="stylesheet" href="assets/css/style.css?v=17">
 </head>
 <body<?= $polos ? ' class="polos"' : '' ?>>
 
@@ -79,15 +90,17 @@ function halamanFooter(bool $skrip = false): void
     ?>
 </main>
 
+<?php if (empty($GLOBALS['halamanPolos'])): ?>
 <footer class="wrap foot">
     <p>
         Data tag bersumber dari Danbooru. Perkiraan token bersifat kasar, bukan
         hitungan resmi tokenizer model. Tanda <strong>&bull;</strong> menandai pilihan dewasa.
     </p>
 </footer>
+<?php endif; ?>
 
 <?php if ($skrip): ?>
-<script src="assets/js/app.js?v=13"></script>
+<script src="assets/js/app.js?v=15"></script>
 <?php endif; ?>
 </body>
 </html>

@@ -89,13 +89,26 @@ final class CharacterResolver
             $params[] = $universe;
         }
 
+        // Urut abjad, sesuai permintaan. Tapi abjad polos punya jebakan:
+        // mengetik "maki" akan menampilkan "akemi_maki" sebelum "maki"
+        // sendiri, karena a lebih dulu dari m. Jadi yang namanya DIAWALI
+        // kata yang kamu ketik didahulukan, baru sisanya urut abjad.
+        $urut = 'c.name';
+
+        if ($q !== '') {
+            $urut = '(c.booru_tag = ?) DESC, (c.booru_tag LIKE ?) DESC, (c.name LIKE ?) DESC, c.name';
+            $params[] = str_replace(' ', '_', mb_strtolower($q));
+            $params[] = str_replace(' ', '_', mb_strtolower($q)) . '%';
+            $params[] = $q . '%';
+        }
+
         $sql = 'SELECT c.booru_tag, c.popularity AS post_count,
                        c.id AS char_id, c.name AS char_name, c.source,
                        s.name AS series_name
                 FROM characters c
                 LEFT JOIN series s ON s.id = c.series_id
                 WHERE ' . implode(' AND ', $where) . '
-                ORDER BY (c.source = "curated") DESC, c.popularity DESC
+                ORDER BY ' . $urut . '
                 LIMIT ' . $limit;
 
         $rows = Database::all($sql, $params);
@@ -134,24 +147,47 @@ final class CharacterResolver
      * jadi dibatasi ke yang terpopuler. Judul di luar batas itu tetap
      * terjangkau lewat kotak pencarian karakter.
      */
-    public static function seriesList(?string $universe = null, int $limit = 300): array
+    public static function seriesList(?string $universe = null, int $limit = 300, string $cari = ''): array
     {
-        $limit = max(10, min($limit, 2000));
+        $limit  = max(10, min($limit, 2000));
+        $cari   = trim($cari);
+        $where  = [];
+        $params = [];
 
-        if ($universe === null || $universe === '' || $universe === 'semua') {
-            return Database::all(
-                "SELECT id, name, booru_tag, universe, post_count FROM series
-                 ORDER BY post_count DESC
-                 LIMIT {$limit}"
-            );
+        if ($universe !== null && $universe !== '' && $universe !== 'semua') {
+            $where[]  = 'universe = ?';
+            $params[] = $universe;
+        }
+
+        if ($cari !== '') {
+            $where[]  = '(name LIKE ? OR booru_tag LIKE ?)';
+            $params[] = '%' . $cari . '%';
+            $params[] = '%' . str_replace(' ', '_', mb_strtolower($cari)) . '%';
+        }
+
+        $sql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
+
+        // Urut abjad, bukan jumlah gambar. Daftar judul dipakai untuk
+        // MENCARI sesuatu yang sudah kamu tahu namanya — di situ abjad
+        // jauh lebih cepat dibaca daripada peringkat popularitas.
+        //
+        // Tapi kalau sedang mengetik, yang namanya DIAWALI kata itu
+        // didahulukan: mengetik "street" harus memunculkan "Street
+        // Fighter" di atas, bukan "Downtown Street Brawl".
+        $urut = $cari !== ''
+            ? '(name LIKE ?) DESC, name'
+            : 'name';
+
+        if ($cari !== '') {
+            $params[] = $cari . '%';
         }
 
         return Database::all(
             "SELECT id, name, booru_tag, universe, post_count FROM series
-             WHERE universe = ?
-             ORDER BY post_count DESC
+             {$sql}
+             ORDER BY {$urut}
              LIMIT {$limit}",
-            [$universe]
+            $params
         );
     }
 

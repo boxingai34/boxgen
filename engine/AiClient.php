@@ -88,7 +88,12 @@ final class AiClient
         $body = [
             'system_instruction' => ['parts' => [['text' => $system]]],
             'contents'           => [['role' => 'user', 'parts' => [['text' => $user]]]],
-            'generationConfig'   => ['temperature' => 0.4, 'maxOutputTokens' => 2048],
+            // 2048 dulu di sini, dan itu terlalu sempit untuk model yang
+            // BERPIKIR dulu sebelum menjawab (seri Flash sekarang begitu).
+            // Token berpikirnya ikut dihitung ke jatah ini, jadi jawabannya
+            // terpotong di tengah — JSON separuh yang gagal diurai, dengan
+            // pesan error yang menyesatkan karena menyalahkan formatnya.
+            'generationConfig'   => ['temperature' => 0.4, 'maxOutputTokens' => 8192],
         ];
 
         if ($expectJson) {
@@ -100,9 +105,24 @@ final class AiClient
             'x-goog-api-key: ' . AI_API_KEY,
         ]);
 
-        $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        $text   = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        $alasan = $json['candidates'][0]['finishReason'] ?? '';
+
+        // Katakan apa adanya kalau jawabannya kepotong. Tanpa ini, yang
+        // terlihat cuma "Jawaban AI bukan JSON yang valid" — menuduh
+        // formatnya padahal formatnya benar, cuma belum selesai ditulis.
+        if ($alasan === 'MAX_TOKENS') {
+            throw new RuntimeException(
+                'Jawaban AI terpotong karena kehabisan jatah token. '
+                . 'Kecilkan permintaannya, atau naikkan maxOutputTokens di engine/AiClient.php.'
+            );
+        }
+
         if (!is_string($text) || $text === '') {
-            throw new RuntimeException('Gemini tidak mengembalikan teks. Jawaban mentah: ' . substr(json_encode($json), 0, 300));
+            throw new RuntimeException(
+                'Gemini tidak mengembalikan teks (finishReason: ' . ($alasan ?: 'tidak ada') . '). '
+                . 'Jawaban mentah: ' . substr((string)json_encode($json), 0, 300)
+            );
         }
 
         return $text;

@@ -29,6 +29,13 @@ body {
 
 .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
 
+/* Tautan tidak pernah diberi warna, jadi memakai biru tua bawaan
+   browser — hampir tidak terbaca di atas latar segelap ini, dan
+   berubah ungu lebih gelap lagi begitu pernah diklik. */
+a { color: var(--accent); }
+a:visited { color: var(--accent); }
+a:hover { color: #9dc4ff; }
+
 /* ---------- header ---------- */
 .topbar {
     border-bottom: 1px solid var(--line);
@@ -76,7 +83,18 @@ label {
     color: var(--muted);
 }
 
-select, input[type="text"], textarea {
+/* Semua kolom isian yang berupa teks digayakan bersama.
+   Dulu di sini cuma disebut input[type="text"], jadi kolom password dan
+   email di halaman Masuk/Daftar tertinggal memakai tampilan bawaan
+   browser — kotak putih terang di tengah halaman gelap. */
+select,
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="url"],
+input[type="number"],
+textarea {
     width: 100%;
     padding: 9px 11px;
     background: var(--panel-2);
@@ -85,6 +103,20 @@ select, input[type="text"], textarea {
     border-radius: 8px;
     font: inherit;
 }
+/* Isian yang diisi otomatis browser dipaksa berlatar kuning/putih, dan
+   itu menembus warna apa pun yang kita pasang. Satu-satunya cara
+   melawannya: bayangan dalam setebal kotaknya, plus -webkit-text-fill
+   supaya tulisannya tidak jadi hitam di atas gelap.
+   Jeda 9999 detik menahan animasi bawaannya agar tidak berkedip. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 100px var(--panel-2) inset;
+    caret-color: var(--text);
+    transition: background-color 9999s ease-in-out 0s;
+}
+
 select:focus, input:focus, textarea:focus {
     outline: none;
     border-color: var(--accent);
@@ -586,7 +618,9 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     padding: 28px;
 }
 .kartu-auth h2 { margin: 0 0 6px; font-size: 20px; }
-.kartu-auth .field { margin-bottom: 14px; }
+.kartu-auth > .hint { margin: 0 0 20px; }
+.kartu-auth .field { margin-bottom: 16px; }
+.kartu-auth .field .hint { margin-top: 5px; }
 .kartu-auth label { display: block; margin-bottom: 5px; font-size: 13px; color: var(--muted); }
 .kartu-auth input[type=text],
 .kartu-auth input[type=email],
@@ -666,3 +700,13 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     .riwayat-item { grid-template-columns: 1fr; }
     .riwayat-item .gambar { width: 100%; height: 160px; }
 }
+
+/* Kotak pencarian kecil yang menempel di atas sebuah <select>.
+   Sengaja lebih kecil dan lebih redup daripada menunya sendiri — ini
+   alat bantu, bukan isian yang ikut terkirim. */
+.cari-kecil {
+    margin-bottom: 5px;
+    padding: 6px 9px !important;
+    font-size: 12px !important;
+}
+.cari-kecil::placeholder { color: var(--muted); opacity: .8; }

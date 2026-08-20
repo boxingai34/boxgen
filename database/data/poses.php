@@ -144,36 +144,50 @@ return [
      'description' => 'Memakai face_punch — tag khusus pukulan ke wajah (871 gambar), '
                     . 'dipertegas in_the_face. Jauh lebih tepat daripada "punching" polos '
                     . 'yang tidak memberi tahu model sasarannya di mana.',
+     'arah_label' => 'Siapa yang memukul?',
      'tags' => ['face_punch' => 1.3, 'punching', 'in_the_face', 'leaning_back',
-                'clenched_teeth', 'speed_lines']],
+                'clenched_teeth', 'speed_lines'],
+     'roles' => ['punching' => 'source', 'leaning_back' => 'target',
+                 'clenched_teeth' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'punch-to-stomach', 'action' => 'stomach_punch', 'name' => 'Pukulan ke Perut', 'name_id' => 'Pukulan ke perut lawan',
      'sort_order' => 3, 'sentence' => '{A} drives a punch into {B}\'s stomach',
      'description' => 'Memakai stomach_punch — tag khusus pukulan ke perut (553 gambar).',
+     'arah_label' => 'Siapa yang memukul?',
      'tags' => ['stomach_punch' => 1.3, 'punching', 'leaning_forward',
-                'clenched_teeth', 'emphasis_lines']],
+                'clenched_teeth', 'emphasis_lines'],
+     'roles' => ['punching' => 'source', 'leaning_forward' => 'target',
+                 'clenched_teeth' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'uppercut-hit', 'action' => 'uppercut', 'name' => 'Uppercut ke Dagu', 'name_id' => 'Menyentak dagu lawan',
      'sort_order' => 4, 'sentence' => '{A} snaps an uppercut into {B}\'s chin',
      'description' => 'Tag uppercut memang ada di Danbooru (699 gambar).',
-     'tags' => ['uppercut' => 1.3, 'punching', 'arm_up', 'head_back', 'speed_lines']],
+     'arah_label' => 'Siapa yang memukul?',
+     'tags' => ['uppercut' => 1.3, 'punching', 'arm_up', 'head_back', 'speed_lines'],
+     'roles' => ['punching' => 'source', 'arm_up' => 'source', 'head_back' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'punch-to-chest', 'action' => 'punching', 'name' => 'Pukulan ke Dada', 'name_id' => 'Pukulan ke dada lawan',
      'sort_order' => 5, 'sentence' => '{A} strikes {B} in the chest',
      'description' => 'Danbooru TIDAK punya tag pukulan ke dada — hanya wajah dan perut '
                     . 'yang dibedakan. Jadi ini memakai punching biasa; kalau ingin '
                     . 'sasaran yang benar-benar terbaca model, pilih wajah atau perut.',
-     'tags' => ['punching' => 1.2, 'fighting', 'leaning_forward', 'motion_lines']],
+     'arah_label' => 'Siapa yang memukul?',
+     'tags' => ['punching' => 1.2, 'fighting', 'leaning_forward', 'motion_lines'],
+     'roles' => ['punching' => 'source', 'leaning_forward' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'headbutt', 'action' => 'headbutt', 'name' => 'Sundulan Kepala', 'name_id' => 'Menyeruduk dengan kepala',
      'sort_order' => 6, 'sentence' => '{A} slams their forehead into {B}',
      'description' => 'Tag headbutt ada di Danbooru (556 gambar).',
-     'tags' => ['headbutt' => 1.2, 'facing_another', 'clenched_teeth']],
+     'arah_label' => 'Siapa yang menyeruduk?',
+     'tags' => ['headbutt' => 1.2, 'facing_another', 'clenched_teeth'],
+     'roles' => ['clenched_teeth' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'slap', 'action' => 'slapping', 'name' => 'Tamparan', 'name_id' => 'Menampar wajah lawan',
      'sort_order' => 7, 'sentence' => '{A} slaps {B} across the face',
      'description' => 'Tag slapping ada di Danbooru (2.472 gambar).',
-     'tags' => ['slapping' => 1.2, 'in_the_face', 'motion_lines', 'open_mouth']],
+     'arah_label' => 'Siapa yang menampar?',
+     'tags' => ['slapping' => 1.2, 'in_the_face', 'motion_lines', 'open_mouth'],
+     'roles' => ['slapping' => 'source', 'open_mouth' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'imminent-punch', 'action' => 'imminent_punch', 'name' => 'Nyaris Kena', 'name_id' => 'Pukulan hampir mendarat',
      'sort_order' => 8, 'sentence' => 'a punch is about to land, frozen a moment before impact',
@@ -182,11 +196,15 @@ return [
 
     ['category' => 'pukul', 'slug' => 'counter', 'action' => 'punching', 'name' => 'Serangan Balik', 'name_id' => 'Menangkis lalu balas',
      'sort_order' => 9, 'sentence' => '{B} blocks and immediately counters',
-     'tags' => ['blocking', 'punching', 'fighting', 'motion_blur']],
+     'arah_label' => 'Siapa yang menyerang duluan?',
+     'tags' => ['blocking', 'punching', 'fighting', 'motion_blur'],
+     'roles' => ['punching' => 'source', 'blocking' => 'target']],
 
     ['category' => 'pukul', 'slug' => 'dodge-miss', 'action' => 'dodging', 'name' => 'Meleset', 'name_id' => 'B mengelak, pukulan meleset',
      'sort_order' => 10, 'sentence' => '{B} slips the punch from {A} and it misses',
-     'tags' => ['dodging', 'punching', 'leaning_back', 'motion_blur']],
+     'arah_label' => 'Siapa yang memukul?',
+     'tags' => ['dodging', 'punching', 'leaning_back', 'motion_blur'],
+     'roles' => ['punching' => 'source', 'dodging' => 'target', 'leaning_back' => 'target']],
 
     // ---- jarak dekat ----
     ['category' => 'dekat', 'slug' => 'clinch', 'action' => 'hug', 'name' => 'Clinch', 'name_id' => 'Saling mengunci',
@@ -208,16 +226,27 @@ return [
     // ---- akhir ronde ----
     ['category' => 'akhir', 'slug' => 'knockdown', 'action' => 'punching', 'name' => 'Knockdown', 'name_id' => 'Lawan tumbang',
      'sort_order' => 1, 'sentence' => '{B} goes down while {A} stands over them',
+     'arah_label' => 'Siapa yang tumbang?', 'arah_terbalik' => 1,
      'description' => 'Danbooru tidak punya tag "knockout"; disusun dari defeat + on_ground.',
-     'tags' => ['defeat' => 1.2, 'on_ground', 'falling', 'standing']],
+     'tags' => ['defeat' => 1.2, 'on_ground', 'falling', 'standing'],
+     // Tanpa pembagian ini keempat tag menumpuk di Base Prompt, dan model
+     // cuma membaca "ada yang tumbang dan ada yang berdiri" tanpa tahu
+     // siapa yang mana — lalu sering menggambar keduanya tumbang.
+     'roles' => ['defeat' => 'target', 'on_ground' => 'target', 'falling' => 'target',
+                 'standing' => 'source']],
 
     ['category' => 'akhir', 'slug' => 'standing-over', 'action' => 'looking_down', 'name' => 'Berdiri di Atas Lawan', 'name_id' => 'Berdiri di atas lawan',
      'sort_order' => 2, 'sentence' => '{A} stands over {B}, who is down on the canvas',
-     'tags' => ['on_ground', 'defeat', 'standing', 'looking_down']],
+     'arah_label' => 'Siapa yang berdiri di atas?',
+     'tags' => ['on_ground', 'defeat', 'standing', 'looking_down'],
+     'roles' => ['on_ground' => 'target', 'defeat' => 'target',
+                 'standing' => 'source', 'looking_down' => 'source']],
 
     ['category' => 'akhir', 'slug' => 'pinned', 'action' => 'straddling', 'name' => 'Terkunci di Lantai', 'name_id' => 'B ditindih',
      'sort_order' => 3, 'is_nsfw' => 1,
-     'tags' => ['pinned' => 1.2, 'straddling', 'on_ground', 'wrestling']],
+     'arah_label' => 'Siapa yang menindih?',
+     'tags' => ['pinned' => 1.2, 'straddling', 'on_ground', 'wrestling'],
+     'roles' => ['straddling' => 'source', 'pinned' => 'target', 'on_ground' => 'target']],
 
     ['category' => 'akhir', 'slug' => 'both-exhausted', 'name' => 'Dua-duanya Habis', 'name_id' => 'Keduanya kelelahan',
      'sort_order' => 4, 'sentence' => 'both fighters are barely standing, completely spent',
@@ -228,7 +257,9 @@ return [
 
     ['category' => 'akhir', 'slug' => 'helping-up', 'action' => 'holding_hands', 'name' => 'Membantu Berdiri', 'name_id' => 'Membantu lawan bangun',
      'sort_order' => 6, 'sentence' => '{A} helps {B} back to their feet',
-     'tags' => ['holding_another\'s_arm', 'on_ground', 'facing_another']],
+     'arah_label' => 'Siapa yang membantu?',
+     'tags' => ['holding_another\'s_arm', 'on_ground', 'facing_another'],
+     'roles' => ['on_ground' => 'target']],
 ],
 
 ];
