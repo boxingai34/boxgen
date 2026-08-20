@@ -89,8 +89,16 @@ if (APP_DEBUG) {
 
 date_default_timezone_set('Asia/Jakarta');
 
-/** Lolos-kan teks ke HTML dengan aman. */
-function e(?string $s): string
-{
-    return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+/**
+ * Lolos-kan teks ke HTML dengan aman.
+ *
+ * Dijaga function_exists karena berkas ini bisa termuat dua kali kalau
+ * satu skrip memanggil skrip lain (tools/deploy.php menjalankan seeder
+ * di dalam prosesnya sendiri saat exec() dimatikan hosting).
+ */
+if (!function_exists('e')) {
+    function e(?string $s): string
+    {
+        return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
 }

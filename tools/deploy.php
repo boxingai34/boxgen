@@ -30,7 +30,7 @@ declare(strict_types=1);
  *   https://situsmu.com/tools/deploy.php?key=SYNC_KEY_MU
  */
 
-require __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config.php';
 
 $akar = dirname(__DIR__);
 $log  = __DIR__ . '/deploy.log';
@@ -154,18 +154,35 @@ if ($tandaTgn !== '') {
 // ---------------------------------------------------------------------
 
 $dimatikan = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+$adaExec   = function_exists('exec') && !in_array('exec', $dimatikan, true);
 
-if (!function_exists('exec') || in_array('exec', $dimatikan, true)) {
-    catat('GAGAL: fungsi exec() dimatikan hostingmu, jadi git tidak bisa dipanggil.');
-    catat('       Pakai Git Version Control bawaan cPanel, atau upload manual.');
-    catat('       Lihat bagian "Kalau shell_exec dimatikan" di README.');
-    selesai(501);
-}
+/**
+ * Mode seeder saja.
+ *
+ * Sebagian hosting mematikan exec() demi keamanan, jadi git tidak bisa
+ * dipanggil dari sini. Tapi panel hosting biasanya punya webhook
+ * sendiri yang sanggup menarik berkas dari GitHub — yang tidak bisa
+ * dilakukannya cuma menjalankan seeder.
+ *
+ * Jadi tugasnya dibagi dua: panel yang menarik berkas, berkas ini yang
+ * memasukkan perubahan data ke database. Daftarkan keduanya sebagai
+ * webhook di repo yang sama.
+ */
+if (!$adaExec || !is_dir($akar . '/.git')) {
+    $sebab = !$adaExec
+        ? 'exec() dimatikan hosting ini'
+        : 'folder ini bukan hasil git clone';
 
-if (!is_dir($akar . '/.git')) {
-    catat('GAGAL: folder ini bukan hasil git clone.');
-    catat('       Lihat bagian "Update lewat GitHub" di README.');
-    selesai(500);
+    catat("Mode seeder saja ({$sebab}).");
+
+    if (!DEPLOY_RUN_SEED) {
+        catat('DEPLOY_RUN_SEED = false, jadi tidak ada yang bisa dikerjakan.');
+        selesai(501);
+    }
+
+    catat('Berkas dianggap sudah ditarik oleh webhook bawaan panel hosting.');
+    jalankanSeeder();
+    selesai();
 }
 
 /**
@@ -268,17 +285,51 @@ if (!$perluSeed) {
     selesai();
 }
 
-catat('--- menjalankan seeder ---');
-
-$php = PHP_BINARY !== '' && is_file(PHP_BINARY) ? PHP_BINARY : 'php';
-[$hasilSeed, $kodeSeed] = jalankan(
-    escapeshellarg($php) . ' ' . escapeshellarg(__DIR__ . '/seed.php')
-);
-
-// Ringkas saja — keluaran penuh seeder panjang dan sudah masuk log.
-foreach (array_slice(array_filter(explode("\n", $hasilSeed)), -6) as $r) {
-    catat('  ' . trim($r));
-}
-
-catat($kodeSeed === 0 ? 'SELESAI.' : 'Seeder selesai dengan peringatan.');
+jalankanSeeder();
 selesai();
+
+/**
+ * Jalankan seeder, dengan dua cara tergantung apa yang diizinkan hosting.
+ *
+ * Lewat CLI kalau exec() ada — prosesnya terpisah, jadi kalau seeder
+ * bermasalah, webhook ini tetap sanggup menjawab GitHub.
+ *
+ * Kalau exec() dimatikan, seeder dimuat langsung ke dalam proses ini.
+ * Tetap jalan, hanya saja kalau ia mogok, jawabannya ikut mogok.
+ */
+function jalankanSeeder(): void
+{
+    global $adaExec;
+
+    catat('--- menjalankan seeder ---');
+
+    if ($adaExec) {
+        $php = PHP_BINARY !== '' && is_file(PHP_BINARY) ? PHP_BINARY : 'php';
+        [$hasil, $kode] = jalankan(
+            escapeshellarg($php) . ' ' . escapeshellarg(__DIR__ . '/seed.php')
+        );
+    } else {
+        // seed.php punya penjaga sendiri: dipanggil lewat web, ia minta
+        // ?key=SYNC_KEY. Permintaan ini sudah lolos pemeriksaan tanda
+        // tangan di atas, jadi kuncinya diisikan supaya penjaga itu tidak
+        // menghentikannya di tengah jalan.
+        $_GET['key'] = SYNC_KEY;
+
+        ob_start();
+        try {
+            require __DIR__ . '/seed.php';
+            $kode = 0;
+        } catch (Throwable $e) {
+            echo 'ERROR: ' . $e->getMessage();
+            $kode = 1;
+        }
+        $hasil = (string)ob_get_clean();
+    }
+
+    // Ringkas saja — keluaran penuh seeder panjang, dan sudah masuk log.
+    foreach (array_slice(array_filter(explode("\n", $hasil)), -6) as $r) {
+        catat('  ' . trim($r));
+    }
+
+    catat($kode === 0 ? 'SELESAI.' : 'Seeder selesai dengan peringatan.');
+}

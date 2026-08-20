@@ -11,7 +11,7 @@ declare(strict_types=1);
  * $BOLEH_TAMU = true sebelum require.
  */
 
-require __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config.php';
 
 // Sesi hanya untuk pengelola. Pengunjung biasa tidak pernah menyentuh ini.
 if (session_status() === PHP_SESSION_NONE) {

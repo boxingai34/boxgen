@@ -14,7 +14,7 @@ declare(strict_types=1);
  * Tidak mengubah apa pun — hanya membaca dan mencoba menghubungi.
  */
 
-require __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config.php';
 
 $isCli = PHP_SAPI === 'cli';
 
@@ -285,6 +285,59 @@ if (APP_DEBUG) {
 $adaAdmin = (int)Database::value('SELECT COUNT(*) FROM users') > 0;
 $adaAdmin ? ok('Akun admin sudah dibuat.')
           : info('Belum ada akun admin. Buka /admin/ untuk membuatnya.');
+
+// =====================================================================
+judul('8. Update lewat GitHub');
+// =====================================================================
+
+// Hasil pemeriksaan di sini yang menentukan cara deploy mana yang bisa
+// kamu pakai. Tidak perlu menebak — di bawah ini jawabannya.
+
+$dimatikan = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+$adaExec   = function_exists('exec') && !in_array('exec', $dimatikan, true);
+$adaGit    = false;
+
+if ($adaExec) {
+    $keluaran = [];
+    $kode     = 1;
+    @exec('git --version 2>&1', $keluaran, $kode);
+    $adaGit = $kode === 0;
+}
+
+$adaFolderGit = is_dir(dirname(__DIR__) . '/.git');
+
+if (!$adaExec) {
+    info('Fungsi exec() dimatikan hosting ini.');
+    info('Artinya tools/deploy.php TIDAK bisa memanggil git sendiri.');
+    say('');
+    info('Pakai cara dua-webhook:');
+    info('  1. webhook bawaan panel hosting  -> menarik berkas dari GitHub');
+    info('  2. tools/deploy.php              -> menjalankan seeder');
+    info('deploy.php sudah tahu keadaan ini dan otomatis pindah ke mode seeder saja.');
+} elseif (!$adaGit) {
+    info('exec() bisa dipakai, tapi perintah git tidak ditemukan.');
+    info('Pakai fitur Git bawaan panel hostingmu untuk menarik berkasnya.');
+} else {
+    ok('exec() dan git dua-duanya tersedia.');
+    info('tools/deploy.php bisa menarik sendiri dari GitHub sekaligus menjalankan seeder.');
+}
+
+if ($adaFolderGit) {
+    ok('Folder ini hasil git clone — siap ditarik perubahannya.');
+} else {
+    info('Folder ini BUKAN hasil git clone (tidak ada .git).');
+    info('Kalau ini di hosting, berarti websitemu diupload manual —');
+    info('git pull tidak akan bisa jalan sampai diganti hasil clone.');
+}
+
+if (DEPLOY_SECRET === '') {
+    info('DEPLOY_SECRET masih kosong, jadi webhook GitHub belum aktif.');
+    info('Isi dengan kalimat acak, lalu tulis yang sama di kolom Secret webhook.');
+    info('Contoh yang bisa langsung kamu pakai: ' . bin2hex(random_bytes(24)));
+} else {
+    ok('DEPLOY_SECRET sudah diisi (' . strlen((string)DEPLOY_SECRET) . ' karakter).');
+    info('Pastikan isinya sama PERSIS dengan kolom Secret di webhook GitHub.');
+}
 
 // =====================================================================
 say('');

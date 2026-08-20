@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Semua endpoint di sini menjawab dalam bentuk JSON.
  */
 
-require __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');

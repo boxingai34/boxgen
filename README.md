@@ -225,6 +225,8 @@ tools/import_characters.php  impor seluruh karakter & judul
 tools/verify_tags.php   pemeriksa tag karangan
 tools/fetch_thumbnails.php   pengisi pratinjau gambar
 tools/test_config.php   pemeriksa isian config.local.php
+tools/export_db.php     pengekspor database untuk diupload ke hosting
+tools/deploy.php        penerima webhook GitHub (tarik + jalankan seeder)
 database/schema.sql     struktur tabel
 database/data/          isi menu (gaya, pakaian, pose, latar, dst)
 database/migrations/    perubahan struktur untuk database yang sudah ada
@@ -417,19 +419,32 @@ password adminmu.
 Website di server harus berupa hasil **git clone**, bukan hasil upload
 zip — kalau tidak, tidak ada yang bisa ditarik.
 
-**Cara A — lewat cPanel** (paling mudah)
+Panel hostingnya ada dua rupa. Niagahoster dan Hostinger sekarang
+memakai **hPanel**; sebagian hosting lain masih **cPanel**. Isinya sama,
+cuma beda nama menu.
 
-cPanel → **Git Version Control** → **Create** → isi:
+**Cara A — lewat hPanel** (Niagahoster / Hostinger)
+
+hPanel → **Advanced** → **GIT** → **Create a New Repository**:
 
 | Kolom | Isi |
 |---|---|
-| Clone URL | `https://github.com/NAMAMU/NAMAREPO.git` |
-| Repository Path | `public_html` |
+| Repository | `https://github.com/NAMAMU/NAMAREPO.git` |
+| Branch | `main` |
+| Directory | dikosongkan (berarti `public_html`) |
 
-Foldernya harus **kosong** dulu. Kosongkan `public_html` lewat File
-Manager sebelum menekan Create.
+Foldernya harus **kosong** dulu. Kosongkan `public_html` lewat
+**Files → File Manager** sebelum menekan Create.
 
-**Cara B — lewat SSH** (kalau hostingmu menyediakan Terminal)
+hPanel juga memberimu **URL auto-deployment** di halaman GIT yang sama.
+Simpan — nanti dipakai di langkah 5.
+
+**Cara B — lewat cPanel**
+
+cPanel → **Git Version Control** → **Create** → isi Clone URL dan
+Repository Path (`public_html`). Syarat foldernya kosong sama saja.
+
+**Cara C — lewat SSH** (kalau paketmu menyediakannya)
 
 ```bash
 cd ~
@@ -484,6 +499,36 @@ https://situsmu.com/tools/deploy.php?key=SYNC_KEY_MU
 
 Riwayat lengkapnya tersimpan di `tools/deploy.log` di server.
 
+### Kalau exec() dimatikan hosting: pakai dua webhook
+
+Sebagian hosting mematikan `exec()` demi keamanan, jadi `deploy.php`
+tidak bisa memanggil git sendiri. Tapi hPanel punya webhook sendiri yang
+sanggup menarik berkas — yang tidak bisa dilakukannya cuma menjalankan
+seeder.
+
+Jadi tugasnya dibagi dua. Daftarkan **dua** webhook di repo yang sama:
+
+| # | Payload URL | Tugasnya |
+|---|---|---|
+| 1 | URL auto-deployment dari hPanel → Advanced → GIT | menarik berkas |
+| 2 | `https://situsmu.com/tools/deploy.php` | menjalankan seeder |
+
+`deploy.php` mengenali sendiri keadaan ini dan pindah ke **mode seeder
+saja** — tidak perlu kamu setel apa pun.
+
+Cara mengetahui hostingmu masuk yang mana: jalankan
+`tools/test_config.php` di server, lihat bagian **8. Update lewat
+GitHub**. Di situ tertulis persis cara mana yang bisa kamu pakai.
+
+Satu hal yang perlu disadari: dua webhook itu dipanggil bersamaan, jadi
+seeder bisa saja jalan sepersekian detik sebelum berkasnya selesai
+ditarik. Seeder aman diulang, jadi kalau perubahan datamu belum muncul,
+cukup buka sekali lagi:
+
+```
+https://situsmu.com/tools/deploy.php?key=SYNC_KEY_MU
+```
+
 ### Jangan sunting berkas langsung di server
 
 Deploy memakai `git pull --ff-only`, yang sengaja **menolak** menggabung
@@ -497,12 +542,12 @@ Ubah di komputer, push, biarkan server menarik.
 
 Satu-satunya berkas yang memang hidup di server: `config.local.php`.
 
-### Kalau shell_exec dimatikan hostingmu
+### Menarik perubahan secara manual
 
-Sebagian hosting mematikannya demi keamanan. Webhook jadi tidak bisa
-memanggil git. Gantinya: cPanel → **Git Version Control** → tombol
-**Pull or Deploy** → **Update from Remote**. Manual, tapi tetap jauh
-lebih enak daripada upload ulang satu-satu.
+Kalau webhooknya belum kamu pasang, atau sedang ingin memastikan sendiri:
+
+- hPanel → **Advanced** → **GIT** → tombol **Deploy**
+- cPanel → **Git Version Control** → **Pull or Deploy** → **Update from Remote**
 
 Kalau `database/data/` yang berubah, jalankan seeder sesudahnya:
 

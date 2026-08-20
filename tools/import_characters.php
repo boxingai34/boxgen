@@ -19,7 +19,7 @@ declare(strict_types=1);
  * Karakter kurasi tidak akan tertimpa.
  */
 
-require __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config.php';
 
 $isCli = PHP_SAPI === 'cli';
 
