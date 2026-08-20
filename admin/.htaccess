@@ -1,0 +1,4 @@
+# Folder admin boleh diakses (dikunci lewat login PHP, bukan lewat Apache).
+# File .htaccess di root memblokir beberapa ekstensi; di sini tidak perlu
+# aturan tambahan selain melarang daftar isi folder.
+Options -Indexes

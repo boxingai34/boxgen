@@ -1,0 +1,6 @@
+# Skrip di folder ini dijaga oleh SYNC_KEY di dalam kodenya, bukan oleh
+# Apache — supaya kamu tetap bisa memanggilnya dari cron lewat URL:
+#   https://situsmu.com/tools/sync_danbooru.php?key=KUNCIRAHASIA&kind=tags&pages=2
+#
+# Yang dilarang di sini cuma menampilkan daftar isi foldernya.
+Options -Indexes

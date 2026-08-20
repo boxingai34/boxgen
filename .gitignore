@@ -1,0 +1,30 @@
+# =====================================================================
+# YANG TIDAK BOLEH NAIK KE GITHUB
+#
+# Kalau satu baris di bawah ini terhapus, rahasiamu ikut terbit ke
+# internet. GitHub menyimpan riwayat, jadi menghapusnya belakangan tidak
+# benar-benar menghilangkannya — kunci yang terlanjur naik harus dicabut
+# dan dibuat ulang, bukan sekadar dihapus dari berkas.
+# =====================================================================
+
+# Kunci API Gemini, password database, SYNC_KEY.
+config.local.php
+
+# Hasil ekspor database. Isinya SELURUH data, termasuk tabel users
+# beserta hash password adminmu.
+database/export/
+
+# Gambar pratinjau hasil unduhan. Terisi sendiri, tidak perlu disimpan.
+assets/thumbs/
+
+# Catatan jalannya deploy di server.
+tools/deploy.log
+
+# Sampah editor & sistem
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.bak
+*.swp
+*~

@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------
+# Pengaman dasar Apache.
+# Berlaku di XAMPP maupun di hosting (InfinityFree memakai Apache juga).
+# ---------------------------------------------------------------------
+
+# Jangan tampilkan isi folder kalau tidak ada index
+Options -Indexes
+
+# File rahasia tidak boleh diakses lewat browser sama sekali
+<FilesMatch "^(config\.local\.php|config\.local\.example\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Dokumentasi, SQL, dan file cadangan jangan bisa diunduh orang
+<FilesMatch "\.(md|sql|log|bak|ini|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Sembunyikan versi PHP di header
+<IfModule mod_headers.c>
+    Header unset X-Powered-By
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

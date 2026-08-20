@@ -1,0 +1,105 @@
+/* ------------------------------------------------------------------
+   Tampilan Admin. Menumpang variabel warna dari style.css utama.
+   ------------------------------------------------------------------ */
+
+body.admin { padding-bottom: 60px; }
+body.admin .wrap { max-width: 1200px; }
+
+.adminbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+    margin-bottom: 24px;
+}
+.adminbar .wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.adminbar strong { color: var(--accent); letter-spacing: .5px; }
+.adminbar nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.adminbar nav a {
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+}
+.adminbar nav a:hover { background: var(--panel-2); color: var(--text); }
+.adminbar nav a.on { background: var(--accent-2); color: #fff; }
+.adminbar .spacer { flex: 1; }
+.adminbar a { color: var(--muted); text-decoration: none; font-size: 13px; }
+.adminbar .keluar { color: var(--err); }
+
+body.admin h1 { font-size: 20px; margin: 0 0 18px; }
+body.admin h2 {
+    font-size: 15px;
+    margin: 0 0 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+}
+
+/* ---------- login ---------- */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.loginbox { width: 100%; max-width: 380px; }
+
+/* ---------- kartu ringkasan ---------- */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+}
+.card .angka { font-size: 26px; font-weight: 600; }
+.card .label { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.card.warn { border-color: var(--warn); }
+.card a { color: var(--accent); text-decoration: none; font-size: 12px; }
+
+/* ---------- tabel ---------- */
+.tabel { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabel th, .tabel td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tabel th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+.tabel tbody tr:hover { background: rgba(255,255,255,.02); }
+.tabel td.num, .tabel th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabel a { color: var(--accent); text-decoration: none; }
+.tabel .mini { color: var(--muted); font-size: 12px; }
+
+.toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar .field { margin-bottom: 0; }
+.toolbar select, .toolbar input[type=text] { min-width: 150px; }
+
+.pager { display: flex; gap: 6px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+.pager a, .pager span {
+    padding: 5px 11px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+}
+.pager .on { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+
+.alert.ok { border-color: var(--ok); background: rgba(74,222,128,.08); }
+
+.editor { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+
+.taglist { display: flex; flex-wrap: wrap; gap: 6px; }
+.taglist .chip { font-size: 12px; }
+.badge-nsfw { color: var(--warn); font-weight: 600; }
+.rowform { display: flex; gap: 8px; align-items: flex-end; }
+.rowform .field { flex: 1; margin-bottom: 0; }
+textarea.tags { min-height: 100px; }
+
+.tagcheck { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.tagcheck .bad { color: var(--err); }
+.tagcheck .good { color: var(--ok); }
