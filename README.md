@@ -371,6 +371,147 @@ https://situsmu.com/tools/sync_danbooru.php?key=KUNCIRAHASIA&kind=tags&pages=2
 
 Porsinya sengaja kecil (2 halaman) supaya tidak kena batas waktu 30 detik.
 
+## Update lewat GitHub (webhook)
+
+Setelah ini dipasang, cara mengupdate website jadi satu baris:
+
+```bash
+git push
+```
+
+GitHub memanggil servermu, servernya menarik perubahan, dan kalau yang
+berubah ada di `database/data/`, seeder ikut dijalankan sendiri.
+
+### Kenapa seeder ikut dijalankan
+
+Sebagian besar perubahanmu ada di `database/data/*.php` — daftar pose,
+gaya, pakaian. Berkas itu cuma **sumber**; isinya baru masuk database
+setelah seeder jalan. Kalau deploy hanya menarik berkas, perubahanmu
+tidak akan kelihatan di website dan kamu akan mengira deploy-nya gagal.
+
+Seeder aman diulang, jadi dijalankan tiap deploy pun tidak berbahaya.
+Matikan lewat `DEPLOY_RUN_SEED` kalau suatu saat tidak mau.
+
+### 1. Buat repo di GitHub
+
+github.com → **New repository** → beri nama, **jangan** centang "Add a
+README file" (repo harus kosong).
+
+### 2. Kirim dari komputermu
+
+```bash
+git remote add origin https://github.com/NAMAMU/NAMAREPO.git
+git push -u origin main
+```
+
+`config.local.php` dan `database/export/` **tidak ikut** — sudah dijaga
+`.gitignore`. Isinya kunci API Gemini, password database, dan hash
+password adminmu.
+
+> Kalau salah satu baris di `.gitignore` terhapus dan rahasiamu terlanjur
+> naik, menghapusnya belakangan **tidak cukup** — GitHub menyimpan
+> riwayat. Kunci yang sudah naik harus dicabut dan dibuat ulang.
+
+### 3. Pasang di hosting
+
+Website di server harus berupa hasil **git clone**, bukan hasil upload
+zip — kalau tidak, tidak ada yang bisa ditarik.
+
+**Cara A — lewat cPanel** (paling mudah)
+
+cPanel → **Git Version Control** → **Create** → isi:
+
+| Kolom | Isi |
+|---|---|
+| Clone URL | `https://github.com/NAMAMU/NAMAREPO.git` |
+| Repository Path | `public_html` |
+
+Foldernya harus **kosong** dulu. Kosongkan `public_html` lewat File
+Manager sebelum menekan Create.
+
+**Cara B — lewat SSH** (kalau hostingmu menyediakan Terminal)
+
+```bash
+cd ~
+rm -rf public_html
+git clone https://github.com/NAMAMU/NAMAREPO.git public_html
+```
+
+### 4. Isi config.local.php di server
+
+Berkas ini tidak ikut dari GitHub, jadi dibuat sekali langsung di server
+(lihat langkah 5 di bagian hosting di atas). Tambahkan satu baris:
+
+```php
+define('DEPLOY_SECRET', 'kalimat-rahasia-panjang-bebas');
+```
+
+Karena tidak ikut dilacak Git, `git pull` **tidak akan pernah**
+menimpanya.
+
+### 5. Daftarkan webhook di GitHub
+
+Repo → **Settings** → **Webhooks** → **Add webhook**:
+
+| Kolom | Isi |
+|---|---|
+| Payload URL | `https://situsmu.com/tools/deploy.php` |
+| Content type | **`application/json`** ← wajib |
+| Secret | sama **persis** dengan `DEPLOY_SECRET` |
+| Events | Just the push event |
+
+`application/json` itu bukan pilihan bebas. Bentuk yang satunya
+membungkus datanya jadi formulir, dan isinya tidak bisa dibaca.
+
+### 6. Cek
+
+Setelah ditambahkan, GitHub langsung mengirim satu **ping**. Buka tab
+**Recent Deliveries** di halaman webhook:
+
+| Yang terlihat | Artinya |
+|---|---|
+| **200** + "Ping dari GitHub diterima" | beres |
+| **403** tanda tangan tidak cocok | Secret di GitHub beda dengan `DEPLOY_SECRET` |
+| **503** | `DEPLOY_SECRET` masih kosong di server |
+| **500** bukan hasil git clone | website diupload manual, ulangi langkah 3 |
+| **501** shell_exec dimatikan | lihat catatan di bawah |
+
+Mau mencoba tanpa menunggu push? Buka langsung di browser:
+
+```
+https://situsmu.com/tools/deploy.php?key=SYNC_KEY_MU
+```
+
+Riwayat lengkapnya tersimpan di `tools/deploy.log` di server.
+
+### Jangan sunting berkas langsung di server
+
+Deploy memakai `git pull --ff-only`, yang sengaja **menolak** menggabung
+sendiri. Begitu ada berkas yang kamu ubah lewat File Manager, pull
+berikutnya berhenti dan deploy gagal.
+
+Itu disengaja. Kalau dibiarkan menggabung, versi di server perlahan
+menyimpang dari versi di GitHub tanpa ada yang tahu — dan suatu saat
+kamu tidak lagi bisa memastikan apa yang sebenarnya sedang jalan.
+Ubah di komputer, push, biarkan server menarik.
+
+Satu-satunya berkas yang memang hidup di server: `config.local.php`.
+
+### Kalau shell_exec dimatikan hostingmu
+
+Sebagian hosting mematikannya demi keamanan. Webhook jadi tidak bisa
+memanggil git. Gantinya: cPanel → **Git Version Control** → tombol
+**Pull or Deploy** → **Update from Remote**. Manual, tapi tetap jauh
+lebih enak daripada upload ulang satu-satu.
+
+Kalau `database/data/` yang berubah, jalankan seeder sesudahnya:
+
+```
+https://situsmu.com/tools/seed.php?key=SYNC_KEY_MU
+```
+
+---
+
 ### Ringkasan sebelum upload
 
 - [ ] Password admin sudah diganti jadi yang serius

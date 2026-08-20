@@ -153,10 +153,12 @@ if ($tandaTgn !== '') {
 // 3. Tarik perubahan
 // ---------------------------------------------------------------------
 
-if (!function_exists('shell_exec') || in_array('shell_exec', array_map(
-        'trim', explode(',', (string)ini_get('disable_functions'))), true)) {
-    catat('GAGAL: shell_exec dimatikan hostingmu, jadi git tidak bisa dipanggil.');
+$dimatikan = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+
+if (!function_exists('exec') || in_array('exec', $dimatikan, true)) {
+    catat('GAGAL: fungsi exec() dimatikan hostingmu, jadi git tidak bisa dipanggil.');
     catat('       Pakai Git Version Control bawaan cPanel, atau upload manual.');
+    catat('       Lihat bagian "Kalau shell_exec dimatikan" di README.');
     selesai(501);
 }
 
@@ -166,19 +168,21 @@ if (!is_dir($akar . '/.git')) {
     selesai(500);
 }
 
-/** Jalankan satu perintah, kembalikan [keluaran, kode]. */
+/**
+ * Jalankan satu perintah, kembalikan [keluaran, kode keluar].
+ *
+ * Memakai exec() dan bukan shell_exec(), karena exec() memberikan kode
+ * keluarnya lewat parameter — tidak perlu akal-akalan `; echo $?` yang
+ * cuma dimengerti shell Linux dan berantakan di Windows.
+ */
 function jalankan(string $cmd): array
 {
-    $keluaran = shell_exec($cmd . ' 2>&1; echo "__KODE__$?"') ?? '';
+    $keluaran = [];
+    $kode     = 1;
 
-    if (preg_match('/__KODE__(\d+)\s*$/', $keluaran, $m)) {
-        $kode = (int)$m[1];
-        $keluaran = (string)preg_replace('/__KODE__\d+\s*$/', '', $keluaran);
-    } else {
-        $kode = 1;
-    }
+    exec($cmd . ' 2>&1', $keluaran, $kode);
 
-    return [trim($keluaran), $kode];
+    return [trim(implode("\n", $keluaran)), $kode];
 }
 
 $g = 'git -C ' . escapeshellarg($akar);
@@ -195,7 +199,35 @@ catat($keluaran === '' ? '(tanpa keluaran)' : $keluaran);
 
 if ($kode !== 0) {
     catat('GAGAL: git pull tidak berhasil.');
-    catat('       Biasanya karena ada berkas yang disunting langsung di server.');
+
+    // Tebakan sebab diambil dari apa yang git BENAR-BENAR katakan.
+    // Menebak satu sebab untuk semua kegagalan cuma menyesatkan orang
+    // yang sedang bingung jam sebelas malam.
+    $sebab = match (true) {
+        str_contains($keluaran, 'Authentication failed'),
+        str_contains($keluaran, 'could not read Username') =>
+            'Repo GitHub-nya privat. Buat jadi publik, atau pakai Personal '
+            . 'Access Token di dalam URL remote-nya.',
+
+        str_contains($keluaran, 'does not appear to be a git repository'),
+        str_contains($keluaran, 'Could not read from remote') =>
+            'Alamat remote belum diatur atau salah. Periksa dengan: git remote -v',
+
+        str_contains($keluaran, 'local changes'),
+        str_contains($keluaran, 'would be overwritten'),
+        str_contains($keluaran, 'Not possible to fast-forward'),
+        str_contains($keluaran, 'divergent') =>
+            'Ada berkas yang disunting langsung di server. Kembalikan dengan: '
+            . 'git checkout -- . lalu ulangi deploy. Sesudah itu, sunting di '
+            . 'komputer saja — jangan lewat File Manager.',
+
+        str_contains($keluaran, 'no space left') =>
+            'Ruang penyimpanan hosting penuh.',
+
+        default => 'Baca pesan git di atas — di situ sebab aslinya.',
+    };
+
+    catat('       ' . $sebab);
     selesai(500);
 }
 
