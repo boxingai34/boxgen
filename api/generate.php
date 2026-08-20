@@ -56,6 +56,12 @@ $modId = static function ($v) {
 $person = static function (array $p) use ($modId): array {
     $out = [
         'character'    => isset($p['character']) ? trim((string)$p['character']) : null,
+        // Pilihan user menang atas data karakter: seluruh karakter masuk
+        // lewat impor massal dengan bawaan perempuan, jadi datanya sering
+        // salah dan orangnya harus bisa membetulkan sendiri.
+        'gender'       => in_array($p['gender'] ?? null, ['male', 'female'], true)
+                            ? (string)$p['gender'] : null,
+        'mature'       => !empty($p['mature']),
         'outfit_id'    => $modId($p['outfit_id'] ?? null),
         'condition_id' => $modId($p['condition_id'] ?? null),
     ];
@@ -125,10 +131,12 @@ if ($modeVideo) {
     }
 
     Database::run(
-        'INSERT INTO generations (mode, target, selection, output, negative, token_estimate, used_ai, ip_hash)
-         VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO generations (user_id, mode, target, title, selection, output, negative, token_estimate, used_ai, ip_hash)
+         VALUES (?,?,?,?,?,?,?,?,?,?)',
         [
+            userId(),
             'seedance', 'seedance',
+            Riwayat::judulOtomatis($sel, 'seedance'),
             json_encode($sel, JSON_UNESCAPED_UNICODE),
             $video['prompt'], '',
             $video['token_estimate'],
@@ -172,11 +180,13 @@ $warning = Optimizer::tokenWarning($tokens);
 // Simpan PILIHANNYA, bukan cuma teksnya, supaya prompt bisa dibangun ulang
 // kalau template berubah.
 Database::run(
-    'INSERT INTO generations (mode, target, selection, output, negative, token_estimate, used_ai, ip_hash)
-     VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO generations (user_id, mode, target, title, selection, output, negative, token_estimate, used_ai, ip_hash)
+     VALUES (?,?,?,?,?,?,?,?,?,?)',
     [
+        userId(),
         $mode === 'duo' ? 'image2' : 'image',
         'sd',
+        Riwayat::judulOtomatis($sel, $mode),
         json_encode($sel, JSON_UNESCAPED_UNICODE),
         $outputs['sd']['prompt'],
         $outputs['sd']['negative'],

@@ -126,6 +126,11 @@ code {
 .btn.primary { background: var(--accent-2); border-color: var(--accent-2); font-weight: 600; }
 .btn.primary:hover { background: #4b8bf5; }
 .btn.tiny { padding: 3px 10px; font-size: 12px; }
+/* Tombol samar: dipakai untuk aksi pendamping, bukan aksi utama.
+   Sudah dipakai di HTML sejak awal tapi belum pernah diberi gaya. */
+.btn.ghost { background: transparent; }
+.btn.ghost:hover:not(:disabled) { background: var(--panel-2); }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .actions { display: flex; gap: 10px; margin-top: 4px; }
 
 /* ---------- AI box ---------- */
@@ -536,3 +541,128 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 /* ---------- NovelAI: base prompt + character prompt ---------- */
 #nai-block .out-block { margin-bottom: 12px; }
 #nai-chars .out-head span { color: var(--accent); }
+
+/* ==================================================================
+   Akun: menu atas, kartu masuk/daftar, riwayat
+   ================================================================== */
+
+.topbar-baris {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.topbar-kiri { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.topbar-kanan {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+}
+.topbar-kanan .siapa { color: var(--muted); }
+.topbar-kanan a { color: var(--accent); text-decoration: none; }
+.topbar-kanan a:hover { text-decoration: underline; }
+.topbar-kanan .keluar { color: var(--muted); }
+
+.menu-utama { display: flex; gap: 4px; }
+.menu-utama a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 5px 12px;
+    border-radius: 999px;
+}
+.menu-utama a:hover { color: var(--text); background: var(--panel-2); }
+.menu-utama a.on { color: var(--text); background: var(--panel-2); }
+
+/* ---------- kartu masuk / daftar ---------- */
+.kartu-auth {
+    max-width: 420px;
+    margin: 40px auto;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px;
+}
+.kartu-auth h2 { margin: 0 0 6px; font-size: 20px; }
+.kartu-auth .field { margin-bottom: 14px; }
+.kartu-auth label { display: block; margin-bottom: 5px; font-size: 13px; color: var(--muted); }
+.kartu-auth input[type=text],
+.kartu-auth input[type=email],
+.kartu-auth input[type=password] { width: 100%; }
+.btn.lebar { width: 100%; justify-content: center; margin-top: 6px; }
+.tengah { text-align: center; }
+.galat { margin: 5px 0 0; font-size: 12px; color: var(--err); }
+
+/* ---------- riwayat ---------- */
+.riwayat { display: flex; flex-direction: column; gap: 14px; }
+
+.riwayat-item {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 16px;
+}
+.riwayat-item .gambar {
+    width: 96px;
+    height: 96px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+}
+.riwayat-item .gambar img { width: 100%; height: 100%; object-fit: cover; }
+.riwayat-item .isi { min-width: 0; }
+.riwayat-kepala { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.riwayat-kepala .judul { font-weight: 600; }
+.riwayat-kepala time { color: var(--muted); font-size: 12px; }
+
+.riwayat-prompt {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    max-height: 76px;
+    overflow: hidden;
+    position: relative;
+    word-break: break-word;
+}
+.riwayat-prompt.penuh { max-height: none; }
+
+.riwayat-aksi { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+.riwayat-kosong {
+    text-align: center;
+    color: var(--muted);
+    padding: 48px 16px;
+}
+
+/* ---------- daftar pengguna di admin ---------- */
+.status-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+}
+.status-pill.pending  { color: var(--warn); border-color: var(--warn); }
+.status-pill.active   { color: var(--ok);   border-color: var(--ok); }
+.status-pill.rejected { color: var(--err);  border-color: var(--err); }
+
+@media (max-width: 640px) {
+    .riwayat-item { grid-template-columns: 1fr; }
+    .riwayat-item .gambar { width: 100%; height: 160px; }
+}

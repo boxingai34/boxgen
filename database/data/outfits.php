@@ -148,18 +148,18 @@ return [
     ['category' => 'resmi', 'slug' => 'training', 'name' => 'Training', 'name_id' => 'Latihan',
      'sort_order' => 3, 'sentence' => 'wearing training clothes',
      'tags' => ['sportswear'],
-     'defaults' => ['top' => 'tank-top', 'bottom' => 'gym-shorts', 'hand' => 'hand-wraps', 'foot' => 'sneakers']],
+     'defaults' => ['top' => 'tank-top', 'bottom' => 'gym-shorts', 'hand' => 'boxing-gloves', 'foot' => 'sneakers']],
 
     ['category' => 'jalanan', 'slug' => 'underground', 'name' => 'Underground', 'name_id' => 'Tinju bawah tanah',
      'sort_order' => 1, 'sentence' => 'wearing tight underground fight gear',
      'description' => 'Pertandingan tertutup, perlengkapan seadanya.',
      'tags' => ['bandages'],
-     'defaults' => ['top' => 'chest-sarashi', 'bottom' => 'short-shorts', 'hand' => 'hand-wraps', 'foot' => 'barefoot']],
+     'defaults' => ['top' => 'chest-sarashi', 'bottom' => 'short-shorts', 'hand' => 'boxing-gloves', 'foot' => 'barefoot']],
 
     ['category' => 'jalanan', 'slug' => 'street-fight', 'name' => 'Street Fight', 'name_id' => 'Tarung jalanan',
      'sort_order' => 2, 'sentence' => 'wearing casual street clothes',
      'tags' => [],
-     'defaults' => ['top' => 'crop-top', 'bottom' => 'short-shorts', 'hand' => 'bandaged-hand', 'foot' => 'sneakers']],
+     'defaults' => ['top' => 'crop-top', 'bottom' => 'short-shorts', 'hand' => 'boxing-gloves', 'foot' => 'sneakers']],
 
     ['category' => 'jalanan', 'slug' => 'bare-knuckle', 'name' => 'Bare Knuckle', 'name_id' => 'Tanpa sarung',
      'sort_order' => 3, 'sentence' => 'fighting bare-knuckle',

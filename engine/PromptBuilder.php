@@ -49,6 +49,20 @@ final class PromptBuilder
     ];
 
     /**
+     * Slot pakaian yang TIDAK KELIHATAN pada jarak kamera tertentu.
+     *
+     * Menulis "boxing boots" di prompt close-up bukan cuma sia-sia — model
+     * bisa memaksa kakinya masuk ke bingkai, atau memakai jatah tokennya
+     * untuk sesuatu yang tidak akan terlihat. Jadi slotnya dibuang, bukan
+     * dibiarkan.
+     */
+    private const SLOT_TERPOTONG = [
+        'close-up'    => ['bottom', 'foot'],
+        'upper-body'  => ['bottom', 'foot'],
+        'cowboy-shot' => ['foot'],
+    ];
+
+    /**
      * Slot kondisi per bagian badan. Polanya sama dengan pakaian:
      * tema mengisi slot, slot yang dipilih user menimpa isi tema.
      */
@@ -102,8 +116,9 @@ final class PromptBuilder
         $catatan   = [];
 
         // jumlah orang
-        $char = self::person($sel, $allowNsfw, '', $items, $catatan);
-        $items[] = self::tagItem(self::countTag($char, 1), 'count', 'jumlah orang');
+        $potong = self::slotTerpotong($sel, $allowNsfw);
+        $char = self::person($sel, $allowNsfw, '', $items, $catatan, $potong);
+        $items[] = self::tagItem(self::countTag($sel, $char, 1), 'count', 'jumlah orang');
         if ($char !== null) {
             $items[] = self::tagItem('solo', 'count', 'jumlah orang');
         }
@@ -138,15 +153,17 @@ final class PromptBuilder
         $charA = self::loadPerson($a, $allowNsfw);
         $charB = self::loadPerson($b, $allowNsfw);
 
-        foreach (self::countTagsDuo($charA, $charB) as $t) {
+        foreach (self::countTagsDuo($a, $charA, $b, $charB) as $t) {
             $items[] = self::tagItem($t, 'count', 'jumlah orang');
         }
 
+        $potong = self::slotTerpotong($sel, $allowNsfw);
+
         // Boxer A
-        self::personItems($a, $charA, $allowNsfw, '', $items, $catatan, 'Boxer A');
+        self::personItems($a, $charA, $allowNsfw, '', $items, $catatan, 'Boxer A', $potong);
 
         // Boxer B — blok terpisah agar bisa dipisah di prompt regional
-        self::personItems($b, $charB, $allowNsfw, '_b', $items, $catatan, 'Boxer B');
+        self::personItems($b, $charB, $allowNsfw, '_b', $items, $catatan, 'Boxer B', $potong);
 
         // interaksi
         self::addModule($sel['interaction_id'] ?? null, 'interaction', 'interaction', $allowNsfw, $items);
@@ -186,6 +203,43 @@ final class PromptBuilder
     // Bagian per orang
     // =================================================================
 
+    /**
+     * Slot pakaian yang dibuang karena tidak masuk bingkai kamera.
+     *
+     * @return string[]
+     */
+    private static function slotTerpotong(array $sel, bool $allowNsfw): array
+    {
+        $id = $sel['cam_distance_id'] ?? null;
+        if (empty($id)) {
+            return [];
+        }
+
+        $mod = self::loadModule((int)$id, $allowNsfw, 'cam_distance');
+
+        return $mod === null ? [] : (self::SLOT_TERPOTONG[$mod['slug']] ?? []);
+    }
+
+    /**
+     * Jenis kelamin yang dipakai untuk tag jumlah orang.
+     *
+     * Pilihan user MENANG atas data karakter. Alasannya: seluruh 21.904
+     * karakter masuk lewat impor massal dengan gender bawaan 'female',
+     * karena Danbooru tidak menyediakannya di data tag. Jadi datanya
+     * sering salah, dan orangnya harus bisa membetulkan sendiri tanpa
+     * menunggu adminnya menyunting karakter satu per satu.
+     */
+    private static function genderOrang(array $p, ?array $char): string
+    {
+        $pilihan = $p['gender'] ?? '';
+
+        if ($pilihan === 'male' || $pilihan === 'female') {
+            return $pilihan;
+        }
+
+        return ($char['gender'] ?? 'female') === 'male' ? 'male' : 'female';
+    }
+
     /** Ambil data karakter satu orang (tanpa memasukkan ke daftar item). */
     private static function loadPerson(array $p, bool $allowNsfw): ?array
     {
@@ -196,10 +250,10 @@ final class PromptBuilder
     }
 
     /** Versi mode single: memuat karakter sekaligus memasukkan item-nya. */
-    private static function person(array $sel, bool $allowNsfw, string $suffix, array &$items, array &$catatan): ?array
+    private static function person(array $sel, bool $allowNsfw, string $suffix, array &$items, array &$catatan, array $potong = []): ?array
     {
         $char = self::loadPerson($sel, $allowNsfw);
-        self::personItems($sel, $char, $allowNsfw, $suffix, $items, $catatan, null);
+        self::personItems($sel, $char, $allowNsfw, $suffix, $items, $catatan, null, $potong);
         return $char;
     }
 
@@ -215,7 +269,8 @@ final class PromptBuilder
         string $suffix,
         array &$items,
         array &$catatan,
-        ?string $label
+        ?string $label,
+        array $potong = []
     ): void {
         $asal = $label ?? 'karakter';
 
@@ -244,8 +299,19 @@ final class PromptBuilder
             }
         }
 
+        // ---- usia ----
+        // Tagnya ikut jenis kelamin: mature_female (49.275 gambar) dan
+        // mature_male (44.788). Tidak ada tag "mature" polos di Danbooru.
+        if (!empty($p['mature'])) {
+            $items[] = self::tagItem(
+                self::genderOrang($p, $char) === 'male' ? 'mature_male' : 'mature_female',
+                'appearance' . $suffix,
+                $label !== null ? $label . ': usia dewasa' : 'usia dewasa'
+            );
+        }
+
         // ---- pakaian ----
-        foreach (self::resolveOutfit($p, $allowNsfw) as $item) {
+        foreach (self::resolveOutfit($p, $allowNsfw, $potong) as $item) {
             $item['block'] = 'outfit' . $suffix;
             $item['from']  = $label !== null ? $label . ': ' . $item['from'] : $item['from'];
             $items[] = $item;
@@ -339,7 +405,7 @@ final class PromptBuilder
      *   - nilai 'none' berarti sengaja dikosongkan
      *   - tanpa tema pun slot tetap jalan
      */
-    private static function resolveOutfit(array $p, bool $allowNsfw): array
+    private static function resolveOutfit(array $p, bool $allowNsfw, array $potong = []): array
     {
         $items = [];
         $slotModuleIds = [];
@@ -376,6 +442,11 @@ final class PromptBuilder
             } elseif (!empty($p[$key])) {
                 $slotModuleIds[$slot] = (int)$p[$key];
             }
+        }
+
+        // 2b. buang slot yang memang tidak masuk bingkai kameranya
+        foreach ($potong as $slot) {
+            unset($slotModuleIds[$slot]);
         }
 
         // 3. jadikan tag
@@ -586,20 +657,19 @@ final class PromptBuilder
     // Tag jumlah orang
     // =================================================================
 
-    private static function countTag(?array $char, int $jumlah): string
+    private static function countTag(array $p, ?array $char, int $jumlah): string
     {
-        $gender = $char['gender'] ?? 'female';
-        return $gender === 'male' ? $jumlah . 'boy' : $jumlah . 'girl';
+        return self::genderOrang($p, $char) === 'male' ? $jumlah . 'boy' : $jumlah . 'girl';
     }
 
     /** @return string[] */
-    private static function countTagsDuo(?array $a, ?array $b): array
+    private static function countTagsDuo(array $pa, ?array $a, array $pb, ?array $b): array
     {
-        $ga = $a['gender'] ?? 'female';
-        $gb = $b['gender'] ?? 'female';
+        $ga = self::genderOrang($pa, $a);
+        $gb = self::genderOrang($pb, $b);
 
         if ($ga === 'male' && $gb === 'male') {
-            return ['2boys'];
+            return ['2boys', 'multiple_boys'];
         }
         if ($ga !== $gb) {
             return ['1boy', '1girl'];

@@ -39,6 +39,9 @@ $modId = static function ($v) {
 $person = static function (array $p) use ($modId): array {
     $out = [
         'character' => isset($p['character']) ? trim((string)$p['character']) : null,
+        'gender'    => in_array($p['gender'] ?? null, ['male', 'female'], true)
+                         ? (string)$p['gender'] : null,
+        'mature'    => !empty($p['mature']),
         'outfit_id' => $modId($p['outfit_id'] ?? null),
     ];
 
@@ -105,10 +108,12 @@ foreach ($papan['rounds'] as $r) {
 
 // Simpan sebagai satu baris riwayat, bukan satu per ronde — ini satu karya.
 Database::run(
-    'INSERT INTO generations (mode, target, selection, output, negative, token_estimate, used_ai, ip_hash)
-     VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO generations (user_id, mode, target, title, selection, output, negative, token_estimate, used_ai, ip_hash)
+     VALUES (?,?,?,?,?,?,?,?,?,?)',
     [
+        userId(),
         'storyboard', 'sd',
+        Riwayat::judulOtomatis($sel, 'storyboard'),
         json_encode($sel, JSON_UNESCAPED_UNICODE),
         implode("\n\n", array_column($rondeKeluaran, 'prompt')),
         $rondeKeluaran[0]['negative'] ?? '',

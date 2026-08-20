@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/_page.php';   // sekaligus penjaga login
 
 try {
     $universes  = CharacterResolver::universes();
@@ -130,6 +130,29 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
                     <div class="preview-meta"></div>
                 </div>
             </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label>Jenis Kelamin</label>
+                    <select class="p-gender">
+                        <option value="">Ikut data karakter</option>
+                        <option value="female">Perempuan</option>
+                        <option value="male">Laki-laki</option>
+                    </select>
+                    <p class="hint">
+                        Seluruh karakter masuk lewat impor massal dengan bawaan perempuan,
+                        karena Danbooru tidak menyediakan datanya. Pilih sendiri kalau salah.
+                    </p>
+                </div>
+                <div class="field">
+                    <label>Usia</label>
+                    <label class="check" style="margin-top:2px">
+                        <input type="checkbox" class="p-mature">
+                        Dewasa (mature)
+                    </label>
+                    <p class="hint">Menambah <code>mature_female</code> / <code>mature_male</code>.</p>
+                </div>
+            </div>
         </div>
 
         <div class="field">
@@ -197,29 +220,14 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
     <?php
     return (string)ob_get_clean();
 }
+halamanHeader('Prompt Generator', 'index.php');
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=12">
-</head>
-<body>
 
-<header class="topbar">
-    <div class="wrap">
-        <h1><?= e(APP_NAME) ?></h1>
-        <p class="sub">
-            Prompt gambar anime berbasis tag Danbooru.
-            <span class="pill"><?= number_format($tagCount) ?> tag</span>
-            <span class="pill"><?= number_format($charCount) ?> karakter</span>
-        </p>
-    </div>
-</header>
-
-<main class="wrap">
+<p class="sub">
+    Prompt gambar anime berbasis tag Danbooru.
+    <span class="pill"><?= number_format($tagCount) ?> tag</span>
+    <span class="pill"><?= number_format($charCount) ?> karakter</span>
+</p>
 
 <?php if ($dbError !== null): ?>
     <div class="alert error">
@@ -582,15 +590,5 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
     </section>
 
 </div>
-</main>
 
-<footer class="wrap foot">
-    <p>
-        Data tag bersumber dari Danbooru. Perkiraan token bersifat kasar, bukan
-        hitungan resmi tokenizer model. Tanda <strong>•</strong> menandai pilihan dewasa.
-    </p>
-</footer>
-
-<script src="assets/js/app.js?v=12"></script>
-</body>
-</html>
+<?php halamanFooter(true); ?>

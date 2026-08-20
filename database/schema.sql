@@ -3,9 +3,18 @@
 -- Cara pakai: phpMyAdmin -> tab Import -> pilih file ini -> Go
 -- =====================================================================
 
-CREATE DATABASE IF NOT EXISTS `boxgen`
-  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `boxgen`;
+-- CATATAN: berkas ini SENGAJA tidak membuat atau memilih database.
+--
+-- Dulu ada CREATE DATABASE + USE `boxgen` di sini, dan itu bikin dua
+-- masalah. Di hosting, namanya bukan "boxgen" melainkan sesuatu seperti
+-- u534329596_boxgen, dan akunmu tidak berhak membuat database baru —
+-- impornya langsung gagal. Di komputer sendiri lebih licik lagi: mengimpor
+-- ke database lain tetap DIAM-DIAM menulis ke `boxgen`, karena USE menimpa
+-- pilihanmu.
+--
+-- Jadi: buat/pilih databasenya dulu, baru impor berkas ini ke sana.
+--   phpMyAdmin : klik nama databasenya di kiri, lalu tab Import
+--   command    : mysql -u root NAMA_DATABASE < schema.sql
 
 -- ---------------------------------------------------------------------
 -- 1. tags : kamus tag booru (sumber kebenaran seluruh sistem)
@@ -185,20 +194,26 @@ CREATE TABLE IF NOT EXISTS `templates` (
 -- 11. generations : riwayat hasil (dipakai juga untuk statistik & rating)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `generations` (
-  `id`             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `mode`           VARCHAR(20) NOT NULL DEFAULT 'image',  -- image|seedance
-  `target`         VARCHAR(20) NOT NULL DEFAULT 'sd',
-  `selection`      TEXT,          -- JSON pilihan user (bisa dibangun ulang)
-  `output`         MEDIUMTEXT,
-  `negative`       TEXT,
-  `token_estimate` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-  `used_ai`        TINYINT(1) NOT NULL DEFAULT 0,
-  `ip_hash`        CHAR(64) DEFAULT NULL,  -- hash, bukan IP asli
-  `rating`         TINYINT DEFAULT NULL,
-  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned DEFAULT NULL,
+  `mode` varchar(20) NOT NULL DEFAULT 'image',
+  `target` varchar(20) NOT NULL DEFAULT 'sd',
+  `title` varchar(150) DEFAULT NULL,
+  `selection` text DEFAULT NULL,
+  `output` mediumtext DEFAULT NULL,
+  `negative` text DEFAULT NULL,
+  `preview_url` varchar(500) DEFAULT NULL,
+  `note` varchar(500) DEFAULT NULL,
+  `token_estimate` smallint(5) unsigned NOT NULL DEFAULT 0,
+  `used_ai` tinyint(1) NOT NULL DEFAULT 0,
+  `ip_hash` char(64) DEFAULT NULL,
+  `rating` tinyint(4) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
   KEY `idx_gen_created` (`created_at`),
-  KEY `idx_gen_ip` (`ip_hash`, `created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_gen_ip` (`ip_hash`,`created_at`),
+  KEY `idx_user_waktu` (`user_id`,`created_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=164 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- 12. presets : simpanan user (publik tanpa login -> pakai owner_token)
@@ -304,11 +319,20 @@ CREATE TABLE IF NOT EXISTS `settings` (
 --     Kata sandi disimpan sebagai hash, tidak pernah polos.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `users` (
-  `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `username`      VARCHAR(60) NOT NULL,
-  `password_hash` VARCHAR(255) NOT NULL,
-  `role`          VARCHAR(20) NOT NULL DEFAULT 'admin',
-  `last_login`    TIMESTAMP NULL DEFAULT NULL,
-  `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY `uq_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `username` varchar(60) NOT NULL,
+  `full_name` varchar(120) DEFAULT NULL,
+  `email` varchar(190) DEFAULT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `role` varchar(20) NOT NULL DEFAULT 'admin',
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `verified_at` timestamp NULL DEFAULT NULL,
+  `verified_by` int(10) unsigned DEFAULT NULL,
+  `last_login` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_username` (`username`),
+  UNIQUE KEY `uq_email` (`email`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

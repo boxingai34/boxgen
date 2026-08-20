@@ -63,6 +63,30 @@ try {
 
     info("Tabel: {$tabel} · Tag: " . number_format($tag) . " · Modul: {$modul}");
 
+    // Tabel yang kurang tidak langsung terasa. Website tetap terbuka dan
+    // menunya terisi — sampai ada yang menekan tombol yang kebetulan
+    // menulis ke tabel hilang itu, dan muncullah "kesalahan di server"
+    // tanpa petunjuk apa pun. Lebih baik ketahuan di sini.
+    $skema = @file_get_contents(__DIR__ . '/../database/schema.sql') ?: '';
+    preg_match_all('/CREATE TABLE (?:IF NOT EXISTS )?`([a-z_]+)`/i', $skema, $m);
+    $harusAda = array_unique($m[1] ?? []);
+
+    if ($harusAda !== []) {
+        $adaSekarang = Database::column('SHOW TABLES');
+        $kurang = array_values(array_diff($harusAda, $adaSekarang));
+
+        if ($kurang === []) {
+            ok('Seluruh ' . count($harusAda) . ' tabel yang dibutuhkan ada.');
+        } else {
+            gagal('Ada tabel yang belum terbentuk: ' . implode(', ', $kurang));
+            info('Website bisa saja terlihat normal, tapi tombol yang menulis ke');
+            info('tabel itu akan menjawab "Terjadi kesalahan di server".');
+            info('');
+            info('Perbaikannya: phpMyAdmin -> Import -> database/export/003-tabel-hilang.sql');
+            info('Atau impor ulang seluruh berkas .sql hasil tools/export_db.php.');
+        }
+    }
+
     if ($tag < 1000) {
         perlu('Kamus tag masih tipis. Jalankan: php tools\sync_danbooru.php tags 200');
     }

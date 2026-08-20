@@ -11,6 +11,27 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
+// Seluruh situs sekarang butuh akun, jadi endpoint-nya ikut. Tanpa ini,
+// halaman depannya terkunci tapi datanya masih bisa diambil orang lewat
+// URL api/ langsung — pintu depan dikunci, jendela dibiarkan terbuka.
+Auth::start();
+
+if (!Auth::isLoggedIn()) {
+    http_response_code(401);
+    echo json_encode([
+        'ok'    => false,
+        'error' => 'Sesimu sudah habis. Muat ulang halaman lalu masuk lagi.',
+        'login' => true,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/** Id pemilik sesi ini. Dipakai untuk menandai riwayat. */
+function userId(): int
+{
+    return (int)Auth::id();
+}
+
 /** Kirim jawaban sukses lalu berhenti. */
 function jsonOk(array $data = []): void
 {

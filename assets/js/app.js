@@ -68,6 +68,8 @@ function personSelection(side) {
     const p = panel(side);
     const sel = {
         character: chosenChar[side] ? chosenChar[side].booru_tag : null,
+        gender: $('.p-gender', p).value || null,
+        mature: $('.p-mature', p).checked,
         outfit_id: $('.m-outfit', p).value || null,
         condition_id: $('.m-condition', p).value || null
     };
@@ -1061,16 +1063,46 @@ async function randomize() {
     if (mode === 'duo') randomOption($('#interaction_id'));
     else randomOption($('#pose_id'));
 
-    const sisi = mode === 'duo' ? ['a', 'b'] : ['a'];
+    const sisi = (mode === 'single') ? ['a'] : ['a', 'b'];
 
     for (const side of sisi) {
         const p = panel(side);
         randomOption($('.m-outfit', p));
         randomOption($('.m-condition', p));
         await applyOutfitDefaults(side);
+        await acakKarakter(side);
     }
 
+    updateBgSuggestion();
     generate();
+}
+
+/**
+ * Pilih satu karakter acak untuk satu sisi.
+ *
+ * Diambil dari daftar yang sudah disaring kategori/judul kalau memang
+ * sedang disaring — jadi "Acak" tetap menghormati batasan yang kamu
+ * pasang, bukan melompat ke karakter mana saja dari 21.904 yang ada.
+ */
+async function acakKarakter(side) {
+    const p = panel(side);
+
+    const url = 'api/character_search.php?' + new URLSearchParams({
+        q: '',
+        universe: $('.c-universe', p).value,
+        series_id: $('.c-series', p).value,
+        limit: 60
+    });
+
+    try {
+        const data = await getJson(url);
+        if (!data.results.length) return;
+
+        const c = data.results[Math.floor(Math.random() * data.results.length)];
+        chosenChar[side] = c;
+        renderChosen(side);
+        tampilkanPreview($('.c-preview', p), { character: c.booru_tag }, c.name);
+    } catch { /* acak karakter bukan bagian kritis */ }
 }
 
 // ==================================================================
@@ -1263,6 +1295,9 @@ async function terapkanSeleksi(sel, chars, tags) {
 
 async function terapkanPetinju(side, src, char) {
     const p = panel(side);
+
+    $('.p-gender', p).value = src.gender || '';
+    $('.p-mature', p).checked = !!src.mature;
 
     chosenChar[side] = char || null;
     renderChosen(side);
@@ -1469,6 +1504,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Dibuka lewat tautan berbagi. Alamatnya sengaja dibiarkan apa adanya
     // supaya muat ulang dan bookmark tetap membuka susunan yang sama.
-    const kode = new URLSearchParams(location.search).get('p');
+    const q = new URLSearchParams(location.search);
+
+    const kode = q.get('p');
     if (kode) muatPreset(kode);
+
+    // Dibuka dari halaman Riwayat lewat tombol "Pakai lagi".
+    const riwayat = q.get('r');
+    if (riwayat) muatRiwayat(riwayat);
 });
+
+/**
+ * Pasang kembali susunan dari sebuah riwayat.
+ *
+ * Jalurnya sama persis dengan preset — server mengembalikan bentuk yang
+ * sama, jadi terapkanSeleksi() tidak perlu tahu asal datanya dari mana.
+ */
+async function muatRiwayat(id) {
+    try {
+        const data = await getJson('api/history.php?action=load&id=' + encodeURIComponent(id));
+
+        await terapkanSeleksi(data.selection, data.characters, data.tags);
+
+        let pesan = `Susunan dari riwayat "${data.riwayat.title || 'tanpa judul'}" dipasang.`;
+        if (data.hilang && data.hilang.length) {
+            pesan += ` ${data.hilang.length} pilihan sudah tidak ada lagi di database, jadi dilewati.`;
+        }
+        spanduk(pesan, false);
+
+        await generate();
+    } catch (err) {
+        spanduk(err.message, true);
+    }
+}

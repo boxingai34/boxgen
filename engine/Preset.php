@@ -227,8 +227,23 @@ final class Preset
         $sel = json_decode((string)$baris['selection'], true);
         $sel = is_array($sel) ? self::sanitize($sel) : ['mode' => 'single'];
 
+        return ['preset' => ['views' => (int)$baris['views'] + 1] + self::ringkas($baris)]
+             + self::hidupkan($sel);
+    }
+
+    /**
+     * Ubah pilihan tersimpan jadi bentuk siap dipasang kembali ke formulir.
+     *
+     * Dipakai bersama oleh preset DAN riwayat — keduanya sama-sama perlu
+     * memulihkan susunan lama, jadi tidak ada gunanya ditulis dua kali.
+     *
+     * @return array{selection: array, characters: array, tags: array, hilang: array}
+     */
+    public static function hidupkan(array $sel): array
+    {
+        $sel = self::sanitize($sel);
+
         return [
-            'preset'     => ['views' => (int)$baris['views'] + 1] + self::ringkas($baris),
             'selection'  => $sel,
             'characters' => self::karakter($sel),
             'tags'       => self::tagStatus($sel['extra_tags'] ?? []),
@@ -328,6 +343,14 @@ final class Preset
             if ($tag !== '' && mb_strlen($tag) <= 190) {
                 $out['character'] = $tag;
             }
+        }
+
+        if (in_array($p['gender'] ?? null, ['male', 'female'], true)) {
+            $out['gender'] = (string)$p['gender'];
+        }
+
+        if (!empty($p['mature'])) {
+            $out['mature'] = true;
         }
 
         foreach (['outfit_id', 'condition_id'] as $k) {

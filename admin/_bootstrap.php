@@ -4,84 +4,31 @@ declare(strict_types=1);
 /**
  * Pemuat bersama untuk seluruh halaman admin.
  *
- * Menangani: sesi, pengecekan login, token CSRF, dan kerangka halaman.
+ * Sejak pengunjung punya akun sendiri, admin TIDAK lagi punya sistem
+ * login terpisah. Semuanya lewat engine/Auth.php dan tabel users yang
+ * sama; yang membedakan admin cuma kolom `role`.
+ *
+ * Fungsi-fungsi lama di sini (adminUser, csrfField, flash, ...) sengaja
+ * dipertahankan sebagai pembungkus tipis, supaya keenam halaman admin
+ * yang sudah ada tidak perlu disunting satu per satu.
  *
  * Semua file di folder ini WAJIB memanggilnya di baris paling atas.
- * Satu-satunya pengecualian adalah login.php, yang memanggil dengan
- * $BOLEH_TAMU = true sebelum require.
  */
 
 require_once __DIR__ . '/../config.php';
 
-// Sesi hanya untuk pengelola. Pengunjung biasa tidak pernah menyentuh ini.
-if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params([
-        'httponly' => true,
-        'samesite' => 'Lax',
-        'secure'   => !empty($_SERVER['HTTPS']),
-    ]);
-    session_start();
-}
+Auth::start();
 
-/** Apakah sudah ada akun admin sama sekali? */
-function adminAdaAkun(): bool
-{
-    return (int)Database::value('SELECT COUNT(*) FROM users') > 0;
-}
+function adminLoggedIn(): bool { return Auth::isAdmin(); }
+function adminUser(): ?array   { return Auth::user(); }
 
-function adminLoggedIn(): bool
-{
-    return !empty($_SESSION['admin_id']);
-}
+function csrfToken(): string   { return Auth::csrfToken(); }
+function csrfField(): string   { return Auth::csrfField(); }
+function csrfCheck(): void     { Auth::csrfCheck(); }
 
-function adminUser(): ?array
-{
-    if (!adminLoggedIn()) {
-        return null;
-    }
-    return Database::one('SELECT * FROM users WHERE id = ?', [(int)$_SESSION['admin_id']]);
-}
-
-/** Token anti-CSRF: satu per sesi, ditempel di setiap form. */
-function csrfToken(): string
-{
-    if (empty($_SESSION['csrf'])) {
-        $_SESSION['csrf'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf'];
-}
-
-function csrfField(): string
-{
-    return '<input type="hidden" name="_csrf" value="' . e(csrfToken()) . '">';
-}
-
-/**
- * Pastikan permintaan POST benar-benar datang dari form kita sendiri.
- * Tanpa ini, situs lain bisa mengirim form diam-diam memakai sesi kamu.
- */
-function csrfCheck(): void
-{
-    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
-        return;
-    }
-    $kirim = (string)($_POST['_csrf'] ?? '');
-    if (!hash_equals(csrfToken(), $kirim)) {
-        http_response_code(400);
-        exit('Token keamanan tidak cocok. Muat ulang halamannya lalu coba lagi.');
-    }
-}
-
-/** Pesan singkat yang tampil sekali lalu hilang. */
 function flash(?string $pesan = null, string $tipe = 'ok'): ?array
 {
-    if ($pesan !== null) {
-        $_SESSION['flash'] = ['pesan' => $pesan, 'tipe' => $tipe];
-        return null;
-    }
-    $f = $_SESSION['flash'] ?? null;
-    unset($_SESSION['flash']);
-    return $f;
+    return Auth::flash($pesan, $tipe);
 }
 
 function redirect(string $url): void
@@ -92,11 +39,22 @@ function redirect(string $url): void
 
 // ---------------------------------------------------------------------
 // Penjaga pintu
+//
+// Dua keadaan yang dibedakan dengan sengaja: belum masuk sama sekali
+// (dilempar ke halaman login), versus sudah masuk tapi memang bukan
+// admin. Yang kedua tidak dilempar ke login — orangnya sudah masuk,
+// melemparnya ke sana cuma bikin bingung.
 // ---------------------------------------------------------------------
 if (empty($BOLEH_TAMU)) {
-    if (!adminLoggedIn()) {
-        redirect('login.php');
+    if (!Auth::isLoggedIn()) {
+        redirect('../login.php?next=' . urlencode($_SERVER['REQUEST_URI'] ?? '/admin/'));
     }
+
+    if (!Auth::isAdmin()) {
+        http_response_code(403);
+        exit('Halaman ini khusus admin.');
+    }
+
     csrfCheck();
 }
 
@@ -108,11 +66,17 @@ function adminHeader(string $judul, string $aktif = ''): void
 {
     $menu = [
         'index.php'      => 'Ringkasan',
+        'users.php'      => 'Pengguna',
         'modules.php'    => 'Modul',
         'characters.php' => 'Karakter',
         'series.php'     => 'Judul',
         'tags.php'       => 'Tag',
     ];
+
+    // Pendaftar yang menunggu ditandai angka di menu — kalau tidak,
+    // orang bisa berhari-hari tidak tahu ada yang menunggu disetujui.
+    $menunggu = Auth::jumlahMenunggu();
+
     $f = flash();
     ?>
 <!DOCTYPE html>
@@ -121,8 +85,8 @@ function adminHeader(string $judul, string $aktif = ''): void
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — Admin</title>
-<link rel="stylesheet" href="../assets/css/style.css?v=3">
-<link rel="stylesheet" href="assets/admin.css?v=3">
+<link rel="stylesheet" href="../assets/css/style.css?v=13">
+<link rel="stylesheet" href="assets/admin.css?v=4">
 </head>
 <body class="admin">
 <header class="adminbar">
@@ -130,12 +94,16 @@ function adminHeader(string $judul, string $aktif = ''): void
         <strong>Admin</strong>
         <nav>
             <?php foreach ($menu as $file => $label): ?>
-                <a href="<?= e($file) ?>" class="<?= $aktif === $file ? 'on' : '' ?>"><?= e($label) ?></a>
+                <a href="<?= e($file) ?>" class="<?= $aktif === $file ? 'on' : '' ?>">
+                    <?= e($label) ?><?php if ($file === 'users.php' && $menunggu > 0): ?>
+                        <em class="badge"><?= $menunggu ?></em>
+                    <?php endif; ?>
+                </a>
             <?php endforeach; ?>
         </nav>
         <span class="spacer"></span>
         <a href="../index.php" target="_blank">Lihat situs ↗</a>
-        <a href="logout.php" class="keluar">Keluar</a>
+        <a href="../logout.php" class="keluar">Keluar</a>
     </div>
 </header>
 <main class="wrap">

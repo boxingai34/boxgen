@@ -97,23 +97,34 @@ if (!is_dir($folder) && !@mkdir($folder, 0775, true) && !is_dir($folder)) {
     exit("GAGAL membuat folder {$folder}\n");
 }
 
-// Bersihkan hasil ekspor sebelumnya supaya tidak tercampur nomor lama.
-foreach (glob($folder . '/*.sql') ?: [] as $lama) {
+// Bersihkan hasil ekspor SEBELUMNYA supaya tidak tercampur nomor lama.
+//
+// Polanya sengaja sempit: hanya berkas bernomor tiga digit yang memang
+// dibuat di sini. Dulu semua *.sql disapu, dan itu ikut menghapus
+// tambalan yang kamu buat sendiri di folder yang sama — hilang diam-diam
+// hanya karena kamu menjalankan ekspor lagi.
+foreach (glob($folder . '/[0-9][0-9][0-9].sql') ?: [] as $lama) {
     @unlink($lama);
 }
 
+// STRUKTUR SELURUH TABEL SELALU IKUT — yang dilewati cuma ISI-nya.
+//
+// Ini pernah salah dan akibatnya tidak kelihatan sampai website sudah
+// online: tabel generations/ai_cache/rate_limits dibuang seluruhnya,
+// jadi di hosting tabelnya tidak pernah terbentuk. Website terlihat
+// normal, sampai pengunjung menekan Generate — saat itu barulah
+// INSERT ke tabel yang tidak ada meledak jadi "kesalahan di server".
+//
+// Tabel catatan pemakaian memang tidak perlu dibawa isinya. Tapi
+// tabelnya tetap harus ADA.
 $tabel = Database::column('SHOW TABLES');
 sort($tabel);
 
-$dilewati = [];
-if (!$semua) {
-    $dilewati = array_values(array_intersect($tabel, TABEL_CATATAN));
-    $tabel    = array_values(array_diff($tabel, TABEL_CATATAN));
-}
+$tanpaIsi = $semua ? [] : array_values(array_intersect($tabel, TABEL_CATATAN));
 
 say('Database  : ' . DB_NAME);
-say('Tabel     : ' . count($tabel) . ' diekspor'
-    . ($dilewati === [] ? '' : ', ' . count($dilewati) . ' dilewati (' . implode(', ', $dilewati) . ')'));
+say('Tabel     : ' . count($tabel) . ' (struktur semuanya ikut)'
+    . ($tanpaIsi === [] ? '' : ', tanpa isi: ' . implode(', ', $tanpaIsi)));
 say('Batas      : ' . $batasMb . ' MB per berkas');
 say('Tujuan    : database/export/');
 say('');
@@ -201,6 +212,11 @@ say('Data:');
 $totalBaris = 0;
 
 foreach ($tabel as $t) {
+    if (in_array($t, $tanpaIsi, true)) {
+        say(sprintf('  %-20s dilewati (catatan pemakaian)', $t));
+        continue;
+    }
+
     $jumlah = (int)Database::value('SELECT COUNT(*) FROM `' . $t . '`');
 
     if ($jumlah === 0) {
