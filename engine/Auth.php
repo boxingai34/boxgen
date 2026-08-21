@@ -314,14 +314,23 @@ final class Auth
         return '<input type="hidden" name="_csrf" value="' . e(self::csrfToken()) . '">';
     }
 
-    /** Pastikan POST benar-benar datang dari form kita sendiri. */
+    /**
+     * Pastikan POST benar-benar datang dari form kita sendiri.
+     *
+     * Dua tempat dicari: kolom tersembunyi _csrf untuk form biasa, dan
+     * header X-CSRF-Token untuk permintaan JSON. Yang kedua perlu karena
+     * body JSON tidak pernah masuk ke $_POST — tanpa itu, setiap tombol
+     * yang mengirim JSON akan selalu ditolak.
+     */
     public static function csrfCheck(): void
     {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
             return;
         }
 
-        if (!hash_equals(self::csrfToken(), (string)($_POST['_csrf'] ?? ''))) {
+        $kirim = (string)($_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+
+        if (!hash_equals(self::csrfToken(), $kirim)) {
             http_response_code(400);
             exit('Token keamanan tidak cocok. Muat ulang halamannya lalu coba lagi.');
         }

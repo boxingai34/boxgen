@@ -71,6 +71,7 @@ function adminHeader(string $judul, string $aktif = ''): void
         'characters.php' => 'Karakter',
         'series.php'     => 'Judul',
         'tags.php'       => 'Tag',
+        'perawatan.php'  => 'Perawatan',
     ];
 
     // Pendaftar yang menunggu ditandai angka di menu — kalau tidak,
@@ -86,7 +87,7 @@ function adminHeader(string $judul, string $aktif = ''): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — Admin</title>
 <link rel="stylesheet" href="../assets/css/style.css?v=17">
-<link rel="stylesheet" href="assets/admin.css?v=4">
+<link rel="stylesheet" href="assets/admin.css?v=5">
 </head>
 <body class="admin">
 <header class="adminbar">

@@ -103,3 +103,30 @@ textarea.tags { min-height: 100px; }
 .tagcheck { color: var(--muted); font-size: 12px; margin-top: 6px; }
 .tagcheck .bad { color: var(--err); }
 .tagcheck .good { color: var(--ok); }
+
+/* ---------- halaman Perawatan ---------- */
+.tugas-baris {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.tugas-baris label { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; }
+.tugas-baris input[type=number] { width: 76px; }
+
+.tugas-log {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
