@@ -962,6 +962,73 @@ Seluruh daftar fitur di rencana awal sudah selesai.
 
 ---
 
+## Ganti penyedia AI (ChatGPT dan lainnya)
+
+Paket gratis Gemini cuma memberi **20 permintaan per hari**. Untuk tombol
+"Isi otomatis" itu cukup, tapi untuk mengelompokkan 5.462 judul jelas
+tidak — dan begitu habis, jawabannya:
+
+```
+HTTP 429 — Quota exceeded for metric:
+generate_content_free_tier_requests, limit: 20
+```
+
+Itu batas dari Google, bukan setelan yang salah.
+
+### Ganti dengan yang lain
+
+Sistem ini sudah mendukungnya sejak awal. Isi tiga baris di
+`config.local.php`:
+
+```php
+define('AI_PROVIDER', 'openai_compatible');
+define('AI_BASE_URL', 'https://api.openai.com/v1');
+define('AI_MODEL',    'gpt-4o-mini');
+define('AI_API_KEY',  'sk-...');
+```
+
+Yang penting bukan mereknya, melainkan **bentuk API-nya**. Banyak
+penyedia memakai bentuk yang sama persis dengan OpenAI, jadi cukup ganti
+`AI_BASE_URL` dan `AI_MODEL`:
+
+| Penyedia | AI_BASE_URL | Catatan |
+|---|---|---|
+| OpenAI (ChatGPT) | `https://api.openai.com/v1` | butuh saldo, tidak ada jatah gratis |
+| OpenRouter | `https://openrouter.ai/api/v1` | punya beberapa model gratis |
+| Groq | `https://api.groq.com/openai/v1` | jatah gratisnya longgar, dan cepat |
+| DeepSeek | `https://api.deepseek.com/v1` | murah |
+| Ollama / LM Studio | `http://localhost:11434/v1` | jalan di komputer sendiri, tanpa biaya |
+
+Jatah gratis tiap penyedia berubah dari waktu ke waktu — periksa sendiri
+di halaman harga mereka, jangan percaya tabel ini bulat-bulat.
+
+### Soal biaya, kalau memilih ChatGPT
+
+Tugas terberat di sini adalah mengelompokkan judul. Satu panggilan
+memuat 60 judul, jadi 5.462 judul berarti sekitar **92 panggilan**, dan
+tiap panggilan cuma beberapa ribu token. Dengan model kelas `gpt-4o-mini`
+totalnya di bawah seribu rupiah — sekali jalan, tidak berulang.
+
+### Kenapa 60 judul sekali kirim
+
+Yang mahal adalah **jumlah panggilan**, bukan jumlah judul di dalamnya.
+Satu panggilan berisi 60 judul memakai jatah yang sama dengan satu
+panggilan berisi 10. Karena itu kirimannya dibuat gemuk, dan batas
+waktunya dilebihkan khusus untuk tugas ini — tombol "Isi otomatis" di
+halaman depan tetap memakai batas pendeknya supaya pengunjung tidak
+menunggu lama.
+
+### Kalau tidak mau memakai AI sama sekali
+
+Kelompokkan judul dengan tangan lewat **Admin -> Judul**. Ada penyaring
+per kelompok dan bisa disimpan sekaligus. Yang terpopuler saja sudah
+cukup — judul yang jarang dipakai boleh dibiarkan di "Belum
+dikelompokkan" tanpa merusak apa pun.
+
+Deteksi **karakter -> judul** tidak memakai AI sama sekali. Sumbernya
+Danbooru, jadi tetap jalan walau AI mati total.
+
+---
 ## Akun & login
 
 Halaman generator **tidak lagi terbuka untuk umum**. Semua orang harus

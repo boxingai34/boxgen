@@ -42,11 +42,19 @@ final class Sumber
     /**
      * Sekali panggil AI menangani sebanyak ini judul.
      *
-     * 50 sempat dicoba dan selalu kena batas waktu 30 detik: modelnya
-     * berpikir dulu, dan lama berpikirnya ikut tumbuh seiring panjang
-     * daftarnya. 25 selesai sekitar 10 detik, masih jauh dari batas.
+     * Yang menentukan angka ini BUKAN kecepatan, melainkan kuota. Paket
+     * gratis Gemini cuma memberi 20 permintaan per hari — jadi yang mahal
+     * adalah jumlah PANGGILAN, bukan jumlah judul di dalamnya. Satu
+     * panggilan berisi 60 judul menghabiskan jatah yang sama dengan satu
+     * panggilan berisi 10.
+     *
+     * 60 judul butuh sekitar 25 detik, jadi AI_TIMEOUT bawaan (30 detik)
+     * terlalu mepet — batas waktunya dilebihkan khusus untuk tugas ini.
      */
-    private const PER_PANGGILAN = 25;
+    private const PER_PANGGILAN = 60;
+
+    /** Batas waktu khusus tugas borongan, jauh di atas AI_TIMEOUT biasa. */
+    private const TIMEOUT_BORONGAN = 120;
 
     /** Jeda antar permintaan ke Danbooru, dalam mikrodetik. */
     private const JEDA_DANBOORU = 1_100_000;
@@ -157,7 +165,16 @@ final class Sumber
 
         $user = "Kelompokkan judul berikut:\n" . implode("\n", $baris);
 
-        $jawaban = AiClient::parseJson(AiClient::complete($system, $user, true));
+        // Dilebihkan hanya untuk panggilan ini, lalu dikembalikan — supaya
+        // tombol "Isi otomatis" di halaman depan tetap memakai batas
+        // pendeknya dan tidak membuat pengunjung menunggu dua menit.
+        AiClient::$timeoutSekali = self::TIMEOUT_BORONGAN;
+
+        try {
+            $jawaban = AiClient::parseJson(AiClient::complete($system, $user, true));
+        } finally {
+            AiClient::$timeoutSekali = 0;
+        }
 
         $out = [];
         foreach ($jawaban as $tag => $label) {

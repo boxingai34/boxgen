@@ -24,6 +24,17 @@ final class AiClient
      * @param  bool $expectJson minta jawaban berbentuk JSON
      * @throws RuntimeException kalau provider gagal dihubungi
      */
+    /**
+     * Batas waktu tambahan untuk satu panggilan, dalam detik.
+     *
+     * Tugas borongan seperti pengelompokan judul untung besar dari kiriman
+     * yang lebih gemuk: satu panggilan berisi 60 judul jauh lebih hemat
+     * kuota daripada tiga panggilan berisi 20 — dan kuota harian itulah
+     * yang paling cepat habis di paket gratis. Tapi kiriman gemuk butuh
+     * waktu lebih lama, dan AI_TIMEOUT bawaan (30 detik) terlalu pendek.
+     */
+    public static int $timeoutSekali = 0;
+
     public static function complete(string $system, string $user, bool $expectJson = true): string
     {
         if (!self::isConfigured()) {
@@ -138,6 +149,11 @@ final class AiClient
         $body = [
             'model'       => AI_MODEL,
             'temperature' => 0.4,
+            // Disamakan dengan driver Gemini. Sebagian model sekarang
+            // berpikir dulu sebelum menjawab, dan token berpikirnya ikut
+            // dihitung — jatah yang terlalu kecil bikin jawabannya
+            // terpotong di tengah lalu gagal diurai.
+            'max_tokens'  => 8192,
             'messages'    => [
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user',   'content' => $user],
@@ -174,7 +190,7 @@ final class AiClient
             CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => (int)AI_TIMEOUT,
+            CURLOPT_TIMEOUT        => self::$timeoutSekali > 0 ? self::$timeoutSekali : (int)AI_TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
 
@@ -192,6 +208,18 @@ final class AiClient
 
         if ($status >= 400) {
             $msg = $json['error']['message'] ?? substr((string)$raw, 0, 300);
+
+            // 429 bukan kesalahan setelan, dan menyodorkan pesan mentah
+            // penyedia bikin orang mengira ada yang salah dipasang.
+            if ($status === 429) {
+                throw new RuntimeException(
+                    'Jatah AI habis untuk sekarang. Ini batas dari penyedianya, '
+                    . 'bukan setelan yang salah. Tunggu jatahnya pulih, aktifkan '
+                    . 'penagihan, atau ganti AI_PROVIDER ke openai_compatible. '
+                    . 'Pesan aslinya: ' . $msg
+                );
+            }
+
             throw new RuntimeException("Server AI menolak permintaan (HTTP {$status}): {$msg}");
         }
 
