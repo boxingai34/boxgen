@@ -18,24 +18,41 @@ declare(strict_types=1);
  */
 final class PromptBuilder
 {
-    /** Urutan blok di dalam prompt akhir. */
+    /**
+     * Urutan blok di dalam prompt akhir.
+     *
+     * Susunannya: AKSI dulu, baru KARAKTER, baru KONDISI, baru sisanya.
+     * Model gambar memberi bobot lebih besar pada yang di depan, dan yang
+     * paling menentukan bentuk gambarnya adalah apa yang sedang terjadi —
+     * bukan siapa yang melakukannya.
+     *
+     * Urutan itu berlaku juga DI DALAM tiap kotak karakter NovelAI, karena
+     * kotaknya mengambil bloknya sendiri mengikuti urutan ini.
+     */
     public const BLOCK_ORDER = [
+        // teknis, harus tetap paling depan
         'quality',
         'style',
         'count',
+
+        // aksi bersama
+        'interaction',
+
+        // Boxer A: aksi -> karakter -> kondisi
+        'interaction_a',
         'character',
         'appearance',
         'outfit',
         'condition',
-        // Tag aksi yang memang milik Boxer A ikut berdiri di dekat
-        // datanya sendiri, bukan menumpuk di blok bersama.
-        'interaction_a',
+
+        // Boxer B: urutan yang sama
+        'interaction_b',
         'character_b',
         'appearance_b',
         'outfit_b',
         'condition_b',
-        'interaction_b',
-        'interaction',
+
+        // detail lainnya
         'pose',
         'background',
         'camera',
@@ -634,6 +651,66 @@ final class PromptBuilder
                 'from'   => $mod['name'],
             ];
         }
+
+        self::addSubInteraksi($sel, $mod, $sufiks, $allowNsfw, $items);
+    }
+
+    /**
+     * Detail posisi di dalam sebuah aksi.
+     *
+     * "Knockdown" saja selalu menghasilkan gambar yang mirip. Yang
+     * membedakannya adalah posisi: yang tumbang terlentang atau berlutut,
+     * yang menjatuhkan mundur ke sudut netral atau mengangkat tangan.
+     *
+     * Tiap kelompok punya PEMILIK TETAP, jadi tidak perlu menandai peran
+     * per tag seperti pada interaksi:
+     *   sub_jatuh, sub_reaksi -> yang kena
+     *   sub_menang            -> yang melakukan
+     *   sub_lokasi            -> milik gambarnya, bukan salah satu orang
+     *
+     * Karena $sufiks sudah memperhitungkan pembalikan arah, kelompok ini
+     * ikut terbalik dengan sendirinya.
+     */
+    private const SUB_PEMILIK = [
+        'sub_jatuh'  => 'target',
+        'sub_reaksi' => 'target',
+        'sub_menang' => 'source',
+        'sub_lokasi' => null,
+    ];
+
+    private static function addSubInteraksi(
+        array $sel, array $mod, array $sufiks, bool $allowNsfw, array &$items
+    ): void {
+        $berlaku = array_filter(array_map('trim', explode(',', (string)($mod['sub_groups'] ?? ''))));
+
+        foreach ($berlaku as $tipe) {
+            $id = $sel[$tipe . '_id'] ?? null;
+            if (empty($id)) {
+                continue;
+            }
+
+            $sub = self::loadModule((int)$id, $allowNsfw, $tipe);
+            if ($sub === null) {
+                continue;
+            }
+
+            $peran = self::SUB_PEMILIK[$tipe] ?? null;
+
+            // Lokasi bukan milik siapa-siapa — ia bagian dari latarnya.
+            $blok = $tipe === 'sub_lokasi'
+                ? 'background'
+                : 'interaction' . ($sufiks[$peran] ?? '');
+
+            foreach ($sub['tags'] as $mt) {
+                $items[] = [
+                    'tag_id' => (int)$mt['tag_id'],
+                    'name'   => $mt['name'],
+                    'weight' => (float)$mt['weight'],
+                    'block'  => $blok,
+                    'from'   => $sub['name'],
+                ];
+            }
+        }
     }
 
     private static function addModule($id, string $type, string $block, bool $allowNsfw, array &$items): void
@@ -870,7 +947,7 @@ final class PromptBuilder
 
         return Database::all(
             "SELECT id, type, category, slug, name, name_id, description, intensity, is_nsfw,
-                    is_directional, direction_label
+                    is_directional, direction_label, sub_groups
              FROM modules
              WHERE type = ? AND is_active = 1 {$nsfwFilter}
              -- Urutan kelompok ditentukan oleh sort_order terkecil di dalamnya,

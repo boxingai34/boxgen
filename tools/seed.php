@@ -93,14 +93,15 @@ function saveModule(string $type, array $m): int
         $m['action'] ?? null,
         $m['arah_label'] ?? null,
         (int)($m['arah_terbalik'] ?? 0),
+        $m['sub'] ?? null,
         (int)($m['is_nsfw'] ?? 0),
         (int)($m['sort_order'] ?? 0),
     ];
 
     if ($id === null) {
         Database::run(
-            'INSERT INTO modules (type, slug, category, name, name_id, description, sentence, intensity, action_tag, direction_label, direction_inverts, is_nsfw, sort_order)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            'INSERT INTO modules (type, slug, category, name, name_id, description, sentence, intensity, action_tag, direction_label, direction_inverts, sub_groups, is_nsfw, sort_order)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
             array_merge([$type, $m['slug']], $fields)
         );
         $id = Database::lastId();
@@ -108,7 +109,7 @@ function saveModule(string $type, array $m): int
         // perbarui isinya kalau file data diubah
         Database::run(
             'UPDATE modules SET category=?, name=?, name_id=?, description=?, sentence=?,
-                    intensity=?, action_tag=?, direction_label=?, direction_inverts=?, is_nsfw=?, sort_order=? WHERE id=?',
+                    intensity=?, action_tag=?, direction_label=?, direction_inverts=?, sub_groups=?, is_nsfw=?, sort_order=? WHERE id=?',
             array_merge($fields, [(int)$id])
         );
     }
@@ -343,6 +344,14 @@ foreach ($scene['background'] as $bg) {
     $ringDefault++;
 }
 say('Ring bawaan latar    : ' . $ringDefault);
+// Sub-interaksi: detail posisi di dalam sebuah aksi.
+$subData = dataFile('subpose');
+$subTotal = 0;
+foreach ($subData as $tipe => $daftar) {
+    $subTotal += count(saveModules($tipe, $daftar));
+}
+say('Sub-interaksi        : ' . $subTotal);
+
 $condMap  = saveModules('condition',  $scene['condition']);
 
 // Tema kondisi mengisi slot per bagian badan, sama seperti tema pakaian.
@@ -367,6 +376,35 @@ foreach ($scene['condition'] as $tema) {
     }
 }
 say('Isi bawaan kondisi   : ' . $condDefault);
+
+// TEMA KONDISI TIDAK BOLEH MENULIS ULANG TAG YANG SUDAH DISEDIAKAN SLOTNYA.
+//
+// Kalau ditulis dua kali — sekali lewat slot, sekali lagi di daftar tag
+// temanya — tag itu jadi TIDAK BISA DIMATIKAN. Mengganti slot pipi dari
+// "diplester" ke "memar" tetap menyisakan plesternya, karena temanya
+// menuliskannya lagi di luar slot.
+//
+// Ini sempat terjadi pada 18 tag di 8 tema. Dibersihkan di sini, bukan
+// dibetulkan satu-satu di berkas data, supaya tidak terulang setiap kali
+// ada tema baru ditambahkan.
+// Dikumpulkan dulu baru dihapus: MySQL menolak DELETE dari tabel yang
+// sekaligus dibaca di subquery-nya sendiri (error 1093).
+$idGanda = Database::column(
+    "SELECT mt.id FROM module_tags mt
+     JOIN modules m ON m.id = mt.module_id AND m.type = 'condition'
+     JOIN module_defaults d ON d.preset_module_id = m.id
+     JOIN module_tags smt ON smt.module_id = d.module_id AND smt.tag_id = mt.tag_id"
+);
+
+$gandaDibuang = 0;
+if ($idGanda !== []) {
+    $gandaDibuang = Database::run(
+        'DELETE FROM module_tags WHERE id IN (' . Database::placeholders($idGanda) . ')',
+        $idGanda
+    )->rowCount();
+}
+
+say('Tag tema ganda dibuang: ' . $gandaDibuang);
 $camDistMap = saveModules('cam_distance', $scene['cam_distance']);
 $camAngMap  = saveModules('cam_angle',    $scene['cam_angle']);
 $camEffMap  = saveModules('cam_effect',   $scene['cam_effect']);

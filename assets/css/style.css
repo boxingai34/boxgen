@@ -710,3 +710,12 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     font-size: 12px !important;
 }
 .cari-kecil::placeholder { color: var(--muted); opacity: .8; }
+
+/* ---------- detail posisi di dalam aksi ---------- */
+.sub-box {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+.sub-box > .hint { margin: 0 0 10px; }
+.sub-box .field { margin-bottom: 10px; }

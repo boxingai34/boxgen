@@ -20,6 +20,14 @@ const SCENE_IDS = ['quality_id', 'style_id', 'background_id', 'lighting_id', 'ri
                    'cam_distance_id', 'cam_angle_id', 'cam_effect_id'];
 const SLOTS = ['top', 'bottom', 'hand', 'foot', 'head'];
 
+/**
+ * Detail posisi di dalam sebuah aksi.
+ *
+ * Yang muncul mengikuti interaksi yang dipilih — knockdown punya posisi
+ * jatuh dan sikap yang menang, pukulan punya reaksi, semuanya punya lokasi.
+ */
+const SUB_IDS = ['sub_jatuh_id', 'sub_menang_id', 'sub_reaksi_id', 'sub_lokasi_id'];
+
 /** Slot kondisi per bagian badan. */
 const COND_SLOTS = ['eyes', 'gaze', 'cheek', 'nose', 'mouth', 'body', 'expr', 'clothes'];
 
@@ -240,6 +248,14 @@ function currentSelection() {
         sel[id] = $('#' + id).value || null;
     });
 
+    // Hanya yang menunya sedang tampil yang ikut terkirim. Sub-pilihan
+    // yang tersembunyi berarti tidak berlaku untuk interaksi ini.
+    SUB_IDS.forEach((id) => {
+        const el = $('#' + id);
+        const kotak = el ? el.closest('.sub-field') : null;
+        sel[id] = (el && kotak && !kotak.hidden && el.value) ? el.value : null;
+    });
+
     if (mode === 'storyboard') {
         sel.a = personSelection('a');
         sel.b = personSelection('b');
@@ -332,6 +348,40 @@ function updateArahBox() {
     if (tanya && punyaArah) {
         tanya.textContent = opt.dataset.arahLabel || 'Siapa yang melakukan?';
     }
+
+    perbaruiSubPilihan(opt);
+}
+
+/**
+ * Tampilkan sub-pilihan yang memang berlaku untuk interaksi terpilih.
+ *
+ * Menyembunyikan yang tidak berlaku, bukan menonaktifkannya: menu
+ * "Posisi yang Tumbang" pada pose clinch cuma bikin bingung, karena di
+ * situ memang tidak ada yang tumbang.
+ */
+function perbaruiSubPilihan(opt) {
+    const box = $('#sub-box');
+    if (!box) return;
+
+    const berlaku = (opt && opt.dataset.sub ? opt.dataset.sub : '')
+        .split(',').map((x) => x.trim()).filter(Boolean);
+
+    // Mode 1 petinju dan video tanpa lawan tidak punya interaksi sama sekali.
+    const tampil = berlaku.length > 0 && (mode === 'duo' || mode === 'seedance');
+
+    box.hidden = !tampil;
+
+    $$('.sub-field', box).forEach((f) => {
+        const cocok = berlaku.includes(f.dataset.sub);
+        f.hidden = !cocok;
+
+        // Yang disembunyikan dikosongkan juga, supaya pilihan lama tidak
+        // ikut terkirim diam-diam saat interaksinya diganti.
+        if (!cocok) {
+            const sel = $('select', f);
+            if (sel) sel.value = '';
+        }
+    });
 }
 
 // ==================================================================
@@ -1327,6 +1377,16 @@ async function terapkanSeleksi(sel, chars, tags) {
     ['pose_id', 'interaction_id', 'motion_id'].forEach((id) => {
         const el = $('#' + id);
         if (el) el.value = sel[id] ? String(sel[id]) : '';
+    });
+
+    // updateArahBox() menentukan sub-pilihan mana yang tampil, jadi harus
+    // jalan DULU — kalau tidak, nilainya dipasang ke menu yang masih
+    // tersembunyi lalu langsung dikosongkan lagi.
+    updateArahBox();
+
+    SUB_IDS.forEach((id) => {
+        const el = $('#' + id);
+        if (el && sel[id] && punyaOpsi(el, sel[id])) el.value = String(sel[id]);
     });
 
     const arah = $(`input[name=attacker][value="${sel.attacker || 'a'}"]`);

@@ -61,6 +61,14 @@ final class NaturalPrompt
         // ---- 2. aksi: bagian yang paling untung dari kalimat ----
         $baris[] = self::aksi($sel, $a, $b, $duo, $sebutan);
 
+        // ---- 2b. detail posisi di dalam aksi ----
+        // Di sinilah kalimat paling menang atas tag: "down on one knee,
+        // head bowed, taking the count" menyebut sikap yang tidak punya
+        // satu tag pun di Danbooru.
+        foreach (self::subKalimat($sel, $sebutan, $duo) as $k) {
+            $baris[] = $k;
+        }
+
         // ---- 3. kondisi tiap petinju ----
         foreach ([[$a, 'a'], [$b, 'b']] as [$o, $sisi]) {
             if ($o !== null && $o['kondisi'] !== '') {
@@ -176,6 +184,55 @@ final class NaturalPrompt
         );
 
         return SeedanceBuilder::kalimat(ucfirst($kalimat));
+    }
+
+    /**
+     * Kalimat untuk tiap sub-pilihan yang dipakai.
+     *
+     * Pemiliknya mengikuti aturan yang sama dengan tagnya: yang jatuh dan
+     * yang bereaksi adalah penerima, yang bersikap menang adalah pelaku.
+     * Lokasi tidak dimiliki siapa-siapa, jadi jadi kalimat sendiri.
+     *
+     * @return string[]
+     */
+    private static function subKalimat(array $sel, array $sebutan, bool $duo): array
+    {
+        if (!$duo) {
+            return [];
+        }
+
+        $pelaku = ($sel['attacker'] ?? 'a') === 'b' ? 'b' : 'a';
+
+        $mod = PromptBuilder::loadModule((int)($sel['interaction_id'] ?? 0), true, 'interaction');
+        if ($mod !== null && (int)($mod['direction_inverts'] ?? 0) === 1) {
+            $pelaku = $pelaku === 'a' ? 'b' : 'a';
+        }
+        $penerima = $pelaku === 'a' ? 'b' : 'a';
+
+        $pemilik = [
+            'sub_jatuh'  => $penerima,
+            'sub_reaksi' => $penerima,
+            'sub_menang' => $pelaku,
+            'sub_lokasi' => null,
+        ];
+
+        $out = [];
+
+        foreach ($pemilik as $tipe => $sisi) {
+            $k = SeedanceBuilder::kalimatModul($sel[$tipe . '_id'] ?? null, $tipe, true);
+            if ($k === '') {
+                continue;
+            }
+
+            $out[] = $sisi === null
+                // Kalimat lokasi ditulis sebagai keterangan posisi
+                // ("jammed into a ring corner"), jadi subjeknya "They are" —
+                // bukan "It happens", yang bikin kalimatnya patah.
+                ? SeedanceBuilder::kalimat('They are ' . $k)
+                : SeedanceBuilder::kalimat(ucfirst($sebutan[$sisi]) . ' is ' . $k);
+        }
+
+        return $out;
     }
 
     private static function kamera(array $sel): string

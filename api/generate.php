@@ -101,6 +101,12 @@ $sel = [
     // 'auto' = sesuaikan ring dengan tempat
     'ring_id'       => ($in['ring_id'] ?? '') === 'auto' ? 'auto' : $modId($in['ring_id'] ?? null),
     'negative_id'   => $modId($in['negative_id'] ?? null),
+    // Detail posisi di dalam aksi: siapa tumbang bagaimana, yang menang
+    // sikapnya apa, kejadiannya di bagian ring sebelah mana.
+    'sub_jatuh_id'  => $modId($in['sub_jatuh_id'] ?? null),
+    'sub_menang_id' => $modId($in['sub_menang_id'] ?? null),
+    'sub_reaksi_id' => $modId($in['sub_reaksi_id'] ?? null),
+    'sub_lokasi_id' => $modId($in['sub_lokasi_id'] ?? null),
     'extra_tags'    => is_array($in['extra_tags'] ?? null) ? $in['extra_tags'] : [],
     'trim_implied'  => !isset($in['trim_implied']) || (bool)$in['trim_implied'],
     'allow_nsfw'    => ALLOW_NSFW,

@@ -20,6 +20,10 @@ try {
     foreach (PromptBuilder::CONDITION_SLOTS as $slot => $type) {
         $condSlots[$slot] = PromptBuilder::listModules($type, ALLOW_NSFW);
     }
+    $subPose = [];
+    foreach (['sub_jatuh', 'sub_menang', 'sub_reaksi', 'sub_lokasi'] as $t) {
+        $subPose[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
+    }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
     $motions    = PromptBuilder::listModules('motion',     ALLOW_NSFW);
     $rings      = PromptBuilder::listModules('ring',       ALLOW_NSFW);
@@ -38,6 +42,7 @@ try {
     $camDist = $camAngle = $camEffect = [];
     $condSlots = ['eyes'=>[], 'gaze'=>[], 'cheek'=>[], 'nose'=>[], 'mouth'=>[], 'body'=>[], 'expr'=>[], 'clothes'=>[]];
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
+    $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -83,6 +88,8 @@ function moduleOptions(array $modules, string $placeholder = '— tidak dipakai 
                // untuk Knockdown, bukan "Siapa yang melakukan?"
                . ' data-directional="' . (int)($m['is_directional'] ?? 0) . '"'
                . ' data-arah-label="' . e((string)($m['direction_label'] ?? '')) . '"'
+               // sub-pilihan mana yang berlaku untuk interaksi ini
+               . ' data-sub="' . e((string)($m['sub_groups'] ?? '')) . '"'
                . (!empty($m['description']) ? ' title="' . e($m['description']) . '"' : '')
                . '>' . e($label) . '</option>';
     }
@@ -309,6 +316,33 @@ halamanHeader('Prompt Generator', 'index.php');
                     <input type="radio" name="attacker" value="b">
                     <span>Petinju B</span>
                 </label>
+            </div>
+
+            <!-- Detail posisi di dalam aksi. Muncul mengikuti interaksi
+                 yang dipilih: knockdown punya posisi jatuh & sikap yang
+                 menang, pukulan punya reaksi, semuanya punya lokasi. -->
+            <div id="sub-box" class="sub-box" hidden>
+                <p class="hint">Detail posisi — boleh dikosongkan semua.</p>
+                <div class="field-row">
+                    <div class="field sub-field" data-sub="sub_jatuh" hidden>
+                        <label for="sub_jatuh_id">Posisi yang Tumbang</label>
+                        <select id="sub_jatuh_id"><?= moduleOptions($subPose['sub_jatuh'], '— bebas —') ?></select>
+                    </div>
+                    <div class="field sub-field" data-sub="sub_menang" hidden>
+                        <label for="sub_menang_id">Sikap yang Menjatuhkan</label>
+                        <select id="sub_menang_id"><?= moduleOptions($subPose['sub_menang'], '— bebas —') ?></select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field sub-field" data-sub="sub_reaksi" hidden>
+                        <label for="sub_reaksi_id">Reaksi yang Kena</label>
+                        <select id="sub_reaksi_id"><?= moduleOptions($subPose['sub_reaksi'], '— bebas —') ?></select>
+                    </div>
+                    <div class="field sub-field" data-sub="sub_lokasi" hidden>
+                        <label for="sub_lokasi_id">Di Bagian Ring Mana</label>
+                        <select id="sub_lokasi_id"><?= moduleOptions($subPose['sub_lokasi'], '— bebas —') ?></select>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -72,6 +72,7 @@ $sel = [
     'ring_id'       => ($in['ring_id'] ?? '') === 'auto' ? 'auto' : $modId($in['ring_id'] ?? null),
     'motion_id'     => $modId($in['motion_id'] ?? null),
     'cam_effect_id' => $modId($in['cam_effect_id'] ?? null),
+    'sub_lokasi_id' => $modId($in['sub_lokasi_id'] ?? null),
 ];
 
 if (empty($sel['a']['character']) && empty($sel['b']['character'])

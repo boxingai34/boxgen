@@ -150,7 +150,10 @@ return [
      'intensity' => 3, 'sort_order' => 3, 'tags' => ['sweat', 'light_blush', 'heavy_breathing']],
 
     ['category' => 'bertingkat', 'slug' => 'first-marks', 'defaults' => ['body' => 'sweat', 'cheek' => 'bandaid', 'mouth' => 'breathing', 'eyes' => 'half-closed'], 'name' => 'Lecet Awal', 'name_id' => 'Luka ringan',
-     'intensity' => 4, 'sort_order' => 4, 'tags' => ['sweat', 'heavy_breathing', 'bandaid_on_face', 'messy_hair']],
+     'intensity' => 4, 'sort_order' => 4, // bandaid_on_face dibuang: slot pipi di defaults sudah memberi
+     // bandaid_on_cheek. Dua-duanya berarti plester, dan yang ini tidak
+     // bisa dimatikan lewat slot.
+     'tags' => ['sweat', 'heavy_breathing', 'messy_hair']],
 
     ['category' => 'bertingkat', 'slug' => 'moderate-damage', 'defaults' => ['eyes' => 'half-closed', 'cheek' => 'bruise', 'nose' => 'nosebleed', 'mouth' => 'clenched', 'body' => 'bruise'], 'name' => 'Luka Sedang', 'name_id' => 'Mulai babak belur',
      'intensity' => 6, 'sort_order' => 5, 'tags' => ['sweat' => 1.1, 'bruise', 'blood_on_face', 'messy_hair', 'clenched_teeth']],
