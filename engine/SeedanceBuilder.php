@@ -322,7 +322,11 @@ final class SeedanceBuilder
     // =================================================================
 
     /** Kumpulkan data satu petinju. */
-    private static function orang(array $p, string $label): array
+    /**
+     * Dipakai bersama dengan NaturalPrompt (keluaran NovelAI V5), jadi
+     * sengaja publik. Isinya murni membaca data, tidak mengubah apa pun.
+     */
+    public static function orang(array $p, string $label): array
     {
         $out = [
             'label'      => $label,
@@ -399,7 +403,7 @@ final class SeedanceBuilder
     }
 
     /** Kalimat sebuah modul; kalau tidak punya, disusun dari tag. */
-    private static function kalimatModul($id, string $type, bool $tanpaTitik = false): string
+    public static function kalimatModul($id, string $type, bool $tanpaTitik = false): string
     {
         $mod = self::modul($id, $type);
         if ($mod === null) {
@@ -546,7 +550,7 @@ final class SeedanceBuilder
     }
 
     /** "a, b, c" -> "a, b and c" */
-    private static function daftar(array $item): string
+    public static function daftar(array $item): string
     {
         $item = array_values(array_filter($item));
         $n = count($item);
@@ -563,7 +567,7 @@ final class SeedanceBuilder
     }
 
     /** Huruf depan kapital, diakhiri titik. */
-    private static function kalimat(string $s): string
+    public static function kalimat(string $s): string
     {
         $s = trim($s);
         if ($s === '') {

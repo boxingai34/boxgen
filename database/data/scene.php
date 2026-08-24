@@ -278,6 +278,30 @@ return [
     ['slug' => 'tanpa', 'name' => 'Tanpa Kualitas', 'name_id' => 'Tidak dipakai',
      'sort_order' => 4, 'description' => 'Sebagian model modern justru lebih baik tanpa tag kualitas.',
      'tags' => []],
+
+    // ---- khusus NovelAI V5 ----
+    //
+    // Tag di bawah ini TIDAK dikenal Stable Diffusion maupun Danbooru —
+    // semuanya buatan NovelAI sendiri, diperkenalkan di V5. Memakainya
+    // di Stable Diffusion bukan merusak, cuma jadi kata sia-sia yang
+    // memakan jatah token. Jadi dipisah ke preset sendiri, bukan
+    // ditambahkan ke preset yang sudah ada.
+    //
+    // "high complexity" disarankan NovelAI untuk gambar normal, dan
+    // adegan tinju memang ramai: dua petinju, ring, penonton, tali.
+    // "depthness" menambah kedalaman bayangan — kebetulan pas untuk
+    // ketegasan otot dan cahaya lampu ring.
+    ['slug' => 'nai5', 'name' => 'NovelAI V5', 'name_id' => 'Untuk NovelAI V5',
+     'sort_order' => 5,
+     'description' => 'Tag khusus NovelAI V5. Di Stable Diffusion tidak berpengaruh apa-apa.',
+     'tags' => ['masterpiece', 'best_quality', 'high_complexity', 'depthness']],
+
+    ['slug' => 'nai5-ultra', 'name' => 'NovelAI V5 — Ultra', 'name_id' => 'NovelAI V5 gaya kuat',
+     'sort_order' => 6,
+     'description' => 'ultra complexity lebih cocok untuk gambar bergaya kuat '
+                    . 'daripada adegan biasa — coba dua-duanya, jangan langsung '
+                    . 'menganggap yang lebih tinggi pasti lebih bagus.',
+     'tags' => ['masterpiece', 'best_quality', 'absurdres', 'ultra_complexity', 'depthness']],
 ],
 
 // =====================================================================

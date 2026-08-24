@@ -759,7 +759,9 @@ function showOutput(target) {
 
     // NovelAI punya kotak prompt terpisah per karakter. Kalau ada dua
     // petinju, tampilkan bentuk itu; selain itu kotak biasa saja.
-    const nai = target === 'novelai' ? (out.structured || null) : null;
+    // Berlaku untuk kedua keluaran NovelAI — yang tag maupun yang
+    // kalimat; bedanya cuma isi Base Prompt-nya.
+    const nai = out.structured || null;
     const naiPerKarakter = !!(nai && nai.characters && nai.characters.length);
 
     $('#nai-block').hidden = !naiPerKarakter;
@@ -775,9 +777,16 @@ function showOutput(target) {
             box.appendChild(kotakTeks(c.label, c.prompt));
         });
 
+        // Catatan khusus keluaran ini — misalnya kenapa nama karakter
+        // sengaja tidak ditulis di Base Prompt.
+        const ket = $('#nai-catatan');
+        ket.textContent = (out.catatan || []).join(' ');
+        ket.hidden = !ket.textContent;
+
         $('#out-negative').value = nai.undesired;
         $('#negative-block').hidden = !nai.undesired;
         $('#regional-block').hidden = true;
+        $$('#tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.target === target));
         return;
     }
 

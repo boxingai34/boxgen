@@ -8,18 +8,19 @@ declare(strict_types=1);
  * tiap platform punya sintaks penekanan yang berbeda:
  *
  *   sd      : (tag:1.2)      -> Automatic1111, ComfyUI, Forge
- *   novelai : {tag} / [tag]  -> NovelAI
+ *   novelai : 1.20::tag::   -> NovelAI V4 ke atas (termasuk V5)
  *   gemini  : kalimat biasa, tanpa penekanan
  */
 final class Exporter
 {
-    public const TARGETS = ['sd', 'novelai', 'gemini'];
+    public const TARGETS = ['sd', 'novelai', 'nai5', 'gemini'];
 
     public static function targetLabel(string $target): string
     {
         return [
             'sd'      => 'Stable Diffusion / A1111 / ComfyUI',
-            'novelai' => 'NovelAI',
+            'novelai' => 'NovelAI (tag)',
+            'nai5'    => 'NovelAI V5 (kalimat)',
             'gemini'  => 'Gemini (kalimat)',
         ][$target] ?? $target;
     }
@@ -103,7 +104,7 @@ final class Exporter
         // Stable Diffusion MAUPUN NovelAI, karena keduanya memakai kurung
         // untuk mengatur bobot. Tanpa ini, "(frozen)" terbaca sebagai
         // penekanan pada kata "frozen", bukan bagian dari nama karakternya.
-        if ($target === 'sd' || $target === 'novelai') {
+        if ($target === 'sd' || $target === 'novelai' || $target === 'nai5') {
             $out = str_replace(['(', ')'], ['\\(', '\\)'], $out);
         }
 
@@ -120,13 +121,19 @@ final class Exporter
             return sprintf('(%s:%.2f)', $name, $weight);
         }
 
-        if ($target === 'novelai') {
-            // NovelAI memakai kurung kurawal: tiap lapis ≈ +0.05 kekuatan.
-            // Dibatasi 3 lapis supaya tidak berlebihan.
-            $steps = (int)min(3, max(1, round(abs($weight - 1.0) / 0.1)));
-            $open  = $weight > 1.0 ? '{' : '[';
-            $close = $weight > 1.0 ? '}' : ']';
-            return str_repeat($open, $steps) . $name . str_repeat($close, $steps);
+        if ($target === 'novelai' || $target === 'nai5') {
+            // Bentuk angka langsung, tersedia sejak NovelAI V4.
+            //
+            // Sebelumnya di sini dipakai kurung kurawal, dan itu SELALU
+            // meleset: satu lapis kurawal cuma menaikkan 5%, jadi bobot
+            // 1.3 berubah jadi tiga lapis = 1.05 pangkat 3 = 1.157.
+            // Angkanya sudah kita punya persis, tidak ada gunanya
+            // dibulatkan ke kelipatan 5%.
+            //
+            // Keluaran ini memang mengandaikan V4 ke atas — sama seperti
+            // Character Prompt dan awalan source#/target# yang sudah
+            // dipakai di tempat lain.
+            return sprintf('%.2f::%s::', $weight, $name);
         }
 
         return $name;
@@ -204,7 +211,7 @@ final class Exporter
      *
      * @return array{base:string, characters:array, undesired:string}
      */
-    public static function formatNovelAI(array $built, array $sel = []): array
+    public static function formatNovelAI(array $built, array $sel = [], ?string $baseGanti = null): array
     {
         $blocks = $built['blocks'];
 
@@ -227,7 +234,10 @@ final class Exporter
         }
 
         $hasil = [
-            'base'       => self::format($base, 'novelai'),
+            // Base Prompt bisa diganti kalimat untuk keluaran V5.
+            // Kotak karakternya tetap tag: nama karakter dalam bentuk tag
+            // jauh lebih patuh daripada dideskripsikan dengan kata-kata.
+            'base'       => $baseGanti ?? self::format($base, 'novelai'),
             'characters' => [],
             'undesired'  => self::format($built['negative_items'], 'novelai'),
         ];
@@ -337,6 +347,34 @@ final class Exporter
         // NovelAI punya kotak prompt terpisah per karakter, jadi selain
         // versi datar di atas disediakan juga versi terstrukturnya.
         $out['novelai']['structured'] = self::formatNovelAI($built, $sel);
+
+        // NovelAI V5: Base Prompt-nya kalimat, kotak karakternya tetap tag.
+        $alami = NaturalPrompt::build($sel);
+
+        // SEBAGIAN TAG WAJIB TETAP TAG, tidak boleh dijadikan kalimat.
+        //
+        // Aturan NovelAI: tag jumlah orang (2girls, solo) HANYA sah di
+        // Base Prompt. Kalau hilang, model tidak tahu ada berapa orang
+        // dan kotak karakter kedua bisa diabaikan begitu saja.
+        //
+        // Tag kualitas juga bukan deskripsi adegan — 'masterpiece' dan
+        // 'high complexity' adalah isyarat teknis. Menuliskannya sebagai
+        // kalimat justru melemahkannya.
+        //
+        // V5 memang mengizinkan kalimat dan tag bercampur, jadi keduanya
+        // disambung: kalimat dulu, tag menyusul di belakang.
+        $wajibTag = [];
+        foreach (['count', 'quality', 'style', 'extra'] as $blok) {
+            $wajibTag = array_merge($wajibTag, $built['blocks'][$blok] ?? []);
+        }
+
+        $ekor = self::format($wajibTag, 'nai5');
+        $baseV5 = $ekor === '' ? $alami['base'] : $alami['base'] . ' ' . $ekor;
+
+        $out['nai5']['structured'] = self::formatNovelAI($built, $sel, $baseV5);
+        $out['nai5']['prompt']     = $baseV5;
+        $out['nai5']['regional']   = '';
+        $out['nai5']['catatan']    = $alami['catatan'];
 
         return $out;
     }

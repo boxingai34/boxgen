@@ -509,7 +509,8 @@ halamanHeader('Prompt Generator', 'index.php');
         <div id="result" hidden>
             <div class="tabs" id="tabs">
                 <button class="tab active" data-target="sd">Stable Diffusion</button>
-                <button class="tab" data-target="novelai">NovelAI</button>
+                <button class="tab" data-target="novelai">NovelAI (tag)</button>
+                <button class="tab" data-target="nai5">NovelAI V5 (kalimat)</button>
                 <button class="tab" data-target="gemini">Gemini</button>
             </div>
 
@@ -531,6 +532,7 @@ halamanHeader('Prompt Generator', 'index.php');
                     <textarea id="nai-base" rows="4" readonly></textarea>
                 </div>
                 <div id="nai-chars"></div>
+                <p class="hint" id="nai-catatan" hidden></p>
                 <p class="hint">
                     Tempel tiap kotak ke kolomnya masing-masing di NovelAI.
                     Urutan Character Prompt menentukan posisi: atas ke bawah,
