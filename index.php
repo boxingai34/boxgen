@@ -25,7 +25,8 @@ try {
         $subPose[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $comic = [];
-    foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc', 'panel_beat'] as $t) {
+    foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc',
+              'panel_beat', 'panel_bentuk'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -48,7 +49,7 @@ try {
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
-              'comic_arc'=>[], 'panel_beat'=>[]];
+              'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -391,6 +392,22 @@ halamanHeader('Prompt Generator', 'index.php');
         <!-- khusus halaman komik -->
         <div class="only-comic">
             <div class="field">
+                <label for="gaya">Bentuk Kotak Karakter</label>
+                <select id="gaya">
+                    <?php foreach (ComicPage::GAYA as $k => $label): ?>
+                        <option value="<?= e($k) ?>"><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="hint">
+                    <strong>Adegan</strong> mengikuti contoh yang sudah terbukti: kotaknya
+                    cuma berisi <code>Panel 1: apa yang terjadi</code>, dan identitas
+                    tokohnya dipikul Base Prompt. Lebih pendek dan panelnya lebih patuh.
+                    <strong>Identitas</strong> menaruh identitas lengkap di tiap kotak —
+                    lebih panjang, tapi kondisi tiap panel bisa jadi tag sendiri.
+                </p>
+            </div>
+
+            <div class="field">
                 <label for="arc_id">Alur Halaman</label>
                 <select id="arc_id"><?= moduleOptions($comic['comic_arc'], '— pertandingan penuh —') ?></select>
                 <p class="hint">
@@ -519,12 +536,34 @@ halamanHeader('Prompt Generator', 'index.php');
                 </div>
 
                 <label class="check">
+                    <input type="checkbox" id="penekan" checked>
+                    Pakai penekan bobot negatif di Base Prompt
+                </label>
+                <p class="hint">
+                    Menambah <code>-1::censored::</code>, <code>-2::text::</code>, dan —
+                    kalau artisnya lebih dari satu — <code>-6::artist collaboration::</code>.
+                    Yang terakhir mencegah tiap panel bergaya berbeda seolah karya patungan.
+                    <code>-2::text::</code> menekan tulisan acak tapi tidak mematikan dialog.
+                </p>
+
+                <label class="check">
                     <input type="checkbox" id="tanpa_label">
                     Jangan tulis label <code>Panel 1:</code> di kotak karakter
                 </label>
                 <p class="hint">
-                    Label itu belum terbukti dibaca NovelAI. Coba matikan kalau
-                    panelnya tidak jadi.
+                    Label ini dipakai di contoh yang berhasil, jadi bawaannya menyala.
+                    Matikan cuma kalau mau membandingkan hasilnya.
+                </p>
+
+                <label class="check">
+                    <input type="checkbox" id="saring_uc">
+                    Buang tag anti-panel dari Undesired Content
+                </label>
+                <p class="hint">
+                    Membuang <code>multiple views</code>, <code>halftone</code>,
+                    <code>screentone</code>, <code>dithering</code>,
+                    <code>negative space</code>, <code>blank page</code>. Bawaannya MATI:
+                    contoh yang terbukti berhasil justru memakai keenamnya.
                 </p>
 
                 <label class="check">
@@ -785,6 +824,16 @@ halamanHeader('Prompt Generator', 'index.php');
                 <select id="beat-template" hidden>
                     <?= moduleOptions($comic['panel_beat'], '— ikut alur —') ?>
                 </select>
+                <select id="bentuk-template" hidden>
+                    <?= moduleOptions($comic['panel_bentuk'], '— panel biasa —') ?>
+                </select>
+
+                <p class="hint">
+                    Setelan yang dipakai contoh aslinya: ukuran <strong>832&times;1216</strong>
+                    (tegak), <strong>Steps 26</strong>, <strong>Guidance 4.5</strong>,
+                    sampler <strong>Euler Ancestral</strong>. Di Steps 18 kualitas gambarnya
+                    turun sedikit, tapi kepatuhan pada baris panelnya tetap.
+                </p>
 
                 <div class="actions">
                     <button id="btn-comic-ulang" class="btn primary">Bangun ulang halaman</button>

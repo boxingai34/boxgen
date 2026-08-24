@@ -92,6 +92,11 @@ foreach ((is_array($in['panel_teks'] ?? null) ? $in['panel_teks'] : []) as $p) {
         $baris['beat_id'] = (int)$p['beat_id'];
     }
 
+    // Bentuk panel: sisipan pop-up, chibi, jitome, close-up, panel lebar.
+    if (!empty($p['bentuk_id'])) {
+        $baris['bentuk_id'] = (int)$p['bentuk_id'];
+    }
+
     // Dibatasi panjangnya supaya satu kotak karakter tidak dijejali novel.
     foreach (['kalimat' => 400, 'dialog' => 300, 'uc' => 400] as $k => $maks) {
         if (isset($p[$k])) {
@@ -120,6 +125,19 @@ $sel = [
     // Alur halaman. Yang daftar momennya kosong — "Pertandingan Penuh" —
     // jatuh ke mesin pertandingan seperti sebelumnya.
     'arc_id'        => $modId($in['arc_id'] ?? null),
+
+    // Bentuk kotak karakter: "adegan" (cara yang sudah terbukti — kotaknya
+    // cuma berisi apa yang terjadi) atau "identitas" (cara lama, tiap kotak
+    // memikul identitas lengkap orangnya).
+    'gaya'          => isset(ComicPage::GAYA[(string)($in['gaya'] ?? '')])
+                         ? (string)$in['gaya'] : 'adegan',
+
+    // Bobot negatif penekan di Base Prompt.
+    'penekan'       => !isset($in['penekan']) || (bool)$in['penekan'],
+
+    // Saringan tag anti-panel di Undesired Content. Bawaannya MATI, karena
+    // contoh yang berhasil justru memakai tag-tag itu.
+    'saring_uc'     => !empty($in['saring_uc']),
 
     'layout_id'     => $modId($in['layout_id'] ?? null),
     'arah_id'       => $modId($in['arah_id']   ?? null),

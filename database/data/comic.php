@@ -34,8 +34,33 @@ return [
 // TATA LETAK — bagaimana panelnya disusun
 // =====================================================================
 'comic_layout' => [
-    ['slug' => 'alami', 'name' => 'Manga Alami', 'name_id' => 'Ukuran panel berbeda-beda',
+    // Kalimat ini disalin PERSIS dari panduan yang menurunkan tekniknya
+    // (arca.live, 23 Agustus 2026, "V5로 컷 만화 만드는법"). Bagian
+    // "not a four-panel comic" penting: tanpa itu V5 cenderung jatuh ke
+    // bentuk yonkoma, karena data komiknya paling banyak berbentuk itu.
+    ['slug' => 'satu-halaman', 'name' => 'Satu Halaman Penuh', 'name_id' => 'Halaman manga berwarna, bukan yonkoma',
+     'sort_order' => 0,
+     'description' => 'Bentuk yang dipakai contoh yang terbukti berhasil. Frasa '
+                    . '"not a four-panel comic" sengaja ikut — tanpa itu V5 sering '
+                    . 'jatuh ke bentuk empat panel bertumpuk.',
+     'sentence' => 'A full color standard one-page manga with few panels of varied sizes, '
+                 . 'not a four-panel comic. A natural manga page layout with clear panel '
+                 . 'borders, varied panel sizes, cinematic composition, and expressive '
+                 . 'visual storytelling',
+     'tags' => ['comic' => 1.2]],
+
+    ['slug' => 'satu-halaman-bw', 'name' => 'Satu Halaman Hitam Putih', 'name_id' => 'Sama, tapi tanpa warna',
      'sort_order' => 1,
+     'description' => 'Penulis panduannya sendiri mencatat: mengganti "full color" jadi '
+                    . '"monochrome" hasilnya nyaris tidak berbeda kualitasnya.',
+     'sentence' => 'A monochrome standard one-page manga with few panels of varied sizes, '
+                 . 'not a four-panel comic. A natural manga page layout with clear panel '
+                 . 'borders, varied panel sizes, cinematic composition, and expressive '
+                 . 'visual storytelling',
+     'tags' => ['comic' => 1.2, 'monochrome', 'greyscale']],
+
+    ['slug' => 'alami', 'name' => 'Manga Alami', 'name_id' => 'Ukuran panel berbeda-beda',
+     'sort_order' => 2,
      'description' => 'Yang paling sering dipakai. Ukuran panel sengaja tidak seragam '
                     . 'supaya halamannya punya irama, bukan seperti tabel.',
      'sentence' => 'A natural manga page layout with clear panel borders, varied panel '
@@ -170,6 +195,68 @@ return [
 ],
 
 // =====================================================================
+// BENTUK PANEL — berlaku untuk SATU panel, bukan seluruh halaman
+//
+// Ini yang membuat halaman punya irama. Contoh yang terbukti berhasil
+// memakainya di tiga dari enam panelnya:
+//
+//   Panel 2: Insert pop-up panel Golden Darkness is Jitome.
+//   Panel 5: Golden Darkness is inserted into the panel as an SD character.
+//   Panel 6: ... A cartoon style is used to emphasize this scene.
+//
+// `sentence` di sini bukan kalimat berdiri sendiri, melainkan tempelan
+// yang menempel di panelnya. Yang berawalan "Insert" ditaruh di DEPAN
+// kalimat panel; sisanya di belakang.
+// =====================================================================
+'panel_bentuk' => [
+    ['slug' => 'popup', 'name' => 'Panel Sisipan', 'name_id' => 'Panel kecil menempel di atas panel lain',
+     'sort_order' => 1,
+     'description' => 'Panel kecil yang ditempel di atas panel besar, biasanya untuk '
+                    . 'menyorot satu reaksi. Ditulis di DEPAN kalimat panelnya.',
+     'sentence' => 'Insert pop-up panel',
+     'tags' => ['zoom_layer' => 1.2]],
+
+    ['slug' => 'sd', 'name' => 'Chibi / SD', 'name_id' => 'Digambar sebagai tokoh chibi',
+     'sort_order' => 2,
+     'description' => 'SD = super deformed, alias chibi. Dipakai manga untuk jeda '
+                    . 'komedi di tengah adegan serius.',
+     'sentence' => 'They are drawn in this panel as an SD chibi character',
+     'tags' => ['chibi' => 1.2, 'chibi_inset']],
+
+    ['slug' => 'kartun', 'name' => 'Penekanan Kartun', 'name_id' => 'Gaya kartun untuk menegaskan',
+     'sort_order' => 3,
+     'sentence' => 'A cartoon style is used to emphasize this scene',
+     'tags' => ['emphasis_lines' => 1.1]],
+
+    ['slug' => 'jitome', 'name' => 'Mata Datar', 'name_id' => 'Jitome — tatapan datar tanpa minat',
+     'sort_order' => 4,
+     'description' => 'Jitome: mata setengah tertutup yang datar, tatapan "aku tidak '
+                    . 'tertarik". Salah satu ekspresi paling khas manga, dan tagnya '
+                    . 'kuat di Danbooru (49 ribu gambar).',
+     'sentence' => 'They have a flat jitome stare',
+     'tags' => ['jitome' => 1.3, 'half-closed_eyes', 'expressionless']],
+
+    ['slug' => 'besar', 'name' => 'Panel Terbesar', 'name_id' => 'Jadikan panel paling besar',
+     'sort_order' => 5,
+     'description' => 'Halaman manga butuh satu panel yang jauh lebih besar dari yang '
+                    . 'lain, kalau tidak iramanya datar seperti tabel.',
+     'sentence' => 'Make this the largest panel on the page',
+     'tags' => []],
+
+    ['slug' => 'dekat', 'name' => 'Close-up', 'name_id' => 'Bingkai rapat ke wajah',
+     'sort_order' => 6,
+     'sentence' => 'Frame this panel as a tight close-up',
+     'tags' => ['close-up' => 1.2]],
+
+    ['slug' => 'lebar', 'name' => 'Panel Lebar', 'name_id' => 'Bingkai lebar, menunjukkan tempat',
+     'sort_order' => 7,
+     'description' => 'Panel lebar yang menunjukkan tempatnya. Satu saja per halaman '
+                    . 'sudah cukup untuk membuat pembaca tahu ini di mana.',
+     'sentence' => 'Frame this panel wide to establish the location',
+     'tags' => ['wide_shot' => 1.2]],
+],
+
+// =====================================================================
 // WAKTU — kata pembuka Base Prompt
 // =====================================================================
 'comic_time' => [
@@ -199,8 +286,13 @@ return [
 'comic_arah' => [
     ['slug' => 'ekspresif', 'name' => 'Ekspresif', 'name_id' => 'Akting wajah kuat, alur nyambung',
      'sort_order' => 1,
+     'description' => 'Kalimat kedua adalah yang paling berharga di sini, dan paling '
+                    . 'sering terlupa: tanpa larangan itu, V5 cenderung membuat SEMUA '
+                    . 'panel jadi close-up wajah yang sedang bicara. Halaman jadi datar '
+                    . 'karena tidak ada satu pun panel yang menunjukkan badan atau tempat.',
      'sentence' => 'Use expressive facial acting, natural body language, consistent '
-                 . 'geography, and strong visual continuity',
+                 . 'geography, and strong visual continuity. Do not make every panel a '
+                 . 'facial close-up and dialogue',
      'tags' => []],
 
     ['slug' => 'aksi', 'name' => 'Aksi Keras', 'name_id' => 'Sudut ekstrem, tenaga penuh',

@@ -995,6 +995,38 @@ Setelah halamannya jadi, **tiap panel bisa diganti sendiri** — momennya,
 siapa yang tampil, kalimatnya, dialognya — lalu dibangun ulang. Yang
 tidak kamu sentuh tetap seperti semula.
 
+### Bentuk kotak: dua pilihan
+
+**Adegan** (bawaan) mengikuti contoh yang terbukti berhasil — panduan
+komunitas Korea di arca.live, 23 Agustus 2026, *"V5로 컷 만화 만드는법"*.
+Kotaknya cuma berisi apa yang terjadi:
+
+```
+Character 1 Prompt:  Panel 1: Momo discovers the Golden Darkness. Use welcoming gestures.
+Momo's text: 어머, 야미 씨! 안녕하세요.
+```
+
+Tidak ada satu pun tag identitas di kotaknya. Siapa tokohnya ditanggung
+Base Prompt. Kalimat kunci penulisnya: *"캐릭터 칸을 하나의 컷으로 이해하면
+돼"* — anggap tiap kotak karakter sebagai satu panel.
+
+**Identitas** menaruh identitas lengkap di tiap kotak. Lebih panjang, tapi
+kondisi tiap panel bisa dinyatakan sebagai tag — memar di panel lima, masih
+segar di panel satu. Di gaya Adegan itu cuma bisa lewat kalimat.
+
+### Bentuk panel, per panel
+
+Tujuh pilihan yang berlaku untuk SATU panel saja: sisipan pop-up, chibi/SD,
+penekanan kartun, mata datar (*jitome*), panel terbesar, close-up, panel
+lebar. Contoh aslinya memakainya di tiga dari enam panel — itu yang membuat
+halamannya punya irama, bukan enam kotak yang seragam.
+
+### Setelan yang dipakai contoh aslinya
+
+Ukuran **832x1216** (tegak), **Steps 26**, **Guidance 4.5**, sampler
+**Euler Ancestral**. Di Steps 18 kualitas gambarnya turun sedikit tapi
+kepatuhan pada baris panelnya tetap.
+
 ### Yang perlu kamu tahu sebelum memakainya
 
 **Cuma untuk NovelAI V5.** Halaman berpanel dalam sekali generate baru ada
@@ -1010,20 +1042,22 @@ tag `comic` menyebutnya terang-terangan: tag komposisi seperti `from above`
 jangan dipakai kecuali gambarnya berisi satu orang. Di halaman berpanel,
 satu sudut di Base berlaku ke seluruh halaman.
 
-**Enam tag wajib dibuang dari Undesired Content:** `multiple views`,
-`halftone`, `screentone`, `blank page`, `negative space`, `dithering`.
-Keenamnya ada di preset bawaan NovelAI dan keenamnya melawan halaman
-berpanel secara langsung. Ini dibuang otomatis, dan dilaporkan mana saja
-yang dibuang.
+**Enam tag yang kusangka wajib dibuang, ternyata tidak.** Dulu
+`multiple views`, `halftone`, `screentone`, `blank page`, `negative space`,
+dan `dithering` dibuang otomatis, dengan alasan wiki Danbooru menyatakan
+`multiple_views` tidak berlaku untuk komik. Alasan itu keliru: contoh yang
+terbukti berhasil memakai keenamnya sekaligus dan halamannya tetap jadi.
+Sekarang pembuangannya jadi pilihan, dan bawaannya MATI.
 
 **Dialog ditulis dalam tanda kutip, bukan blok `Text:`.** Di V5, menulis
 blok `Text:` sendiri justru mematikan pembacaan otomatis tanda kutipnya.
 Kalau tetap dipakai, tempatnya di paling akhir prompt — apa pun setelahnya
 ikut tercetak di gambar.
 
-**Bahasa yang resmi didukung untuk render teks cuma Inggris, Jepang, dan
-Mandarin.** Korea tidak pernah disebut sumber resmi mana pun. Website akan
-mengingatkan kalau kamu memilih bahasa di luar ketiganya.
+**Korea ternyata bekerja**, walau dokumentasi resmi cuma menyebut Inggris,
+Jepang, dan Mandarin. Contoh yang berhasil menulis dialog Hangul lewat
+`<Nama>'s text:` dan hurufnya keluar terbaca rapi di dalam gelembung.
+Peringatan lama di sini salah, dan sudah diralat.
 
 ### Yang belum diketahui, dan sengaja tidak dipura-purakan
 
@@ -1032,16 +1066,16 @@ mengingatkan kalau kamu memilih bahasa di luar ketiganya.
   diperbarui. Pengumuman V5 menyebut 22 karakter di uji internal, bukan
   batas antarmukanya. Di sini dipakai 6 karena itu angka yang jelas aman.
   Kalau di NovelAI-mu kotaknya lebih banyak, ubah `ComicPage::MAKS_KOTAK`.
-- **Label `Panel 1:` belum terbukti.** Tidak ada dokumentasi maupun contoh
-  terverifikasi yang menyatakan NovelAI membacanya sebagai nomor panel.
-  Bisa jadi yang bekerja sebenarnya cuma kalimat aksinya. Ada centang
-  untuk mematikannya.
+- **Label `Panel 1:` sekarang terbukti dipakai** di contoh yang berhasil,
+  jadi dinyalakan sebagai bawaan. Yang masih belum diketahui: apakah
+  NovelAI benar-benar membacanya sebagai NOMOR panel, atau yang bekerja
+  sebenarnya cuma kalimat aksinya. Centangnya tetap ada untuk dibandingkan.
 - **Tidak ada cara mengunci jumlah panel.** Yang ada cuma tag `2koma`/
   `3koma`/`4koma` sebagai isyarat — dan itu pun cuma dipakai untuk tata
   letak yang panelnya memang rata, karena `4koma` berarti bentuk strip,
   bukan sekadar "empat panel".
-- **Tidak ada rekomendasi rasio aspek.** Yang diketahui cuma: pakai ukuran
-  BESAR, karena ukuran kecil merusak kepatuhan pada instruksi.
+- **Rasio aspek: 832x1216 (tegak)** dipakai contoh yang berhasil. Bukan
+  hasil pengujian bandingan, cuma satu setelan yang memang jadi.
 
 ---
 

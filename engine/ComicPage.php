@@ -97,6 +97,30 @@ final class ComicPage
     ];
 
     /**
+     * Dua cara mengisi kotak karakter.
+     *
+     * ADEGAN adalah cara yang TERBUKTI. Panduan komunitas Korea yang
+     * menurunkan teknik ini (arca.live, 23 Agustus 2026, "V5로 컷 만화
+     * 만드는법") mengisi kotaknya HANYA dengan apa yang terjadi:
+     *
+     *     Panel 1: Momo discovers the Golden Darkness. Use welcoming gestures.
+     *     Momo's text: 어머, 야미 씨! 안녕하세요.
+     *
+     * Tidak ada satu pun tag identitas di kotaknya. Siapa tokohnya
+     * ditanggung Base Prompt. Kalimat kuncinya: "캐릭터 칸을 하나의 컷으로
+     * 이해하면 돼" — anggap tiap kotak karakter sebagai satu panel.
+     *
+     * IDENTITAS adalah cara kita sebelumnya: tiap kotak berisi identitas
+     * lengkap orangnya plus aksinya. Lebih panjang, tapi kondisi tiap
+     * panel bisa dinyatakan sebagai tag — memar di panel lima, masih
+     * segar di panel satu. Di gaya Adegan itu cuma bisa lewat kalimat.
+     */
+    public const GAYA = [
+        'adegan'    => 'Adegan saja — cara yang sudah terbukti',
+        'identitas' => 'Identitas lengkap tiap panel',
+    ];
+
+    /**
      * Bahasa dialog, beserta tag Danbooru-nya kalau ada.
      *
      * `japanese_text` TIDAK ADA di Danbooru — bahasa Jepang itu bawaan di
@@ -695,9 +719,26 @@ final class ComicPage
             $bagian[] = $sub;
         }
 
+        // Bentuk panel ikut menyumbang tag di gaya identitas — chibi, jitome,
+        // close-up. Di gaya adegan tempelannya berbentuk kalimat, bukan tag.
+        $tagBentuk = self::tagBentukPanel($sel, $p['nomor']);
+        if ($tagBentuk !== '') {
+            $bagian[] = $tagBentuk;
+        }
+
         $timpa   = self::timpaPanel($sel, $p['nomor']);
         $kalimat = $timpa['kalimat'] ?? self::kalimatPanel($p, $sisi, $sel);
         $dialog  = trim((string)($timpa['dialog'] ?? ''));
+
+        // GAYA ADEGAN: kotaknya cuma berisi apa yang terjadi.
+        //
+        // Ini bentuk yang dipakai panduan Korea yang menurunkan tekniknya,
+        // dan gambarnya memang jadi. Identitas tokohnya sama sekali tidak
+        // ditulis di sini — itu tugas Base Prompt. Hasilnya kotak yang
+        // pendek, dan panel yang jauh lebih patuh pada isi kalimatnya.
+        if (($sel['gaya'] ?? 'adegan') === 'adegan') {
+            return self::kotakAdegan($sel, $p, $sisi, $urutan, $gender, $kalimat, $dialog, $timpa);
+        }
 
         $isi = implode(', ', $bagian);
 
@@ -730,6 +771,7 @@ final class ComicPage
             // Dikirim balik supaya menu momen di halaman menunjukkan yang
             // sedang dipakai — bukan kosong seolah belum dipilih apa-apa.
             'beat_id' => isset($p['momen']) ? (int)$p['momen']['id'] : null,
+            'bentuk_id' => self::idBentuk($sel, $p['nomor']),
             'momen'   => isset($p['momen']) ? ($p['momen']['name_id'] ?: $p['momen']['name']) : null,
             'judul'   => $p['judul'] . ' · ' . (self::AKTOR[$sisi] ?? $sisi),
             'kalimat' => $kalimat,
@@ -738,6 +780,127 @@ final class ComicPage
             'uc'      => trim((string)($timpa['uc'] ?? '')),
             'token'   => Optimizer::estimateTokens($isi),
         ];
+    }
+
+    /**
+     * Kotak gaya ADEGAN — apa yang terjadi, titik.
+     *
+     * Bentuknya persis mengikuti panduan yang menurunkan tekniknya:
+     *
+     *     Panel 1: Momo discovers the Golden Darkness. Use welcoming gestures.
+     *     Momo's text: 어머, 야미 씨! 안녕하세요.
+     *
+     * Dua hal yang berbeda dari gaya identitas, dan dua-duanya disengaja:
+     *
+     *   1. Tidak ada satu pun tag identitas. Kotaknya jadi pendek, dan
+     *      panelnya jauh lebih patuh pada isi kalimatnya.
+     *   2. Dialognya ditulis "<Nama>'s text: …", bukan sebagai tag
+     *      gelembung. Nama tokohnya ikut jadi penanda panel ini milik
+     *      siapa — itu yang menggantikan tag identitas.
+     */
+    private static function kotakAdegan(
+        array $sel, array $p, string $sisi, int $urutan,
+        string $gender, string $kalimat, string $dialog, array $timpa
+    ): array {
+        $nama   = self::namaTokoh($sel, $sisi);
+        $bentuk = self::bentukPanel($sel, $p['nomor']);
+
+        // Tempelan yang berawalan "Insert" ditaruh di DEPAN kalimat panel,
+        // persis seperti contohnya: "Panel 2: Insert pop-up panel Golden
+        // Darkness is Jitome." Sisanya jadi kalimat sendiri di belakang.
+        $depan   = '';
+        $belakang = '';
+
+        if ($bentuk !== '') {
+            if (str_starts_with($bentuk, 'Insert')) {
+                $depan = $bentuk . ' ';
+            } else {
+                $belakang = ' ' . SeedanceBuilder::kalimat($bentuk);
+            }
+        }
+
+        $isi = empty($sel['tanpa_label'])
+            ? "Panel {$p['nomor']}: " . $depan . $kalimat . $belakang
+            : $depan . $kalimat . $belakang;
+
+        // Sebutan "the boxer" berguna waktu identitasnya ada di kotak yang
+        // sama. Di gaya ini identitasnya di Base Prompt, jadi yang menunjuk
+        // orangnya harus NAMANYA — kalau tidak, enam panel semuanya bicara
+        // tentang "the boxer" yang tidak jelas yang mana.
+        if ($nama !== null) {
+            $isi = preg_replace('/\bthe boxer\b/i', $nama, $isi, 1) ?? $isi;
+        }
+
+        if ($dialog !== '') {
+            $isi .= "\n\n" . ($nama ?? 'Their') . "'s text: " . $dialog;
+        }
+
+        return [
+            'nomor'   => $p['nomor'],
+            'urutan'  => $urutan,
+            'label'   => 'Character ' . $urutan,
+            'aktor'   => $sisi,
+            'gender'  => $gender,
+            'beat_id' => isset($p['momen']) ? (int)$p['momen']['id'] : null,
+            'bentuk_id' => self::idBentuk($sel, $p['nomor']),
+            'momen'   => isset($p['momen']) ? ($p['momen']['name_id'] ?: $p['momen']['name']) : null,
+            'judul'   => $p['judul'] . ' · ' . (self::AKTOR[$sisi] ?? $sisi),
+            'kalimat' => $kalimat,
+            'dialog'  => $dialog,
+            'prompt'  => $isi,
+            'uc'      => trim((string)($timpa['uc'] ?? '')),
+            'token'   => Optimizer::estimateTokens($isi),
+        ];
+    }
+
+    /** Id bentuk panel yang dipilih, untuk dikirim balik ke menunya. */
+    private static function idBentuk(array $sel, int $nomor): ?int
+    {
+        foreach (($sel['panel_teks'] ?? []) as $p) {
+            if ((int)($p['nomor'] ?? 0) === $nomor && !empty($p['bentuk_id'])) {
+                return (int)$p['bentuk_id'];
+            }
+        }
+
+        return null;
+    }
+
+    /** Tempelan bentuk panel yang dipilih untuk nomor panel ini. */
+    private static function bentukPanel(array $sel, int $nomor): string
+    {
+        foreach (($sel['panel_teks'] ?? []) as $p) {
+            if ((int)($p['nomor'] ?? 0) === $nomor && !empty($p['bentuk_id'])) {
+                return SeedanceBuilder::kalimatModul(
+                    (int)$p['bentuk_id'], 'panel_bentuk', true
+                );
+            }
+        }
+
+        return '';
+    }
+
+    /** Tag dari bentuk panel, untuk gaya identitas yang kotaknya berisi tag. */
+    private static function tagBentukPanel(array $sel, int $nomor): string
+    {
+        foreach (($sel['panel_teks'] ?? []) as $p) {
+            if ((int)($p['nomor'] ?? 0) === $nomor && !empty($p['bentuk_id'])) {
+                return self::tagModul((int)$p['bentuk_id'], 'panel_bentuk');
+            }
+        }
+
+        return '';
+    }
+
+    /** Nama tokoh yang bisa ditulis di kalimat, atau null kalau tidak ada. */
+    private static function namaTokoh(array $sel, string $sisi): ?string
+    {
+        $tag = $sel[$sisi]['character'] ?? null;
+
+        if (!is_string($tag) || $tag === '') {
+            return null;
+        }
+
+        return CharacterResolver::namaCantik($tag);
     }
 
     /** Timpaan yang diketik user untuk satu nomor panel. */
@@ -982,6 +1145,26 @@ final class ComicPage
             $baris1[] = rtrim($artis, " \t\n,");
         }
 
+        // PENEKAN LEWAT BOBOT NEGATIF, BUKAN LEWAT Undesired Content.
+        //
+        // Sejak V4.5 bobot negatif bisa ditulis langsung di prompt positif,
+        // dan panduan yang menurunkan teknik ini memakainya begitu:
+        //
+        //     -1::censored::, -2::text::, -6::artist collaboration::
+        //
+        // Yang terakhir itu yang paling berharga. Mencampur beberapa artis
+        // membuat model mengira ini karya patungan, dan hasilnya halaman
+        // yang tiap panelnya bergaya berbeda — persis yang TIDAK diinginkan
+        // di satu halaman komik. Angkanya besar (-6) karena harus menang
+        // melawan tiga nama artis sekaligus.
+        //
+        // `-2::text::` menekan tulisan ACAK di gambar, dan ternyata TIDAK
+        // mematikan dialog yang ditulis lewat "<Nama>'s text:". Panduan itu
+        // memakai keduanya bersamaan dan hurufnya tetap keluar terbaca.
+        foreach (self::penekan($sel, $artis) as $n) {
+            $baris1[] = $n;
+        }
+
         $tahun = (int)($sel['tahun'] ?? 0);
         if (in_array($tahun, self::TAHUN, true)) {
             $baris1[] = 'year ' . $tahun;
@@ -996,6 +1179,18 @@ final class ComicPage
 
         if ($baris1 !== []) {
             $bagian[] = implode(', ', $baris1);
+        }
+
+        // ---- 1b. identitas, kalau kotaknya tidak memikulnya ----
+        //
+        // Gaya Adegan mengosongkan kotak karakter dari identitas, jadi
+        // identitasnya HARUS ada di sini. Kalau tidak, yang tergambar
+        // adalah orang asing yang kebetulan melakukan hal yang benar.
+        if (($sel['gaya'] ?? 'adegan') === 'adegan') {
+            $identitas = self::identitasBase($sel, $catatan);
+            if ($identitas !== '') {
+                $bagian[] = $identitas;
+            }
         }
 
         // ---- 2. arahan penyutradaraan ----
@@ -1044,6 +1239,89 @@ final class ComicPage
         }
 
         return implode("\n\n", array_filter($bagian));
+    }
+
+    /**
+     * Penekan bobot negatif untuk Base Prompt.
+     *
+     * @return string[]
+     */
+    private static function penekan(array $sel, string $artis): array
+    {
+        if (empty($sel['penekan'])) {
+            return [];
+        }
+
+        $out = ['-1::censored::', '-2::text::'];
+
+        // Berapa artis yang dicampur? Dihitung dari jumlah "::" berpasangan
+        // maupun nama polos yang dipisah koma — dua-duanya bentuk yang sah.
+        $jumlahArtis = preg_match_all('/artist:/i', $artis);
+
+        if ($jumlahArtis >= 2) {
+            $out[] = '-6::artist collaboration::';
+        }
+
+        return $out;
+    }
+
+    /**
+     * Identitas kedua petinju untuk Base Prompt.
+     *
+     * Dipakai gaya Adegan, yang kotak karakternya sengaja kosong dari tag.
+     * Yang masuk: nama karakter, judul serinya, penampilan, dan pakaian —
+     * semuanya lewat PromptBuilder yang sama seperti mode biasa, jadi
+     * warna sarung tinju dan seluruh urusan slot tetap berlaku.
+     */
+    private static function identitasBase(array $sel, array &$catatan): string
+    {
+        $items = [];
+        $orang = 0;
+
+        foreach (['a', 'b'] as $sisi) {
+            $p = $sel[$sisi] ?? [];
+
+            if (empty($p['character']) && empty($p['outfit_id'])) {
+                continue;
+            }
+
+            $built = PromptBuilder::build($p + [
+                'mode'         => 'single',
+                'allow_nsfw'   => $sel['allow_nsfw'] ?? ALLOW_NSFW,
+                'trim_implied' => $sel['trim_implied'] ?? true,
+            ]);
+
+            foreach (['character', 'appearance', 'outfit'] as $blok) {
+                $items = array_merge($items, $built['blocks'][$blok] ?? []);
+            }
+            $orang++;
+        }
+
+        if ($items === []) {
+            return '';
+        }
+
+        // KEDUANYA DI SATU KOTAK ITU RISIKO, DAN HARUS DIKATAKAN.
+        //
+        // Waktu identitasnya ada di kotak masing-masing, model punya batas
+        // yang jelas antara siapa punya rambut apa. Di sini keduanya
+        // menumpuk jadi satu daftar, dan ciri satu orang bisa nyasar ke
+        // orang lain. Itu harga yang dibayar untuk kotak panel yang bersih.
+        if ($orang > 1) {
+            $catatan[] = 'Gaya Adegan menaruh identitas KEDUA petinju di Base Prompt, '
+                . 'karena kotak panelnya sengaja dikosongkan. Akibatnya ciri satu orang '
+                . 'bisa nyasar ke yang lain — rambut Petinju A muncul di Petinju B. '
+                . 'Kalau itu terjadi, ganti ke gaya "Identitas lengkap tiap panel".';
+        }
+
+        // Tag kembar dari dua orang yang pakaiannya sama tidak perlu
+        // ditulis dua kali.
+        $unik = [];
+        foreach ($items as $it) {
+            $unik[$it['name']] = $it;
+        }
+
+        return Exporter::format(array_values($unik), 'novelai');
     }
 
     /** "Morning, in a packed professional arena," */
@@ -1321,17 +1599,29 @@ final class ComicPage
             }
         }
 
-        // Tag yang melawan halaman berpanel dibuang, dari mana pun
-        // datangnya — termasuk dari kolom tambahan yang kamu tempel
-        // sendiri. Preset Undesired Content bawaan NovelAI memuat enam
-        // tag yang secara langsung mematikan panel, dan menempelkannya
-        // apa adanya adalah cara paling umum halaman komik gagal jadi.
-        $daftar = array_values(array_filter(
-            $daftar,
-            static fn(string $u): bool => !in_array(
-                mb_strtolower(trim($u)), self::UC_LARANGAN, true
-            )
-        ));
+        // PEMBUANGAN INI SEKARANG PILIHAN, DAN BAWAANNYA MATI.
+        //
+        // Dulu enam tag ini dibuang otomatis, dengan alasan yang terdengar
+        // masuk akal: wiki Danbooru menyatakan `multiple_views` tidak
+        // berlaku untuk komik, jadi melarangnya berarti melarang halaman
+        // berisi banyak sudut pandang.
+        //
+        // Alasan itu keliru. Panduan Korea yang menurunkan teknik ini
+        // memakai keenamnya sekaligus di Undesired Content — multiple
+        // views, halftone, screentone, dithering, negative space, blank
+        // page — dan halamannya tetap jadi dengan enam panel yang rapi.
+        //
+        // Satu contoh yang BENAR-BENAR JADI mengalahkan penalaran dari
+        // arti tag. Jadi bawaannya sekarang tidak membuang apa-apa, dan
+        // pembuangannya cuma dinyalakan kalau kamu memang mau mencobanya.
+        if (!empty($sel['saring_uc'])) {
+            $daftar = array_values(array_filter(
+                $daftar,
+                static fn(string $u): bool => !in_array(
+                    mb_strtolower(trim($u)), self::UC_LARANGAN, true
+                )
+            ));
+        }
 
         // buang kembar, pertahankan urutan
         $unik = [];
@@ -1413,16 +1703,15 @@ final class ComicPage
             . 'adalah fitur yang baru ada di V5 — di V4 dan V4.5 arahan per panel memang '
             . 'tidak terbaca. Kalau modelmu masih V4.5, keluaran ini tidak akan jadi halaman.';
 
-        $catatan[] = 'Pakai ukuran gambar BESAR. Ukuran kecil bukan cuma menurunkan '
-            . 'kualitas — ia merusak kepatuhan pada instruksi, dan jumlah panelnya jadi '
-            . 'sering meleset. Soal rasio tegak atau lebar, tidak ada rekomendasi yang '
-            . 'bisa dipegang: belum ada yang mengujinya secara terbuka.';
+        $catatan[] = 'Setelan yang dipakai panduan aslinya: ukuran 832x1216 (tegak), '
+            . 'Steps 26, Guidance 4.5, sampler Euler Ancestral. Di Steps 18 kualitas '
+            . 'gambarnya turun sedikit tapi kepatuhan pada baris panelnya tetap — jadi '
+            . 'kalau mau hemat, yang dikorbankan cuma kehalusan.';
 
-        $catatan[] = 'Label "Panel 1:" di dalam kotak karakter belum terbukti. Format yang '
-            . 'beredar memakainya dan gambarnya memang jadi, tapi tidak ada dokumentasi '
-            . 'maupun contoh terverifikasi yang menyatakan NovelAI membaca label itu sebagai '
-            . 'nomor panel. Bisa jadi yang bekerja sebenarnya cuma kalimat aksinya. Kalau '
-            . 'hasilnya aneh, coba matikan labelnya.';
+        $catatan[] = 'Label "Panel 1:" TERBUKTI dipakai di contoh yang berhasil, jadi '
+            . 'dinyalakan sebagai bawaan. Yang masih belum diketahui: apakah NovelAI '
+            . 'benar-benar membacanya sebagai nomor panel, atau yang bekerja sebenarnya '
+            . 'cuma kalimat aksinya. Ada centang untuk mematikannya kalau mau dibandingkan.';
 
         if (count($kotak) > 4) {
             $catatan[] = 'Di atas empat panel, dua hal memburuk sekaligus: tiap panel jadi '
@@ -1439,13 +1728,15 @@ final class ComicPage
                 . 'Dua permintaan ini bertabrakan. Pilih 4 panel, atau ganti tata letaknya.';
         }
 
-        $dibuang = self::ucDibuang($sel);
+        if (!empty($sel['saring_uc'])) {
+            $dibuang = self::ucDibuang($sel);
 
-        if ($dibuang !== []) {
-            $catatan[] = 'Dibuang dari Undesired Content: ' . implode(', ', $dibuang) . '. '
-                . 'Tag-tag ini ada di preset bawaan NovelAI dan melawan halaman berpanel '
-                . 'secara langsung — melarang "multiple views" berarti melarang halaman '
-                . 'berisi banyak sudut pandang, dan itu persis yang sedang dibuat.';
+            if ($dibuang !== []) {
+                $catatan[] = 'Dibuang dari Undesired Content: ' . implode(', ', $dibuang) . '. '
+                    . 'Ini kamu yang menyalakannya. Perlu diketahui: panduan yang menurunkan '
+                    . 'teknik ini justru MEMAKAI tag-tag itu, dan halamannya tetap jadi. '
+                    . 'Jadi kalau hasilnya malah memburuk, matikan lagi saringannya.';
+            }
         }
 
         $sama = [];
@@ -1473,27 +1764,28 @@ final class ComicPage
         if ($adaDialog) {
             $kode = (string)($sel['bahasa'] ?? 'ko');
 
-            // BAHASA YANG RESMI DIDUKUNG CUMA TIGA.
+            // KOREA TERNYATA BEKERJA, DAN ITU HARUS DIRALAT.
             //
-            // NovelAI menyebut Inggris, Jepang, dan Mandarin untuk render
-            // teks. Korea tidak pernah disebut di sumber resmi mana pun —
-            // dan itu justru bahasa yang paling sering dipakai di contoh
-            // prompt yang beredar. Mengatakannya sekarang jauh lebih murah
-            // daripada membiarkanmu membakar puluhan generate.
-            $didukung = ['en', 'ja', 'zh'];
+            // Dokumentasi resmi NovelAI cuma menyebut Inggris, Jepang, dan
+            // Mandarin, jadi dulu di sini ada peringatan bahwa Korea
+            // kemungkinan keluar sebagai coretan. Peringatan itu salah:
+            // panduan Korea yang menurunkan teknik ini menulis dialog
+            // Hangul lewat "<Nama>'s text:" dan hurufnya keluar terbaca
+            // rapi di dalam gelembung. Kalimat penulisnya: "무려 한국어를
+            // 써 넣을 수 있음" — bahkan bahasa Korea pun bisa ditulis.
+            //
+            // Yang belum ada buktinya tinggal bahasa selain kelima ini.
+            $terbukti = ['en', 'ja', 'zh', 'ko'];
 
-            if (!in_array($kode, $didukung, true)) {
-                $catatan[] = 'Bahasa ' . (self::BAHASA[$kode]['label'] ?? $kode) . ' TIDAK '
-                    . 'termasuk yang resmi didukung untuk render teks — NovelAI cuma '
-                    . 'menyebut Inggris, Jepang, dan Mandarin. Hurufnya kemungkinan besar '
-                    . 'keluar sebagai coretan yang mirip huruf, bukan tulisan yang terbaca.';
+            if (!in_array($kode, $terbukti, true)) {
+                $catatan[] = 'Bahasa ' . (self::BAHASA[$kode]['label'] ?? $kode) . ' belum '
+                    . 'ada contoh berhasilnya. Inggris, Jepang, Mandarin, dan Korea sudah '
+                    . 'terbukti keluar terbaca; sisanya belum pernah kulihat buktinya.';
             }
 
-            $catatan[] = 'Cara paling rapi: biarkan model membuat GELEMBUNGNYA, lalu tulis '
-                . 'sendiri teksnya di editor gambar. Kalau memang mau dicoba oleh model, '
-                . 'dialognya ditulis dalam tanda kutip seperti di keluaran ini — jangan '
-                . 'tambahkan blok "Text:" sendiri, karena di V5 itu justru mematikan '
-                . 'pembacaan otomatis tanda kutipnya.';
+            $catatan[] = 'Dialognya ditulis "<Nama>\'s text: …" di bawah baris panelnya — '
+                . 'bentuk yang sudah terbukti menghasilkan huruf terbaca. Jangan tambahkan '
+                . 'blok "Text:" sendiri: di V5 itu justru mematikan pembacaan otomatisnya.';
         }
 
         return $catatan;
