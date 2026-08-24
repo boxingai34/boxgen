@@ -25,7 +25,7 @@ try {
         $subPose[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $comic = [];
-    foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah'] as $t) {
+    foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc', 'panel_beat'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -47,7 +47,8 @@ try {
     $condSlots = ['eyes'=>[], 'gaze'=>[], 'cheek'=>[], 'nose'=>[], 'mouth'=>[], 'body'=>[], 'expr'=>[], 'clothes'=>[]];
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
-    $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[]];
+    $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
+              'comic_arc'=>[], 'panel_beat'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -389,6 +390,17 @@ halamanHeader('Prompt Generator', 'index.php');
 
         <!-- khusus halaman komik -->
         <div class="only-comic">
+            <div class="field">
+                <label for="arc_id">Alur Halaman</label>
+                <select id="arc_id"><?= moduleOptions($comic['comic_arc'], '— pertandingan penuh —') ?></select>
+                <p class="hint">
+                    Isi panelnya mengikuti alur ini. Halaman komik tidak harus berisi
+                    pukulan — membalut tangan, berjalan ke ring, duduk di bangku sudut,
+                    semuanya bisa jadi panel. Tiap panel tetap bisa kamu ganti sendiri
+                    setelah halamannya dibuat.
+                </p>
+            </div>
+
             <div class="field-row">
                 <div class="field">
                     <label for="panels">Jumlah panel</label>
@@ -405,13 +417,16 @@ halamanHeader('Prompt Generator', 'index.php');
                     </p>
                 </div>
                 <div class="field">
-                    <label for="hasil_komik">Alur cerita</label>
+                    <label for="hasil_komik">Hasil pertandingan</label>
                     <select id="hasil_komik">
                         <?php foreach (Storyboard::HASIL as $k => $label): ?>
                             <option value="<?= e($k) ?>"><?= e($label) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <p class="hint">Isi tiap panel disusun sendiri mengikuti alur ini.</p>
+                    <p class="hint">
+                        Cuma berpengaruh pada alur <strong>Pertandingan Penuh</strong> —
+                        alur lain sudah menentukan sendiri isi tiap panelnya.
+                    </p>
                 </div>
             </div>
 
@@ -763,6 +778,13 @@ halamanHeader('Prompt Generator', 'index.php');
                 </div>
 
                 <div id="comic-panels"></div>
+
+                <!-- Daftar momen, dirender sekali lalu disalin ke tiap panel.
+                     Ditaruh di sini supaya pengelompokan per tahap ikut
+                     terbawa — JavaScript tidak perlu tahu ada tahap apa saja. -->
+                <select id="beat-template" hidden>
+                    <?= moduleOptions($comic['panel_beat'], '— ikut alur —') ?>
+                </select>
 
                 <div class="actions">
                     <button id="btn-comic-ulang" class="btn primary">Bangun ulang halaman</button>

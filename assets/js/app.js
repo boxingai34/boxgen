@@ -280,6 +280,7 @@ function currentSelection() {
         sel.b = personSelection('b');
         sel.panels = parseInt($('#panels').value, 10);
         sel.hasil  = $('#hasil_komik').value;
+        sel.arc_id = $('#arc_id').value || null;
 
         COMIC_IDS.forEach((id) => { sel[id] = $('#' + id).value || null; });
 
@@ -1098,9 +1099,29 @@ function panelSuntingan() {
     return $$('.panel-sunting').map((row) => ({
         nomor:   parseInt(row.dataset.nomor, 10),
         aktor:   $('.p-aktor', row).value,
+        beat_id: $('.p-beat', row)?.value || null,
         kalimat: $('.p-kalimat', row).value.trim(),
         dialog:  $('.p-dialog', row).value.trim()
     })).filter((p) => p.nomor > 0);
+}
+
+/**
+ * Menu momen untuk satu panel, disalin dari template di halaman.
+ *
+ * Templatnya sudah berkelompok per tahap — persiapan, menuju ring, antar
+ * ronde, sesudah — jadi pengelompokan itu ikut terbawa tanpa JavaScript
+ * perlu tahu ada tahap apa saja.
+ */
+function menuMomen(terpilih) {
+    const tpl = $('#beat-template');
+    if (!tpl) return null;
+
+    const sel = document.createElement('select');
+    sel.className = 'p-beat';
+    sel.innerHTML = tpl.innerHTML;
+    sel.value = terpilih ? String(terpilih) : '';
+
+    return sel;
 }
 
 function renderComic(data) {
@@ -1132,7 +1153,7 @@ function renderComic(data) {
 
         isi.appendChild(kotakTeks(p.label + ' Prompt', p.prompt, p.token));
 
-        // Baris suntingan: siapa yang tampil, apa yang terjadi, apa katanya.
+        // Baris suntingan: siapa yang tampil, apa momennya, apa katanya.
         const sunting = document.createElement('div');
         sunting.className = 'field-row';
         sunting.innerHTML =
@@ -1147,6 +1168,25 @@ function renderComic(data) {
           + '<input type="text" class="p-dialog" maxlength="300" value="'
           + p.dialog.replace(/"/g, '&quot;') + '" placeholder="boleh dikosongkan"></div>';
         isi.appendChild(sunting);
+
+        // Momen panel: bebas mau diisi apa, tidak terpaku adegan pukulan.
+        const momen = menuMomen(p.beat_id);
+
+        if (momen) {
+            const kotak = document.createElement('div');
+            kotak.className = 'field';
+            kotak.innerHTML = '<label>Momen di panel ini</label>';
+            kotak.appendChild(momen);
+            isi.appendChild(kotak);
+
+            // Mengganti momen berarti kalimatnya ikut ganti. Kalimat lama
+            // yang tertinggal di kotaknya akan menimpa momen barunya, dan
+            // pilihanmu jadi seolah tidak berpengaruh.
+            momen.addEventListener('change', () => {
+                const kal = $('.p-kalimat', kartu);
+                if (kal) kal.value = '';
+            });
+        }
 
         const kal = document.createElement('div');
         kal.className = 'field';
@@ -1543,6 +1583,7 @@ async function terapkanSeleksi(sel, chars, tags) {
 
     if (sel.mode === 'comic') {
         $('#panels').value      = String(sel.panels || 4);
+        $('#arc_id').value      = sel.arc_id ? String(sel.arc_id) : '';
         $('#hasil_komik').value = sel.hasil || 'menang-a';
         $('#bahasa').value      = sel.bahasa || 'ko';
         $('#tahun').value       = String(sel.tahun || 0);

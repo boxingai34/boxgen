@@ -461,6 +461,66 @@ foreach ($komikData as $tipe => $daftar) {
 say('Halaman komik        : ' . $komikTotal);
 
 // ---------------------------------------------------------------------
+// Isi panel: momen yang bisa digambar, dan alur yang merangkainya.
+//
+// Panel komik tidak harus berisi pukulan. Membalut tangan, berjalan ke
+// ring, duduk di bangku sudut, tangan diangkat wasit — semuanya momen
+// yang bisa jadi satu panel, dan semuanya lebih sering muncul di manga
+// tinju daripada adegan pukulannya sendiri.
+// ---------------------------------------------------------------------
+$beatData = dataFile('beat');
+
+$beatMap = saveModules('panel_beat', $beatData['panel_beat']);
+$arcMap  = saveModules('comic_arc',  $beatData['comic_arc']);
+
+say('Momen panel          : ' . count($beatMap));
+
+// ALUR -> DAFTAR BEAT, disimpan di module_defaults.
+//
+// Kuncinya "<nomor panel><aktor>", misalnya "1a", "2b", "3x":
+//
+//   a  panel ini milik Petinju A
+//   b  panel ini milik Petinju B
+//   x  bergantian — mesinnya yang menentukan, mengikuti panel sebelumnya
+//
+// Dipakai ulang tabel module_defaults yang sudah melayani tema pakaian
+// dan tema kondisi. Bentuknya sama persis: satu preset, beberapa slot,
+// tiap slot menunjuk satu modul. Yang berbeda cuma arti slotnya.
+$arcBeat  = 0;
+$arcSalah = [];
+
+foreach ($beatData['comic_arc'] as $alur) {
+    $arcId = $arcMap[$alur['slug']];
+    Database::run('DELETE FROM module_defaults WHERE preset_module_id = ?', [$arcId]);
+
+    foreach (($alur['beats'] ?? []) as $i => $baris) {
+        [$aktor, $beatSlug] = array_pad(explode(':', $baris, 2), 2, null);
+
+        if ($beatSlug === null || !in_array($aktor, ['a', 'b', 'x'], true)) {
+            $arcSalah[] = "{$alur['slug']}: '{$baris}' bukan bentuk 'a:slug'";
+            continue;
+        }
+
+        if (!isset($beatMap[$beatSlug])) {
+            $arcSalah[] = "{$alur['slug']}: momen '{$beatSlug}' tidak ada";
+            continue;
+        }
+
+        Database::run(
+            'INSERT INTO module_defaults (preset_module_id, slot, module_id) VALUES (?,?,?)',
+            [$arcId, ($i + 1) . $aktor, $beatMap[$beatSlug]]
+        );
+        $arcBeat++;
+    }
+}
+
+say('Alur halaman komik   : ' . count($arcMap) . ' (' . $arcBeat . ' panel terisi)');
+
+foreach ($arcSalah as $s) {
+    say('  ! ' . $s);
+}
+
+// ---------------------------------------------------------------------
 // 3. Karakter kurasi
 // ---------------------------------------------------------------------
 $jumlahKarakter = 0;

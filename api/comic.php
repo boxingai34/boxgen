@@ -85,6 +85,13 @@ foreach ((is_array($in['panel_teks'] ?? null) ? $in['panel_teks'] : []) as $p) {
         $baris['aktor'] = (string)$p['aktor'];
     }
 
+    // Momen yang dipilih sendiri untuk panel ini. Ini yang membuat tiap
+    // panel bebas diisi apa saja — membalut tangan, berjalan ke ring,
+    // duduk di bangku sudut — bukan cuma adegan pukulan.
+    if (!empty($p['beat_id'])) {
+        $baris['beat_id'] = (int)$p['beat_id'];
+    }
+
     // Dibatasi panjangnya supaya satu kotak karakter tidak dijejali novel.
     foreach (['kalimat' => 400, 'dialog' => 300, 'uc' => 400] as $k => $maks) {
         if (isset($p[$k])) {
@@ -109,6 +116,10 @@ $sel = [
     'b'             => $person(is_array($in['b'] ?? null) ? $in['b'] : []),
     'panels'        => (int)($in['panels'] ?? 4),
     'hasil'         => (string)($in['hasil'] ?? 'menang-a'),
+
+    // Alur halaman. Yang daftar momennya kosong — "Pertandingan Penuh" —
+    // jatuh ke mesin pertandingan seperti sebelumnya.
+    'arc_id'        => $modId($in['arc_id'] ?? null),
 
     'layout_id'     => $modId($in['layout_id'] ?? null),
     'arah_id'       => $modId($in['arah_id']   ?? null),

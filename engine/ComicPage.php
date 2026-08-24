@@ -194,6 +194,257 @@ final class ComicPage
      */
     private static function rencana(array $sel, int $jumlah, array &$catatan): array
     {
+        // Alur yang punya daftar momen sendiri tidak lewat mesin
+        // pertandingan sama sekali. Alur yang daftarnya KOSONG berarti
+        // "susun sendiri dari jalannya pertandingan" — itu yang dipakai
+        // untuk Pertandingan Penuh.
+        $urutan = self::urutanBeat($sel, $jumlah);
+
+        return $urutan === []
+            ? self::rencanaPertandingan($sel, $jumlah, $catatan)
+            : self::rencanaBeat($sel, $urutan, $catatan);
+    }
+
+    /**
+     * Susun urutan momen untuk halaman ini.
+     *
+     * Dua sumber, dan yang diketik user selalu menang: momen yang dipilih
+     * sendiri per panel menimpa apa pun yang datang dari alur.
+     *
+     * @return array<int, array{nomor:int, beat:array, aktor:string}>
+     */
+    private static function urutanBeat(array $sel, int $jumlah): array
+    {
+        $dariAlur = self::beatAlur($sel['arc_id'] ?? null, $jumlah);
+        $dariUser = [];
+
+        foreach (($sel['panel_teks'] ?? []) as $p) {
+            $n  = (int)($p['nomor'] ?? 0);
+            $id = (int)($p['beat_id'] ?? 0);
+
+            if ($n >= 1 && $n <= $jumlah && $id > 0) {
+                $mod = PromptBuilder::loadModule($id, true, 'panel_beat');
+                if ($mod !== null) {
+                    $dariUser[$n] = $mod;
+                }
+            }
+        }
+
+        if ($dariAlur === [] && $dariUser === []) {
+            return [];
+        }
+
+        $out = [];
+
+        for ($n = 1; $n <= $jumlah; $n++) {
+            $beat  = $dariUser[$n] ?? ($dariAlur[$n]['beat']  ?? null);
+            $aktor = $dariAlur[$n]['aktor'] ?? 'x';
+
+            // Panel yang alurnya tidak menyediakan momen DAN user tidak
+            // mengisinya dibiarkan kosong — nanti diisi momen terakhir
+            // yang ada, bukan dipaksa jadi adegan pukulan.
+            if ($beat === null) {
+                continue;
+            }
+
+            $out[$n] = ['nomor' => $n, 'beat' => $beat, 'aktor' => $aktor];
+        }
+
+        return $out === [] ? [] : self::tambalKosong($out, $jumlah);
+    }
+
+    /**
+     * Panel yang belum punya momen diisi dari tetangganya.
+     *
+     * Terjadi kalau alurnya cuma menyediakan 4 momen tapi halamannya minta
+     * 6 panel. Yang kosong mengikuti momen sebelumnya dengan aktor yang
+     * berlawanan — jadi jadi "potongan lain dari momen yang sama", bukan
+     * panel kosong dan bukan adegan pukulan yang tiba-tiba nyelonong.
+     */
+    private static function tambalKosong(array $out, int $jumlah): array
+    {
+        $terakhir = null;
+
+        for ($n = 1; $n <= $jumlah; $n++) {
+            if (isset($out[$n])) {
+                $terakhir = $out[$n];
+                continue;
+            }
+
+            if ($terakhir === null) {
+                continue;   // belum ada apa-apa di depannya
+            }
+
+            $out[$n] = [
+                'nomor' => $n,
+                'beat'  => $terakhir['beat'],
+                'aktor' => $terakhir['aktor'] === 'a' ? 'b' : 'a',
+            ];
+        }
+
+        ksort($out);
+        return $out;
+    }
+
+    /**
+     * Baca daftar momen sebuah alur, lalu pilih sebanyak jumlah panelnya.
+     *
+     * Kalau alurnya punya lebih banyak momen daripada panel yang diminta,
+     * yang diambil disebar merata — dan momen PERTAMA serta TERAKHIR
+     * selalu ikut. Alur kehilangan pembuka atau penutupnya bukan lagi
+     * alur, cuma potongan tengah.
+     *
+     * @return array<int, array{beat:array, aktor:string}>
+     */
+    private static function beatAlur($arcId, int $jumlah): array
+    {
+        $arc = PromptBuilder::loadModule((int)$arcId, true, 'comic_arc');
+        if ($arc === null) {
+            return [];
+        }
+
+        $baris = Database::all(
+            'SELECT slot, module_id FROM module_defaults WHERE preset_module_id = ?',
+            [(int)$arc['id']]
+        );
+
+        $daftar = [];
+
+        foreach ($baris as $r) {
+            // slot berbentuk "<nomor><aktor>", misalnya "3b"
+            if (!preg_match('/^(\d+)([abx])$/', (string)$r['slot'], $m)) {
+                continue;
+            }
+
+            $mod = PromptBuilder::loadModule((int)$r['module_id'], true, 'panel_beat');
+            if ($mod !== null) {
+                $daftar[(int)$m[1]] = ['beat' => $mod, 'aktor' => $m[2]];
+            }
+        }
+
+        if ($daftar === []) {
+            return [];
+        }
+
+        ksort($daftar);
+        $daftar = array_values($daftar);
+        $ada    = count($daftar);
+
+        $pilih = [];
+
+        for ($i = 0; $i < $jumlah; $i++) {
+            // Sebar merata: panel pertama selalu momen pertama, panel
+            // terakhir selalu momen terakhir.
+            $k = $jumlah === 1 ? 0 : (int)round($i * ($ada - 1) / ($jumlah - 1));
+            $pilih[$i + 1] = $daftar[min($k, $ada - 1)];
+        }
+
+        return $pilih;
+    }
+
+    /**
+     * Rencana halaman dari daftar momen — bukan dari jalannya pertandingan.
+     *
+     * Di sini tidak ada penyerang, tidak ada penerima, tidak ada pemenang.
+     * Yang menentukan kondisi tiap petinju adalah SEBERAPA JAUH momen itu
+     * di dalam ceritanya: yang sedang membalut tangan masih segar, yang
+     * duduk di bangku sudut sudah babak belur. Itulah gunanya kolom
+     * intensity di tiap momen.
+     */
+    private static function rencanaBeat(array $sel, array $urutan, array &$catatan): array
+    {
+        $kondisi = Database::all(
+            "SELECT id, name, intensity FROM modules
+             WHERE type = 'condition' AND is_active = 1 AND intensity IS NOT NULL
+             ORDER BY intensity"
+        );
+
+        $kamera = Database::column(
+            "SELECT id FROM modules WHERE type = 'cam_angle' AND is_active = 1 ORDER BY sort_order"
+        );
+
+        $timpa = self::timpaAktor($sel);
+        $out   = [];
+        $lalu  = 'b';   // supaya 'x' pertama jatuh ke A
+
+        foreach ($urutan as $u) {
+            $nomor = $u['nomor'];
+            $beat  = $u['beat'];
+
+            $aktor = $u['aktor'] === 'x' ? ($lalu === 'a' ? 'b' : 'a') : $u['aktor'];
+            $aktor = $timpa[$nomor] ?? $aktor;
+
+            // Yang diingat adalah aktor yang BENAR-BENAR jadi, termasuk
+            // kalau kamu menimpanya sendiri. Kalau yang diingat cuma
+            // rencana awalnya, memindahkan satu panel ke Petinju B bisa
+            // menghasilkan dua panel B berturut-turut — dan halaman komik
+            // yang tokohnya tidak berganti-ganti terasa macet.
+            if ($aktor !== 'duo') {
+                $lalu = $aktor;
+            }
+
+            $tingkat = $beat['intensity'] !== null ? (float)$beat['intensity'] : 1.0;
+            $kondId  = self::kondisiTerdekat($kondisi, $tingkat);
+            $lawan   = $aktor === 'b' ? 'a' : 'b';
+
+            $out[] = [
+                'nomor' => $nomor,
+                'aktor' => $aktor === 'duo' ? ['a', 'b'] : [$aktor],
+                'momen' => $beat,
+                'judul' => 'Panel ' . $nomor . ' — ' . ($beat['name_id'] ?: $beat['name']),
+
+                // Bentuknya sengaja disamakan dengan rencana pertandingan
+                // supaya kotakPanel() tidak perlu tahu bedanya.
+                'beat'  => [
+                    'selection' => [
+                        'a' => ['condition_id' => $kondId],
+                        'b' => ['condition_id' => $kondId],
+                        'cam_angle_id'   => $kamera === [] ? null : $kamera[($nomor - 1) % count($kamera)],
+                        'interaction_id' => null,
+                    ],
+                ],
+
+                // Di halaman beat tidak ada pemenang dan tidak ada yang
+                // tumbang. Perannya diisi netral supaya jalur pertandingan
+                // tidak pernah menyala di sini.
+                'peran' => [
+                    'pelaku'   => $aktor === 'duo' ? 'a' : $aktor,
+                    'penerima' => $aktor === 'duo' ? 'b' : $lawan,
+                    'pemenang' => null,
+                    'kalah'    => null,
+                    'akhir'    => false,
+                    'jatuh'    => false,
+                ],
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Kondisi yang intensitasnya paling dekat dengan tingkat tertentu. */
+    private static function kondisiTerdekat(array $daftar, float $target): ?int
+    {
+        if ($daftar === []) {
+            return null;
+        }
+
+        $pilih = $daftar[0];
+        $jarak = PHP_FLOAT_MAX;
+
+        foreach ($daftar as $k) {
+            $d = abs((float)$k['intensity'] - $target);
+            if ($d < $jarak) {
+                $jarak = $d;
+                $pilih = $k;
+            }
+        }
+
+        return (int)$pilih['id'];
+    }
+
+    /** Rencana yang mengikuti jalannya pertandingan — alur "Pertandingan Penuh". */
+    private static function rencanaPertandingan(array $sel, int $jumlah, array &$catatan): array
+    {
         $hasil = isset(Storyboard::HASIL[$sel['hasil'] ?? '']) ? (string)$sel['hasil'] : 'menang-a';
 
         $papan = Storyboard::build([
@@ -433,8 +684,13 @@ final class ComicPage
             $bagian[] = $kamera;
         }
 
-        // Tag aksi khusus panel ini — reaksi, posisi jatuh, sikap menang.
-        $sub = self::tagSubPanel($p, $sisi, $sel);
+        // Tag aksi khusus panel ini. Panel yang punya momen sendiri
+        // memakai tag momennya; sisanya memakai tag pertandingan —
+        // reaksi, posisi jatuh, sikap menang.
+        $sub = isset($p['momen'])
+            ? self::tagModulLangsung($p['momen'])
+            : self::tagSubPanel($p, $sisi, $sel);
+
         if ($sub !== '') {
             $bagian[] = $sub;
         }
@@ -471,6 +727,10 @@ final class ComicPage
             'label'   => 'Character ' . $urutan,
             'aktor'   => $sisi,
             'gender'  => $gender,
+            // Dikirim balik supaya menu momen di halaman menunjukkan yang
+            // sedang dipakai — bukan kosong seolah belum dipilih apa-apa.
+            'beat_id' => isset($p['momen']) ? (int)$p['momen']['id'] : null,
+            'momen'   => isset($p['momen']) ? ($p['momen']['name_id'] ?: $p['momen']['name']) : null,
             'judul'   => $p['judul'] . ' · ' . (self::AKTOR[$sisi] ?? $sisi),
             'kalimat' => $kalimat,
             'dialog'  => $dialog,
@@ -510,6 +770,18 @@ final class ComicPage
      */
     private static function kalimatPanel(array $p, string $sisi, array $sel): string
     {
+        // Panel yang punya momennya sendiri berhenti di sini. Momen itu
+        // sudah berbentuk kalimat satu orang — "wrapping their hands with
+        // fresh gauze" — jadi tidak perlu lewat logika pertandingan sama
+        // sekali. Inilah yang membuat panel tidak selalu berisi pukulan.
+        if (isset($p['momen'])) {
+            $k = trim((string)($p['momen']['sentence'] ?? ''));
+
+            if ($k !== '') {
+                return SeedanceBuilder::kalimat('The boxer is ' . rtrim($k, '.'));
+            }
+        }
+
         $peran = $p['peran'];
 
         // Panel penutup, orangnya yang menang -> sikap kemenangan.
@@ -962,12 +1234,16 @@ final class ComicPage
     private static function tagModul($id, string $type): string
     {
         $mod = PromptBuilder::loadModule((int)$id, true, $type);
-        if ($mod === null) {
-            return '';
-        }
 
+        return $mod === null ? '' : self::tagModulLangsung($mod);
+    }
+
+    /** Tag sebuah modul yang barisnya sudah di tangan. */
+    private static function tagModulLangsung(array $mod): string
+    {
         $items = [];
-        foreach ($mod['tags'] as $t) {
+
+        foreach ($mod['tags'] ?? [] as $t) {
             $items[] = ['name' => $t['name'], 'weight' => (float)($t['weight'] ?? 1.0)];
         }
 

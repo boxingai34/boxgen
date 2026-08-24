@@ -957,10 +957,42 @@ Character 2 Prompt:  girl, chun-li, red boxing gloves, wince, from above
 Panel 2: The boxer is folding forward over the punch, breath driven out.
 ```
 
-Alur panelnya dipinjam dari Storyboard — kondisi memburuk bertahap,
-sudut kamera berganti tiap panel — lalu tiap panel bisa disunting sendiri
-(siapa yang tampil, apa yang terjadi, apa katanya) dan halamannya dibangun
-ulang.
+### Panelnya tidak harus berisi pukulan
+
+Di manga tinju sungguhan, adegan pukulan justru MINORITAS. Yang lebih
+sering digambar: membalut tangan, berjalan menyusuri lorong, duduk di
+bangku sudut dengan handuk di kepala, tangan yang diangkat wasit.
+
+**58 momen** tersedia, dikelompokkan per tahap:
+
+| Tahap | Isinya |
+|---|---|
+| Persiapan | ruang ganti, membalut tangan, lompat tali, samsak, cermin, berdoa |
+| Menuju ring | lorong berkerudung, jubah, sorot lampu, naik ring, sapa penonton |
+| Sebelum bel | adu tatap, instruksi wasit, sentuh sarung, pelindung mulut |
+| Bertanding | melepas pukulan, kena telak, menghindar, terdesak tali, tumbang, bangkit |
+| Antar ronde | bangku sudut, diberi air, meludah ke ember, cutman, handuk di kepala |
+| Sesudah | bel terakhir, berpelukan, tangan diangkat, menangis, kompres es, buka balutan |
+| Di luar ring | lari pagi, gym kosong, menantang di kelas, duduk bersama, tertawa |
+
+**9 alur halaman** merangkainya jadi cerita utuh — *Persiapan Sampai Bel*,
+*Enam Puluh Detik* (seluruh halaman terjadi di dalam satu menit istirahat,
+tanpa satu pun pukulan), *Sehari Penuh*, *Tantangan Jadi Duel*, *Sesudah
+Kalah*, dan seterusnya. Alur *Pertandingan Penuh* satu-satunya yang
+isinya disusun otomatis dari jalannya pertandingan.
+
+Kalau alurnya punya lebih banyak momen daripada panel yang diminta, yang
+diambil disebar merata — dan momen **pertama serta terakhir selalu ikut**.
+Alur yang kehilangan pembuka atau penutupnya bukan alur lagi, cuma
+potongan tengah.
+
+Kondisi tiap petinju mengikuti kolom `intensity` momennya: yang sedang
+membalut tangan masih segar, yang duduk di bangku sudut sudah babak
+belur. Kolom yang sama yang dipakai Storyboard sejak awal.
+
+Setelah halamannya jadi, **tiap panel bisa diganti sendiri** — momennya,
+siapa yang tampil, kalimatnya, dialognya — lalu dibangun ulang. Yang
+tidak kamu sentuh tetap seperti semula.
 
 ### Yang perlu kamu tahu sebelum memakainya
 
@@ -1033,6 +1065,8 @@ Sudah jalan:
 - **Match Storyboard** — prompt per ronde dengan kondisi bertingkat
 - **Halaman Komik** — satu gambar berpanel untuk NovelAI V5, tiap kotak
   karakter jadi satu panel, dengan penyuntingan kalimat dan dialog per panel
+- **58 momen panel + 9 alur halaman** — panelnya tidak harus berisi pukulan:
+  membalut tangan, lorong, bangku sudut, cutman, tangan diangkat wasit
 - **Ring terpisah dari latar**, bisa menyesuaikan tempat
 - **Keluaran NovelAI V4** dengan Base Prompt + Character Prompt terpisah
 - Optimizer: buang duplikat, buang tag mubazir, deteksi konflik, hitung token
