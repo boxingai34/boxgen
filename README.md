@@ -963,22 +963,23 @@ Di manga tinju sungguhan, adegan pukulan justru MINORITAS. Yang lebih
 sering digambar: membalut tangan, berjalan menyusuri lorong, duduk di
 bangku sudut dengan handuk di kepala, tangan yang diangkat wasit.
 
-**58 momen** tersedia, dikelompokkan per tahap:
+**94 momen** tersedia, dikelompokkan per tahap:
 
 | Tahap | Isinya |
 |---|---|
-| Persiapan | ruang ganti, membalut tangan, lompat tali, samsak, cermin, berdoa |
-| Menuju ring | lorong berkerudung, jubah, sorot lampu, naik ring, sapa penonton |
-| Sebelum bel | adu tatap, instruksi wasit, sentuh sarung, pelindung mulut |
+| Persiapan | ruang ganti, membalut tangan, perban ditandatangani petugas, tali sarung disegel, diolesi vaselin, menangis sendirian |
+| Menuju ring | menunggu di mulut lorong, handuk berlubang (bukan jubah), tangan penonton menjulur, melompati tali atas, berlutut di sudut |
+| Sebelum bel | adu tatap, instruksi wasit, **menolak** sentuh sarung, mundur tanpa memalingkan muka, sudut dikosongkan |
 | Bertanding | melepas pukulan, kena telak, menghindar, terdesak tali, tumbang, bangkit |
-| Antar ronde | bangku sudut, diberi air, meludah ke ember, cutman, handuk di kepala |
-| Sesudah | bel terakhir, berpelukan, tangan diangkat, menangis, kompres es, buka balutan |
-| Di luar ring | lari pagi, gym kosong, menantang di kelas, duduk bersama, tertawa |
+| Antar ronde | pelindung mulut dicabut, meludah ke ember, besi dingin ke bengkak, adrenalin di alis sobek, ditarik berdiri lewat pinggang celana, handuk dilempar masuk |
+| Sesudah | namanya tidak disebut, terkulai di bangku, senter dokter, balutan digunting, cermin ruang ganti, dibawa tandu |
+| Di luar ring | lari sebelum subuh, sauna potong berat, naik timbangan, ditantang di warung mi, menatap sansak tanpa menyentuhnya, tangan yang gemetar sendiri |
 
-**9 alur halaman** merangkainya jadi cerita utuh — *Persiapan Sampai Bel*,
+**13 alur halaman** merangkainya jadi cerita utuh — *Persiapan Sampai Bel*,
 *Enam Puluh Detik* (seluruh halaman terjadi di dalam satu menit istirahat,
-tanpa satu pun pukulan), *Sehari Penuh*, *Tantangan Jadi Duel*, *Sesudah
-Kalah*, dan seterusnya. Alur *Pertandingan Penuh* satu-satunya yang
+tanpa satu pun pukulan), *Tangan Jadi Senjata* (empat panel tangan dibalut,
+ditandatangani, disarungi, disegel), *Potong Berat*, *Sepuluh Detik
+Terakhir*, *Tantangan Jadi Duel*, *Sesudah Kalah*, dan seterusnya. Alur *Pertandingan Penuh* satu-satunya yang
 isinya disusun otomatis dari jalannya pertandingan.
 
 Kalau alurnya punya lebih banyak momen daripada panel yang diminta, yang
@@ -1065,7 +1066,7 @@ Sudah jalan:
 - **Match Storyboard** — prompt per ronde dengan kondisi bertingkat
 - **Halaman Komik** — satu gambar berpanel untuk NovelAI V5, tiap kotak
   karakter jadi satu panel, dengan penyuntingan kalimat dan dialog per panel
-- **58 momen panel + 9 alur halaman** — panelnya tidak harus berisi pukulan:
+- **94 momen panel + 13 alur halaman** — panelnya tidak harus berisi pukulan:
   membalut tangan, lorong, bangku sudut, cutman, tangan diangkat wasit
 - **Ring terpisah dari latar**, bisa menyesuaikan tempat
 - **Keluaran NovelAI V4** dengan Base Prompt + Character Prompt terpisah

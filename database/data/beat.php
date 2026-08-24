@@ -96,6 +96,47 @@ return [
  'sentence' => 'looking down at their own taped fists, opening and closing them',
  'tags' => ['bandaged_hand' => 1.2, 'looking_down', 'clenched_hand']],
 
+// Tambahan dari riset prosedur komisi tinju. Empat momen pertama di bawah
+// ini WAJIB terjadi sebelum tiap pertandingan profesional, dan hampir tidak
+// pernah digambar siapa pun.
+['slug' => 'periksa-wasit', 'category' => 'persiapan', 'sort_order' => 11, 'intensity' => 1,
+ 'name' => 'Diperiksa Wasit', 'name_id' => 'Pemeriksaan sebelum naik',
+ 'description' => 'Lidah dijulurkan, kedua tangan dibuka kosong, semua perhiasan '
+                . 'dilepas ke bangku. Prosedur resmi sebelum petinju boleh naik ring.',
+ 'sentence' => 'standing straight with their tongue stuck out and both hands held open and empty',
+ 'tags' => ['tongue_out' => 1.2, 'standing', 'spread_fingers', 'jewelry']],
+
+['slug' => 'tangan-ditandatangani', 'category' => 'persiapan', 'sort_order' => 12, 'intensity' => 1,
+ 'name' => 'Kepalan Ditandatangani', 'name_id' => 'Perban ditandatangani petugas',
+ 'description' => 'Petugas komisi membubuhkan tanda tangan di perban supaya tidak '
+                . 'bisa dibongkar diam-diam sebelum naik ring.',
+ 'sentence' => 'holding both wrapped fists out at arm\'s length, a marker signature drying across the gauze',
+ 'tags' => ['bandaged_hand' => 1.3, 'clenched_hands', 'outstretched_arms', 'marker']],
+
+['slug' => 'sarung-disegel', 'category' => 'persiapan', 'sort_order' => 13, 'intensity' => 1,
+ 'name' => 'Tali Disegel', 'name_id' => 'Tali sarung disegel plester',
+ 'sentence' => 'turning both wrists over to look at the white tape sealing the glove laces',
+ 'tags' => ['boxing_gloves' => 1.3, 'tape', 'looking_down', 'close-up']],
+
+['slug' => 'vaselin', 'category' => 'persiapan', 'sort_order' => 14, 'intensity' => 1,
+ 'name' => 'Diolesi Vaselin', 'name_id' => 'Wajah diolesi vaselin',
+ 'sentence' => 'sitting still with their face shining under a fresh film of petroleum jelly, eyes closed',
+ 'tags' => ['shiny_skin' => 1.3, 'closed_eyes', 'portrait']],
+
+['slug' => 'menatap-tembok', 'category' => 'persiapan', 'sort_order' => 15, 'intensity' => 2,
+ 'name' => 'Menatap Tembok', 'name_id' => 'Diam menghadap tembok kosong',
+ 'sentence' => 'sitting motionless facing a blank wall, eyes open but unfocused, headphones unused around their neck',
+ 'tags' => ['headphones_around_neck' => 1.2, 'sitting', 'expressionless', 'from_behind']],
+
+['slug' => 'menangis-sendiri', 'category' => 'persiapan', 'sort_order' => 16, 'intensity' => 2,
+ 'name' => 'Menangis Sendirian', 'name_id' => 'Menangis sebelum siapa pun masuk',
+ 'sentence' => 'sitting alone in a corner with tears on their face and wrapped hands hanging limp between their knees',
+ 'tags' => ['crying' => 1.2, 'tears', 'sitting', 'bandaged_hand']],
+
+['slug' => 'gigit-pelindung', 'category' => 'persiapan', 'sort_order' => 17, 'intensity' => 3,
+ 'name' => 'Menggigit Pelindung', 'name_id' => 'Menggigit gum shield di ambang pintu',
+ 'sentence' => 'standing at the dressing room door with the hood up and gloves raised, biting down hard to seat the mouthpiece',
+ 'tags' => ['hood_up' => 1.2, 'mouth_hold', 'boxing_gloves', 'clenched_teeth']],
 // ---------------------------------------------------------------------
 // MENUJU RING
 // ---------------------------------------------------------------------
@@ -129,6 +170,33 @@ return [
  'sentence' => 'shrugging the robe off their shoulders',
  'tags' => ['robe' => 1.1, 'undressing', 'back']],
 
+['slug' => 'mulut-lorong', 'category' => 'menuju_ring', 'sort_order' => 7, 'intensity' => 1,
+ 'name' => 'Mulut Lorong', 'name_id' => 'Menunggu di mulut lorong',
+ 'sentence' => 'standing in the dark mouth of the tunnel with the hood pulled forward, waiting for their music to start',
+ 'tags' => ['hood_up' => 1.2, 'silhouette', 'backlighting', 'dim_lighting']],
+
+['slug' => 'handuk-potong', 'category' => 'menuju_ring', 'sort_order' => 8, 'intensity' => 1,
+ 'name' => 'Handuk Potong', 'name_id' => 'Handuk berlubang, bukan jubah',
+ 'description' => 'Petinju yang belum punya apa-apa berjalan ke ring memakai handuk '
+                . 'putih yang dilubangi untuk kepala, bukan jubah. Satu panel ini '
+                . 'menceritakan seluruh keadaannya tanpa satu kata pun.',
+ 'sentence' => 'walking with no robe at all, only a plain white towel with a hole cut for the head over bare shoulders',
+ 'tags' => ['towel' => 1.3, 'bare_shoulders', 'walking']],
+
+['slug' => 'lorong-tangan', 'category' => 'menuju_ring', 'sort_order' => 9, 'intensity' => 1,
+ 'name' => 'Lorong Tangan', 'name_id' => 'Tangan penonton menjulur',
+ 'sentence' => 'moving down a narrow aisle with hands reaching in from both sides, touching none of them',
+ 'tags' => ['crowd' => 1.2, 'walking', 'audience']],
+
+['slug' => 'melompati-tali', 'category' => 'menuju_ring', 'sort_order' => 10, 'intensity' => 1,
+ 'name' => 'Melompati Tali', 'name_id' => 'Melompati tali paling atas',
+ 'sentence' => 'vaulting over the top rope in a single motion and landing flat-footed on the canvas',
+ 'tags' => ['rope' => 1.2, 'jumping', 'dynamic_pose', 'motion_lines']],
+
+['slug' => 'berlutut-sudut', 'category' => 'menuju_ring', 'sort_order' => 11, 'intensity' => 1,
+ 'name' => 'Berlutut di Sudut', 'name_id' => 'Berlutut, dahi di sarung tinju',
+ 'sentence' => 'kneeling in their own corner with both gloves on the stool and their forehead lowered onto them',
+ 'tags' => ['kneeling' => 1.2, 'praying', 'boxing_gloves', 'stool']],
 // ---------------------------------------------------------------------
 // SEBELUM BEL
 // ---------------------------------------------------------------------
@@ -166,6 +234,22 @@ return [
  'sentence' => 'taking the first step forward as the bell rings, guard already up',
  'tags' => ['fighting_stance' => 1.3, 'hands_up', 'serious']],
 
+['slug' => 'menolak-sentuh', 'category' => 'sebelum_bel', 'sort_order' => 7, 'intensity' => 1,
+ 'name' => 'Menolak Sentuh Sarung', 'name_id' => 'Menolak menyentuhkan sarung',
+ 'description' => 'Penolakan sentuh sarung adalah titik balik yang kuat di sebuah '
+                . 'halaman: setelah itu keduanya benar-benar sendirian.',
+ 'sentence' => 'keeping both gloves pinned tight to their chest and turning away without putting them out',
+ 'tags' => ['boxing_gloves' => 1.2, 'facing_away', 'expressionless']],
+
+['slug' => 'mundur-sudut', 'category' => 'sebelum_bel', 'sort_order' => 8, 'intensity' => 1,
+ 'name' => 'Mundur ke Sudut', 'name_id' => 'Mundur tanpa memalingkan muka',
+ 'sentence' => 'walking backwards to their own corner, still facing the centre of the ring the whole way',
+ 'tags' => ['boxing_ring' => 1.1, 'walking', 'looking_at_viewer', 'full_body']],
+
+['slug' => 'sudut-dikosongkan', 'category' => 'sebelum_bel', 'sort_order' => 9, 'intensity' => 1,
+ 'name' => 'Sudut Dikosongkan', 'name_id' => 'Bangku dan ember diangkat keluar',
+ 'sentence' => 'standing alone in an emptied corner after the stool and bucket have gone out through the ropes',
+ 'tags' => ['boxing_ring' => 1.2, 'corner', 'standing', 'rope']],
 // ---------------------------------------------------------------------
 // BERTANDING — versi satu orang dari adegan pukulan
 //
@@ -259,6 +343,39 @@ return [
  'sentence' => 'nodding once as the mouthguard goes back in',
  'tags' => ['mouth_guard' => 1.2, 'sitting', 'closed_eyes', 'sweat']],
 
+// Urutan enam puluh detik yang sungguhan: bel -> pelindung mulut dicabut ->
+// senyap -> air -> cutman -> dokter -> peluit -> bangku ditarik.
+['slug' => 'pelindung-dicabut', 'category' => 'antar_ronde', 'sort_order' => 9, 'intensity' => 5,
+ 'name' => 'Pelindung Dicabut', 'name_id' => 'Gum shield ditarik keluar',
+ 'sentence' => 'slumped on the stool with their mouth hanging open as the mouthpiece is pulled free, a thread of saliva still hanging',
+ 'tags' => ['open_mouth' => 1.2, 'saliva', 'sitting', 'sweat']],
+
+['slug' => 'adrenalin-alis', 'category' => 'antar_ronde', 'sort_order' => 10, 'intensity' => 7,
+ 'name' => 'Adrenalin di Alis', 'name_id' => 'Cotton bud ditekan ke alis sobek',
+ 'sentence' => 'holding one eye clamped shut while a swab soaked in adrenaline is pressed into the split in their eyebrow',
+ 'tags' => ['blood_on_face' => 1.2, 'one_eye_closed', 'close-up', 'injury']],
+
+['slug' => 'hidung-disumbat', 'category' => 'antar_ronde', 'sort_order' => 11, 'intensity' => 7,
+ 'name' => 'Hidung Disumbat', 'name_id' => 'Hidung disumbat lalu dijepit',
+ 'sentence' => 'chin dipped and breathing through their mouth, a swab pushed into one nostril and the nose pinched shut',
+ 'tags' => ['nosebleed' => 1.3, 'open_mouth', 'blood_on_face', 'close-up']],
+
+['slug' => 'ditarik-berdiri', 'category' => 'antar_ronde', 'sort_order' => 12, 'intensity' => 7,
+ 'name' => 'Ditarik Berdiri', 'name_id' => 'Diangkat lewat pinggang celana',
+ 'sentence' => 'being hauled up off the stool by the waistband of their trunks, eyes screwed shut and streaming',
+ 'tags' => ['closed_eyes' => 1.2, 'tears', 'standing', 'sweat']],
+
+['slug' => 'peluit-sepuluh', 'category' => 'antar_ronde', 'sort_order' => 13, 'intensity' => 6,
+ 'name' => 'Peluit Sepuluh Detik', 'name_id' => 'Bangku ditarik dari bawah',
+ 'sentence' => 'half-risen with hands braced on their knees, biting down as the mouthpiece goes back in',
+ 'tags' => ['hands_on_own_knees' => 1.2, 'clenched_teeth', 'sweat', 'mouth_hold']],
+
+['slug' => 'handuk-dilempar', 'category' => 'antar_ronde', 'sort_order' => 14, 'intensity' => 9,
+ 'name' => 'Handuk Dilempar', 'name_id' => 'Handuk melayang masuk ring',
+ 'description' => 'Sudutnya sendiri yang menghentikan pertandingan. Petinjunya bahkan '
+                . 'belum tahu — kepalanya masih tertunduk waktu handuknya lewat.',
+ 'sentence' => 'still slumped on the stool with their head hanging as a white towel sails past into the ring',
+ 'tags' => ['towel' => 1.3, 'sitting', 'head_down', 'defeat']],
 // ---------------------------------------------------------------------
 // SESUDAH
 // ---------------------------------------------------------------------
@@ -312,6 +429,38 @@ return [
  'sentence' => 'unwinding their hand wraps alone in the empty locker room',
  'tags' => ['locker_room' => 1.2, 'hand_wraps', 'sitting', 'looking_down', 'bruise']],
 
+['slug' => 'nama-tidak-disebut', 'category' => 'sesudah', 'sort_order' => 11, 'intensity' => 8,
+ 'name' => 'Namanya Tidak Disebut', 'name_id' => 'Tangan yang setengah terangkat turun lagi',
+ 'description' => 'Momen paling menyakitkan di seluruh daftar ini, dan paling jarang '
+                . 'digambar: bukan saat kalah, tapi setengah detik saat ia sadar '
+                . 'nama yang dibacakan bukan namanya.',
+ 'sentence' => 'letting their half-lifted arm sink back down, jaw clamped shut, giving one small nod at nobody',
+ 'tags' => ['clenched_teeth' => 1.2, 'looking_down', 'defeat', 'boxing_gloves']],
+
+['slug' => 'terkulai-bangku', 'category' => 'sesudah', 'sort_order' => 12, 'intensity' => 9,
+ 'name' => 'Terkulai di Bangku', 'name_id' => 'Lengan menjuntai keluar tali',
+ 'sentence' => 'slumped back on the stool with both arms hanging outside the ropes, chin on their chest, a small empty smile',
+ 'tags' => ['sitting' => 1.1, 'smile', 'exhausted', 'boxing_ring']],
+
+['slug' => 'senter-dokter', 'category' => 'sesudah', 'sort_order' => 13, 'intensity' => 9,
+ 'name' => 'Senter Dokter', 'name_id' => 'Mata disenter dokter ring',
+ 'sentence' => 'chin tipped up with both eyes forced wide open into a penlight beam',
+ 'tags' => ['wide-eyed' => 1.2, 'close-up', 'blood_on_face', 'bruise']],
+
+['slug' => 'balutan-digunting', 'category' => 'sesudah', 'sort_order' => 14, 'intensity' => 9,
+ 'name' => 'Balutan Digunting', 'name_id' => 'Perban digunting sendirian',
+ 'sentence' => 'working a pair of blunt scissors up a sweat-grey hand wrap, watching their own fingers come free one at a time',
+ 'tags' => ['scissors' => 1.3, 'bandages', 'sitting', 'locker_room']],
+
+['slug' => 'cermin-ruang-ganti', 'category' => 'sesudah', 'sort_order' => 15, 'intensity' => 9,
+ 'name' => 'Cermin Ruang Ganti', 'name_id' => 'Memeriksa wajah sendiri di wastafel',
+ 'sentence' => 'gripping both sides of a sink and leaning close to the mirror, turning their swollen face slowly from side to side',
+ 'tags' => ['mirror' => 1.3, 'sink', 'reflection', 'bruise']],
+
+['slug' => 'tandu', 'category' => 'sesudah', 'sort_order' => 16, 'intensity' => 10,
+ 'name' => 'Dibawa Tandu', 'name_id' => 'Diangkut ke ambulans',
+ 'sentence' => 'flat on a stretcher under a thin blanket with an oxygen mask fogging, the hand wraps still taped on',
+ 'tags' => ['stretcher' => 1.2, 'lying', 'oxygen_mask', 'bandaged_hand']],
 // ---------------------------------------------------------------------
 // DI LUAR RING — bukan pertandingan, tapi masih tentang tinju
 // ---------------------------------------------------------------------
@@ -368,6 +517,53 @@ return [
  'name' => 'Jendela', 'name_id' => 'Memandang keluar jendela',
  'sentence' => 'looking out of a window in profile, thinking about nothing in particular',
  'tags' => ['window' => 1.2, 'profile', 'looking_up']],
+['slug' => 'timbangan', 'category' => 'di_luar_ring', 'sort_order' => 11, 'intensity' => 5,
+ 'name' => 'Naik Timbangan', 'name_id' => 'Menatap angka di timbangan',
+ 'sentence' => 'standing on a scale stripped to their underwear, ribs showing, looking straight down at the number between their feet',
+ 'tags' => ['weighing_scale' => 1.3, 'underwear', 'ribs', 'looking_down', 'barefoot']],
+
+['slug' => 'sauna', 'category' => 'di_luar_ring', 'sort_order' => 12, 'intensity' => 5,
+ 'name' => 'Sauna', 'name_id' => 'Memotong berat badan di sauna',
+ 'description' => 'Memotong berat badan: berjaket tebal di dalam sauna, meludah '
+                . 'perlahan ke botol supaya angkanya turun. Sisi tinju yang '
+                . 'hampir tidak pernah digambar.',
+ 'sentence' => 'hunched on a sauna bench in a full tracksuit, dripping, spitting slowly into a plastic bottle',
+ 'tags' => ['steam' => 1.2, 'track_suit', 'sweat', 'sitting']],
+
+['slug' => 'ditantang-warung', 'category' => 'di_luar_ring', 'sort_order' => 13, 'intensity' => 1,
+ 'name' => 'Ditantang di Warung', 'name_id' => 'Sumpit berhenti di udara',
+ 'sentence' => 'sitting at a noodle counter with chopsticks stopped halfway to their mouth, looking up flat-faced at someone off-panel',
+ 'tags' => ['chopsticks' => 1.2, 'ramen', 'looking_up', 'expressionless']],
+
+['slug' => 'menatap-sansak', 'category' => 'di_luar_ring', 'sort_order' => 14, 'intensity' => 1,
+ 'name' => 'Menatap Sansak', 'name_id' => 'Berdiri diam di depan samsak',
+ 'sentence' => 'standing in front of a heavy bag with their hands still down at their sides, close enough that it almost touches their chest',
+ 'tags' => ['punching_bag' => 1.3, 'standing', 'from_behind']],
+
+['slug' => 'cermin-shadowbox', 'category' => 'di_luar_ring', 'sort_order' => 15, 'intensity' => 2,
+ 'name' => 'Shadowbox di Cermin', 'name_id' => 'Memukul bayangan sendiri',
+ 'sentence' => 'throwing slow punches at their own reflection in a long gym mirror, correcting the guard mid-motion',
+ 'tags' => ['mirror' => 1.2, 'reflection', 'punching', 'fighting_stance']],
+
+['slug' => 'tangan-gemetar', 'category' => 'di_luar_ring', 'sort_order' => 16, 'intensity' => 4,
+ 'name' => 'Tangan Gemetar', 'name_id' => 'Menonton jarinya gemetar sendiri',
+ 'sentence' => 'sitting with both taped hands open in their lap, watching the fingers tremble on their own',
+ 'tags' => ['bandaged_hand' => 1.2, 'spread_fingers', 'looking_down', 'trembling']],
+
+['slug' => 'tepi-ring-gelap', 'category' => 'di_luar_ring', 'sort_order' => 17, 'intensity' => 2,
+ 'name' => 'Tepi Ring Gelap', 'name_id' => 'Duduk di tepi ring yang kosong',
+ 'sentence' => 'sitting on the edge of a gym ring with their legs over the apron, looking back into the empty square',
+ 'tags' => ['boxing_ring' => 1.2, 'sitting', 'night', 'dim_lighting']],
+
+['slug' => 'makan-bersama', 'category' => 'di_luar_ring', 'sort_order' => 18, 'intensity' => 4,
+ 'name' => 'Makan Bersama', 'name_id' => 'Tertawa dengan mulut penuh',
+ 'sentence' => 'sitting at a low table with a fresh stitch over one eyebrow, laughing with their mouth full, chopsticks still in the air',
+ 'tags' => ['laughing' => 1.2, 'bandaid_on_face', 'chopsticks', 'eating']],
+
+['slug' => 'sarung-di-lemari', 'category' => 'di_luar_ring', 'sort_order' => 19, 'intensity' => 1,
+ 'name' => 'Sarung di Lemari', 'name_id' => 'Sarung tinju tergantung di lemari',
+ 'sentence' => 'holding a closet door open and looking up at a pair of old gloves hanging by their knotted laces, in ordinary street clothes',
+ 'tags' => ['boxing_gloves' => 1.2, 'casual', 'looking_up', 'from_behind']],
 ],
 
 // =====================================================================
@@ -451,6 +647,38 @@ return [
  'tags' => [],
  'beats' => ['x:bel-terakhir', 'x:berpelukan', 'a:kompres-es',
              'x:duduk-bersama', 'x:tertawa', 'b:jendela']],
+['slug' => 'tangan-jadi-senjata', 'sort_order' => 10,
+ 'name' => 'Tangan Jadi Senjata', 'name_id' => 'Tubuh dirakit jadi alat',
+ 'description' => 'Seluruh halaman berisi prosedur, dan justru karena itu terasa '
+                . 'seperti hitung mundur. Empat panel pertama semuanya tangan; '
+                . 'panel penutup baru menarik ke seluruh badan di ambang pintu.',
+ 'tags' => [],
+ 'beats' => ['a:membalut-tangan', 'a:tangan-ditandatangani', 'a:sarung-dipasang',
+             'a:sarung-disegel', 'a:gigit-pelindung']],
+
+['slug' => 'dua-jalan-sama', 'sort_order' => 11,
+ 'name' => 'Dua Jalan yang Sama', 'name_id' => 'Dua orang menuju tempat yang sama',
+ 'description' => 'Kontras dua tokoh tanpa satu kata pun: yang satu menutup diri, '
+                . 'yang satu pamer. Sampai panel terakhir keduanya belum saling '
+                . 'melihat.',
+ 'tags' => [],
+ 'beats' => ['a:mulut-lorong', 'b:handuk-potong', 'a:lorong-tangan',
+             'b:melompati-tali', 'a:berlutut-sudut', 'b:naik-ring']],
+
+['slug' => 'sepuluh-detik', 'sort_order' => 12,
+ 'name' => 'Sepuluh Detik Terakhir', 'name_id' => 'Sebelum semuanya dimulai',
+ 'description' => 'Penolakan sentuh sarung di tengah halaman adalah titik baliknya. '
+                . 'Setelah itu keduanya benar-benar sendirian.',
+ 'tags' => [],
+ 'beats' => ['a:lepas-jubah', 'b:instruksi-wasit', 'a:menolak-sentuh',
+             'b:mundur-sudut', 'a:sudut-dikosongkan', 'a:bel-pertama']],
+
+['slug' => 'potong-berat', 'sort_order' => 13,
+ 'name' => 'Potong Berat', 'name_id' => 'Sisi tinju yang tidak ditonton orang',
+ 'description' => 'Tidak ada satu pun pukulan di halaman ini. Yang ada cuma lari '
+                . 'sebelum subuh, sauna, timbangan, dan tangan yang mulai gemetar.',
+ 'tags' => [],
+ 'beats' => ['a:lari-pagi', 'a:sauna', 'a:timbangan', 'a:tangan-gemetar']],
 ],
 
 ];
