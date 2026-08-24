@@ -161,14 +161,14 @@ return [
     ['category' => 'bertingkat', 'slug' => 'bloodied', 'defaults' => ['eyes' => 'bruised', 'cheek' => 'blood', 'nose' => 'nosebleed', 'mouth' => 'blood', 'body' => 'bruise-blood', 'expr' => 'pain'], 'name' => 'Berdarah', 'name_id' => 'Berdarah',
      'intensity' => 7, 'sort_order' => 6, 'tags' => ['blood_on_face' => 1.1, 'nosebleed', 'bruise', 'sweat', 'wince']],
 
-    ['category' => 'bertingkat', 'slug' => 'heavy-fatigue', 'defaults' => ['eyes' => 'half-one-closed', 'cheek' => 'bruise', 'mouth' => 'breathing', 'body' => 'exhausted', 'clothes' => 'torn'], 'name' => 'Nyaris Tumbang', 'name_id' => 'Hampir KO',
+    ['category' => 'bertingkat', 'slug' => 'heavy-fatigue', 'defaults' => ['eyes' => 'half-one-closed', 'cheek' => 'bruise', 'mouth' => 'breathing', 'body' => 'exhausted'], 'name' => 'Nyaris Tumbang', 'name_id' => 'Hampir KO',
      // torn_clothes SENGAJA tidak ditulis di sini. Tema ini sudah
      // mengisi slot pakaian dengan 'torn' lewat defaults di atas, jadi
      // menuliskannya lagi membuatnya muncul TANPA BISA DIMATIKAN —
      // baju robek ikut keluar walau slot pakaiannya diganti utuh.
      'intensity' => 9, 'sort_order' => 7, 'tags' => ['exhausted', 'bruise' => 1.2, 'heavy_breathing', 'half-closed_eyes']],
 
-    ['category' => 'bertingkat', 'slug' => 'knocked-out', 'defaults' => ['eyes' => 'xx', 'cheek' => 'blood', 'nose' => 'nosebleed', 'body' => 'bruise-blood', 'expr' => 'dazed', 'clothes' => 'torn'], 'name' => 'Pingsan', 'name_id' => 'Tak sadarkan diri',
+    ['category' => 'bertingkat', 'slug' => 'knocked-out', 'defaults' => ['eyes' => 'xx', 'cheek' => 'blood', 'nose' => 'nosebleed', 'body' => 'bruise-blood', 'expr' => 'dazed'], 'name' => 'Pingsan', 'name_id' => 'Tak sadarkan diri',
      'intensity' => 10, 'sort_order' => 8, 'tags' => ['unconscious' => 1.2, 'empty_eyes', 'blood_on_face', 'bruise']],
 
     // ---- variasi lepas ----
