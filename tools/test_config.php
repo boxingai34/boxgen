@@ -77,6 +77,56 @@ try {
 
         if ($kurang === []) {
             ok('Seluruh ' . count($harusAda) . ' tabel yang dibutuhkan ada.');
+
+            // TABELNYA ADA BELUM TENTU KOLOMNYA LENGKAP.
+            //
+            // Fitur baru hampir selalu menambah kolom, bukan tabel. Tabel
+            // yang lengkap tapi kurang satu kolom menghasilkan halaman
+            // yang mati total dengan pesan "Unknown column" — dan
+            // pemeriksaan yang cuma menghitung tabel akan bilang semuanya
+            // baik-baik saja.
+            $kolomKurang = [];
+
+            foreach ($harusAda as $t) {
+                // Ambil blok CREATE TABLE milik tabel ini saja.
+                if (!preg_match('/CREATE TABLE (?:IF NOT EXISTS )?`' . $t . '`\s*\((.*?)
+\)/s', $skema, $blok)) {
+                    continue;
+                }
+
+                // Nama kolom = backtick di AWAL baris (setelah spasi).
+                // Baris KEY/UNIQUE juga memuat backtick, tapi tidak di
+                // posisi itu.
+                preg_match_all('/^\s+`([a-z_]+)`\s+[a-z]/mi', $blok[1], $m);
+                $perlu = $m[1] ?? [];
+
+                if ($perlu === []) {
+                    continue;
+                }
+
+                $ada = Database::column(
+                    'SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
+                    [DB_NAME, $t]
+                );
+
+                foreach (array_diff($perlu, $ada) as $k) {
+                    $kolomKurang[] = $t . '.' . $k;
+                }
+            }
+
+            if ($kolomKurang === []) {
+                ok('Kolom tiap tabel juga lengkap.');
+            } else {
+                gagal('Ada kolom yang belum ada: ' . implode(', ', array_slice($kolomKurang, 0, 12))
+                    . (count($kolomKurang) > 12 ? ' (dan ' . (count($kolomKurang) - 12) . ' lagi)' : ''));
+                info('Halamannya akan mati dengan pesan "Unknown column".');
+                info('');
+                info('Perbaikannya:');
+                info('  1. di komputer: php tools\buat_tambalan.php');
+                info('  2. phpMyAdmin -> Import -> database/export/010-samakan-struktur.sql');
+                info('  3. Admin -> Perawatan -> Jalankan seeder');
+            }
         } else {
             gagal('Ada tabel yang belum terbentuk: ' . implode(', ', $kurang));
             info('Website bisa saja terlihat normal, tapi tombol yang menulis ke');

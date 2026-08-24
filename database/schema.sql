@@ -135,44 +135,50 @@ CREATE TABLE IF NOT EXISTS `character_tags` (
 --    Sengaja tidak dipecah jadi 6 tabel supaya kode CRUD & query cukup 1x.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `modules` (
-  `id`          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `type`        VARCHAR(20) NOT NULL,      -- style|outfit|outfit_top..head|pose|interaction|
-                                             -- condition|background|ring|camera|motion|lighting|quality|negative
-  `category`    VARCHAR(40) DEFAULT NULL,  -- pro_fight|underground|standing|attack|defense|recovery|...
-  `slug`        VARCHAR(120) NOT NULL,
-  `name`        VARCHAR(190) NOT NULL,
-  `name_id`     VARCHAR(190) DEFAULT NULL, -- nama Bahasa Indonesia
-  `description` TEXT,
-  `sentence`    TEXT,                      -- versi kalimat natural (dipakai mode Seedance)
-  `color_base`  VARCHAR(60) DEFAULT NULL,  -- kata dasar penerima warna: gloves, shorts, bikini
-  `thumbnail_url`    VARCHAR(255) DEFAULT NULL,
-  `thumb_artist`     VARCHAR(190) DEFAULT NULL,
-  `thumb_source`     VARCHAR(255) DEFAULT NULL,
-  `thumb_checked_at` TIMESTAMP NULL DEFAULT NULL,
-  `intensity`   TINYINT DEFAULT NULL,      -- 1-10, untuk progression condition
-  `is_directional` TINYINT(1) NOT NULL DEFAULT 0, -- pose interaksi yang arahnya bisa dibalik
-  `action_tag`  VARCHAR(60) DEFAULT NULL,    -- kata aksi untuk source#/target#/mutual# di NovelAI
-  `is_nsfw`     TINYINT(1) NOT NULL DEFAULT 0,
-  `is_active`   TINYINT(1) NOT NULL DEFAULT 1,
-  `sort_order`  SMALLINT NOT NULL DEFAULT 0,
-  UNIQUE KEY `uq_module` (`type`, `slug`),
-  KEY `idx_type_cat` (`type`, `category`, `sort_order`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `type` varchar(20) NOT NULL,
+  `category` varchar(40) DEFAULT NULL,
+  `slug` varchar(120) NOT NULL,
+  `name` varchar(190) NOT NULL,
+  `name_id` varchar(190) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `sentence` text DEFAULT NULL,
+  `color_base` varchar(60) DEFAULT NULL,
+  `thumbnail_url` varchar(255) DEFAULT NULL,
+  `thumb_artist` varchar(190) DEFAULT NULL,
+  `thumb_source` varchar(255) DEFAULT NULL,
+  `thumb_checked_at` timestamp NULL DEFAULT NULL,
+  `intensity` tinyint(4) DEFAULT NULL,
+  `is_directional` tinyint(1) NOT NULL DEFAULT 0,
+  `direction_label` varchar(80) DEFAULT NULL,
+  `direction_inverts` tinyint(1) NOT NULL DEFAULT 0,
+  `sub_groups` varchar(120) DEFAULT NULL,
+  `action_tag` varchar(60) DEFAULT NULL,
+  `is_nsfw` tinyint(1) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` smallint(6) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_module` (`type`,`slug`),
+  KEY `idx_type_cat` (`type`,`category`,`sort_order`)
+) ENGINE=InnoDB AUTO_INCREMENT=428 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- 9. module_tags
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `module_tags` (
-  `id`          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `module_id`   INT UNSIGNED NOT NULL,
-  `tag_id`      INT UNSIGNED NOT NULL,
-  `weight`      DECIMAL(3,2) NOT NULL DEFAULT 1.00,
-  `is_optional` TINYINT(1) NOT NULL DEFAULT 0,
-  `sort_order`  SMALLINT NOT NULL DEFAULT 0,
-  UNIQUE KEY `uq_mod_tag` (`module_id`, `tag_id`),
-  CONSTRAINT `fk_mt_mod` FOREIGN KEY (`module_id`) REFERENCES `modules`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_mt_tag` FOREIGN KEY (`tag_id`)    REFERENCES `tags`(`id`)    ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `module_id` int(10) unsigned NOT NULL,
+  `tag_id` int(10) unsigned NOT NULL,
+  `weight` decimal(3,2) NOT NULL DEFAULT 1.00,
+  `role` varchar(10) DEFAULT NULL,
+  `is_optional` tinyint(1) NOT NULL DEFAULT 0,
+  `sort_order` smallint(6) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_mod_tag` (`module_id`,`tag_id`),
+  KEY `fk_mt_tag` (`tag_id`),
+  CONSTRAINT `fk_mt_mod` FOREIGN KEY (`module_id`) REFERENCES `modules` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mt_tag` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=16011 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- 10. templates : urutan blok & sintaks penekanan per platform
@@ -213,7 +219,7 @@ CREATE TABLE IF NOT EXISTS `generations` (
   KEY `idx_gen_created` (`created_at`),
   KEY `idx_gen_ip` (`ip_hash`,`created_at`),
   KEY `idx_user_waktu` (`user_id`,`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=164 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=201 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
 -- 12. presets : simpanan user (publik tanpa login -> pakai owner_token)
@@ -334,5 +340,5 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `uq_username` (`username`),
   UNIQUE KEY `uq_email` (`email`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
