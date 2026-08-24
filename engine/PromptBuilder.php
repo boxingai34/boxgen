@@ -902,7 +902,11 @@ final class PromptBuilder
         return $module;
     }
 
-    private static function buildNegative($negativeId): array
+    /**
+     * Dipakai juga oleh ComicPage, yang menyusun Undesired Content-nya
+     * sendiri di luar jalur PromptBuilder::build().
+     */
+    public static function buildNegative($negativeId): array
     {
         $sql = 'SELECT m.id FROM modules m WHERE m.type = ? AND m.is_active = 1';
         $params = ['negative'];

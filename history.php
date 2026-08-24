@@ -37,6 +37,7 @@ $modeLabel = [
     'image2'     => '2 Petinju',
     'seedance'   => 'Video',
     'storyboard' => 'Storyboard',
+    'comic'      => 'Halaman Komik',
 ];
 
 halamanHeader('Riwayat', 'history.php');

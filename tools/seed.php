@@ -450,6 +450,16 @@ if ($kalimatTakKetemu !== []) {
     say('  ! modul tidak ada  : ' . implode(', ', $kalimatTakKetemu));
 }
 
+// Halaman komik: tata letak, efek halaman, waktu, dan arahan penyutradaraan.
+// Empat tipe sekaligus dari satu berkas, sama polanya seperti sub-interaksi.
+$komikData  = dataFile('comic');
+$komikTotal = 0;
+
+foreach ($komikData as $tipe => $daftar) {
+    $komikTotal += count(saveModules($tipe, $daftar));
+}
+say('Halaman komik        : ' . $komikTotal);
+
 // ---------------------------------------------------------------------
 // 3. Karakter kurasi
 // ---------------------------------------------------------------------

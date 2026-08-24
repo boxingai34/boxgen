@@ -24,6 +24,10 @@ try {
     foreach (['sub_jatuh', 'sub_menang', 'sub_reaksi', 'sub_lokasi'] as $t) {
         $subPose[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
+    $comic = [];
+    foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah'] as $t) {
+        $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
+    }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
     $motions    = PromptBuilder::listModules('motion',     ALLOW_NSFW);
     $rings      = PromptBuilder::listModules('ring',       ALLOW_NSFW);
@@ -43,6 +47,7 @@ try {
     $condSlots = ['eyes'=>[], 'gaze'=>[], 'cheek'=>[], 'nose'=>[], 'mouth'=>[], 'body'=>[], 'expr'=>[], 'clothes'=>[]];
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
+    $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -258,6 +263,7 @@ halamanHeader('Prompt Generator', 'index.php');
     <button class="modebtn" data-mode="duo">2 Petinju</button>
     <button class="modebtn" data-mode="seedance">Video (Seedance)</button>
     <button class="modebtn" data-mode="storyboard">Storyboard</button>
+    <button class="modebtn" data-mode="comic">Halaman Komik</button>
 </div>
 
 <div id="preset-banner" class="preset-banner" hidden>
@@ -378,6 +384,148 @@ halamanHeader('Prompt Generator', 'index.php');
                 Kondisi kedua petinju memburuk bertahap sepanjang pertandingan.
                 Yang menang tetap babak belur, hanya lebih ringan. Interaksi dan
                 sudut kamera ikut berganti tiap ronde.
+            </p>
+        </div>
+
+        <!-- khusus halaman komik -->
+        <div class="only-comic">
+            <div class="field-row">
+                <div class="field">
+                    <label for="panels">Jumlah panel</label>
+                    <select id="panels">
+                        <?php for ($p = ComicPage::MIN_PANEL; $p <= ComicPage::MAKS_PANEL; $p++): ?>
+                            <option value="<?= $p ?>" <?= $p === 4 ? 'selected' : '' ?>>
+                                <?= $p ?> panel<?= $p === 4 ? ' — paling aman' : '' ?>
+                            </option>
+                        <?php endfor; ?>
+                    </select>
+                    <p class="hint">
+                        Tiap panel memakai satu kotak Character Prompt, dan NovelAI
+                        cuma menyediakan <?= ComicPage::MAKS_KOTAK ?>.
+                    </p>
+                </div>
+                <div class="field">
+                    <label for="hasil_komik">Alur cerita</label>
+                    <select id="hasil_komik">
+                        <?php foreach (Storyboard::HASIL as $k => $label): ?>
+                            <option value="<?= e($k) ?>"><?= e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">Isi tiap panel disusun sendiri mengikuti alur ini.</p>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="layout_id">Tata Letak Halaman</label>
+                    <select id="layout_id"><?= moduleOptions($comic['comic_layout'], '— bebas —') ?></select>
+                </div>
+                <div class="field">
+                    <label for="arah_id">Arahan Penyutradaraan</label>
+                    <select id="arah_id"><?= moduleOptions($comic['comic_arah'], '— tanpa arahan —') ?></select>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="time_id">Waktu</label>
+                    <select id="time_id"><?= moduleOptions($comic['comic_time'], '— tidak disebut —') ?></select>
+                </div>
+                <div class="field">
+                    <label for="bahasa">Bahasa dialog</label>
+                    <select id="bahasa">
+                        <?php foreach (ComicPage::BAHASA as $kode => $b): ?>
+                            <option value="<?= e($kode) ?>" <?= $kode === 'ko' ? 'selected' : '' ?>>
+                                <?= e($b['label']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">
+                        Yang resmi didukung NovelAI cuma Inggris, Jepang, dan Mandarin.
+                        Sisanya kemungkinan keluar sebagai coretan mirip huruf.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label>Efek Halaman <span class="tiny-note">boleh lebih dari satu</span></label>
+                <div class="fx-grid" id="fx-box">
+                    <?php foreach ($comic['comic_fx'] as $f): ?>
+                        <label class="check"
+                               <?= !empty($f['description']) ? 'title="' . e($f['description']) . '"' : '' ?>>
+                            <input type="checkbox" class="fx-opsi" value="<?= (int)$f['id'] ?>">
+                            <?= e($f['name']) ?>
+                            <?php if (!empty($f['name_id'])): ?>
+                                <span class="tiny-note"><?= e($f['name_id']) ?></span>
+                            <?php endif; ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="artis">Campuran Artis</label>
+                <textarea id="artis" rows="3" maxlength="2000"
+                          placeholder="1.0::artist:blue gk::, 0.8::artist:yoongonji::, 1.5::artist:firstw1::"></textarea>
+                <p class="hint">
+                    Ditempel apa adanya di depan Base Prompt, dan diingat browser ini
+                    untuk berikutnya. Bobot 1.2–1.5 penekanan ringan, 1.6–3.0 tegas.
+                </p>
+            </div>
+
+            <details class="advanced">
+                <summary>Advanced — tahun, Undesired tambahan, format</summary>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="tahun">Tahun gaya</label>
+                        <select id="tahun">
+                            <option value="0">— tidak disebut —</option>
+                            <?php foreach (ComicPage::TAHUN as $th): ?>
+                                <option value="<?= (int)$th ?>" <?= $th === 2026 ? 'selected' : '' ?>>
+                                    year <?= (int)$th ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="hint">
+                            Pengumuman V5 tidak menyebut tag tahun sama sekali.
+                            Mungkin masih berpengaruh, mungkin tidak.
+                        </p>
+                    </div>
+                    <div class="field">
+                        <label for="uc_extra">Undesired tambahan</label>
+                        <textarea id="uc_extra" rows="3" maxlength="2000"
+                                  placeholder="dipisah koma"></textarea>
+                        <p class="hint">
+                            Tag yang melawan halaman berpanel otomatis dibuang, dan
+                            dilaporkan mana saja yang dibuang.
+                        </p>
+                    </div>
+                </div>
+
+                <label class="check">
+                    <input type="checkbox" id="tanpa_label">
+                    Jangan tulis label <code>Panel 1:</code> di kotak karakter
+                </label>
+                <p class="hint">
+                    Label itu belum terbukti dibaca NovelAI. Coba matikan kalau
+                    panelnya tidak jadi.
+                </p>
+
+                <label class="check">
+                    <input type="checkbox" id="blok_text">
+                    Tulis blok <code>Text:</code> manual di akhir Base Prompt
+                </label>
+                <p class="hint">
+                    Di V5 ini justru mematikan pembacaan otomatis tanda kutip.
+                    Nyalakan hanya kalau dialognya tidak muncul sama sekali.
+                </p>
+            </details>
+
+            <p class="hint">
+                Kondisi kedua petinju memburuk dari panel ke panel, dan sudut kamera
+                berganti tiap panel. Setelah dibuat, kalimat dan dialog tiap panel
+                bisa disunting lalu halamannya dibangun ulang.
             </p>
         </div>
 
@@ -588,6 +736,42 @@ halamanHeader('Prompt Generator', 'index.php');
                     <button class="btn tiny" id="btn-copy-all">Salin semua</button>
                 </div>
                 <div id="story-list"></div>
+            </div>
+
+            <!-- Halaman komik: satu Base Prompt, satu Undesired, lalu satu
+                 kotak karakter per panel — persis urutan kolom di NovelAI. -->
+            <div id="comic-block" hidden>
+                <div class="out-head">
+                    <span id="comic-ringkasan"></span>
+                    <button class="btn tiny" id="btn-copy-comic">Salin seluruh halaman</button>
+                </div>
+
+                <div class="out-block">
+                    <div class="out-head">
+                        <span>Base Prompt</span>
+                        <button class="btn tiny" data-copy="comic-base">Salin</button>
+                    </div>
+                    <textarea id="comic-base" rows="9" readonly></textarea>
+                </div>
+
+                <div class="out-block">
+                    <div class="out-head">
+                        <span>Undesired Content</span>
+                        <button class="btn tiny" data-copy="comic-uc">Salin</button>
+                    </div>
+                    <textarea id="comic-uc" rows="3" readonly></textarea>
+                </div>
+
+                <div id="comic-panels"></div>
+
+                <div class="actions">
+                    <button id="btn-comic-ulang" class="btn primary">Bangun ulang halaman</button>
+                </div>
+                <p class="hint">
+                    Sunting kalimat atau dialog panel mana pun di atas, lalu tekan
+                    <strong>Bangun ulang halaman</strong>. Yang tidak kamu sentuh tetap
+                    seperti semula.
+                </p>
             </div>
 
             <div class="out-block only-video" id="video-block" hidden>

@@ -16,7 +16,19 @@ require __DIR__ . '/_bootstrap.php';
  * di halaman edit.
  */
 
-const TIPE = [
+/**
+ * Nama Indonesia untuk tiap tipe modul.
+ *
+ * Daftar ini CUMA nama tampilannya. Tipe yang benar-benar ada dibaca dari
+ * database, bukan dari sini — kalau tidak, tiap kali ada tipe baru
+ * daftarnya harus diingat lagi, dan yang terlupa jadi tidak bisa disunting
+ * sama sekali lewat Admin.
+ *
+ * Itu sudah terjadi: `cam_distance`, `ring`, `motion`, seluruh slot
+ * kondisi, dan seluruh sub-interaksi tidak pernah muncul di sini. Yang
+ * masih tercantum malah `camera`, tipe lama yang sudah dihapus seeder.
+ */
+const NAMA_TIPE = [
     'style'         => 'Gaya gambar',
     'outfit'        => 'Tema pakaian',
     'outfit_top'    => 'Pakaian: atasan',
@@ -26,20 +38,57 @@ const TIPE = [
     'outfit_head'   => 'Pakaian: kepala',
     'pose'          => 'Pose 1 orang',
     'interaction'   => 'Pose interaksi',
+    'sub_jatuh'     => 'Sub: posisi tumbang',
+    'sub_menang'    => 'Sub: sikap menang',
+    'sub_reaksi'    => 'Sub: reaksi kena',
+    'sub_lokasi'    => 'Sub: lokasi di ring',
     'condition'     => 'Kondisi',
+    'cond_eyes'     => 'Kondisi: mata',
+    'cond_gaze'     => 'Kondisi: arah pandang',
+    'cond_cheek'    => 'Kondisi: pipi',
+    'cond_nose'     => 'Kondisi: hidung',
+    'cond_mouth'    => 'Kondisi: mulut',
+    'cond_body'     => 'Kondisi: badan',
+    'cond_expr'     => 'Kondisi: ekspresi',
+    'cond_clothes'  => 'Kondisi: pakaian',
     'background'    => 'Latar',
-    'camera'        => 'Kamera',
+    'ring'          => 'Ring tinju',
+    'cam_distance'  => 'Kamera: jarak',
+    'cam_angle'     => 'Kamera: sudut',
+    'cam_effect'    => 'Kamera: efek',
+    'motion'        => 'Gerakan kamera',
     'lighting'      => 'Pencahayaan',
     'quality'       => 'Kualitas',
     'negative'      => 'Negative prompt',
+    'comic_layout'  => 'Komik: tata letak',
+    'comic_fx'      => 'Komik: efek halaman',
+    'comic_time'    => 'Komik: waktu',
+    'comic_arah'    => 'Komik: arahan',
 ];
+
+/** Tipe yang benar-benar ada isinya, beserta namanya. */
+function daftarTipe(): array
+{
+    $out = [];
+
+    foreach (Database::column('SELECT DISTINCT type FROM modules ORDER BY type') as $t) {
+        // Tipe yang belum punya nama Indonesia tetap muncul — dengan nama
+        // apa adanya. Lebih baik terlihat jelek daripada tidak bisa
+        // disentuh sama sekali.
+        $out[$t] = NAMA_TIPE[$t] ?? ucwords(str_replace('_', ' ', $t));
+    }
+
+    return $out;
+}
+
+$TIPE = daftarTipe();
 
 $type   = (string)($_GET['type'] ?? 'style');
 $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : null;
 $aksi   = (string)($_POST['aksi'] ?? '');
 
-if (!isset(TIPE[$type])) {
-    $type = 'style';
+if (!isset($TIPE[$type])) {
+    $type = array_key_first($TIPE) ?? 'style';
 }
 
 // =====================================================================
@@ -224,14 +273,14 @@ if ($editId !== null) {
              'is_active' => 1, 'sort_order' => 0];
 }
 
-adminHeader('Modul — ' . TIPE[$type], 'modules.php');
+adminHeader('Modul — ' . $TIPE[$type], 'modules.php');
 ?>
 
 <div class="toolbar">
     <div class="field">
         <label for="tipe">Tipe</label>
         <select id="tipe" onchange="location.href='modules.php?type='+this.value">
-            <?php foreach (TIPE as $t => $label): ?>
+            <?php foreach ($TIPE as $t => $label): ?>
                 <option value="<?= e($t) ?>" <?= $t === $type ? 'selected' : '' ?>>
                     <?= e($label) ?>
                 </option>

@@ -926,6 +926,92 @@ kondisi baru lewat Admin dengan `intensity` di antara yang sudah ada.
 
 ---
 
+## Halaman Komik
+
+Tombol kelima. Storyboard menghasilkan **beberapa gambar**, satu per
+ronde. Halaman Komik menghasilkan **satu gambar berisi beberapa panel**.
+Itu hal yang berbeda, bukan format keluaran lain dari yang sama.
+
+### Caranya: satu kotak karakter = satu panel
+
+NovelAI tidak punya kolom "panel". Yang dipunyai adalah kotak Character
+Prompt, dan urutan kotaknya menentukan letak di kanvas. Kotak-kotak itu
+yang dipakai sebagai panel:
+
+```
+Prompt:  4girls, 1.0::artist:blue gk::, year 2026, masterpiece, high complexity
+
+Use expressive facial acting, natural body language, consistent geography.
+
+Morning, in a packed professional arena,
+
+A natural manga page layout with clear panel borders, varied panel sizes,
+four panels on the page.
+
+Undesired Content:  low quality, bad anatomy, blank panel, garbled text, …
+
+Character 1 Prompt:  girl, cammy white, blue boxing gloves, serious, from below
+Panel 1: The boxer and the opponent stand face to face, staring each other down.
+
+Character 2 Prompt:  girl, chun-li, red boxing gloves, wince, from above
+Panel 2: The boxer is folding forward over the punch, breath driven out.
+```
+
+Alur panelnya dipinjam dari Storyboard — kondisi memburuk bertahap,
+sudut kamera berganti tiap panel — lalu tiap panel bisa disunting sendiri
+(siapa yang tampil, apa yang terjadi, apa katanya) dan halamannya dibangun
+ulang.
+
+### Yang perlu kamu tahu sebelum memakainya
+
+**Cuma untuk NovelAI V5.** Halaman berpanel dalam sekali generate baru ada
+di V5 (rilis 21 Agustus 2026). Di V4 dan V4.5 arahan per panel memang
+tidak terbaca.
+
+**Tag jumlah dihitung dari KOTAK, bukan dari orang.** Satu petinju yang
+muncul di empat panel adalah `4girls`, bukan `1girl` — yang dihitung model
+adalah berapa sosok yang tergambar.
+
+**Sudut kamera masuk ke kotak, bukan ke Base Prompt.** Wiki Danbooru untuk
+tag `comic` menyebutnya terang-terangan: tag komposisi seperti `from above`
+jangan dipakai kecuali gambarnya berisi satu orang. Di halaman berpanel,
+satu sudut di Base berlaku ke seluruh halaman.
+
+**Enam tag wajib dibuang dari Undesired Content:** `multiple views`,
+`halftone`, `screentone`, `blank page`, `negative space`, `dithering`.
+Keenamnya ada di preset bawaan NovelAI dan keenamnya melawan halaman
+berpanel secara langsung. Ini dibuang otomatis, dan dilaporkan mana saja
+yang dibuang.
+
+**Dialog ditulis dalam tanda kutip, bukan blok `Text:`.** Di V5, menulis
+blok `Text:` sendiri justru mematikan pembacaan otomatis tanda kutipnya.
+Kalau tetap dipakai, tempatnya di paling akhir prompt — apa pun setelahnya
+ikut tercetak di gambar.
+
+**Bahasa yang resmi didukung untuk render teks cuma Inggris, Jepang, dan
+Mandarin.** Korea tidak pernah disebut sumber resmi mana pun. Website akan
+mengingatkan kalau kamu memilih bahasa di luar ketiganya.
+
+### Yang belum diketahui, dan sengaja tidak dipura-purakan
+
+- **Batas jumlah kotak karakter di V5 tidak pernah diumumkan.** Dokumentasi
+  resmi masih menulis "up to six" — tapi itu teks era V4.5 yang belum
+  diperbarui. Pengumuman V5 menyebut 22 karakter di uji internal, bukan
+  batas antarmukanya. Di sini dipakai 6 karena itu angka yang jelas aman.
+  Kalau di NovelAI-mu kotaknya lebih banyak, ubah `ComicPage::MAKS_KOTAK`.
+- **Label `Panel 1:` belum terbukti.** Tidak ada dokumentasi maupun contoh
+  terverifikasi yang menyatakan NovelAI membacanya sebagai nomor panel.
+  Bisa jadi yang bekerja sebenarnya cuma kalimat aksinya. Ada centang
+  untuk mematikannya.
+- **Tidak ada cara mengunci jumlah panel.** Yang ada cuma tag `2koma`/
+  `3koma`/`4koma` sebagai isyarat — dan itu pun cuma dipakai untuk tata
+  letak yang panelnya memang rata, karena `4koma` berarti bentuk strip,
+  bukan sekadar "empat panel".
+- **Tidak ada rekomendasi rasio aspek.** Yang diketahui cuma: pakai ukuran
+  BESAR, karena ukuran kecil merusak kepatuhan pada instruksi.
+
+---
+
 ## Status
 
 Sudah jalan:
@@ -945,6 +1031,8 @@ Sudah jalan:
 - **Mode Video (Seedance)** dengan gambar acuan dan penghalusan kata
 - **Arah interaksi bisa dibalik** untuk pose 2 petinju
 - **Match Storyboard** — prompt per ronde dengan kondisi bertingkat
+- **Halaman Komik** — satu gambar berpanel untuk NovelAI V5, tiap kotak
+  karakter jadi satu panel, dengan penyuntingan kalimat dan dialog per panel
 - **Ring terpisah dari latar**, bisa menyesuaikan tempat
 - **Keluaran NovelAI V4** dengan Base Prompt + Character Prompt terpisah
 - Optimizer: buang duplikat, buang tag mubazir, deteksi konflik, hitung token

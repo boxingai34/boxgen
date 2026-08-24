@@ -49,7 +49,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — <?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=19">
+<link rel="stylesheet" href="assets/css/style.css?v=20">
 </head>
 <body<?= $polos ? ' class="polos"' : '' ?>>
 
@@ -100,7 +100,7 @@ function halamanFooter(bool $skrip = false): void
 <?php endif; ?>
 
 <?php if ($skrip): ?>
-<script src="assets/js/app.js?v=17"></script>
+<script src="assets/js/app.js?v=18"></script>
 <?php endif; ?>
 </body>
 </html>

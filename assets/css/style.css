@@ -570,6 +570,32 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 
 .only-story[hidden] { display: none; }
 
+/* ---------- halaman komik ---------- */
+.only-comic[hidden] { display: none; }
+
+/* Efek halaman boleh dipilih beberapa sekaligus, jadi kotak centang —
+   bukan menu pilih-satu. Dibuat mengalir supaya sepuluh pilihan tidak
+   jadi sepuluh baris. */
+.fx-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 2px 14px;
+}
+.fx-grid .check { margin: 0; }
+
+#comic-block > .out-head { margin-bottom: 12px; font-size: 13px; }
+#comic-ringkasan { color: var(--accent); font-weight: 600; }
+
+/* Kotak suntingan per panel duduk di dalam kartu panelnya. */
+.panel-sunting .ronde-isi .field-row { margin-top: 4px; }
+.panel-sunting .ronde-isi .field:last-child { margin-bottom: 10px; }
+
+#artis, #uc_extra {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 /* ---------- NovelAI: base prompt + character prompt ---------- */
 #nai-block .out-block { margin-bottom: 12px; }
 #nai-chars .out-head span { color: var(--accent); }

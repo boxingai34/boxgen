@@ -190,6 +190,7 @@ final class Riwayat
             'duo'        => '2 Petinju',
             'seedance'   => 'Video',
             'storyboard' => 'Storyboard',
+            'comic'      => 'Halaman Komik',
             default      => '1 Petinju',
         };
 
