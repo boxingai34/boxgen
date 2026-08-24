@@ -465,35 +465,46 @@ final class PromptBuilder
             if ($mod === null) {
                 continue;
             }
+            // ---- warna ----
+            //
+            // Warnanya DISATUKAN ke nama pakaiannya: "red boxing gloves",
+            // bukan dua tag terpisah "boxing gloves, red gloves".
+            //
+            // Sebelumnya dipisah, dengan alasan yang sebenarnya benar:
+            // Danbooru sendiri menandai gambar sarung tinju merah dengan
+            // boxing_gloves + gloves + red_gloves, dan tag
+            // "red_boxing_gloves" memang tidak ada.
+            //
+            // Tapi yang menentukan bukan bagaimana Danbooru mengarsip,
+            // melainkan bagaimana model membaca. Daftar dipisah koma
+            // gampang terbaca sebagai DUA benda — sarung tinju, lalu
+            // sarung tangan merah yang lain. Satu frasa tidak punya
+            // celah salah tafsir itu.
+            //
+            // tag_id-nya tetap menunjuk tag pakaian aslinya, jadi aturan
+            // implikasi dan konflik tetap bekerja seperti biasa.
+            $warna = $p['outfit_' . $slot . '_color'] ?? null;
+            $pakaiWarna = $warna && !empty($mod['color_base']);
+            $pertama = true;
+
             foreach ($mod['tags'] as $mt) {
+                $nama = $mt['name'];
+
+                // Hanya tag PERTAMA yang diwarnai — itu nama pakaiannya.
+                // Tag berikutnya biasanya pelengkap seperti "bandaged hand",
+                // dan mewarnainya juga malah mengarang.
+                if ($pakaiWarna && $pertama) {
+                    $nama = $warna . '_' . $nama;
+                    $pertama = false;
+                }
+
                 $items[] = [
                     'tag_id' => (int)$mt['tag_id'],
-                    'name'   => $mt['name'],
+                    'name'   => $nama,
                     'weight' => (float)$mt['weight'],
                     'block'  => 'outfit',
-                    'from'   => $mod['name'],
+                    'from'   => $mod['name'] . ($nama !== $mt['name'] ? ' (warna)' : ''),
                 ];
-            }
-
-            // ---- warna ----
-            // Ditambahkan sebagai tag terpisah, bukan mengganti tag pakaiannya.
-            // "boxing gloves, red gloves" = sarung tinju merah, dan kedua
-            // tagnya benar-benar ada di Danbooru.
-            $warna = $p['outfit_' . $slot . '_color'] ?? null;
-
-            if ($warna && !empty($mod['color_base'])) {
-                $tagWarna = Palette::tagFor((string)$mod['color_base'], (string)$warna);
-
-                if ($tagWarna !== null) {
-                    $tagId = Database::value('SELECT id FROM tags WHERE name = ?', [$tagWarna]);
-                    $items[] = [
-                        'tag_id' => $tagId !== null ? (int)$tagId : 0,
-                        'name'   => $tagWarna,
-                        'weight' => 1.0,
-                        'block'  => 'outfit',
-                        'from'   => $mod['name'] . ' (warna)',
-                    ];
-                }
             }
         }
 

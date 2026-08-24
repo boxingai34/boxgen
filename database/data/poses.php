@@ -137,7 +137,7 @@ return [
     // ---- pertukaran pukulan ----
     ['category' => 'pukul', 'slug' => 'trading-blows', 'action' => 'punching', 'name' => 'Saling Memukul', 'name_id' => 'Baku hantam',
      'sort_order' => 1, 'sentence' => 'both boxers throw punches at the same time',
-     'tags' => ['fighting' => 1.2, 'battle', 'punching', 'motion_lines', 'emphasis_lines']],
+     'tags' => ['fighting' => 1.2, 'battle', 'punching', 'motion_lines']],
 
     ['category' => 'pukul', 'slug' => 'punch-to-face', 'action' => 'face_punch', 'name' => 'Pukulan ke Wajah', 'name_id' => 'Pukulan ke wajah lawan',
      'sort_order' => 2, 'sentence' => '{A} lands a punch on {B}\'s face',
@@ -155,7 +155,7 @@ return [
      'description' => 'Memakai stomach_punch — tag khusus pukulan ke perut (553 gambar).',
      'arah_label' => 'Siapa yang memukul?',
      'tags' => ['stomach_punch' => 1.3, 'punching', 'leaning_forward',
-                'clenched_teeth', 'emphasis_lines'],
+                'clenched_teeth'],
      'roles' => ['punching' => 'source', 'leaning_forward' => 'target',
                  'clenched_teeth' => 'target']],
 

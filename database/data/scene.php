@@ -159,7 +159,11 @@ return [
      'intensity' => 7, 'sort_order' => 6, 'tags' => ['blood_on_face' => 1.1, 'nosebleed', 'bruise', 'sweat', 'wince']],
 
     ['category' => 'bertingkat', 'slug' => 'heavy-fatigue', 'defaults' => ['eyes' => 'half-one-closed', 'cheek' => 'bruise', 'mouth' => 'breathing', 'body' => 'exhausted', 'clothes' => 'torn'], 'name' => 'Nyaris Tumbang', 'name_id' => 'Hampir KO',
-     'intensity' => 9, 'sort_order' => 7, 'tags' => ['exhausted', 'bruise' => 1.2, 'torn_clothes', 'heavy_breathing', 'half-closed_eyes']],
+     // torn_clothes SENGAJA tidak ditulis di sini. Tema ini sudah
+     // mengisi slot pakaian dengan 'torn' lewat defaults di atas, jadi
+     // menuliskannya lagi membuatnya muncul TANPA BISA DIMATIKAN —
+     // baju robek ikut keluar walau slot pakaiannya diganti utuh.
+     'intensity' => 9, 'sort_order' => 7, 'tags' => ['exhausted', 'bruise' => 1.2, 'heavy_breathing', 'half-closed_eyes']],
 
     ['category' => 'bertingkat', 'slug' => 'knocked-out', 'defaults' => ['eyes' => 'xx', 'cheek' => 'blood', 'nose' => 'nosebleed', 'body' => 'bruise-blood', 'expr' => 'dazed', 'clothes' => 'torn'], 'name' => 'Pingsan', 'name_id' => 'Tak sadarkan diri',
      'intensity' => 10, 'sort_order' => 8, 'tags' => ['unconscious' => 1.2, 'empty_eyes', 'blood_on_face', 'bruise']],
@@ -225,7 +229,7 @@ return [
     ['category' => 'efek', 'slug' => 'shallow-focus', 'name' => 'Fokus Dangkal', 'name_id' => 'Latar buram',
      'sort_order' => 1, 'tags' => ['depth_of_field', 'blurry_background']],
     ['category' => 'efek', 'slug' => 'motion', 'name' => 'Gerak Cepat', 'name_id' => 'Efek gerak',
-     'sort_order' => 2, 'tags' => ['motion_blur', 'speed_lines', 'emphasis_lines']],
+     'sort_order' => 2, 'tags' => ['motion_blur', 'speed_lines']],
     ['category' => 'efek', 'slug' => 'dynamic-perspective', 'name' => 'Perspektif Ekstrem', 'name_id' => 'Perspektif menonjol',
      'sort_order' => 3, 'tags' => ['foreshortening' => 1.1, 'dynamic_pose']],
     ['category' => 'efek', 'slug' => 'silhouette', 'name' => 'Siluet', 'name_id' => 'Bayangan hitam',

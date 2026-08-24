@@ -364,8 +364,25 @@ final class Exporter
         // V5 memang mengizinkan kalimat dan tag bercampur, jadi keduanya
         // disambung: kalimat dulu, tag menyusul di belakang.
         $wajibTag = [];
-        foreach (['count', 'quality', 'style', 'extra'] as $blok) {
+        foreach (['count', 'quality', 'extra'] as $blok) {
             $wajibTag = array_merge($wajibTag, $built['blocks'][$blok] ?? []);
+        }
+
+        // MODE 1 PETINJU TIDAK PUNYA KOTAK KARAKTER.
+        //
+        // NovelAI hanya butuh kotak karakter kalau orangnya lebih dari
+        // satu. Untuk satu petinju semuanya masuk Base Prompt — dan
+        // itu berarti identitas, penampilan, serta pakaiannya HARUS
+        // ikut di sini. Tanpa ini, prompt satu petinju kehilangan nama
+        // karakter dan seluruh pakaiannya, dan yang tersisa cuma
+        // "A boxer stands ready" — benar sebagai kalimat, tapi bukan
+        // gambar yang diminta.
+        $struktur = self::formatNovelAI($built, $sel, '');
+
+        if ($struktur['characters'] === []) {
+            foreach (['character', 'appearance', 'outfit'] as $blok) {
+                $wajibTag = array_merge($wajibTag, $built['blocks'][$blok] ?? []);
+            }
         }
 
         $ekor = self::format($wajibTag, 'nai5');

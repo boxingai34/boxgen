@@ -66,7 +66,7 @@ return [
 
     ['category' => 'studio', 'slug' => 'rasa-trigger', 'name' => 'Rasa Trigger',
      'name_id' => 'Garis tebal, warna datar', 'sort_order' => 5,
-     'tags' => ['thick_outlines', 'flat_color', 'high_contrast', 'emphasis_lines']],
+     'tags' => ['thick_outlines', 'flat_color', 'high_contrast']],
 
     // ---------------- Manga & komik ----------------
     ['category' => 'komik', 'slug' => 'manga-bw', 'name' => 'Manga Hitam Putih',
