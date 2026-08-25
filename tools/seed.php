@@ -521,6 +521,71 @@ foreach ($arcSalah as $s) {
 }
 
 // ---------------------------------------------------------------------
+// Urutan klip video untuk mode Wan 3.0.
+//
+// Bentuknya sama dengan alur halaman komik — module_defaults lagi — tapi
+// satu klip butuh EMPAT hal, bukan dua: momennya, siapa yang tampil,
+// gerakan kameranya, dan panjangnya. Tiga di antaranya dipadatkan ke
+// dalam nama slot, dan yang keempat (momennya) jadi module_id-nya:
+//
+//   slot "1a5"  -> klip 1, Petinju A, 5 detik, module_id = momennya
+//   slot "1c"   -> klip 1, module_id = gerakan kameranya
+//
+// Terlihat padat, tapi ini menghindari satu tabel baru untuk sesuatu yang
+// bentuknya sudah dilayani tabel yang ada.
+// ---------------------------------------------------------------------
+$wanData = dataFile('wan');
+$wanMap  = saveModules('wan_arc', $wanData['wan_arc']);
+
+$motionSlug = [];
+foreach (Database::all("SELECT id, slug FROM modules WHERE type = 'motion'") as $m) {
+    $motionSlug[$m['slug']] = (int)$m['id'];
+}
+
+$wanKlip  = 0;
+$wanSalah = [];
+
+foreach ($wanData['wan_arc'] as $alur) {
+    $arcId = $wanMap[$alur['slug']];
+    Database::run('DELETE FROM module_defaults WHERE preset_module_id = ?', [$arcId]);
+
+    foreach ($alur['klip'] as $i => $k) {
+        $n = $i + 1;
+
+        if (!isset($beatMap[$k['beat']])) {
+            $wanSalah[] = "{$alur['slug']} klip {$n}: momen '{$k['beat']}' tidak ada";
+            continue;
+        }
+        if (!in_array($k['aktor'], ['a', 'b', 'x'], true)) {
+            $wanSalah[] = "{$alur['slug']} klip {$n}: aktor '{$k['aktor']}' tidak sah";
+            continue;
+        }
+
+        Database::run(
+            'INSERT INTO module_defaults (preset_module_id, slot, module_id) VALUES (?,?,?)',
+            [$arcId, $n . $k['aktor'] . (int)$k['detik'], $beatMap[$k['beat']]]
+        );
+        $wanKlip++;
+
+        if (!isset($motionSlug[$k['kamera']])) {
+            $wanSalah[] = "{$alur['slug']} klip {$n}: kamera '{$k['kamera']}' tidak ada";
+            continue;
+        }
+
+        Database::run(
+            'INSERT INTO module_defaults (preset_module_id, slot, module_id) VALUES (?,?,?)',
+            [$arcId, $n . 'c', $motionSlug[$k['kamera']]]
+        );
+    }
+}
+
+say('Alur video Wan       : ' . count($wanMap) . ' (' . $wanKlip . ' klip terisi)');
+
+foreach ($wanSalah as $s) {
+    say('  ! ' . $s);
+}
+
+// ---------------------------------------------------------------------
 // 3. Karakter kurasi
 // ---------------------------------------------------------------------
 $jumlahKarakter = 0;

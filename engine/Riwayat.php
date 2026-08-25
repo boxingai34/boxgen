@@ -191,6 +191,7 @@ final class Riwayat
             'seedance'   => 'Video',
             'storyboard' => 'Storyboard',
             'comic'      => 'Halaman Komik',
+            'wan'        => 'Video Wan 3.0',
             default      => '1 Petinju',
         };
 
