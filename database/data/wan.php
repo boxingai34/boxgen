@@ -29,6 +29,108 @@
 
 return [
 
+// =====================================================================
+// GAYA VISUAL
+//
+// Dua gaya di bawah bukan karangan. Keduanya dibedah frame demi frame
+// dari video rujukan yang sungguhan:
+//
+//   wan-modern  dari dua video Wan 3.0 milik @haungpower (24 Agustus
+//               2026), yang berwatermark "Wan" di tiap frame — jadi
+//               memang keluaran Wan, bukan model lain.
+//   retro-90    dari potongan anime siaran "Goodbye, Lara" (Kinema
+//               Citrus, Juli 2026). Ini BUKAN buatan AI — ini animasi
+//               tangan sungguhan, dan gayanya jauh berbeda.
+//
+// Membedakan keduanya penting: kalau kamu minta gaya retro sambil
+// berharap hasil semulus video Wan, dua-duanya tidak akan kamu dapat.
+// =====================================================================
+'wan_style' => [
+
+['slug' => 'wan-modern', 'sort_order' => 1,
+ 'name' => 'Anime TV Modern', 'name_id' => 'Gaya keluaran Wan 3.0 yang terbukti',
+ 'description' => 'Dibedah dari video Wan 3.0 sungguhan. Rasa akhir 2010-an sampai '
+                . '2020-an, bukan retro. Ini gaya yang paling kecil risikonya karena '
+                . 'memang gaya yang keluar dari modelnya sendiri.',
+ 'sentence' => 'modern digital TV anime, thin clean tapered lineart in dark brown '
+             . 'instead of pure black, two-tone cel shading with soft airbrush '
+             . 'gradients on skin, pink blush across the cheeks and nose bridge, '
+             . 'glossy specular highlights on the gloves like wet leather, strong rim '
+             . 'light from the overhead ring lamps glowing along the hair edges, '
+             . 'volumetric haze and gentle bloom, shallow depth of field with the crowd '
+             . 'as dark bokeh, near-black navy arena, fine film grain, cinematic 16:9',
+ 'tags' => []],
+
+['slug' => 'retro-90', 'sort_order' => 2,
+ 'name' => 'Retro 90-an', 'name_id' => 'Garis tebal, warna datar, animasi tangan',
+ 'description' => 'Gaya anime siaran tahun 1990-an: garis hitam tebal seragam, warna '
+                . 'datar jenuh tanpa gradasi, bayangan cel bertepi keras. Perlu diingat '
+                . 'video rujukannya BUKAN buatan AI, jadi belum ada bukti Wan sanggup '
+                . 'menirunya semirip itu.',
+ 'sentence' => '1990s hand-drawn TV anime, thick uniform black outlines with a slight '
+             . 'hand-drawn wobble, flat saturated colours with no gradients, hard-edged '
+             . 'cel shadows with straight shadow borders across the face, simple '
+             . 'low-detail backgrounds, diagonal god rays through a dark arena, '
+             . 'animated on twos',
+ 'tags' => []],
+
+['slug' => 'hitam-putih', 'sort_order' => 3,
+ 'name' => 'Hitam Putih', 'name_id' => 'Tanpa warna, kontras keras',
+ 'sentence' => 'high contrast black and white anime, heavy ink blacks, stark white '
+             . 'highlights, visible cross-hatching in the shadows, no colour anywhere',
+ 'tags' => []],
+
+],
+
+// =====================================================================
+// CARA PUKULAN DIGAMBARKAN
+//
+// Bagian ini yang paling sering salah ditebak orang. Blog-blog yang
+// beredar menyarankan garis kecepatan dan guncangan kamera — dan video
+// Wan 3.0 yang sungguhan TIDAK MEMAKAI SATU PUN dari itu. Blog-blog itu
+// basisnya Seedance, bukan Wan.
+//
+// Yang benar-benar dipakai Wan, dihitung dari 17 frame berturut-turut
+// pada 12 fps: gerak lambat dengan frame benturan ditahan sekitar 1,2
+// detik, semburan putih compang-camping di titik kontak, sarung tangan
+// yang menggepeng masuk ke tubuh, dan busur titik-titik keringat.
+// =====================================================================
+'wan_impact' => [
+
+['slug' => 'wan-slowmo', 'sort_order' => 1,
+ 'name' => 'Gerak Lambat', 'name_id' => 'Cara Wan sendiri — terbukti',
+ 'description' => 'Diukur langsung dari video Wan 3.0. Tanpa garis kecepatan, tanpa '
+                . 'guncangan kamera — dua hal yang justru paling sering disarankan '
+                . 'blog dan justru tidak dipakai modelnya.',
+ 'sentence' => 'The impact frame is held in slow motion for about one second: a ragged '
+             . 'white starburst bursts at the point of contact and lingers, the glove '
+             . 'flattens and sinks into the body denting the fabric, small white sweat '
+             . 'droplets scatter outward along a curved dashed arc, and the hair follows '
+             . 'through and then floats slowly back down. The camera stays almost still',
+ 'tags' => []],
+
+['slug' => 'manga-klasik', 'sort_order' => 2,
+ 'name' => 'Ledakan Klasik', 'name_id' => 'White-out dan garis memusat',
+ 'description' => 'Perbendaharaan efek anime tinju tahun 1990-an. Dipakai video '
+                . 'rujukan ketiga — yang animasi tangan, bukan AI.',
+ 'sentence' => 'On contact the screen flashes to full white for a beat, then a white '
+             . 'star flare, then radial concentration lines fill the frame while the '
+             . 'struck body smears sideways in motion blur, ending on an extreme facial '
+             . 'close-up lit in two clashing colours',
+ 'tags' => []],
+
+['slug' => 'kering', 'sort_order' => 3,
+ 'name' => 'Tanpa Efek', 'name_id' => 'Benturan apa adanya',
+ 'description' => 'Tidak ada kilatan, tidak ada garis. Cuma tubuh yang benar-benar '
+                . 'kena. Paling sulit dibuat meyakinkan, tapi paling terasa nyata '
+                . 'kalau berhasil.',
+ 'sentence' => 'The impact carries no graphic effects at all: only the glove deforming '
+             . 'against skin, the head snapping around, and the whole body absorbing the '
+             . 'shock through the spine',
+ 'tags' => []],
+
+],
+
 'wan_arc' => [
 
 // ---------------------------------------------------------------------

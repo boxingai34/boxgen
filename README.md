@@ -1079,6 +1079,83 @@ Peringatan lama di sini salah, dan sudah diralat.
 
 ---
 
+## Video Wan 3.0
+
+Tombol keenam. Satu pertandingan jadi beberapa ADEGAN bertimestamp yang
+kalau disambung jadi satu pertandingan utuh.
+
+Bedanya dengan mode Video (Seedance): Seedance satu klip, satu adegan.
+Ini beberapa adegan, masing-masing berisi beberapa shot:
+
+```
+Generate a 24-second 16:9 video at 30fps: an anime boxing match, modern digital
+TV anime, thin clean tapered lineart in dark brown instead of pure black, ...
+
+Image 1 is Cammy White — blonde hair, braid, blue eyes, blue boxing gloves, ...
+Image 2 is Chun-li — brown hair, double bun, brown eyes, red boxing gloves, ...
+Image 3 is the ring and the arena.
+
+Shot 1 [0-8s]: Cammy White (Image 1) is driving a punch forward with their whole
+body behind it. The impact frame is held in slow motion for about one second: a
+ragged white starburst bursts at the point of contact and lingers, the glove
+flattens and sinks into Chun-li (Image 2)'s body denting the fabric, ...
+Sound: leather impact, sharp exhales, shoes squeaking on canvas.
+
+Throughout the whole clip: strictly lock every character to their reference
+image — hair colour, eye colour, glove colour and outfit must not change ...
+```
+
+### Empat lapis, dan urutannya bukan selera
+
+1. **Spesifikasi** — durasi, rasio, gaya. Awal prompt ditimbang lebih berat.
+2. **Jangkar identitas** — `Image 1 is …`, disalin PERSIS SAMA di tiap adegan.
+   Satu kata berubah bisa membuat model menginisialisasi ulang karakternya.
+3. **Shot bertimestamp** — `Shot 1 [0-8s]: …` plus suaranya.
+4. **Batasan di akhir** — pengganti negative prompt yang tidak ada.
+
+### Yang perlu kamu tahu
+
+**Wan 3.0 tidak punya negative prompt.** Kemunduran dari 2.7 yang masih
+punya. Semua larangan ditulis di dalam prompt utamanya, di bagian
+`Throughout the whole clip`.
+
+**Gambar acuan dan first/last frame tidak bisa dipakai bersamaan.**
+Keluaran ini memakai jalur gambar acuan, karena identitas ikut sepanjang
+generasi — bukan cuma di frame pertama.
+
+**Matikan `prompt_extend`.** Bawaannya menyala, dan yang dilakukannya adalah
+menyuruh LLM menulis ulang promptmu.
+
+**Siapkan gayanya di NovelAI, jangan andalkan Wan.** Wan 3.0 tidak punya
+parameter gaya, tidak punya preset, dan tidak punya LoRA (bobotnya tertutup).
+Ditambah tidak adanya negative prompt, tiga dari empat pengungkit gaya hilang.
+Yang tersisa cuma gambar yang kamu suplai. Rumus resmi image-to-video-nya
+sendiri berbunyi *gerakan + gerak kamera*, dengan catatan "gambar yang
+menentukan entitas, adegan, dan gaya".
+
+### Gaya dan cara pukulan — dibedah dari video sungguhan
+
+Bukan karangan. Dua video Wan 3.0 berwatermark milik @haungpower dibedah
+frame demi frame:
+
+**Cara Wan menggambarkan pukulan** — TIDAK ada garis kecepatan, TIDAK ada
+guncangan kamera (dua hal yang paling sering disarankan blog, dan justru
+tidak dipakai modelnya). Yang dipakai: gerak lambat dengan frame benturan
+ditahan ~1,2 detik, semburan putih compang-camping di titik kontak, sarung
+tangan yang menggepeng masuk ke tubuh, dan busur titik-titik keringat.
+
+**Gaya visualnya** — anime TV digital modern: garis tipis meruncing warna
+cokelat gelap (bukan hitam pekat), cel shading dua tingkat plus gradasi
+airbrush, rim light dari lampu ring, bloom, penonton jadi bokeh gelap.
+
+### Batas keras
+
+30 detik per generasi · 30 fps tetap · 1080P/720P/480P · maksimal 10 gambar
+acuan · prompt sampai 20.000 karakter (praktis 800-2.200) · satu bidikan
+menerus sekitar 15 detik.
+
+---
+
 ## Status
 
 Sudah jalan:
@@ -1102,6 +1179,8 @@ Sudah jalan:
   karakter jadi satu panel, dengan penyuntingan kalimat dan dialog per panel
 - **94 momen panel + 13 alur halaman** — panelnya tidak harus berisi pukulan:
   membalut tangan, lorong, bangku sudut, cutman, tangan diangkat wasit
+- **Video Wan 3.0** — satu pertandingan jadi beberapa adegan bertimestamp,
+  dengan jangkar identitas yang disalin sama persis di tiap adegan
 - **Ring terpisah dari latar**, bisa menyesuaikan tempat
 - **Keluaran NovelAI V4** dengan Base Prompt + Character Prompt terpisah
 - Optimizer: buang duplikat, buang tag mubazir, deteksi konflik, hitung token

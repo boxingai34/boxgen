@@ -572,6 +572,10 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 
 /* ---------- halaman komik ---------- */
 .only-comic[hidden] { display: none; }
+.only-wan[hidden] { display: none; }
+
+#wan-block > .out-head { margin-bottom: 12px; font-size: 13px; }
+#wan-ringkasan { color: var(--accent); font-weight: 600; }
 
 /* Efek halaman boleh dipilih beberapa sekaligus, jadi kotak centang —
    bukan menu pilih-satu. Dibuat mengalir supaya sepuluh pilihan tidak

@@ -535,6 +535,13 @@ foreach ($arcSalah as $s) {
 // bentuknya sudah dilayani tabel yang ada.
 // ---------------------------------------------------------------------
 $wanData = dataFile('wan');
+
+// Gaya visual dan cara pukulan digambarkan — dua-duanya hasil membedah
+// video rujukan frame demi frame, bukan tebakan.
+$wanGaya = count(saveModules('wan_style',  $wanData['wan_style']))
+         + count(saveModules('wan_impact', $wanData['wan_impact']));
+say('Gaya video Wan       : ' . $wanGaya);
+
 $wanMap  = saveModules('wan_arc', $wanData['wan_arc']);
 
 $motionSlug = [];

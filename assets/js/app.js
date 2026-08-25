@@ -275,6 +275,22 @@ function currentSelection() {
         return sel;
     }
 
+    if (mode === 'wan') {
+        sel.a = personSelection('a');
+        sel.b = personSelection('b');
+        sel.arc_id      = $('#wan_arc_id').value || null;
+        sel.style_id    = $('#wan_style_id').value || null;
+        sel.impact_id   = $('#wan_impact_id').value || null;
+        sel.klip        = parseInt($('#wan_klip').value, 10);
+        sel.shot        = parseInt($('#wan_shot').value, 10);
+        sel.detik       = parseInt($('#wan_detik').value, 10);
+        sel.rasio       = $('#wan_rasio').value;
+        sel.acuan_latar = $('#wan_acuan_latar').checked;
+        sel.musik       = $('#wan_musik').checked;
+        sel.haluskan    = $('#wan_haluskan').checked;
+        return sel;
+    }
+
     if (mode === 'comic') {
         sel.a = personSelection('a');
         sel.b = personSelection('b');
@@ -335,10 +351,11 @@ function setMode(next) {
     const video = next === 'seedance';
     const story = next === 'storyboard';
     const komik = next === 'comic';
+    const wan   = next === 'wan';
 
     // Storyboard dan Halaman Komik sama-sama menyusun alur pertandingannya
     // sendiri, jadi keduanya menyembunyikan pilihan yang sama.
-    const alur = story || komik;
+    const alur = story || komik || wan;
 
     $$('.modebtn').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
 
@@ -351,6 +368,7 @@ function setMode(next) {
     $$('.only-video').forEach((el) => { el.hidden = !video; });
     $$('.only-story').forEach((el) => { el.hidden = !story; });
     $$('.only-comic').forEach((el) => { el.hidden = !komik; });
+    $$('.only-wan').forEach((el) => { el.hidden = !wan; });
 
     // Alur menentukan kondisi, interaksi, dan kamera sendiri per ronde
     // atau per panel — memilihnya manual di sini tidak ada gunanya.
@@ -360,8 +378,10 @@ function setMode(next) {
 
     $('h3', panel('a')).textContent = next === 'single' ? 'Petinju' : 'Petinju A';
     $('h3', panel('b')).textContent = video ? 'Petinju B (kosongkan kalau sendirian)' : 'Petinju B';
-    $('#btn-generate').textContent =
-        story ? 'Buat Storyboard' : (komik ? 'Buat Halaman Komik' : 'Generate Prompt');
+    $('#btn-generate').textContent = story ? 'Buat Storyboard'
+        : komik ? 'Buat Halaman Komik'
+        : wan   ? 'Buat Rangkaian Video'
+        : 'Generate Prompt';
 
     // pose satu orang tetap berguna di mode video tanpa lawan
     $$('.only-single').forEach((el) => {
@@ -1228,6 +1248,45 @@ function renderComic(data) {
     });
 }
 
+// ==================================================================
+// Wan 3.0
+// ==================================================================
+
+/** Seluruh rangkaian terakhir, untuk tombol salin. */
+let wanTerakhir = '';
+
+function renderWan(data) {
+    wanTerakhir = data.teks;
+
+    const r = data.ringkasan;
+    $('#wan-ringkasan').textContent =
+        `${r.jumlah} adegan · ${r.shot} shot · ${r.detik} detik · ${r.acuan} gambar acuan · ${r.alur}`;
+
+    const box = $('#wan-list');
+    box.innerHTML = '';
+
+    data.klip.forEach((k) => {
+        const kartu = document.createElement('details');
+        kartu.className = 'ronde';
+        kartu.open = k.nomor === 1;
+
+        const judul = document.createElement('summary');
+        judul.innerHTML = '<strong>' + k.judul + '</strong>'
+            + '<span class="ronde-info">'
+            + `${k.detik} detik · ${k.shot} shot · ${k.huruf} huruf`
+            + '<br>' + k.isi.join(' → ')
+            + '</span>';
+        kartu.appendChild(judul);
+
+        const isi = document.createElement('div');
+        isi.className = 'ronde-isi';
+        isi.appendChild(kotakTeks('Prompt Wan 3.0', k.prompt));
+
+        kartu.appendChild(isi);
+        box.appendChild(kartu);
+    });
+}
+
 async function generate() {
     const btn = $('#btn-generate');
     btn.disabled = true;
@@ -1236,6 +1295,7 @@ async function generate() {
     try {
         const url = mode === 'storyboard' ? 'api/storyboard.php'
                   : mode === 'comic'     ? 'api/comic.php'
+                  : mode === 'wan'       ? 'api/wan.php'
                   : 'api/generate.php';
         const data = await postJson(url, currentSelection());
 
@@ -1247,25 +1307,30 @@ async function generate() {
         const video = data.mode === 'seedance';
         const story = data.mode === 'storyboard';
         const komik = data.mode === 'comic';
-        const biasa = !video && !story && !komik;
+        const wan   = data.mode === 'wan';
+        const biasa = !video && !story && !komik && !wan;
 
         // tiap mode menampilkan blok yang berbeda
         $('#tabs').hidden = !biasa;
         $('#story-block').hidden = !story;
         $('#comic-block').hidden = !komik;
+        $('#wan-block').hidden   = !wan;
         $$('.out-block').forEach((el) => {
             // Kotak di dalam blok komik ikut bloknya, bukan aturan umum —
             // kalau tidak, Base Prompt-nya ikut disembunyikan.
-            if (el.closest('#comic-block')) return;
+            if (el.closest('#comic-block') || el.closest('#wan-block')) return;
 
             if (el.id === 'video-block') el.hidden = !video;
             else if (el.id === 'regional-block') el.hidden = true;
             else el.hidden = !biasa;
         });
         $('.why').hidden = !biasa;
-        $('.meta').hidden = story;
+        $('.meta').hidden = story || wan;
 
-        if (komik) {
+        if (wan) {
+            renderWan(data);
+            renderNotes(data);
+        } else if (komik) {
             renderComic(data);
             renderNotes(data);
         } else if (story) {
@@ -1291,6 +1356,7 @@ async function generate() {
         // Prompt" begitu selesai sekali.
         btn.textContent = mode === 'storyboard' ? 'Buat Storyboard'
                         : mode === 'comic'      ? 'Buat Halaman Komik'
+                        : mode === 'wan'        ? 'Buat Rangkaian Video'
                         : 'Generate Prompt';
     }
 }
@@ -1558,7 +1624,7 @@ async function muatPreset(kode) {
 async function terapkanSeleksi(sel, chars, tags) {
     await warnaSiap;
     sel = sel || {};
-    setMode(['single', 'duo', 'seedance', 'storyboard', 'comic'].includes(sel.mode) ? sel.mode : 'single');
+    setMode(['single', 'duo', 'seedance', 'storyboard', 'comic', 'wan'].includes(sel.mode) ? sel.mode : 'single');
 
     SCENE_IDS.forEach((id) => {
         const el = $('#' + id);
@@ -1817,6 +1883,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $('#btn-comic-ulang')?.addEventListener('click', generate);
+
+    $('#btn-copy-wan')?.addEventListener('click', function () {
+        if (wanTerakhir) salinTeks(wanTerakhir, this);
+    });
 
     ['a', 'b'].forEach((side) => {
         const p = panel(side);

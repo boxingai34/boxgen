@@ -26,7 +26,7 @@ try {
     }
     $comic = [];
     foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc',
-              'panel_beat', 'panel_bentuk'] as $t) {
+              'panel_beat', 'panel_bentuk', 'wan_arc', 'wan_style', 'wan_impact'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -49,7 +49,8 @@ try {
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
-              'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[]];
+              'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[],
+              'wan_arc'=>[], 'wan_style'=>[], 'wan_impact'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -266,6 +267,7 @@ halamanHeader('Prompt Generator', 'index.php');
     <button class="modebtn" data-mode="seedance">Video (Seedance)</button>
     <button class="modebtn" data-mode="storyboard">Storyboard</button>
     <button class="modebtn" data-mode="comic">Halaman Komik</button>
+    <button class="modebtn" data-mode="wan">Video Wan 3.0</button>
 </div>
 
 <div id="preset-banner" class="preset-banner" hidden>
@@ -583,6 +585,102 @@ halamanHeader('Prompt Generator', 'index.php');
             </p>
         </div>
 
+        <!-- khusus Wan 3.0 -->
+        <div class="only-wan">
+            <div class="field">
+                <label for="wan_arc_id">Alur Video</label>
+                <select id="wan_arc_id"><?= moduleOptions($comic['wan_arc'], '— pilih alur —') ?></select>
+                <p class="hint">
+                    Isi tiap adegan diambil dari 94 momen yang sama dengan halaman komik.
+                    Yang terpanjang, <strong>Pertandingan Penuh</strong>, 16 momen dari
+                    ruang ganti sampai perban dibuka.
+                </p>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="wan_klip">Momen diambil</label>
+                    <select id="wan_klip">
+                        <?php foreach ([4, 6, 8, 9, 12, 16] as $n): ?>
+                            <option value="<?= $n ?>" <?= $n === 9 ? 'selected' : '' ?>><?= $n ?> momen</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="wan_shot">Shot per adegan</label>
+                    <select id="wan_shot">
+                        <?php foreach ([2, 3, 4] as $n): ?>
+                            <option value="<?= $n ?>" <?= $n === 3 ? 'selected' : '' ?>><?= $n ?> shot</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="wan_detik">Detik per shot</label>
+                    <select id="wan_detik">
+                        <?php foreach ([5, 6, 8, 10] as $n): ?>
+                            <option value="<?= $n ?>" <?= $n === 8 ? 'selected' : '' ?>><?= $n ?> detik</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <p class="hint">
+                Satu generasi Wan maksimal <strong>30 detik</strong>, dan itu dijaga
+                otomatis. Sembilan momen dengan 3 shot per adegan = 3 permintaan ke Wan.
+            </p>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="wan_style_id">Gaya Visual</label>
+                    <select id="wan_style_id"><?= moduleOptions($comic['wan_style'], '— ikut gambar acuan —') ?></select>
+                </div>
+                <div class="field">
+                    <label for="wan_impact_id">Cara Pukulan Digambarkan</label>
+                    <select id="wan_impact_id"><?= moduleOptions($comic['wan_impact'], '— tidak disebut —') ?></select>
+                </div>
+            </div>
+            <p class="hint">
+                <strong>Gerak Lambat</strong> adalah cara Wan sendiri — diukur dari video
+                Wan 3.0 yang sungguhan. Tanpa garis kecepatan, tanpa guncangan kamera:
+                dua hal yang paling sering disarankan blog dan justru tidak dipakai
+                modelnya.
+            </p>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="wan_rasio">Rasio</label>
+                    <select id="wan_rasio">
+                        <?php foreach (['16:9', '9:16', '4:3', '1:1', 'adaptive'] as $r): ?>
+                            <option value="<?= e($r) ?>"><?= e($r) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Pilihan lain</label>
+                    <label class="check" style="margin-top:2px">
+                        <input type="checkbox" id="wan_acuan_latar" checked>
+                        Ada gambar acuan latar/ring
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="wan_musik">
+                        Boleh ada musik latar
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="wan_haluskan">
+                        Haluskan kata (kalau ditolak penyaring)
+                    </label>
+                </div>
+            </div>
+
+            <p class="hint">
+                <strong>Siapkan gambar acuannya di NovelAI dulu.</strong> Wan 3.0 tidak
+                punya parameter gaya, tidak punya preset, dan tidak punya LoRA — jadi
+                satu-satunya kendali gaya yang tersisa adalah gambar yang kamu suplai.
+                Rumus resmi image-to-video-nya sendiri berbunyi <em>gerakan + gerak
+                kamera</em>, dengan catatan &ldquo;gambar yang menentukan entitas,
+                adegan, dan gaya&rdquo;.
+            </p>
+        </div>
+
         <!-- khusus mode video -->
         <div class="only-video">
             <div class="field-row">
@@ -842,6 +940,26 @@ halamanHeader('Prompt Generator', 'index.php');
                     Sunting kalimat atau dialog panel mana pun di atas, lalu tekan
                     <strong>Bangun ulang halaman</strong>. Yang tidak kamu sentuh tetap
                     seperti semula.
+                </p>
+            </div>
+
+            <!-- Wan 3.0: beberapa adegan, tiap adegan satu permintaan. -->
+            <div id="wan-block" hidden>
+                <div class="out-head">
+                    <span id="wan-ringkasan"></span>
+                    <button class="btn tiny" id="btn-copy-wan">Salin semua</button>
+                </div>
+                <div id="wan-list"></div>
+                <p class="hint">
+                    Tiap adegan di atas adalah <strong>satu permintaan terpisah</strong>
+                    ke Wan 3.0. Pakai <strong>set gambar acuan yang sama</strong> untuk
+                    semuanya, dan <strong>seed yang sama</strong>. Jangan mengubah blok
+                    <code>Image 1 is …</code> walau satu kata — blok itu yang menjaga
+                    wajahnya tidak berganti antar adegan.
+                </p>
+                <p class="hint">
+                    Setel <code>prompt_extend: false</code>. Bawaannya menyala, dan yang
+                    dilakukannya adalah menyuruh LLM menulis ulang promptmu.
                 </p>
             </div>
 
