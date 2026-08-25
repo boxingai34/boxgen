@@ -534,15 +534,24 @@ foreach ($arcSalah as $s) {
 // Terlihat padat, tapi ini menghindari satu tabel baru untuk sesuatu yang
 // bentuknya sudah dilayani tabel yang ada.
 // ---------------------------------------------------------------------
-$wanData = dataFile('wan');
+// Tipe modul video sempat bernama wan_* sebelum ada mode video kedua.
+// saveModules() cuma membuang modul lama DI DALAM tipe yang sama, jadi
+// baris bertipe lama tidak akan pernah tersentuh olehnya — dan akan
+// terus muncul di menu Admin sebagai tipe hantu. Dibersihkan sekali.
+$hantu = Database::run("DELETE FROM modules WHERE type IN ('wan_arc','wan_style','wan_impact')")->rowCount();
+if ($hantu > 0) {
+    say("  (tipe modul lama wan_* dibuang: " . $hantu . ")");
+}
+
+$videoData = dataFile('video');
 
 // Gaya visual dan cara pukulan digambarkan — dua-duanya hasil membedah
 // video rujukan frame demi frame, bukan tebakan.
-$wanGaya = count(saveModules('wan_style',  $wanData['wan_style']))
-         + count(saveModules('wan_impact', $wanData['wan_impact']));
+$wanGaya = count(saveModules('video_style',  $videoData['video_style']))
+         + count(saveModules('video_impact', $videoData['video_impact']));
 say('Gaya video Wan       : ' . $wanGaya);
 
-$wanMap  = saveModules('wan_arc', $wanData['wan_arc']);
+$wanMap  = saveModules('video_arc', $videoData['video_arc']);
 
 $motionSlug = [];
 foreach (Database::all("SELECT id, slug FROM modules WHERE type = 'motion'") as $m) {
@@ -552,7 +561,7 @@ foreach (Database::all("SELECT id, slug FROM modules WHERE type = 'motion'") as 
 $wanKlip  = 0;
 $wanSalah = [];
 
-foreach ($wanData['wan_arc'] as $alur) {
+foreach ($videoData['video_arc'] as $alur) {
     $arcId = $wanMap[$alur['slug']];
     Database::run('DELETE FROM module_defaults WHERE preset_module_id = ?', [$arcId]);
 

@@ -45,7 +45,7 @@ return [
 // Membedakan keduanya penting: kalau kamu minta gaya retro sambil
 // berharap hasil semulus video Wan, dua-duanya tidak akan kamu dapat.
 // =====================================================================
-'wan_style' => [
+'video_style' => [
 
 ['slug' => 'wan-modern', 'sort_order' => 1,
  'name' => 'Anime TV Modern', 'name_id' => 'Gaya keluaran Wan 3.0 yang terbukti',
@@ -95,7 +95,7 @@ return [
 // detik, semburan putih compang-camping di titik kontak, sarung tangan
 // yang menggepeng masuk ke tubuh, dan busur titik-titik keringat.
 // =====================================================================
-'wan_impact' => [
+'video_impact' => [
 
 ['slug' => 'wan-slowmo', 'sort_order' => 1,
  'name' => 'Gerak Lambat', 'name_id' => 'Cara Wan sendiri — terbukti',
@@ -131,7 +131,7 @@ return [
 
 ],
 
-'wan_arc' => [
+'video_arc' => [
 
 // ---------------------------------------------------------------------
 // Yang paling diminta: satu pertandingan utuh, awal sampai selesai.

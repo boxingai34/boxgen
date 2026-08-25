@@ -114,7 +114,7 @@ final class WanBuilder
                 'shot'   => array_sum(array_column($klip, 'shot')),
                 'detik'  => array_sum(array_column($klip, 'detik')),
                 'acuan'  => count($orang) + (empty($sel['acuan_latar']) ? 0 : 1),
-                'alur'   => self::namaAlur($sel['arc_id'] ?? null),
+                'alur'   => AlurKlip::namaAlur($sel['arc_id'] ?? null),
             ],
             'catatan'   => array_merge($catatan, self::catatanTetap($sel, $klip)),
             'teks'      => self::teksLengkap($klip),
@@ -126,137 +126,16 @@ final class WanBuilder
     // =================================================================
 
     /**
-     * Baca alur video, lalu susun daftar klipnya.
+     * Rencana klipnya disusun AlurKlip, dipakai bersama mode video lain.
      *
-     * Bentuk penyimpanannya di module_defaults sengaja padat:
-     *
-     *   slot "3b5"  -> klip 3, Petinju B, 5 detik, module_id = momennya
-     *   slot "3c"   -> klip 3, module_id = gerakan kameranya
-     *
-     * @return array<int, array>
+     * Dulu logika ini tinggal di sini. Begitu ada mode video kedua yang
+     * menjawab pertanyaan yang sama persis — momen apa, siapa, kamera
+     * apa, sebabak belur apa — menyalinnya berarti dua tempat yang harus
+     * diperbaiki tiap kali ada satu bug, dan yang kedua selalu terlupa.
      */
     private static function rencana(array $sel, array &$catatan): array
     {
-        $arc = PromptBuilder::loadModule((int)($sel['arc_id'] ?? 0), true, 'wan_arc');
-
-        if ($arc === null) {
-            return [];
-        }
-
-        $baris = Database::all(
-            'SELECT slot, module_id FROM module_defaults WHERE preset_module_id = ?',
-            [(int)$arc['id']]
-        );
-
-        $momen  = [];
-        $kamera = [];
-
-        foreach ($baris as $r) {
-            $slot = (string)$r['slot'];
-
-            if (preg_match('/^(\d+)([abx])(\d+)$/', $slot, $m)) {
-                $mod = PromptBuilder::loadModule((int)$r['module_id'], true, 'panel_beat');
-                if ($mod !== null) {
-                    $momen[(int)$m[1]] = [
-                        'beat'  => $mod,
-                        'aktor' => $m[2],
-                        'detik' => (int)$m[3],
-                    ];
-                }
-            } elseif (preg_match('/^(\d+)c$/', $slot, $m)) {
-                $kamera[(int)$m[1]] = (int)$r['module_id'];
-            }
-        }
-
-        if ($momen === []) {
-            return [];
-        }
-
-        // NOMOR KLIP ASLINYA HARUS DIPERTAHANKAN, BUKAN DIINDEKS ULANG.
-        //
-        // Momen dan kameranya disimpan di dua baris terpisah yang cuma
-        // dihubungkan oleh nomor klipnya. Begitu salah satunya diindeks
-        // ulang dari nol, hubungan itu putus — dan kameranya menempel di
-        // klip yang salah tanpa satu pun error. Klip pembuka yang tenang
-        // dapat crash zoom, dan tidak ada yang memberi tahu.
-        ksort($momen);
-        ksort($kamera);
-
-        $nomorAsli = array_keys($momen);
-        $momen     = array_values($momen);
-
-        // Berapa klip yang diambil. Kalau lebih sedikit dari yang tersedia,
-        // yang diambil disebar merata — dan klip PERTAMA serta TERAKHIR
-        // selalu ikut, karena itu pembuka dan penutup ceritanya.
-        $mau = (int)($sel['klip'] ?? count($momen));
-        $mau = max(2, min($mau, self::MAKS_KLIP, count($momen)));
-
-        $kondisi = Database::all(
-            "SELECT id, name, intensity FROM modules
-             WHERE type = 'condition' AND is_active = 1 AND intensity IS NOT NULL
-             ORDER BY intensity"
-        );
-
-        $out  = [];
-        $lalu = 'b';
-
-        for ($i = 0; $i < $mau; $i++) {
-            $k = $mau === 1 ? 0 : (int)round($i * (count($momen) - 1) / ($mau - 1));
-            $k = min($k, count($momen) - 1);
-
-            $m     = $momen[$k];
-            $aktor = $m['aktor'] === 'x' ? ($lalu === 'a' ? 'b' : 'a') : $m['aktor'];
-            $lalu  = $aktor;
-
-            $tingkat = $m['beat']['intensity'] !== null ? (float)$m['beat']['intensity'] : 1.0;
-
-            $out[] = [
-                'nomor'  => $i + 1,
-                'beat'   => $m['beat'],
-                'aktor'  => $aktor,
-                'detik'  => (int)($sel['detik'] ?? 0) > 0 ? (int)$sel['detik'] : $m['detik'],
-                // Dicari lewat nomor klip aslinya, bukan lewat urutan
-                // setelah disaring — itu yang membuat kameranya tetap
-                // menempel di momen yang benar.
-                'kamera' => $kamera[$nomorAsli[$k]] ?? null,
-                'kondisi'=> self::kondisiTerdekat($kondisi, $tingkat),
-            ];
-        }
-
-        if ($mau < count($momen)) {
-            $catatan[] = 'Alur ini punya ' . count($momen) . ' klip, kamu minta ' . $mau . '. '
-                . 'Yang diambil disebar merata, dan klip pembuka serta penutup selalu ikut — '
-                . 'rangkaian yang kehilangan pembuka atau penutupnya bukan cerita lagi.';
-        }
-
-        return $out;
-    }
-
-    private static function kondisiTerdekat(array $daftar, float $target): ?int
-    {
-        if ($daftar === []) {
-            return null;
-        }
-
-        $pilih = $daftar[0];
-        $jarak = PHP_FLOAT_MAX;
-
-        foreach ($daftar as $k) {
-            $d = abs((float)$k['intensity'] - $target);
-            if ($d < $jarak) {
-                $jarak = $d;
-                $pilih = $k;
-            }
-        }
-
-        return (int)$pilih['id'];
-    }
-
-    private static function namaAlur($id): string
-    {
-        $arc = PromptBuilder::loadModule((int)$id, true, 'wan_arc');
-
-        return $arc === null ? '' : ($arc['name_id'] ?: $arc['name']);
+        return AlurKlip::susun($sel, $catatan);
     }
 
     // =================================================================
@@ -289,7 +168,7 @@ final class WanBuilder
     private static function acuan(array $sel, array $orang): array
     {
         $out = [];
-        $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'wan_style', true);
+        $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'video_style', true);
 
         // ---- karakter, satu lembar acuan per petinju ----
         $nomor = 1;
@@ -541,7 +420,7 @@ final class WanBuilder
         $bagian = [];
 
         // ---- 1. spesifikasi ----
-        $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'wan_style', true);
+        $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'video_style', true);
         $rasio = (string)($sel['rasio'] ?? '16:9');
 
         $bagian[] = 'Generate a ' . $detik . '-second ' . $rasio . ' video at 30fps: '
@@ -671,7 +550,7 @@ final class WanBuilder
         $peran = self::BENTURAN[$r['beat']['slug']] ?? null;
 
         if ($peran !== null) {
-            $dampak = SeedanceBuilder::kalimatModul($sel['impact_id'] ?? null, 'wan_impact', true);
+            $dampak = SeedanceBuilder::kalimatModul($sel['impact_id'] ?? null, 'video_impact', true);
 
             if ($dampak !== '') {
                 $kena = $peran === 'pelaku'

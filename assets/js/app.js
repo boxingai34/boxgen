@@ -384,9 +384,21 @@ function setMode(next) {
         : wan   ? 'Buat Rangkaian Video'
         : 'Generate Prompt';
 
-    // pose satu orang tetap berguna di mode video tanpa lawan
+    // POSE CUMA BERLAKU DI DUA MODE, DAN DULU MUNCUL DI SEMUA.
+    //
+    // Baris ini dulu berbunyi "sembunyikan kalau modenya duo" — yang berarti
+    // di storyboard, halaman komik, dan Video Wan pun menu Pose ikut nongol.
+    // Di tiga mode itu isinya tidak dibaca sama sekali: yang menentukan aksi
+    // adalah alur dan momennya, bukan menu pose. Menu yang tidak berpengaruh
+    // apa-apa lebih buruk daripada menu yang tidak ada — user mengisinya,
+    // lalu heran kenapa hasilnya tidak berubah.
+    //
+    // Yang benar-benar memakainya cuma mode 1 Petinju dan mode Video
+    // (Seedance), yang memang bisa berjalan tanpa lawan.
+    const posePakai = next === 'single' || next === 'seedance';
+
     $$('.only-single').forEach((el) => {
-        if (el.querySelector('#pose_id')) el.hidden = next === 'duo';
+        if (el.querySelector('#pose_id')) el.hidden = !posePakai;
     });
 
     updateArahBox();

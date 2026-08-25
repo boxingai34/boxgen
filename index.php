@@ -26,7 +26,7 @@ try {
     }
     $comic = [];
     foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc',
-              'panel_beat', 'panel_bentuk', 'wan_arc', 'wan_style', 'wan_impact'] as $t) {
+              'panel_beat', 'panel_bentuk', 'video_arc', 'video_style', 'video_impact'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -50,7 +50,7 @@ try {
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
               'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[],
-              'wan_arc'=>[], 'wan_style'=>[], 'wan_impact'=>[]];
+              'video_arc'=>[], 'video_style'=>[], 'video_impact'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -589,7 +589,7 @@ halamanHeader('Prompt Generator', 'index.php');
         <div class="only-wan">
             <div class="field">
                 <label for="wan_arc_id">Alur Video</label>
-                <select id="wan_arc_id"><?= moduleOptions($comic['wan_arc'], '— pilih alur —') ?></select>
+                <select id="wan_arc_id"><?= moduleOptions($comic['video_arc'], '— pilih alur —') ?></select>
                 <p class="hint">
                     Isi tiap adegan diambil dari 94 momen yang sama dengan halaman komik.
                     Yang terpanjang, <strong>Pertandingan Penuh</strong>, 16 momen dari
@@ -631,11 +631,11 @@ halamanHeader('Prompt Generator', 'index.php');
             <div class="field-row">
                 <div class="field">
                     <label for="wan_style_id">Gaya Visual</label>
-                    <select id="wan_style_id"><?= moduleOptions($comic['wan_style'], '— ikut gambar acuan —') ?></select>
+                    <select id="wan_style_id"><?= moduleOptions($comic['video_style'], '— ikut gambar acuan —') ?></select>
                 </div>
                 <div class="field">
                     <label for="wan_impact_id">Cara Pukulan Digambarkan</label>
-                    <select id="wan_impact_id"><?= moduleOptions($comic['wan_impact'], '— tidak disebut —') ?></select>
+                    <select id="wan_impact_id"><?= moduleOptions($comic['video_impact'], '— tidak disebut —') ?></select>
                 </div>
             </div>
             <p class="hint">
