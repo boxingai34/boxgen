@@ -288,6 +288,7 @@ function currentSelection() {
         sel.acuan_latar = $('#wan_acuan_latar').checked;
         sel.musik       = $('#wan_musik').checked;
         sel.haluskan    = $('#wan_haluskan').checked;
+        sel.artis       = $('#artis_wan').value.trim();
         return sel;
     }
 
@@ -1256,11 +1257,49 @@ function renderComic(data) {
 let wanTerakhir = '';
 
 function renderWan(data) {
-    wanTerakhir = data.teks;
+    // "Salin semua" harus membawa prompt acuannya juga — tanpa gambar
+    // acuan, prompt videonya tidak ada gunanya.
+    const blokAcuan = (data.acuan || []).map(function (a) {
+        const kepala = '=== ' + a.label + ' (' + a.untuk + ') ===';
+        const neg = a.negative ? ['', '--- Undesired Content ---', a.negative] : [];
+
+        return [kepala, a.prompt].concat(neg).join('\n');
+    }).join('\n\n');
+
+    wanTerakhir = blokAcuan ? blokAcuan + '\n\n\n' + data.teks : data.teks;
 
     const r = data.ringkasan;
     $('#wan-ringkasan').textContent =
         `${r.jumlah} adegan · ${r.shot} shot · ${r.detik} detik · ${r.acuan} gambar acuan · ${r.alur}`;
+
+    // Langkah 1: prompt untuk membuat gambar acuannya.
+    const acuan = $('#wan-acuan');
+    acuan.innerHTML = '';
+
+    (data.acuan || []).forEach((a) => {
+        const kartu = document.createElement('details');
+        kartu.className = 'ronde';
+        kartu.open = true;
+
+        const judul = document.createElement('summary');
+        judul.innerHTML = '<strong>' + a.label + '</strong>'
+            + '<span class="ronde-info">buat di ' + a.untuk
+            + (a.catatan ? ' · ' + a.catatan : '') + '</span>';
+        kartu.appendChild(judul);
+
+        const isi = document.createElement('div');
+        isi.className = 'ronde-isi';
+        isi.appendChild(kotakTeks('Prompt ' + a.untuk, a.prompt));
+
+        // Gemini tidak punya kolom negative, jadi kotaknya cuma muncul
+        // kalau memang ada isinya.
+        if (a.negative) {
+            isi.appendChild(kotakTeks('Undesired Content', a.negative));
+        }
+
+        kartu.appendChild(isi);
+        acuan.appendChild(kartu);
+    });
 
     const box = $('#wan-list');
     box.innerHTML = '';
@@ -1862,19 +1901,33 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#btn-copy-all').addEventListener('click', salinSemuaRonde);
 
     // ---- halaman komik ----
-    const artis = $('#artis');
+    // SATU CAMPURAN ARTIS, DUA KOLOM.
+    //
+    // Halaman Komik dan Video Wan sama-sama membutuhkannya, dan keduanya
+    // harus memakai campuran yang SAMA — kalau tidak, lembar acuan yang
+    // dibuat untuk video bergaya berbeda dari halaman komiknya, dan itu
+    // bukan pilihan yang pernah kamu buat, cuma dua kolom yang lupa
+    // disinkronkan.
+    const kolomArtis = [$('#artis'), $('#artis_wan')].filter(Boolean);
 
-    if (artis) {
-        // Campuran artis itu milik orangnya, bukan milik satu halaman.
-        // Sekali diketik, dipakai terus.
+    if (kolomArtis.length) {
+        let tersimpan = '';
         try {
-            artis.value = localStorage.getItem(KUNCI_ARTIS) || '';
+            tersimpan = localStorage.getItem(KUNCI_ARTIS) || '';
         } catch { /* browser tanpa localStorage: tidak apa-apa */ }
 
-        artis.addEventListener('change', () => {
-            try {
-                localStorage.setItem(KUNCI_ARTIS, artis.value.trim());
-            } catch { /* diamkan */ }
+        kolomArtis.forEach((el) => {
+            el.value = tersimpan;
+
+            el.addEventListener('change', () => {
+                const isi = el.value.trim();
+
+                kolomArtis.forEach((lain) => { if (lain !== el) lain.value = isi; });
+
+                try {
+                    localStorage.setItem(KUNCI_ARTIS, isi);
+                } catch { /* diamkan */ }
+            });
         });
     }
 

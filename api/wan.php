@@ -79,6 +79,10 @@ $sel = [
 
     'rasio'       => in_array($in['rasio'] ?? '', $rasioSah, true) ? (string)$in['rasio'] : '16:9',
     'acuan_latar' => !empty($in['acuan_latar']),
+    'artis'       => mb_substr(trim((string)($in['artis'] ?? '')), 0, 2000),
+    'background_id' => $modId($in['background_id'] ?? null),
+    'lighting_id' => $modId($in['lighting_id'] ?? null),
+    'ring_id'     => ($in['ring_id'] ?? '') === 'auto' ? 'auto' : $modId($in['ring_id'] ?? null),
     'musik'       => !empty($in['musik']),
     'haluskan'    => !empty($in['haluskan']),
     'allow_nsfw'  => ALLOW_NSFW,
@@ -130,6 +134,7 @@ Database::run(
 jsonOk([
     'mode'           => 'wan',
     'klip'           => $hasil['klip'],
+    'acuan'          => $hasil['acuan'],
     'teks'           => $hasil['teks'],
     'ringkasan'      => $hasil['ringkasan'],
     'catatan'        => $hasil['catatan'],

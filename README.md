@@ -1148,6 +1148,38 @@ tangan yang menggepeng masuk ke tubuh, dan busur titik-titik keringat.
 cokelat gelap (bukan hitam pekat), cel shading dua tingkat plus gradasi
 airbrush, rim light dari lampu ring, bloom, penonton jadi bokeh gelap.
 
+### Sekalian prompt untuk MEMBUAT gambar acuannya
+
+Mode ini memakai gambar acuan, tapi gambarnya belum ada — dan yang paling
+tahu siapa petinjunya dan seperti apa ringnya justru generator ini sendiri.
+Jadi hasilnya dibagi dua langkah:
+
+| | Untuk | Isinya |
+|---|---|---|
+| Image 1 | NovelAI | Lembar acuan Petinju A: beberapa sudut, latar putih polos |
+| Image 2 | NovelAI | Lembar acuan Petinju B |
+| Image 3 | Gemini  | Ring dan arena, **kosong tanpa orang** |
+
+Dua hal sengaja berbeda dari prompt adegannya:
+
+**Tanpa kondisi.** Acuan itu wujud DASAR orangnya — belum memar, belum
+berdarah, belum berkeringat. Kerusakan datang belakangan lewat prompt
+adegannya.
+
+**Latar polos, ring kosong.** Kalau gambar acuan karakter memuat latar ring,
+latar itu ikut terbawa ke tiap klip. Dan kalau gambar ring memuat orang,
+orang itu jadi sosok ketiga di videonya.
+
+Kalimat gayanya disaring per potongan sebelum dipakai. Lembar karakter
+berlatar putih tidak boleh kebagian "kerumunan jadi bokeh gelap"; gambar
+ring yang kosong tidak boleh kebagian "semburat merah muda di pipi". Yang
+tidak menyebut orang maupun tempat — garis, shading, film grain — selalu
+ikut ke dua-duanya, karena justru itulah gayanya.
+
+Campuran artisnya satu kolom yang sama dengan tab Halaman Komik. Diubah di
+satu tempat, berubah di dua-duanya — kalau tidak, lembar acuan videonya
+bergaya berbeda dari halaman komiknya tanpa kamu pernah memilih begitu.
+
 ### Batas keras
 
 30 detik per generasi · 30 fps tetap · 1080P/720P/480P · maksimal 10 gambar

@@ -671,6 +671,17 @@ halamanHeader('Prompt Generator', 'index.php');
                 </div>
             </div>
 
+            <div class="field">
+                <label for="artis_wan">Campuran Artis <span class="tiny-note">untuk lembar acuan NovelAI</span></label>
+                <textarea id="artis_wan" rows="2" maxlength="2000"
+                          placeholder="1.5::artist:yabuki kentarou::, 0.8::artist:deyui::"></textarea>
+                <p class="hint">
+                    Sama isinya dengan kolom di tab Halaman Komik — diubah di sini,
+                    berubah juga di sana. Inilah pengungkit gaya yang paling kuat,
+                    karena gaya videonya ditentukan gambar acuannya.
+                </p>
+            </div>
+
             <p class="hint">
                 <strong>Siapkan gambar acuannya di NovelAI dulu.</strong> Wan 3.0 tidak
                 punya parameter gaya, tidak punya preset, dan tidak punya LoRA — jadi
@@ -948,6 +959,16 @@ halamanHeader('Prompt Generator', 'index.php');
                 <div class="out-head">
                     <span id="wan-ringkasan"></span>
                     <button class="btn tiny" id="btn-copy-wan">Salin semua</button>
+                </div>
+                <!-- Prompt untuk MEMBUAT gambar acuannya dulu. Mode ini
+                     memakai gambar acuan, dan gambarnya belum ada. -->
+                <div class="out-head" style="margin-top:4px">
+                    <span>Langkah 1 — buat dulu gambar acuannya</span>
+                </div>
+                <div id="wan-acuan"></div>
+
+                <div class="out-head" style="margin-top:18px">
+                    <span>Langkah 2 — prompt videonya</span>
                 </div>
                 <div id="wan-list"></div>
                 <p class="hint">

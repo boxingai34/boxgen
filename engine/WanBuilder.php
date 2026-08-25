@@ -108,6 +108,7 @@ final class WanBuilder
 
         return [
             'klip'      => $klip,
+            'acuan'     => self::acuan($sel, $orang),
             'ringkasan' => [
                 'jumlah' => count($klip),
                 'shot'   => array_sum(array_column($klip, 'shot')),
@@ -261,6 +262,243 @@ final class WanBuilder
     // =================================================================
     // Satu klip
     // =================================================================
+
+    /**
+     * Prompt untuk MEMBUAT gambar acuannya.
+     *
+     * Mode ini memakai gambar acuan, tapi gambarnya belum ada — dan yang
+     * paling tahu siapa petinjunya dan seperti apa ringnya justru
+     * generator ini sendiri. Jadi sekalian dikeluarkan prompt untuk
+     * membuatnya:
+     *
+     *   Karakter -> NovelAI, berbentuk lembar acuan (beberapa sudut
+     *               pandang sekaligus dalam satu gambar)
+     *   Ring     -> Gemini, berbentuk kalimat, ringnya KOSONG
+     *
+     * DUA HAL YANG SENGAJA BERBEDA DARI PROMPT ADEGAN
+     *
+     *   1. Tanpa kondisi. Acuan itu wujud DASAR orangnya — belum memar,
+     *      belum berdarah, belum berkeringat. Kerusakan datang belakangan
+     *      lewat prompt adegannya.
+     *   2. Latar polos, dan ringnya kosong tanpa orang. Kalau gambar acuan
+     *      karakter memuat latar ring, latar itu ikut terbawa ke tiap klip
+     *      dan menabrak latar yang sebenarnya diminta.
+     *
+     * @return array<int, array{label:string, untuk:string, catatan:string, prompt:string, negative:string}>
+     */
+    private static function acuan(array $sel, array $orang): array
+    {
+        $out = [];
+        $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'wan_style', true);
+
+        // ---- karakter, satu lembar acuan per petinju ----
+        $nomor = 1;
+
+        foreach (['a', 'b'] as $sisi) {
+            $p = $sel[$sisi] ?? [];
+
+            if (empty($p['character']) && empty($p['outfit_id'])) {
+                continue;
+            }
+
+            $built = PromptBuilder::build($p + [
+                'mode'         => 'single',
+                'allow_nsfw'   => $sel['allow_nsfw'] ?? ALLOW_NSFW,
+                'trim_implied' => true,
+            ]);
+
+            $items = [];
+            foreach (['count', 'character', 'appearance', 'outfit'] as $blok) {
+                $items = array_merge($items, $built['blocks'][$blok] ?? []);
+            }
+
+            $bagian = [Exporter::format($items, 'novelai')];
+
+            // Lembar acuan: beberapa sudut sekaligus. Riset menyebut acuan
+            // dari dua sudut jauh lebih tahan daripada satu tampak depan.
+            $bagian[] = 'reference sheet, multiple views, full body, standing, '
+                      . 'fighting stance, looking at viewer, simple background, '
+                      . 'white background';
+
+            // ACUAN YANG TERLALU DATAR MEMBUAT WAN MENGELUARKAN TAMPILAN 3D.
+            //
+            // Itu catatan dari orang yang videonya kita jadikan rujukan.
+            // Jadi acuannya sengaja diberi arah cahaya dan bayangan, bukan
+            // warna rata.
+            $bagian[] = 'backlighting, 1.20::detailed shading::';
+
+            $artis = trim((string)($sel['artis'] ?? ''));
+            if ($artis !== '') {
+                $bagian[] = rtrim($artis, " \t\n,");
+            }
+
+            $bagian[] = 'masterpiece, best quality, high complexity, depthness';
+
+            // Kalimat gayanya ikut, TAPI DISARING DULU. V5 memang menerima
+            // kalimat bercampur tag, dan gaya inilah yang harus sama antara
+            // acuan dan video — cuma bagian lingkungannya yang tidak boleh
+            // ikut, karena lembar acuan ini berlatar putih polos.
+            $g = self::saringGaya($gaya, 'karakter');
+            if ($g !== '') {
+                $bagian[] = $g;
+            }
+
+            $nama = $orang[$sisi]['nama'] ?? ('Petinju ' . strtoupper($sisi));
+
+            $out[] = [
+                'label'    => 'Image ' . $nomor . ' — ' . $nama,
+                'untuk'    => 'NovelAI',
+                'catatan'  => 'Lembar acuan wujud DASAR: belum memar, belum berkeringat. '
+                            . 'Kerusakan datang belakangan lewat prompt adegannya.',
+                'prompt'   => implode(', ', array_filter($bagian)),
+                'negative' => self::negatifAcuan($sel),
+            ];
+
+            $nomor++;
+        }
+
+        // ---- ring dan arena ----
+        if (!empty($sel['acuan_latar'])) {
+            $out[] = [
+                'label'    => 'Image ' . $nomor . ' — Ring & arena',
+                'untuk'    => 'Gemini',
+                'catatan'  => 'Ringnya sengaja KOSONG. Kalau ada orang di gambar acuan '
+                            . 'latar, orang itu ikut terbawa jadi sosok ketiga di videonya.',
+                'prompt'   => self::promptLatar($sel, $gaya),
+                'negative' => '',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Buang bagian kalimat gaya yang tidak berlaku untuk gambar acuan ini.
+     *
+     * KENAPA PERLU. Kalimat gaya menggambarkan SATU ADEGAN UTUH: cara
+     * menggambar orangnya sekaligus keadaan tempatnya. Bagus untuk video,
+     * merusak untuk acuan — dan merusaknya ke dua arah berlawanan:
+     *
+     *   Lembar karakter berlatar putih polos, lalu gayanya berkata
+     *   "kerumunan jadi bokeh gelap, arena biru nyaris hitam". Dua
+     *   permintaan yang tidak mungkin dipenuhi sekaligus.
+     *
+     *   Gambar ring yang sengaja KOSONG, lalu gayanya berkata "semburat
+     *   merah muda di pipi, kilau di sarung tinju". Tidak ada pipi di
+     *   sana, dan tidak ada sarung tinju.
+     *
+     * Jadi kalimatnya dipotong per koma, dan tiap potongan dinilai: yang
+     * menyebut orang dibuang dari gambar latar, yang menyebut tempat
+     * dibuang dari lembar karakter. Yang tidak menyebut dua-duanya —
+     * garis, shading, film grain — selalu ikut, karena justru itulah
+     * gayanya.
+     */
+    private static function saringGaya(string $gaya, string $untuk): string
+    {
+        if ($gaya === '') {
+            return '';
+        }
+
+        $orang  = ['blush', 'cheek', 'nose bridge', 'skin', 'hair', 'glove', 'face'];
+        $tempat = ['crowd', 'arena', 'bokeh', 'depth of field', '16:9', 'background', 'ring lamps'];
+
+        $buang = $untuk === 'karakter' ? $tempat : $orang;
+        $sisa  = [];
+
+        foreach (explode(',', $gaya) as $potong) {
+            $p = trim($potong);
+
+            if ($p === '') {
+                continue;
+            }
+
+            $kena = false;
+            foreach ($buang as $kata) {
+                if (str_contains(mb_strtolower($p), $kata)) {
+                    $kena = true;
+                    break;
+                }
+            }
+
+            if (!$kena) {
+                $sisa[] = $p;
+            }
+        }
+
+        return implode(', ', $sisa);
+    }
+
+    /**
+     * Negative untuk lembar acuan.
+     *
+     * Selain negative biasa, ada tiga hal yang khusus merusak sebuah
+     * ACUAN — dan tidak merusak gambar biasa: orang lain ikut masuk,
+     * latar yang ramai, dan potongan badan yang terpotong bingkai.
+     */
+    private static function negatifAcuan(array $sel): string
+    {
+        $daftar = [];
+
+        foreach (PromptBuilder::buildNegative(null) as $item) {
+            $daftar[] = str_replace('_', ' ', $item['name']);
+        }
+
+        foreach (['2girls', '2boys', 'multiple girls', 'multiple boys', 'crowd',
+                  'detailed background', 'scenery', 'cropped', 'out of frame'] as $u) {
+            $daftar[] = $u;
+        }
+
+        $unik = [];
+        foreach ($daftar as $u) {
+            $unik[mb_strtolower($u)] = $u;
+        }
+
+        return implode(', ', array_values($unik));
+    }
+
+    /**
+     * Prompt ring untuk Gemini.
+     *
+     * Gemini membaca kalimat, bukan daftar tag — menumpuk tag di situ
+     * justru melemahkan hasilnya. Jadi bentuknya paragraf, dan gayanya
+     * ditulis sebagai kalimat yang sama persis dengan yang dipakai
+     * prompt videonya.
+     */
+    private static function promptLatar(array $sel, string $gaya): string
+    {
+        $latar = SeedanceBuilder::kalimatModul($sel['background_id'] ?? null, 'background', true);
+        $latar = $latar !== '' ? $latar : 'in a packed indoor arena';
+
+        $ringId = PromptBuilder::resolveRing($sel);
+        $ring   = $ringId !== null ? SeedanceBuilder::kalimatModul($ringId, 'ring', true) : '';
+
+        $lokasi = trim($ring !== '' ? $ring . ' ' . $latar : $latar);
+
+        $baris = [];
+
+        $baris[] = 'A wide establishing shot of a boxing ring ' . $lokasi
+                 . ', seen from ringside at eye level.';
+
+        $baris[] = 'The ring is completely empty — no fighters, no referee, nobody '
+                 . 'inside the ropes. The crowd beyond it is only dark shapes and '
+                 . 'bokeh, never in focus.';
+
+        $g = self::saringGaya($gaya, 'latar');
+        if ($g !== '') {
+            $baris[] = ucfirst($g) . '.';
+        }
+
+        $cahaya = SeedanceBuilder::kalimatModul($sel['lighting_id'] ?? null, 'lighting', true);
+        if ($cahaya !== '') {
+            $baris[] = ucfirst($cahaya) . '.';
+        }
+
+        $baris[] = 'Wide 16:9 framing, with clear depth between the ring, the ropes '
+                 . 'and the darkness behind — this image has to survive being used as '
+                 . 'a background reference across a whole sequence of shots.';
+
+        return implode(' ', $baris);
+    }
 
     /**
      * Suara per tahap.
