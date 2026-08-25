@@ -64,6 +64,11 @@ const NAMA_TIPE = [
     'comic_fx'      => 'Komik: efek halaman',
     'comic_time'    => 'Komik: waktu',
     'comic_arah'    => 'Komik: arahan',
+    'video_arc'     => 'Video: alur klip',
+    'video_style'   => 'Video: gaya visual',
+    'video_impact'  => 'Video: cara pukulan',
+    'video_kamera'  => 'Video: kamera sinematik',
+    'video_gerak'   => 'Video: mekanika gerak',
 ];
 
 /** Tipe yang benar-benar ada isinya, beserta namanya. */

@@ -1188,6 +1188,112 @@ menerus sekitar 15 detik.
 
 ---
 
+## Video Seedance 2.5
+
+Tombol ketujuh. Isian formulirnya sama dengan Wan 3.0 dan perencana
+klipnya juga sama — yang berbeda cuma bentuk promptnya, dan bedanya nyata.
+
+### Empat blok, urutan resmi
+
+```
+@Image 1 is CAMMY WHITE, the boxer on the LEFT of frame — blonde hair, ...
+@Image 2 is CHUN-LI, the boxer on the RIGHT of frame — brown hair, ...
+@Image 3 is the ring and the arena.
+
+A 20-second anime boxing match: CAMMY WHITE and CHUN-LI trade in round 8 ...
+
+Shot 1 (0-4s): A locked-off ringside hard-camera wide, both boxers framed head
+to toe, CAMMY WHITE moves in a step-and-drag, the left foot stepping first and
+the right foot dragging up to restore the stance width, feet never crossing.
+<the crowd settling, then the bell>
+
+Throughout: lock every fighter strictly to their reference image ...
+STRICTLY EXCLUDE: no subtitles; no background music; no gore ...
+```
+
+1. **Penunjukan aset** — @Image 1 ini siapa, dan **ada di sebelah mana**
+2. **Ringkasan** — satu kalimat, tidak lebih
+3. **Plot per segmen** — `Shot 1 (0-4s):` beserta suaranya
+4. **Penutup global** — yang berlaku sepanjang video, ditulis SEKALI
+
+### Bedanya dari Wan 3.0
+
+| | Wan 3.0 | Seedance 2.5 |
+|---|---|---|
+| Frame rate | 30 fps | **24 fps** |
+| Durasi | 5 atau 10 detik | **4-30 detik bebas** |
+| Timestamp | didukung | baru benar-benar dibaca **mulai 2.5** |
+| Audio | ada | ada, dengan **penanda khusus** per jenis suara |
+| Penunjuk aset | `Image 1` | `@Image 1` |
+| Negative prompt | tidak ada | tidak ada |
+
+Rentang timestamp di Seedance **wajib menyambung** — `0-3s lalu 5-6s` dilarang
+eksplisit. Kalau durasinya tidak habis dibagi, sisanya dibagikan ke shot-shot
+awal, bukan ditumpuk di akhir.
+
+### Kamera sinematik — tiga jalur
+
+22 istilah kamera, dibedah dari film dan siaran tinju sungguhan:
+
+- **Siaran** — hard camera sisi ring, menembus tali dari apron, sudut 90 derajat
+  untuk sudut ring, jib, kamera kabel, gerak lambat 500fps. Posisi kamera baku
+  siaran tinju.
+- **Sinematik** — Steadicam masuk ring dari lorong (*Raging Bull*), orbit satu
+  tarikan napas di dalam tali (*Creed*), dari balik bahu saat pukulan mendarat
+  (*Rocky*), speed ramp, lensa panjang menembus asap, dolly zoom.
+- **Anime** — dutch angle lalu freeze frame bergaya kartu pos (Dezaki), dari
+  bawah dagu saat uppercut, layar terbelah, siluet backlight.
+
+Momen tertentu dipasangkan kameranya sendiri — tumbang dapat sudut rendah dari
+kanvas, pukulan telak dapat gerak lambat — dan **tidak pernah ada dua kamera
+sama berturut-turut**.
+
+### Mekanika gerak tinju
+
+19 kalimat yang mekanikanya benar: jab, cross, lead hook, rear hook, uppercut,
+overhand, liver shot, check hook, slip, bob and weave, parry, shoulder roll,
+clinch, step-and-drag, memotong ring, kelelahan ronde akhir, dan dua cara
+tumbang.
+
+Semuanya memakai penanda `{lead}` dan `{rear}` yang **diisi sesuai kuda-kuda**.
+Orthodox kaki kiri di depan, southpaw kebalikannya — jadi tangan mana yang
+nge-jab dan mana yang memukul keras ikut terbalik. Tanpa itu kalimatnya bisa
+menyebut tangan yang salah, dan siapa pun yang paham tinju langsung melihatnya.
+
+Tiga hal yang paling sering salah dan sudah dibetulkan di sini:
+
+- **KO datang dari kail ke SISI rahang**, jadi kepalanya berputar mendatar —
+  bukan terdorong lurus ke belakang.
+- **Urutan ambruknya kaki dulu yang lemas**, badan menyusul. Bukan tumbang kaku
+  seperti pohon.
+- **Bob and weave menekuk LUTUT**, bukan membungkuk di pinggang, dan lintasannya
+  huruf U bukan garis lurus.
+
+### Mencegah kena flagging
+
+21 kata berisiko diganti otomatis: `punch` → `impact`, `fight` → `exchange`,
+`blood` → `sweat spray`, `knockout` → `the finish`, dan seterusnya. Mana saja
+yang diganti dilaporkan, bukan diganti diam-diam.
+
+**Peringatan jujur:** tidak ada daftar kata terlarang resmi yang pernah
+diterbitkan. Tabel itu rekonstruksi dari laporan komunitas. Yang PASTI cuma dua:
+perjanjian resminya melarang gore dan kekerasan tapi **tidak menyebut olahraga
+bertanding sama sekali**, dan **generasi yang gagal karena penyaringan tidak
+ditagih** — jadi mencoba ulang itu gratis, dan sering lebih murah daripada
+menulis ulang.
+
+Yang paling sering memicu penolakan untuk adegan tinju bukan kata *punch*,
+melainkan **menyebut nama petinju sungguhan atau judul manga berhak cipta**.
+Keluaran ini tidak pernah menyebut keduanya.
+
+### Batas keras
+
+4-30 detik · 24 fps tetap · 480p/720p/1080p (**tidak ada 4K**) · maksimal 50
+materi acuan (30 gambar + 10 video + 10 audio) · prompt ~30-40 kata per detik
+video · tidak ada seed, tidak ada camera_fixed, tidak ada negative prompt.
+
+---
+
 ## Status
 
 Sudah jalan:
@@ -1213,6 +1319,11 @@ Sudah jalan:
   membalut tangan, lorong, bangku sudut, cutman, tangan diangkat wasit
 - **Video Wan 3.0** — satu pertandingan jadi beberapa adegan bertimestamp,
   dengan jangkar identitas yang disalin sama persis di tiap adegan
+- **Video Seedance 2.5** — empat blok resmi, timestamp menyambung, penanda
+  suara khusus, dan penyaring kata anti-flagging
+- **22 kamera sinematik + 19 mekanika gerak tinju** — dari Raging Bull, Creed,
+  Rocky, siaran tinju, dan anime tinju; kuda-kuda orthodox/southpaw menentukan
+  tangan mana yang nge-jab
 - **Ring terpisah dari latar**, bisa menyesuaikan tempat
 - **Keluaran NovelAI V4** dengan Base Prompt + Character Prompt terpisah
 - Optimizer: buang duplikat, buang tag mubazir, deteksi konflik, hitung token

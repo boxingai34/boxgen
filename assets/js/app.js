@@ -88,7 +88,11 @@ function personSelection(side) {
         gender: $('.p-gender', p).value || null,
         mature: $('.p-mature', p).checked,
         outfit_id: $('.m-outfit', p).value || null,
-        condition_id: $('.m-condition', p).value || null
+        condition_id: $('.m-condition', p).value || null,
+        // Kuda-kuda cuma dipakai mode video, tapi selalu ikut terkirim —
+        // mode lain mengabaikannya, dan itu lebih murah daripada satu
+        // percabangan lagi di sini.
+        kuda: $('.p-kuda', p)?.value || 'orthodox'
     };
 
     // slot hanya dikirim kalau memang diubah user
@@ -246,6 +250,23 @@ function segarkanSemuaThumbSlot(side) {
     SLOTS.forEach((slot) => tampilkanThumbSlot(side, slot));
 }
 
+/**
+ * Pilihan yang dipakai KEDUA mode video.
+ *
+ * Jalur kamera, posisi layar, ronde, pukulan andalan, dan kuda-kuda tiap
+ * petinju berlaku sama untuk Wan 3.0 maupun Seedance 2.5 — yang berbeda
+ * cuma bentuk promptnya, bukan pertanyaannya.
+ */
+function pilihanVideo2() {
+    return {
+        jalur:     $('#jalur')?.value || 'siaran',
+        posisi:    $('#posisi')?.value || 'a-kiri',
+        ronde:     parseInt($('#ronde')?.value || '0', 10),
+        gerak_id:  $('#gerak_id')?.value || null,
+        kamera_id: $('#kamera_id')?.value || null
+    };
+}
+
 function currentSelection() {
     const sel = {
         mode,
@@ -275,6 +296,25 @@ function currentSelection() {
         return sel;
     }
 
+    if (mode === 'seedance25') {
+        sel.a = personSelection('a');
+        sel.b = personSelection('b');
+        sel.arc_id       = $('#seed_arc_id').value || null;
+        sel.style_id     = $('#seed_style_id').value || null;
+        sel.klip         = parseInt($('#seed_klip').value, 10);
+        sel.detik_adegan = parseInt($('#seed_detik').value, 10);
+        sel.resolusi     = $('#seed_resolusi').value;
+        sel.rasio        = $('#seed_rasio').value;
+        sel.sfx          = $('#seed_sfx').checked;
+        sel.bgm          = $('#seed_bgm').checked;
+        sel.dialog       = $('#seed_dialog').checked;
+        sel.subtitle     = $('#seed_subtitle').checked;
+        sel.acuan_latar  = $('#seed_acuan_latar').checked;
+        sel.artis        = $('#artis_seed').value.trim();
+        Object.assign(sel, pilihanVideo2());
+        return sel;
+    }
+
     if (mode === 'wan') {
         sel.a = personSelection('a');
         sel.b = personSelection('b');
@@ -289,6 +329,7 @@ function currentSelection() {
         sel.musik       = $('#wan_musik').checked;
         sel.haluskan    = $('#wan_haluskan').checked;
         sel.artis       = $('#artis_wan').value.trim();
+        Object.assign(sel, pilihanVideo2());
         return sel;
     }
 
@@ -353,10 +394,11 @@ function setMode(next) {
     const story = next === 'storyboard';
     const komik = next === 'comic';
     const wan   = next === 'wan';
+    const seed  = next === 'seedance25';
 
     // Storyboard dan Halaman Komik sama-sama menyusun alur pertandingannya
     // sendiri, jadi keduanya menyembunyikan pilihan yang sama.
-    const alur = story || komik || wan;
+    const alur = story || komik || wan || seed;
 
     $$('.modebtn').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
 
@@ -370,6 +412,8 @@ function setMode(next) {
     $$('.only-story').forEach((el) => { el.hidden = !story; });
     $$('.only-comic').forEach((el) => { el.hidden = !komik; });
     $$('.only-wan').forEach((el) => { el.hidden = !wan; });
+    $$('.only-seed').forEach((el) => { el.hidden = !seed; });
+    $$('.only-vid2').forEach((el) => { el.hidden = !(wan || seed); });
 
     // Alur menentukan kondisi, interaksi, dan kamera sendiri per ronde
     // atau per panel — memilihnya manual di sini tidak ada gunanya.
@@ -382,6 +426,7 @@ function setMode(next) {
     $('#btn-generate').textContent = story ? 'Buat Storyboard'
         : komik ? 'Buat Halaman Komik'
         : wan   ? 'Buat Rangkaian Video'
+        : seed  ? 'Buat Rangkaian Seedance'
         : 'Generate Prompt';
 
     // POSE CUMA BERLAKU DI DUA MODE, DAN DULU MUNCUL DI SEMUA.
@@ -1347,6 +1392,7 @@ async function generate() {
         const url = mode === 'storyboard' ? 'api/storyboard.php'
                   : mode === 'comic'     ? 'api/comic.php'
                   : mode === 'wan'       ? 'api/wan.php'
+                  : mode === 'seedance25' ? 'api/seedance25.php'
                   : 'api/generate.php';
         const data = await postJson(url, currentSelection());
 
@@ -1358,7 +1404,7 @@ async function generate() {
         const video = data.mode === 'seedance';
         const story = data.mode === 'storyboard';
         const komik = data.mode === 'comic';
-        const wan   = data.mode === 'wan';
+        const wan   = data.mode === 'wan' || data.mode === 'seedance25';
         const biasa = !video && !story && !komik && !wan;
 
         // tiap mode menampilkan blok yang berbeda
@@ -1408,6 +1454,7 @@ async function generate() {
         btn.textContent = mode === 'storyboard' ? 'Buat Storyboard'
                         : mode === 'comic'      ? 'Buat Halaman Komik'
                         : mode === 'wan'        ? 'Buat Rangkaian Video'
+                        : mode === 'seedance25' ? 'Buat Rangkaian Seedance'
                         : 'Generate Prompt';
     }
 }
@@ -1675,7 +1722,7 @@ async function muatPreset(kode) {
 async function terapkanSeleksi(sel, chars, tags) {
     await warnaSiap;
     sel = sel || {};
-    setMode(['single', 'duo', 'seedance', 'storyboard', 'comic', 'wan'].includes(sel.mode) ? sel.mode : 'single');
+    setMode(['single', 'duo', 'seedance', 'storyboard', 'comic', 'wan', 'seedance25'].includes(sel.mode) ? sel.mode : 'single');
 
     SCENE_IDS.forEach((id) => {
         const el = $('#' + id);
@@ -1920,7 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // dibuat untuk video bergaya berbeda dari halaman komiknya, dan itu
     // bukan pilihan yang pernah kamu buat, cuma dua kolom yang lupa
     // disinkronkan.
-    const kolomArtis = [$('#artis'), $('#artis_wan')].filter(Boolean);
+    const kolomArtis = [$('#artis'), $('#artis_wan'), $('#artis_seed')].filter(Boolean);
 
     if (kolomArtis.length) {
         let tersimpan = '';

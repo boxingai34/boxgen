@@ -39,6 +39,7 @@ $modeLabel = [
     'storyboard' => 'Storyboard',
     'comic'      => 'Halaman Komik',
     'wan'        => 'Video Wan 3.0',
+    'seedance25' => 'Video Seedance 2.5',
 ];
 
 halamanHeader('Riwayat', 'history.php');

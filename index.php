@@ -26,7 +26,8 @@ try {
     }
     $comic = [];
     foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc',
-              'panel_beat', 'panel_bentuk', 'video_arc', 'video_style', 'video_impact'] as $t) {
+              'panel_beat', 'panel_bentuk', 'video_arc', 'video_style', 'video_impact',
+              'video_kamera', 'video_gerak'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -50,7 +51,8 @@ try {
     $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
               'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[],
-              'video_arc'=>[], 'video_style'=>[], 'video_impact'=>[]];
+              'video_arc'=>[], 'video_style'=>[], 'video_impact'=>[],
+              'video_kamera'=>[], 'video_gerak'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -164,6 +166,19 @@ function personPanel(string $sisi, string $judul, array $outfits, array $slots, 
                         karena Danbooru tidak menyediakan datanya. Pilih sendiri kalau salah.
                     </p>
                 </div>
+                <div class="field only-vid2">
+                    <label>Kuda-kuda</label>
+                    <select class="p-kuda">
+                        <?php foreach (Seedance25Builder::KUDA as $k => $v): ?>
+                            <option value="<?= e($k) ?>"><?= e($v['label']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">
+                        Menentukan tangan mana yang nge-jab dan mana yang memukul keras.
+                        Orthodox lawan southpaw itu <em>open stance</em> — terlihat jelas
+                        berbeda, dan salah menyebut tangannya langsung ketahuan.
+                    </p>
+                </div>
                 <div class="field">
                     <label>Usia</label>
                     <label class="check" style="margin-top:2px">
@@ -268,6 +283,7 @@ halamanHeader('Prompt Generator', 'index.php');
     <button class="modebtn" data-mode="storyboard">Storyboard</button>
     <button class="modebtn" data-mode="comic">Halaman Komik</button>
     <button class="modebtn" data-mode="wan">Video Wan 3.0</button>
+    <button class="modebtn" data-mode="seedance25">Video Seedance 2.5</button>
 </div>
 
 <div id="preset-banner" class="preset-banner" hidden>
@@ -582,6 +598,170 @@ halamanHeader('Prompt Generator', 'index.php');
                 Kondisi kedua petinju memburuk dari panel ke panel, dan sudut kamera
                 berganti tiap panel. Setelah dibuat, kalimat dan dialog tiap panel
                 bisa disunting lalu halamannya dibangun ulang.
+            </p>
+        </div>
+
+        <!-- dipakai KEDUA mode video: Wan 3.0 dan Seedance 2.5 -->
+        <div class="only-vid2">
+            <div class="field-row">
+                <div class="field">
+                    <label for="jalur">Jalur Kamera</label>
+                    <select id="jalur">
+                        <option value="siaran">Siaran — seperti menonton pertandingan</option>
+                        <option value="sinematik">Sinematik — seperti menonton film</option>
+                        <option value="anime">Anime — dutch angle, freeze frame</option>
+                    </select>
+                    <p class="hint">
+                        Tiga kosakata kamera yang tidak boleh dicampur asal.
+                        <strong>Siaran</strong> dari posisi kamera baku siaran tinju.
+                        <strong>Sinematik</strong> dari <em>Raging Bull</em>, <em>Creed</em>,
+                        <em>Rocky</em>. <strong>Anime</strong> dari Dezaki — tidak punya
+                        padanan di live action.
+                    </p>
+                </div>
+                <div class="field">
+                    <label for="posisi">Posisi Layar</label>
+                    <select id="posisi">
+                        <option value="a-kiri">Petinju A di kiri layar</option>
+                        <option value="b-kiri">Petinju B di kiri layar</option>
+                    </select>
+                    <p class="hint">
+                        Pengikat identitas resmi untuk adegan dua orang, sekaligus
+                        mengunci arah layar supaya penontonnya tidak membaca petinjunya
+                        bertukar tempat antar klip.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="gerak_id">Pukulan Andalan</label>
+                    <select id="gerak_id"><?= moduleOptions($comic['video_gerak'], '— cross (bawaan) —') ?></select>
+                    <p class="hint">
+                        Dipakai di momen "melepas pukulan". Tiap pukulan punya mekanika
+                        kaki yang berbeda — jab melangkah, cross memutar kaki belakang,
+                        uppercut menekuk lutut.
+                    </p>
+                </div>
+                <div class="field">
+                    <label for="kamera_id">Kunci Satu Kamera <span class="tiny-note">opsional</span></label>
+                    <select id="kamera_id"><?= moduleOptions($comic['video_kamera'], '— bergilir sesuai momen —') ?></select>
+                    <p class="hint">
+                        Kosongkan saja. Kalau dikosongkan, kameranya dipilihkan per momen:
+                        tumbang dapat sudut rendah dari kanvas, pukulan telak dapat gerak
+                        lambat, dan tidak ada dua kamera sama berturut-turut.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="ronde">Ronde ke berapa</label>
+                <select id="ronde">
+                    <option value="0">— tidak disebut —</option>
+                    <?php for ($i = 1; $i <= 12; $i++): ?>
+                        <option value="<?= $i ?>" <?= $i === 8 ? 'selected' : '' ?>>Ronde <?= $i ?></option>
+                    <?php endfor; ?>
+                </select>
+                <p class="hint">
+                    Jangkar naratif. Ronde belakangan berarti guard turun, napas lewat
+                    mulut, dan kaki menapak rata alih-alih meluncur.
+                </p>
+            </div>
+        </div>
+
+        <!-- khusus Seedance 2.5 -->
+        <div class="only-seed">
+            <div class="field">
+                <label for="seed_arc_id">Alur Video</label>
+                <select id="seed_arc_id"><?= moduleOptions($comic['video_arc'], '— pilih alur —') ?></select>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="seed_klip">Momen diambil</label>
+                    <select id="seed_klip">
+                        <?php foreach ([4, 6, 8, 9, 12, 16] as $n): ?>
+                            <option value="<?= $n ?>" <?= $n === 9 ? 'selected' : '' ?>><?= $n ?> momen</option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="seed_detik">Durasi per generasi</label>
+                    <select id="seed_detik">
+                        <?php foreach ([10, 15, 20, 25, 30] as $n): ?>
+                            <option value="<?= $n ?>" <?= $n === 20 ? 'selected' : '' ?>><?= $n ?> detik</option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">
+                        Maksimal 30 detik. Jumlah shot mengikuti sendiri, dengan patokan
+                        resmi ~3,3 detik per shot.
+                    </p>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="seed_style_id">Gaya Visual</label>
+                    <select id="seed_style_id"><?= moduleOptions($comic['video_style'], '— ikut gambar acuan —') ?></select>
+                </div>
+                <div class="field">
+                    <label for="seed_resolusi">Resolusi</label>
+                    <select id="seed_resolusi">
+                        <?php foreach (Seedance25Builder::RESOLUSI as $k => $v): ?>
+                            <option value="<?= e($k) ?>" <?= $k === '720p' ? 'selected' : '' ?>><?= e($v) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="seed_rasio">Rasio</label>
+                    <select id="seed_rasio">
+                        <?php foreach (Seedance25Builder::RASIO as $k => $v): ?>
+                            <option value="<?= e($k) ?>"><?= e($v) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Suara</label>
+                    <label class="check" style="margin-top:2px">
+                        <input type="checkbox" id="seed_sfx" checked> Efek suara
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="seed_bgm"> Musik latar
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="seed_dialog"> Dialog
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="seed_subtitle"> Subtitle
+                    </label>
+                    <p class="hint">
+                        Subtitle dan musik latar adalah <strong>satu-satunya</strong>
+                        kontrol negatif yang benar-benar didukung Seedance 2.5. Kalau
+                        tidak diatur, ia mengarang musiknya sendiri.
+                    </p>
+                </div>
+            </div>
+
+            <label class="check">
+                <input type="checkbox" id="seed_acuan_latar" checked>
+                Ada gambar acuan latar/ring
+            </label>
+
+            <div class="field">
+                <label for="artis_seed">Campuran Artis <span class="tiny-note">untuk lembar acuan NovelAI</span></label>
+                <textarea id="artis_seed" rows="2" maxlength="2000"
+                          placeholder="1.5::artist:yabuki kentarou::, 0.8::artist:deyui::"></textarea>
+            </div>
+
+            <p class="hint">
+                Seedance 2.5 keluar di <strong>24 fps</strong>, bukan 30. Tidak punya
+                negative prompt, tidak punya seed, tidak punya camera_fixed — semua
+                larangan sudah ditulis di blok <code>STRICTLY EXCLUDE</code> di akhir
+                promptnya. Generasi yang gagal karena penyaringan <strong>tidak
+                ditagih</strong>, jadi mencoba ulang itu gratis.
             </p>
         </div>
 

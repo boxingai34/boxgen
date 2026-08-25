@@ -165,6 +165,19 @@ final class WanBuilder
      *
      * @return array<int, array{label:string, untuk:string, catatan:string, prompt:string, negative:string}>
      */
+    /**
+     * Dipakai juga mode Seedance 2.5.
+     *
+     * Prompt untuk MEMBUAT gambar acuannya tidak bergantung model video
+     * mana yang akan memakainya — lembar acuan NovelAI dan gambar ring
+     * Gemini sama saja untuk keduanya. Menyalinnya berarti dua tempat
+     * yang harus diperbaiki tiap kali ada satu bug.
+     */
+    public static function acuanPublik(array $sel, array $orang): array
+    {
+        return self::acuan($sel, $orang);
+    }
+
     private static function acuan(array $sel, array $orang): array
     {
         $out = [];
