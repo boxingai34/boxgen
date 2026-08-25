@@ -41,8 +41,29 @@ final class Seedance25Builder
     public const MIN_DETIK = 4;
     public const MAKS_DETIK = 30;
 
-    /** Rata-rata resmi dari contoh mereka: 9 shot dalam 30 detik. */
-    private const DETIK_PER_SHOT = 3.3;
+    /**
+     * Panjang satu shot, per tempo.
+     *
+     * Bawaannya dulu 3,3 detik — rata-rata dari contoh resmi Seedance.
+     * Angka itu benar untuk contoh mereka, tapi contoh mereka bukan
+     * adegan tinju. Dua video Wan yang jadi rujukan memotong di 1,67 /
+     * 2,5 / 3,53 / 4,47 / 5,93 detik — sekitar satu detik per shot, tiga
+     * kali lebih rapat.
+     */
+    private const TEMPO_DETIK = [
+        'khidmat' => 5.0,
+        'sedang'  => 3.3,
+        'cepat'   => 2.0,
+        'kilat'   => 1.4,
+    ];
+
+    /** Kecepatan kamera yang pantas untuk tiap tempo, rentang 1-10. */
+    private const TEMPO_KAMERA = [
+        'khidmat' => [1, 4],
+        'sedang'  => [2, 7],
+        'cepat'   => [5, 10],
+        'kilat'   => [7, 10],
+    ];
 
     public const RESOLUSI = [
         '480p'  => '480p — paling murah',
@@ -157,7 +178,14 @@ final class Seedance25Builder
         // padat berujung potongan berlebihan dan plot yang hilang; yang
         // terlalu kosong membuat model mengarang isinya sendiri.
         $detik = max(self::MIN_DETIK, min((int)($sel['detik_adegan'] ?? 20), self::MAKS_DETIK));
-        $perAdegan = max(2, min((int)round($detik / self::DETIK_PER_SHOT), 9));
+
+        $tempo = self::tempo($sel);
+        $perShot = self::TEMPO_DETIK[$tempo] ?? 3.3;
+
+        // Batas atasnya dinaikkan dari 9 ke 12: di tempo kilat, 20 detik
+        // memang berarti empat belas potongan, dan memaksanya jadi sembilan
+        // sama saja mengembalikannya jadi lambat.
+        $perAdegan = max(2, min((int)round($detik / $perShot), 12));
 
         $klip = [];
         $n = 1;
@@ -232,7 +260,17 @@ final class Seedance25Builder
         // segmen selalu jadi awal segmen berikutnya.
         $blok[] = '';
 
-        $panjang = self::bagiWaktu($detik, count($grup));
+        // YANG MEMBUAT SESUATU TERASA CEPAT ITU KONTRAS, BUKAN KECEPATAN RATA.
+        //
+        // Video yang cepat dari awal sampai akhir terasa gaduh, bukan cepat.
+        // Yang terasa cepat adalah rentetan potongan pendek yang tiba-tiba
+        // BERHENTI di satu tahanan panjang, lalu lanjut cepat lagi. Ashita
+        // no Joe dan Raging Bull sama-sama memakai cara itu.
+        //
+        // Jadi satu shot dalam grup ini — yang paling menentukan, biasanya
+        // benturan atau tumbang — sengaja diberi jatah lebih panjang, dan
+        // sisanya dipadatkan untuk membayarnya.
+        $panjang = self::bagiWaktu($detik, count($grup), self::tahan($grup));
         $mulai = 0;
 
         // SUARA YANG SAMA TIDAK DIULANG TIAP SHOT.
@@ -291,7 +329,7 @@ final class Seedance25Builder
      *
      * @return int[]
      */
-    private static function bagiWaktu(int $detik, int $jumlah): array
+    private static function bagiWaktu(int $detik, int $jumlah, int $tahan = -1): array
     {
         $dasar = intdiv($detik, $jumlah);
         $sisa  = $detik - ($dasar * $jumlah);
@@ -305,7 +343,59 @@ final class Seedance25Builder
             $out[$i]++;
         }
 
+        // Satu shot ditahan lebih lama, dan yang lain dipadatkan untuk
+        // membayarnya. Total detiknya tidak boleh berubah — kalau berubah,
+        // rentang timestamp-nya tidak lagi menyentuh ujung, dan Seedance
+        // melarang rentang yang berlubang.
+        // TAHANANNYA DIBATASI DUA DETIK.
+        //
+        // Tanpa batas, satu detik diambil dari SETIAP shot lain — dan di
+        // grup berisi enam shot, tahanannya membengkak jadi tujuh detik
+        // sementara sisanya tinggal satu detik masing-masing. Itu bukan
+        // kontras lagi, itu satu shot panjang yang dikelilingi kedipan.
+        //
+        // Dua detik sudah cukup: di tempo cepat, satu shot dua kali lipat
+        // panjang shot lain sudah terasa seperti waktu berhenti.
+        if ($tahan >= 0 && $tahan < $jumlah && $jumlah > 2) {
+            $ambil = 0;
+
+            foreach ($out as $i => $d) {
+                if ($ambil >= 2) {
+                    break;
+                }
+                if ($i !== $tahan && $d > 1) {
+                    $out[$i]--;
+                    $ambil++;
+                }
+            }
+
+            $out[$tahan] += $ambil;
+        }
+
         return $out;
+    }
+
+    /**
+     * Shot mana yang pantas ditahan lebih lama.
+     *
+     * Yang dicari momen paling menentukan di grup itu: benturan atau
+     * tumbang. Kalau tidak ada, tidak ada yang ditahan — grup berisi
+     * membalut tangan dan berjalan ke ring tidak punya klimaks, dan
+     * memaksakan tahanan di situ cuma membuatnya melambat tanpa alasan.
+     *
+     * @return int indeks di dalam grup, atau -1 kalau tidak ada
+     */
+    private static function tahan(array $grup): int
+    {
+        $penting = ['tumbang', 'kena-pukulan', 'dihitung', 'tangan-diangkat'];
+
+        foreach ($grup as $i => $r) {
+            if (in_array((string)$r['beat']['slug'], $penting, true)) {
+                return $i;
+            }
+        }
+
+        return -1;
     }
 
     /** Ringkasan satu kalimat: siapa, di mana, peristiwanya, gayanya. */
@@ -376,12 +466,33 @@ final class Seedance25Builder
 
         $jalur = (string)($sel['jalur'] ?? 'siaran');
 
+        // KAMERANYA DISARING SESUAI TEMPO.
+        //
+        // Orbit Steadicam dan beauty shot itu kamera yang bagus, dan
+        // dua-duanya TENANG. Kalau seluruh rangkaian diambil dari situ,
+        // hasilnya terasa khidmat berapa pun pendeknya timestamp — karena
+        // yang membuat sesuatu terasa cepat bukan cuma lama shotnya,
+        // melainkan apa yang dilakukan kameranya di dalam shot itu.
+        [$min, $maks] = self::TEMPO_KAMERA[self::tempo($sel)] ?? [1, 10];
+
         $daftar = Database::all(
             "SELECT id, slug FROM modules
              WHERE type = 'video_kamera' AND category = ? AND is_active = 1
+               AND COALESCE(intensity, 5) BETWEEN ? AND ?
              ORDER BY sort_order, id",
-            [$jalur]
+            [$jalur, $min, $maks]
         );
+
+        // Jalur yang tidak punya kamera secepat itu tidak dibiarkan kosong —
+        // lebih baik kamera yang agak lambat daripada tidak ada sama sekali.
+        if ($daftar === []) {
+            $daftar = Database::all(
+                "SELECT id, slug FROM modules
+                 WHERE type = 'video_kamera' AND category = ? AND is_active = 1
+                 ORDER BY COALESCE(intensity, 5) DESC, sort_order",
+                [$jalur]
+            );
+        }
 
         if ($daftar === []) {
             // Jalurnya kosong — pakai gerak kamera bawaan momennya.
@@ -588,9 +699,38 @@ final class Seedance25Builder
         // dahulukan gerakan kecil yang menerus, hindari gerakan meledak
         // yang amplitudonya besar. Anatomi paling sering rusak di puncak
         // gerakan tercepat.
-        $b[] = 'Favour continuous, readable movement over explosive motion; keep the '
-             . 'silhouette legible in every key pose, with directional motion blur only on '
-             . 'the fastest limb.';
+        // KALIMAT INI DULU ADA DI TIAP PROMPT, DAN ITU YANG MEMBUATNYA LAMBAT.
+        //
+        // "Favour continuous, readable movement over explosive motion"
+        // masuk dari peringatan resmi Seedance soal gerakan beramplitudo
+        // besar. Peringatannya benar — anatomi memang paling sering rusak
+        // di puncak gerakan tercepat. Tapi menuliskannya di SETIAP prompt
+        // berarti menyuruh model menahan diri sepanjang video, dan itu
+        // persis lawan dari yang diminta waktu temponya diset cepat.
+        //
+        // Sekarang cuma muncul di tempo lambat. Di tempo cepat yang masuk
+        // adalah pengganti yang menjaga siluetnya tetap terbaca TANPA
+        // menyuruh gerakannya melambat.
+        $tempo = self::tempo($sel);
+
+        $b[] = in_array($tempo, ['khidmat', 'sedang'], true)
+            ? 'Favour continuous, readable movement over explosive motion; keep the '
+            . 'silhouette legible in every key pose, with directional motion blur only on '
+            . 'the fastest limb.'
+            : 'Keep the silhouette readable in every key pose even at speed, with '
+            . 'directional motion blur on the fastest limb, and let each cut land on a '
+            . 'movement rather than between them.';
+
+        // Kalimat temponya sendiri — ini yang benar-benar menyuruh model
+        // memotong lebih rapat. Tanpa ini, model tidak punya alasan untuk
+        // bergerak cepat, seberapa pendek pun timestamp-nya.
+        $laju = SeedanceBuilder::kalimatModul(
+            self::idTempo($tempo), 'video_tempo', true
+        );
+
+        if ($laju !== '') {
+            $b[] = SeedanceBuilder::kalimat($laju);
+        }
 
         $larang = [];
 
@@ -679,6 +819,24 @@ final class Seedance25Builder
         }
 
         return $out;
+    }
+
+    /** Tempo yang dipilih, atau 'cepat' kalau tidak diisi. */
+    private static function tempo(array $sel): string
+    {
+        $t = (string)($sel['tempo'] ?? '');
+
+        return isset(self::TEMPO_DETIK[$t]) ? $t : 'cepat';
+    }
+
+    private static function idTempo(string $slug): ?int
+    {
+        $id = Database::value(
+            "SELECT id FROM modules WHERE type = 'video_tempo' AND slug = ?",
+            [$slug]
+        );
+
+        return $id === null ? null : (int)$id;
     }
 
     private static function slugModul($id, string $type): ?string

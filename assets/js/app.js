@@ -259,6 +259,7 @@ function segarkanSemuaThumbSlot(side) {
  */
 function pilihanVideo2() {
     return {
+        tempo:     $('#tempo')?.value || 'cepat',
         jalur:     $('#jalur')?.value || 'siaran',
         posisi:    $('#posisi')?.value || 'a-kiri',
         ronde:     parseInt($('#ronde')?.value || '0', 10),

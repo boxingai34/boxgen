@@ -473,7 +473,16 @@ final class WanBuilder
                       && !empty($sel['impact_id']);
 
             if (!$adaDampak) {
-                $kamera = SeedanceBuilder::kalimatModul($r['kamera'], 'motion', true);
+                // Kalau jalur kamera sinematiknya dipilih, kameranya diambil
+                // dari situ dan disaring sesuai tempo — supaya tempo cepat
+                // benar-benar dapat whip pan dan crash zoom, bukan orbit
+                // Steadicam yang dipendekkan.
+                $kamera = self::kameraJalur($sel, $i);
+
+                if ($kamera === '') {
+                    $kamera = SeedanceBuilder::kalimatModul($r['kamera'], 'motion', true);
+                }
+
                 if ($kamera !== '') {
                     $baris .= ' ' . SeedanceBuilder::kalimat($kamera);
                 }
@@ -620,12 +629,80 @@ final class WanBuilder
              . 'stay as soft background bokeh. Every movement stays physically possible, '
              . 'with weight and follow-through.';
 
+        // KALIMAT TEMPO — INI YANG MENYURUH MODEL MEMOTONG LEBIH RAPAT.
+        //
+        // Timestamp yang pendek saja tidak cukup. Tanpa kalimat yang
+        // menyebut lajunya, model tetap menggerakkan kameranya perlahan
+        // di dalam shot yang pendek — dan hasilnya terasa lambat walau
+        // potongannya sebenarnya rapat.
+        $tempoId = Database::value(
+            "SELECT id FROM modules WHERE type = 'video_tempo' AND slug = ?",
+            [self::tempo($sel)]
+        );
+
+        if ($tempoId !== null) {
+            $laju = SeedanceBuilder::kalimatModul((int)$tempoId, 'video_tempo', true);
+
+            if ($laju !== '') {
+                $b[] = SeedanceBuilder::kalimat($laju);
+            }
+        }
+
         if (empty($sel['musik'])) {
             $b[] = 'No background music.';
         }
 
         return implode(' ', $b);
     }
+
+    /**
+     * Kamera dari jalur sinematik, disaring sesuai tempo.
+     *
+     * Kosong kalau jalurnya tidak dipilih — mode Wan tetap boleh memakai
+     * gerak kamera bawaan tiap momen seperti sebelumnya.
+     */
+    private static function kameraJalur(array $sel, int $urutan): string
+    {
+        $jalur = (string)($sel['jalur'] ?? '');
+
+        if (!in_array($jalur, ['siaran', 'sinematik', 'anime'], true)) {
+            return '';
+        }
+
+        [$min, $maks] = self::TEMPO_KAMERA[self::tempo($sel)] ?? [1, 10];
+
+        $daftar = Database::column(
+            "SELECT id FROM modules
+             WHERE type = 'video_kamera' AND category = ? AND is_active = 1
+               AND COALESCE(intensity, 5) BETWEEN ? AND ?
+             ORDER BY sort_order, id",
+            [$jalur, $min, $maks]
+        );
+
+        if ($daftar === []) {
+            return '';
+        }
+
+        return SeedanceBuilder::kalimatModul(
+            (int)$daftar[$urutan % count($daftar)], 'video_kamera', true
+        );
+    }
+
+    /** Tempo yang dipilih, atau 'cepat' kalau tidak diisi. */
+    private static function tempo(array $sel): string
+    {
+        $t = (string)($sel['tempo'] ?? '');
+
+        return in_array($t, ['khidmat', 'sedang', 'cepat', 'kilat'], true) ? $t : 'cepat';
+    }
+
+    /** Kecepatan kamera yang pantas untuk tiap tempo, rentang 1-10. */
+    private const TEMPO_KAMERA = [
+        'khidmat' => [1, 4],
+        'sedang'  => [2, 7],
+        'cepat'   => [5, 10],
+        'kilat'   => [7, 10],
+    ];
 
     /**
      * Identitas satu petinju, dalam bentuk yang disalin ke tiap generasi.

@@ -27,7 +27,7 @@ try {
     $comic = [];
     foreach (['comic_layout', 'comic_fx', 'comic_time', 'comic_arah', 'comic_arc',
               'panel_beat', 'panel_bentuk', 'video_arc', 'video_style', 'video_impact',
-              'video_kamera', 'video_gerak'] as $t) {
+              'video_kamera', 'video_gerak', 'video_tempo'] as $t) {
         $comic[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $lightings  = PromptBuilder::listModules('lighting',   ALLOW_NSFW);
@@ -52,7 +52,7 @@ try {
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
               'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[],
               'video_arc'=>[], 'video_style'=>[], 'video_impact'=>[],
-              'video_kamera'=>[], 'video_gerak'=>[]];
+              'video_kamera'=>[], 'video_gerak'=>[], 'video_tempo'=>[]];
     $tagCount = $charCount = 0;
     $dbError = $e->getMessage();
 }
@@ -604,6 +604,25 @@ halamanHeader('Prompt Generator', 'index.php');
         <!-- dipakai KEDUA mode video: Wan 3.0 dan Seedance 2.5 -->
         <div class="only-vid2">
             <div class="field-row">
+                <div class="field">
+                    <label for="tempo">Tempo</label>
+                    <select id="tempo">
+                        <?php foreach ($comic['video_tempo'] as $t): ?>
+                            <option value="<?= e($t['slug']) ?>"
+                                    <?= $t['slug'] === 'cepat' ? 'selected' : '' ?>
+                                    <?= !empty($t['description']) ? 'title="' . e($t['description']) . '"' : '' ?>>
+                                <?= e($t['name']) ?> — <?= e($t['name_id']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="hint">
+                        Mengubah tiga hal sekaligus: panjang tiap shot, kamera mana yang
+                        dipilih, dan kalimat laju di promptnya. Tempo cepat memakai whip
+                        pan dan crash zoom; tempo khidmat memakai orbit dan crane.
+                        Satu shot paling menentukan tetap <strong>ditahan lebih lama</strong> —
+                        yang membuat sesuatu terasa cepat itu kontras, bukan kecepatan rata.
+                    </p>
+                </div>
                 <div class="field">
                     <label for="jalur">Jalur Kamera</label>
                     <select id="jalur">

@@ -77,6 +77,9 @@ $sel = [
     'detik_adegan' => (int)($in['detik_adegan'] ?? 20),
     'ronde'        => max(0, min((int)($in['ronde'] ?? 0), 15)),
 
+    'tempo'        => in_array($in['tempo'] ?? '', ['khidmat', 'sedang', 'cepat', 'kilat'], true)
+                        ? (string)$in['tempo'] : 'cepat',
+
     'jalur'        => in_array($in['jalur'] ?? '', ['siaran', 'sinematik', 'anime'], true)
                         ? (string)$in['jalur'] : 'siaran',
 

@@ -1269,6 +1269,45 @@ Tiga hal yang paling sering salah dan sudah dibetulkan di sini:
 - **Bob and weave menekuk LUTUT**, bukan membungkuk di pinggang, dan lintasannya
   huruf U bukan garis lurus.
 
+### Tempo — yang mengatur cepat-lambatnya
+
+Empat pilihan, dan tiap satu mengubah **tiga hal sekaligus**:
+
+| Tempo | Panjang shot | Kamera yang dipilih | Kalimat di prompt |
+|---|---|---|---|
+| Khidmat | ~5 detik | orbit, crane, beauty shot | *Let each shot breathe…* |
+| Sedang | ~3,3 detik | campuran | *Keep a steady cutting rhythm…* |
+| **Cepat** (bawaan) | ~2 detik | whip pan, crash zoom, potong di benturan | *Cut fast and often…* |
+| Kilat | ~1,4 detik | montase kilat, impact frame, snap zoom | *Cut relentlessly…* |
+
+Angka 2 detik bukan karangan: dua video Wan yang jadi rujukan memotong di
+1,67 / 2,5 / 3,53 / 4,47 / 5,93 detik. Dan montase pukulan anime tinju
+memotong tiap 0,08-0,25 detik — itu yang jadi patokan tempo Kilat.
+
+**Yang membuat sesuatu terasa cepat itu KONTRAS, bukan kecepatan rata.**
+Video yang cepat dari awal sampai akhir terasa gaduh, bukan cepat. Jadi satu
+shot paling menentukan — benturan, tumbang, tangan diangkat — sengaja
+**ditahan lebih lama**, dan sisanya dipadatkan untuk membayarnya. Ashita no
+Joe dan Raging Bull sama-sama memakai cara itu.
+
+Contoh nyata di tempo Cepat: `1 / 1 / 2 / 2 / 2 / 4` detik — lima potongan
+rapat, lalu satu tahanan empat detik di pukulan penentu.
+
+### Satu kalimat yang dulu menahan lajunya
+
+Sebelum ada Tempo, tiap prompt memuat kalimat ini:
+
+> *Favour continuous, readable movement over explosive motion*
+
+Kalimat itu masuk dari peringatan resmi Seedance soal gerakan beramplitudo
+besar, dan peringatannya benar — anatomi memang paling sering rusak di puncak
+gerakan tercepat. Tapi menuliskannya di **setiap** prompt berarti menyuruh
+model menahan diri sepanjang video.
+
+Sekarang kalimat itu cuma muncul di tempo lambat. Di tempo cepat yang masuk
+adalah pengganti yang menjaga siluet tetap terbaca **tanpa** menyuruh
+gerakannya melambat.
+
 ### Mencegah kena flagging
 
 21 kata berisiko diganti otomatis: `punch` → `impact`, `fight` → `exchange`,

@@ -52,19 +52,19 @@ return [
 // ---------------------------------------------------------------------
 // SIARAN — posisi kamera baku di siaran tinju sungguhan
 // ---------------------------------------------------------------------
-['slug' => 'hard-lebar', 'category' => 'siaran', 'sort_order' => 1,
+['slug' => 'hard-lebar', 'category' => 'siaran', 'sort_order' => 1, 'intensity' => 2,
  'name' => 'Hard Camera Lebar', 'name_id' => 'Kamera tetap sisi ring, badan penuh',
  'description' => 'Gambar dasar tiap ronde di siaran sungguhan. Badan terlihat utuh, '
                 . 'jadi jarak dan gerak kaki kedua petinju bisa dibaca.',
  'sentence' => 'a locked-off ringside hard-camera wide, both boxers framed head to toe',
  'tags' => []],
 
-['slug' => 'hard-rapat', 'category' => 'siaran', 'sort_order' => 2,
+['slug' => 'hard-rapat', 'category' => 'siaran', 'sort_order' => 2, 'intensity' => 3,
  'name' => 'Hard Camera Rapat', 'name_id' => 'Kamera tetap, kepala sampai pinggang',
  'sentence' => 'a tighter hard-camera framing from ringside, head to waist',
  'tags' => []],
 
-['slug' => 'apron-tali', 'category' => 'siaran', 'sort_order' => 3,
+['slug' => 'apron-tali', 'category' => 'siaran', 'sort_order' => 3, 'intensity' => 4,
  'name' => 'Menembus Tali', 'name_id' => 'Dari apron, tali melintang di bawah bingkai',
  'description' => 'Kamera setinggi apron yang memotret menembus tali ring. Talinya '
                 . 'yang melintang di bawah bingkai itulah yang membuatnya terasa '
@@ -72,7 +72,7 @@ return [
  'sentence' => 'a shot through the ring ropes from apron level, the ropes crossing the lower frame',
  'tags' => []],
 
-['slug' => 'sudut-90', 'category' => 'siaran', 'sort_order' => 4,
+['slug' => 'sudut-90', 'category' => 'siaran', 'sort_order' => 4, 'intensity' => 3,
  'name' => 'Sudut Berlawanan', 'name_id' => 'Dari seberang, lensa panjang',
  'description' => 'Dipakai kalau aksinya masuk ke sudut ring yang tertutup kamera '
                 . 'utama.',
@@ -80,18 +80,18 @@ return [
              . 'long lens, covering the corner',
  'tags' => []],
 
-['slug' => 'jib-sudut', 'category' => 'siaran', 'sort_order' => 5,
+['slug' => 'jib-sudut', 'category' => 'siaran', 'sort_order' => 5, 'intensity' => 4,
  'name' => 'Jib dari Sudut', 'name_id' => 'Lengan jib menyapu setinggi tali',
  'sentence' => 'a jib arm arcing out from the corner post, sweeping across the ring at rope height',
  'tags' => []],
 
-['slug' => 'kabel-atas', 'category' => 'siaran', 'sort_order' => 6,
+['slug' => 'kabel-atas', 'category' => 'siaran', 'sort_order' => 6, 'intensity' => 3,
  'name' => 'Kamera Kabel', 'name_id' => 'Turun dari atap arena',
  'sentence' => 'an aerial cable-cam descending from the arena roof toward the ring, '
              . 'pushing in over the ropes',
  'tags' => []],
 
-['slug' => 'beauty-tinggi', 'category' => 'siaran', 'sort_order' => 7,
+['slug' => 'beauty-tinggi', 'category' => 'siaran', 'sort_order' => 7, 'intensity' => 1,
  'name' => 'Beauty Shot', 'name_id' => 'Tinggi dan lebar, seluruh arena',
  'description' => 'Posisi kamera baku bernama "beauty camera" di siaran. Dipakai '
                 . 'sebelum bel dan sesudah semuanya selesai.',
@@ -99,7 +99,7 @@ return [
              . 'ring lights blooming in the haze',
  'tags' => []],
 
-['slug' => 'slowmo-500', 'category' => 'siaran', 'sort_order' => 8,
+['slug' => 'slowmo-500', 'category' => 'siaran', 'sort_order' => 8, 'intensity' => 1,
  'name' => 'Gerak Lambat Ekstrem', 'name_id' => 'Keringat menggantung di udara',
  'description' => 'Kamera 500fps di siaran. Satu kali per pertandingan saja — kalau '
                 . 'dipakai di tiap pukulan, tidak ada lagi yang terasa penting.',
@@ -110,7 +110,7 @@ return [
 // ---------------------------------------------------------------------
 // SINEMATIK — cara film tinju
 // ---------------------------------------------------------------------
-['slug' => 'steadicam-lorong', 'category' => 'sinematik', 'sort_order' => 1,
+['slug' => 'steadicam-lorong', 'category' => 'sinematik', 'sort_order' => 1, 'intensity' => 3,
  'name' => 'Steadicam Masuk Ring', 'name_id' => 'Dari lorong, naik melewati tali',
  'description' => 'Pembuka Raging Bull. Kamera mengikuti dari lorong, menembus '
                 . 'kerumunan, lalu naik crane melewati tali.',
@@ -118,7 +118,7 @@ return [
              . 'crowd, then craning up and over the ropes',
  'tags' => []],
 
-['slug' => 'orbit-dalam', 'category' => 'sinematik', 'sort_order' => 2,
+['slug' => 'orbit-dalam', 'category' => 'sinematik', 'sort_order' => 2, 'intensity' => 4,
  'name' => 'Orbit di Dalam Ring', 'name_id' => 'Satu tarikan napas, mengitari keduanya',
  'description' => 'Ronde satu-take di Creed. Kameranya di DALAM tali, mengitari '
                 . 'keduanya setinggi dada sambil menghindari wasit.',
@@ -126,24 +126,24 @@ return [
              . 'chest height, weaving past the referee',
  'tags' => []],
 
-['slug' => 'bahu-lebar', 'category' => 'sinematik', 'sort_order' => 3,
+['slug' => 'bahu-lebar', 'category' => 'sinematik', 'sort_order' => 3, 'intensity' => 6,
  'name' => 'Dari Balik Bahu', 'name_id' => 'Lensa lebar saat pukulan mendarat',
  'description' => 'Prinsip Garrett Brown di Rocky: pukulan baru "laku" kalau kamera '
                 . 'ada di belakang bahu dan kepala penerimanya tersentak ke arah lensa.',
  'sentence' => 'an over-the-shoulder wide-angle shot as the punch lands and the head snaps back',
  'tags' => []],
 
-['slug' => 'pov-kepalan', 'category' => 'sinematik', 'sort_order' => 4,
+['slug' => 'pov-kepalan', 'category' => 'sinematik', 'sort_order' => 4, 'intensity' => 8,
  'name' => 'POV Kepalan', 'name_id' => 'Kamera di kepalan, menghentak saat kena',
  'sentence' => 'a handheld POV shot from the puncher\'s fist, the camera snapping forward on impact',
  'tags' => []],
 
-['slug' => 'kanvas-naik', 'category' => 'sinematik', 'sort_order' => 5,
+['slug' => 'kanvas-naik', 'category' => 'sinematik', 'sort_order' => 5, 'intensity' => 5,
  'name' => 'Naik dari Kanvas', 'name_id' => 'Sudut rendah saat tumbang',
  'sentence' => 'a low-angle tracking shot rising from canvas level as the fighter goes down',
  'tags' => []],
 
-['slug' => 'speed-ramp', 'category' => 'sinematik', 'sort_order' => 6,
+['slug' => 'speed-ramp', 'category' => 'sinematik', 'sort_order' => 6, 'intensity' => 5,
  'name' => 'Speed Ramp', 'name_id' => 'Melambat lalu kembali, tanpa potongan',
  'description' => 'Cara Raging Bull memisahkan waktu batin dari waktu pertandingan '
                 . 'tanpa memotong gambar.',
@@ -151,21 +151,21 @@ return [
              . 'snapping back to normal speed at the bell, all in one shot',
  'tags' => []],
 
-['slug' => 'lambat-air', 'category' => 'sinematik', 'sort_order' => 7,
+['slug' => 'lambat-air', 'category' => 'sinematik', 'sort_order' => 7, 'intensity' => 1,
  'name' => 'Air di Sudut', 'name_id' => 'Gerak lambat saat disiram di sudut',
  'description' => 'Gerak lambat dipakai di JEDA, bukan di tengah pertukaran pukulan. '
                 . 'Itu bedanya film tinju yang bagus dan yang melelahkan.',
  'sentence' => 'slow motion of water poured over the fighter\'s head in the corner between rounds',
  'tags' => []],
 
-['slug' => 'lensa-asap', 'category' => 'sinematik', 'sort_order' => 8,
+['slug' => 'lensa-asap', 'category' => 'sinematik', 'sort_order' => 8, 'intensity' => 2,
  'name' => 'Lensa Panjang Berasap', 'name_id' => 'Sosok timbul tenggelam di asap',
  'description' => 'Ronde-ronde akhir yang menyiksa di Raging Bull.',
  'sentence' => 'a long-lens compressed shot through heavy haze, the figures drifting in '
              . 'and out of focus, shimmering heat distortion',
  'tags' => []],
 
-['slug' => 'dolly-zoom', 'category' => 'sinematik', 'sort_order' => 9,
+['slug' => 'dolly-zoom', 'category' => 'sinematik', 'sort_order' => 9, 'intensity' => 2,
  'name' => 'Dolly Zoom', 'name_id' => 'Ring memanjang di belakangnya',
  'description' => 'Momen kehilangan pijakan, bukan momen aksi. Dipakai sekali saja.',
  'sentence' => 'a dolly zoom on the fighter in his corner, the ring stretching away behind him',
@@ -174,7 +174,7 @@ return [
 // ---------------------------------------------------------------------
 // ANIME — tidak punya padanan di live action
 // ---------------------------------------------------------------------
-['slug' => 'dutch-beku', 'category' => 'anime', 'sort_order' => 1,
+['slug' => 'dutch-beku', 'category' => 'anime', 'sort_order' => 1, 'intensity' => 3,
  'name' => 'Dutch + Freeze', 'name_id' => 'Miring, lalu membeku seperti kartu pos',
  'description' => 'Tome-e — gambar yang dibekukan sebagai "kenangan kartu pos". Ciri '
                 . 'khas Osamu Dezaki di Ashita no Joe.',
@@ -182,25 +182,144 @@ return [
              . 'to a still pastel freeze-frame held on the knockdown',
  'tags' => []],
 
-['slug' => 'bawah-dagu', 'category' => 'anime', 'sort_order' => 2,
+['slug' => 'bawah-dagu', 'category' => 'anime', 'sort_order' => 2, 'intensity' => 7,
  'name' => 'Dari Bawah Dagu', 'name_id' => 'Mendongak tajam saat uppercut',
  'sentence' => 'an extreme low angle looking straight up under the chin as the uppercut lands',
  'tags' => []],
 
-['slug' => 'belah-layar', 'category' => 'anime', 'sort_order' => 3,
+['slug' => 'belah-layar', 'category' => 'anime', 'sort_order' => 3, 'intensity' => 5,
  'name' => 'Layar Terbelah', 'name_id' => 'Dua wajah bersamaan',
  'sentence' => 'a split screen holding both fighters\' faces at once as they read each other',
  'tags' => []],
 
-['slug' => 'siluet-belakang', 'category' => 'anime', 'sort_order' => 4,
+['slug' => 'siluet-belakang', 'category' => 'anime', 'sort_order' => 4, 'intensity' => 2,
  'name' => 'Siluet Backlight', 'name_id' => 'Lampu ring keras dari belakang',
  'sentence' => 'a hard backlit silhouette against the ring lamps, the fighter reduced to '
              . 'an outline with a burning rim of light',
  'tags' => []],
 
-['slug' => 'mata-detail', 'category' => 'anime', 'sort_order' => 5,
+['slug' => 'mata-detail', 'category' => 'anime', 'sort_order' => 5, 'intensity' => 4,
  'name' => 'Mata Sangat Dekat', 'name_id' => 'Pupil memenuhi bingkai',
  'sentence' => 'an extreme close-up filling the frame with one eye as the pupil contracts',
+ 'tags' => []],
+// ---------------------------------------------------------------------
+// KAMERA CEPAT — yang membuat lajunya terasa
+//
+// Kamera di atas semuanya bagus, dan semuanya TENANG: orbit, crane,
+// beauty shot, lensa panjang. Kalau seluruh rangkaian diambil dari situ,
+// hasilnya terasa khidmat — bukan cepat.
+//
+// Yang di bawah ini kebalikannya, dan angka kecepatannya tinggi, jadi
+// otomatis terpilih waktu temponya diset cepat.
+//
+// Patokannya bukan karangan: dua video Wan yang jadi rujukan memotong di
+// 1,67 / 2,5 / 3,53 / 4,47 / 5,93 detik — sekitar satu detik per shot.
+// Dan montase pukulan di anime tinju memotong tiap 0,08-0,25 detik.
+// ---------------------------------------------------------------------
+['slug' => 'potong-cepat', 'category' => 'siaran', 'sort_order' => 9, 'intensity' => 8,
+ 'name' => 'Potong Cepat', 'name_id' => 'Bolak-balik antar kamera siaran',
+ 'description' => 'Cara siaran sungguhan mengikuti pertukaran cepat: memotong '
+                . 'bolak-balik antar kamera yang sudah terpasang, bukan menggerakkan '
+                . 'satu kamera.',
+ 'sentence' => 'rapid hard cuts back and forth between the ringside cameras, each shot '
+             . 'barely a second before the next one',
+ 'tags' => []],
+
+['slug' => 'zoom-hentak', 'category' => 'siaran', 'sort_order' => 10, 'intensity' => 9,
+ 'name' => 'Snap Zoom', 'name_id' => 'Zoom menghentak saat kena',
+ 'sentence' => 'a snap zoom punching in hard at the instant of contact, then cutting '
+             . 'away immediately',
+ 'tags' => []],
+
+['slug' => 'goyang-tangan', 'category' => 'siaran', 'sort_order' => 11, 'intensity' => 7,
+ 'name' => 'Handheld Goyang', 'name_id' => 'Kamera tangan mengejar pertukaran',
+ 'sentence' => 'a handheld camera jerking to keep up with the exchange, reframing late '
+             . 'on every movement',
+ 'tags' => []],
+
+['slug' => 'whip-pan', 'category' => 'sinematik', 'sort_order' => 10, 'intensity' => 9,
+ 'name' => 'Whip Pan', 'name_id' => 'Sapuan kilat antar petinju',
+ 'sentence' => 'a whip pan snapping from one fighter to the other, the frame smearing '
+             . 'between them',
+ 'tags' => []],
+
+['slug' => 'crash-zoom', 'category' => 'sinematik', 'sort_order' => 11, 'intensity' => 10,
+ 'name' => 'Crash Zoom', 'name_id' => 'Zoom mendadak ke wajah',
+ 'sentence' => 'a crash zoom slamming in on the face in a fraction of a second',
+ 'tags' => []],
+
+['slug' => 'potong-benturan', 'category' => 'sinematik', 'sort_order' => 12, 'intensity' => 9,
+ 'name' => 'Potong di Benturan', 'name_id' => 'Dipotong tepat saat kena',
+ 'description' => 'Memotong TEPAT di titik benturan, tanpa menunggu gerak lanjutannya. '
+                . 'Otak penonton mengisi sendiri sisanya, dan justru itu yang membuatnya '
+                . 'terasa keras.',
+ 'sentence' => 'cutting away on the exact frame of contact, never waiting for the '
+             . 'follow-through',
+ 'tags' => []],
+
+['slug' => 'montase-kilat', 'category' => 'anime', 'sort_order' => 6, 'intensity' => 10,
+ 'name' => 'Montase Kilat', 'name_id' => 'Empat sampai enam potongan sekejap',
+ 'description' => 'Montase pukulan khas anime tinju. Potongannya 0,08-0,25 detik — '
+                . 'terlalu cepat untuk benar-benar dibaca, dan memang itu maksudnya.',
+ 'sentence' => 'a rapid-fire montage of four to six flash cuts in under two seconds, '
+             . 'each one a different angle on the same exchange',
+ 'tags' => []],
+
+['slug' => 'impact-frame', 'category' => 'anime', 'sort_order' => 7, 'intensity' => 9,
+ 'name' => 'Impact Frame', 'name_id' => 'Satu frame putih saat kena',
+ 'sentence' => 'a single blown-out white impact frame at the moment of contact, gone '
+             . 'before the eye registers it',
+ 'tags' => []],
+
+['slug' => 'garis-kecepatan', 'category' => 'anime', 'sort_order' => 8, 'intensity' => 8,
+ 'name' => 'Garis Kecepatan', 'name_id' => 'Garis memusat memenuhi layar',
+ 'sentence' => 'radial speed lines filling the frame as the camera snaps to the new angle',
+ 'tags' => []],
+],
+
+// =====================================================================
+// TEMPO — seberapa cepat rangkaiannya terasa
+//
+// Ini bukan cuma soal panjang shot. Yang membuat sesuatu TERASA cepat
+// bukan kecepatan yang merata, melainkan KONTRAS: rentetan potongan
+// pendek, lalu satu tahanan panjang di pukulan penentu, lalu cepat lagi.
+//
+// Ashita no Joe dan Raging Bull sama-sama memakai cara itu. Video yang
+// cepat dari awal sampai akhir justru terasa gaduh, bukan cepat.
+//
+// `intensity` di sini dipakai sebagai LAJU, untuk memilih kamera yang
+// angka kecepatannya sepadan.
+// =====================================================================
+'video_tempo' => [
+
+['slug' => 'khidmat', 'sort_order' => 1, 'intensity' => 2,
+ 'name' => 'Khidmat', 'name_id' => 'Panjang dan tenang, sekitar 5 detik per shot',
+ 'description' => 'Untuk adegan sebelum bel dan sesudah pertandingan. Bukan untuk '
+                . 'adegan bertanding.',
+ 'sentence' => 'Let each shot breathe, holding long enough for the weight of the moment '
+             . 'to land',
+ 'tags' => []],
+
+['slug' => 'sedang', 'sort_order' => 2, 'intensity' => 5,
+ 'name' => 'Sedang', 'name_id' => 'Sekitar 3 detik per shot',
+ 'sentence' => 'Keep a steady cutting rhythm, around three seconds a shot',
+ 'tags' => []],
+
+['slug' => 'cepat', 'sort_order' => 3, 'intensity' => 8,
+ 'name' => 'Cepat', 'name_id' => 'Sekitar 2 detik per shot — sepadan video rujukan',
+ 'description' => 'Sepadan dengan video Wan yang jadi rujukanmu: 5-6 potongan per 15 '
+                . 'detik. Titik paling aman untuk adegan bertanding.',
+ 'sentence' => 'Cut fast and often — average shot length under two seconds, every cut '
+             . 'landing on a movement rather than between them, nothing lingering',
+ 'tags' => []],
+
+['slug' => 'kilat', 'sort_order' => 4, 'intensity' => 10,
+ 'name' => 'Kilat', 'name_id' => 'Di bawah 1,5 detik — serapat montase anime',
+ 'description' => 'Serapat montase pukulan anime tinju. Perlu diingat: makin banyak '
+                . 'potongan dalam satu generasi, makin besar peluang modelnya kehilangan '
+                . 'sebagian isinya. Ini batas atas, bukan bawaan.',
+ 'sentence' => 'Cut relentlessly, shots barely over a second, several angles on the same '
+             . 'exchange in quick succession, the pace never letting up',
  'tags' => []],
 ],
 

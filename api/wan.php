@@ -79,6 +79,10 @@ $sel = [
 
     'rasio'       => in_array($in['rasio'] ?? '', $rasioSah, true) ? (string)$in['rasio'] : '16:9',
     'acuan_latar' => !empty($in['acuan_latar']),
+    'tempo'       => in_array($in['tempo'] ?? '', ['khidmat', 'sedang', 'cepat', 'kilat'], true)
+                        ? (string)$in['tempo'] : 'cepat',
+    'jalur'       => in_array($in['jalur'] ?? '', ['siaran', 'sinematik', 'anime'], true)
+                        ? (string)$in['jalur'] : '',
     'artis'       => mb_substr(trim((string)($in['artis'] ?? '')), 0, 2000),
     'background_id' => $modId($in['background_id'] ?? null),
     'lighting_id' => $modId($in['lighting_id'] ?? null),

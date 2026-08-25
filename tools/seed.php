@@ -546,7 +546,8 @@ if ($hantu > 0) {
 // Kamera sinematik dan mekanika gerak tinju — dipakai kedua mode video.
 $sinema = dataFile('sinema');
 $sinemaJml = count(saveModules('video_kamera', $sinema['video_kamera']))
-           + count(saveModules('video_gerak',  $sinema['video_gerak']));
+           + count(saveModules('video_gerak',  $sinema['video_gerak']))
+           + count(saveModules('video_tempo',  $sinema['video_tempo']));
 say('Kamera & gerak tinju : ' . $sinemaJml);
 
 $videoData = dataFile('video');
