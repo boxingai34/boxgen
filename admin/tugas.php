@@ -144,6 +144,7 @@ switch ($tugas) {
             'contoh'   => $h['contoh'],
             'sisa'     => $sisa(),
         ]);
+        break;
 
     // -------------------------------------------------------------
     case 'karakter':
@@ -161,6 +162,7 @@ switch ($tugas) {
             'contoh'    => $h['contoh'],
             'sisa'      => $sisa(),
         ]);
+        break;
 
     // -------------------------------------------------------------
     case 'tags':
@@ -184,6 +186,7 @@ switch ($tugas) {
             'keluaran' => $hasil['keluaran'],
             'sisa'     => $sisa(),
         ]);
+        break;
 
     // -------------------------------------------------------------
     case 'seed':
@@ -199,10 +202,12 @@ switch ($tugas) {
             'keluaran' => implode("\n", array_slice(array_filter(explode("\n", $keluaran)), -8)),
             'sisa'     => $sisa(),
         ]);
+        break;
 
     // -------------------------------------------------------------
     case 'status':
         jawab(['ok' => true, 'sisa' => $sisa()]);
+        break;
 
     default:
         jawab(['ok' => false, 'error' => 'Tugas tidak dikenal.'], 400);

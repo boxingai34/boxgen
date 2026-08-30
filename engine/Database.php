@@ -24,6 +24,15 @@ final class Database
             self::$pdo = new PDO($dsn, DB_USER, DB_PASS, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                // Bukan cuma soal keamanan. Percobaan kedua di run()
+                // bergantung penuh pada baris ini: dengan emulasi mati,
+                // prepare() betul-betul mengirim paket ke server, jadi
+                // sambungan yang sudah ditutup ketahuan DI SITU — sebelum
+                // ada statement yang sempat jalan. Kalau emulasi
+                // dinyalakan, prepare() cuma kerja di sisi klien dan
+                // kegagalannya pindah ke execute(), yang sengaja TIDAK
+                // diulang. Menyalakannya akan mematikan perlindungan ini
+                // tanpa satu pun galat.
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
         }

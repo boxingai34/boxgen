@@ -91,8 +91,6 @@ say(' EKSPOR DATABASE UNTUK HOSTING');
 say('=================================================');
 say('');
 
-$pdo = Database::conn();
-
 if (!is_dir($folder) && !@mkdir($folder, 0775, true) && !is_dir($folder)) {
     exit("GAGAL membuat folder {$folder}\n");
 }
@@ -231,6 +229,12 @@ foreach ($tabel as $t) {
 
     // Dibaca bertahap supaya tabel 73 ribu baris tidak dimuat sekaligus
     // ke memori — hosting gratis sering membatasi memory_limit ke 64 MB.
+// CATATAN: jangan simpan hasil Database::conn() di variabel yang dipakai
+    // jauh belakangan. Database::run() boleh mengganti sambungannya sendiri
+    // kalau yang lama ditutup server, dan variabel lama akan menunjuk ke
+    // sambungan mati — statement yang sudah disiapkan di atasnya ikut mati
+    // bersamanya. Ambil ulang tepat sebelum dipakai.
+    $pdo  = Database::conn();
     $stmt = $pdo->prepare('SELECT * FROM `' . $t . '`');
     $stmt->execute();
 

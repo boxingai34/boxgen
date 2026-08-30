@@ -46,8 +46,6 @@ function slugify(string $s): string
     return substr(trim($s, '-'), 0, 120);
 }
 
-$pdo = Database::conn();
-
 say('== Impor karakter & judul ==');
 say('');
 
@@ -69,6 +67,16 @@ say('');
 // =====================================================================
 say('Memasukkan judul...');
 
+// CATATAN: jangan simpan hasil Database::conn() di variabel yang dipakai
+// jauh belakangan. Database::run() boleh mengganti sambungannya sendiri
+// kalau yang lama ditutup server, dan variabel lama akan menunjuk ke
+// sambungan mati — statement yang sudah disiapkan di atasnya ikut mati
+// bersamanya. Ambil ulang tepat sebelum dipakai.
+//
+// Di dalam transaksi Database::run() memang menolak menyambung ulang,
+// jadi statement di bawah aman selama transaksinya berjalan. Yang perlu
+// dijaga cuma titik pengambilannya.
+$pdo = Database::conn();
 $pdo->beginTransaction();
 
 $stmtSeries = $pdo->prepare(
@@ -138,6 +146,7 @@ foreach (Database::column('SELECT booru_tag FROM characters WHERE booru_tag IS N
     $sudahKarakter[$t] = true;
 }
 
+$pdo = Database::conn();
 $pdo->beginTransaction();
 
 $stmtChar = $pdo->prepare(
