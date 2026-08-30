@@ -232,6 +232,21 @@ final class NaturalPrompt
                 : SeedanceBuilder::kalimat(ucfirst($sebutan[$sisi]) . ' is ' . $k);
         }
 
+        // Sasaran pukulan tidak ikut daftar di atas, dan memang tidak bisa:
+        // ia dipilih DUA KALI, dan pemiliknya bukan pelaku/penerima
+        // interaksinya melainkan petinju yang bersangkutan langsung.
+        // Kalimatnya ditulis sebagai predikat milik YANG MEMUKUL, jadi
+        // subjeknya petinju itu sendiri.
+        foreach (['a', 'b'] as $huruf) {
+            $k = SeedanceBuilder::kalimatModul(
+                $sel['sub_sasaran_' . $huruf . '_id'] ?? null, 'sub_sasaran', true
+            );
+
+            if ($k !== '') {
+                $out[] = SeedanceBuilder::kalimat(ucfirst($sebutan[$huruf]) . ' is ' . $k);
+            }
+        }
+
         return $out;
     }
 

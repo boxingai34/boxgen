@@ -107,6 +107,12 @@ $sel = [
     'sub_menang_id' => $modId($in['sub_menang_id'] ?? null),
     'sub_reaksi_id' => $modId($in['sub_reaksi_id'] ?? null),
     'sub_lokasi_id' => $modId($in['sub_lokasi_id'] ?? null),
+
+    // Sasaran pukulan dipilih DUA KALI di "Baku hantam" — satu untuk
+    // pukulan A, satu untuk pukulan B. Boleh berbeda, dan memang
+    // itulah gunanya.
+    'sub_sasaran_a_id' => $modId($in['sub_sasaran_a_id'] ?? null),
+    'sub_sasaran_b_id' => $modId($in['sub_sasaran_b_id'] ?? null),
     'extra_tags'    => is_array($in['extra_tags'] ?? null) ? $in['extra_tags'] : [],
     'trim_implied'  => !isset($in['trim_implied']) || (bool)$in['trim_implied'],
     'allow_nsfw'    => ALLOW_NSFW,

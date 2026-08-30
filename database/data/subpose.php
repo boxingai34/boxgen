@@ -8,16 +8,22 @@
  * di sudut. Yang menjatuhkan pun tidak selalu sama — aturan resmi malah
  * MEWAJIBKANNYA mundur ke sudut netral sebelum wasit mulai menghitung.
  *
- * Empat kelompok, masing-masing punya pemilik tetap:
+ * Lima kelompok. Empat punya pemilik tetap, satu tidak:
  *
  *   sub_jatuh   milik yang KENA   posisi tubuh yang tumbang
  *   sub_menang  milik yang PELAKU sikap yang menjatuhkan
  *   sub_reaksi  milik yang KENA   reaksi tubuh sesaat kena pukulan
  *   sub_lokasi  milik BERSAMA     di bagian ring sebelah mana
+ *   sub_sasaran DUA PILIHAN      ke mana pukulan tiap petinju mendarat
  *
- * Pemiliknya tetap, jadi tidak perlu menandai peran per tag seperti pada
- * interaksi. Kalau arah interaksinya dibalik ("Siapa yang tumbang?"),
- * pemiliknya ikut terbalik dengan sendirinya.
+ * Untuk empat yang pertama pemiliknya tetap, jadi tidak perlu menandai
+ * peran per tag seperti pada interaksi. Kalau arah interaksinya dibalik
+ * ("Siapa yang tumbang?"), pemiliknya ikut terbalik dengan sendirinya.
+ *
+ * sub_sasaran adalah pengecualiannya, dan memang harus begitu: di baku
+ * hantam KEDUANYA memukul, jadi tidak ada satu "yang kena" yang bisa
+ * dijadikan pemilik. Ia dipilih dua kali — sekali untuk sasaran A, sekali
+ * untuk sasaran B — dan tiap tagnya menandai perannya sendiri.
  *
  * TAG YANG TIDAK ADA, DAN APA GANTINYA
  * Danbooru tidak punya tag untuk "di tengah ring" atau "tersangkut tali".
@@ -176,6 +182,58 @@ return [
      'description' => 'Tidak semua pukulan menggoyahkan. Yang ini justru menahan.',
      'sentence' => 'taking it without flinching, jaw set',
      'tags' => ['clenched_teeth' => 1.1, 'serious']],
+],
+
+// =====================================================================
+// SASARAN PUKULAN — dipilih PER PETINJU, bukan bersama
+// =====================================================================
+//
+// Kenapa kelompok ini beda sendiri: "Baku hantam" berarti KEDUANYA
+// memukul. Dulu sasarannya tidak bisa ditentukan sama sekali —
+// kalimatnya cuma "both boxers throw punches at the same time", dan
+// model menebak sendiri, biasanya menaruh kedua pukulan di tempat yang
+// sama. Padahal pertukaran pukulan yang sungguhan justru jarang simetris:
+// satu ke kepala, satu ke badan.
+//
+// Karena itu kelompok ini punya DUA pilihan, satu untuk tiap petinju,
+// dan tag reaksinya menempel ke yang KENA — bukan ke yang memukul.
+// Jadi kalau A memukul ke perut, yang membungkuk itu B.
+//
+// SASARAN YANG BENAR-BENAR DIBEDAKAN DANBOORU CUMA TIGA.
+// face_punch (871 gambar), stomach_punch (553), dan uppercut (699).
+// Tidak ada tag untuk pukulan ke badan, ke rusuk, atau ke hati — sudah
+// diperiksa satu per satu, dan yang tidak ada tidak dikarang. Sasaran
+// dada memakai punching biasa, dan kalimatnyalah yang menanggung
+// bedanya.
+'sub_sasaran' => [
+    ['slug' => 'wajah', 'name' => 'To The Face', 'name_id' => 'Ke wajah',
+     'sort_order' => 1,
+     'description' => 'Tag paling tepat yang dipunyai Danbooru untuk pukulan ke kepala.',
+     'sentence' => 'landing a punch flush on the opponent\'s face',
+     'tags' => ['face_punch' => 1.3, 'in_the_face', 'leaning_back', 'clenched_teeth'],
+     'roles' => ['leaning_back' => 'target', 'clenched_teeth' => 'target']],
+
+    ['slug' => 'perut', 'name' => 'To The Body', 'name_id' => 'Ke perut',
+     'sort_order' => 2,
+     'description' => 'Pukulan badan: yang kena melipat ke depan, bukan tersentak ke belakang.',
+     'sentence' => 'digging a punch in under the opponent\'s ribs',
+     'tags' => ['stomach_punch' => 1.3, 'leaning_forward', 'clenched_teeth'],
+     'roles' => ['leaning_forward' => 'target', 'clenched_teeth' => 'target']],
+
+    ['slug' => 'dagu', 'name' => 'Uppercut To The Chin', 'name_id' => 'Ke dagu (uppercut)',
+     'sort_order' => 3,
+     'sentence' => 'snapping an uppercut up under the opponent\'s chin',
+     'tags' => ['uppercut' => 1.3, 'arm_up', 'head_back'],
+     'roles' => ['arm_up' => 'source', 'head_back' => 'target']],
+
+    ['slug' => 'dada', 'name' => 'To The Chest', 'name_id' => 'Ke dada',
+     'sort_order' => 4,
+     'description' => 'Danbooru TIDAK punya tag pukulan ke dada. Ini memakai punching '
+                    . 'biasa, jadi sasarannya cuma terbaca dari kalimatnya. Kalau ingin '
+                    . 'yang benar-benar dikenali model, pilih wajah, perut, atau dagu.',
+     'sentence' => 'driving a punch into the opponent\'s chest',
+     'tags' => ['punching' => 1.2, 'leaning_forward'],
+     'roles' => ['punching' => 'source', 'leaning_forward' => 'target']],
 ],
 
 // =====================================================================

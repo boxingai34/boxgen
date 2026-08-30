@@ -135,8 +135,20 @@ return [
      'sort_order' => 4, 'tags' => ['height_difference' => 1.1, 'size_difference', 'facing_another']],
 
     // ---- pertukaran pukulan ----
-    ['category' => 'pukul', 'slug' => 'trading-blows', 'sub' => 'sub_reaksi,sub_lokasi', 'action' => 'punching', 'name' => 'Saling Memukul', 'name_id' => 'Baku hantam',
+    ['category' => 'pukul', 'slug' => 'trading-blows', 'sub' => 'sub_sasaran,sub_lokasi', 'action' => 'punching', 'name' => 'Saling Memukul', 'name_id' => 'Baku hantam',
      'sort_order' => 1, 'sentence' => 'both boxers throw punches at the same time',
+     'description' => 'Satu-satunya interaksi di mana KEDUANYA memukul, jadi sasarannya '
+                    . 'dipilih dua kali — sekali untuk pukulan A, sekali untuk pukulan B. '
+                    . 'Boleh berbeda: satu ke kepala, satu ke badan. Itu justru yang '
+                    . 'paling sering terjadi di pertandingan sungguhan.'
+                    . "
+
+"
+                    . 'sub_reaksi sengaja TIDAK dipakai di sini. Kelompok itu milik '
+                    . '"yang kena", dan di baku hantam keduanya kena — jadi satu pilihan '
+                    . 'reaksi selalu menempel ke orang yang dipilih sembarangan. Tag '
+                    . 'reaksinya sekarang ikut sasaran masing-masing, dan mendarat di '
+                    . 'orang yang benar dengan sendirinya.',
      'tags' => ['fighting' => 1.2, 'battle', 'punching', 'motion_lines']],
 
     ['category' => 'pukul', 'slug' => 'punch-to-face', 'sub' => 'sub_reaksi,sub_lokasi', 'action' => 'face_punch', 'name' => 'Pukulan ke Wajah', 'name_id' => 'Pukulan ke wajah lawan',

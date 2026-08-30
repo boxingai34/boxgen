@@ -21,7 +21,7 @@ try {
         $condSlots[$slot] = PromptBuilder::listModules($type, ALLOW_NSFW);
     }
     $subPose = [];
-    foreach (['sub_jatuh', 'sub_menang', 'sub_reaksi', 'sub_lokasi'] as $t) {
+    foreach (['sub_jatuh', 'sub_menang', 'sub_reaksi', 'sub_sasaran', 'sub_lokasi'] as $t) {
         $subPose[$t] = PromptBuilder::listModules($t, ALLOW_NSFW);
     }
     $comic = [];
@@ -48,7 +48,8 @@ try {
     $camDist = $camAngle = $camEffect = [];
     $condSlots = ['eyes'=>[], 'gaze'=>[], 'cheek'=>[], 'nose'=>[], 'mouth'=>[], 'body'=>[], 'expr'=>[], 'clothes'=>[]];
     $slots = ['top' => [], 'bottom' => [], 'hand' => [], 'foot' => [], 'head' => []];
-    $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[], 'sub_lokasi'=>[]];
+    $subPose = ['sub_jatuh'=>[], 'sub_menang'=>[], 'sub_reaksi'=>[],
+                'sub_sasaran'=>[], 'sub_lokasi'=>[]];
     $comic = ['comic_layout'=>[], 'comic_fx'=>[], 'comic_time'=>[], 'comic_arah'=>[],
               'comic_arc'=>[], 'panel_beat'=>[], 'panel_bentuk'=>[],
               'video_arc'=>[], 'video_style'=>[], 'video_impact'=>[],
@@ -367,6 +368,22 @@ halamanHeader('Prompt Generator', 'index.php');
                     <div class="field sub-field" data-sub="sub_lokasi" hidden>
                         <label for="sub_lokasi_id">Di Bagian Ring Mana</label>
                         <select id="sub_lokasi_id"><?= moduleOptions($subPose['sub_lokasi'], '— bebas —') ?></select>
+                    </div>
+                </div>
+
+                <!-- Sasaran pukulan: DUA pilihan, bukan satu. Di "Baku
+                     hantam" keduanya memukul, jadi satu pilihan bersama
+                     akan selalu menaruh kedua pukulan di tempat yang
+                     sama — persis yang tidak diinginkan. Boleh berbeda:
+                     satu ke kepala, satu ke badan. -->
+                <div class="field-row sub-field" data-sub="sub_sasaran" hidden>
+                    <div class="field">
+                        <label for="sub_sasaran_a_id">Pukulan A mendarat di</label>
+                        <select id="sub_sasaran_a_id"><?= moduleOptions($subPose['sub_sasaran'], '— bebas —') ?></select>
+                    </div>
+                    <div class="field">
+                        <label for="sub_sasaran_b_id">Pukulan B mendarat di</label>
+                        <select id="sub_sasaran_b_id"><?= moduleOptions($subPose['sub_sasaran'], '— bebas —') ?></select>
                     </div>
                 </div>
             </div>

@@ -678,12 +678,31 @@ final class PromptBuilder
         'sub_lokasi' => null,
     ];
 
+    /**
+     * Kelompok yang dipilih DUA KALI, satu untuk tiap petinju.
+     *
+     * Sejauh ini cuma satu: sasaran pukulan di "Baku hantam". Di situ
+     * keduanya memukul, jadi tidak ada satu "yang kena" yang bisa
+     * dijadikan pemilik tetap seperti kelompok lain. Sasaran A menentukan
+     * ke mana pukulan A mendarat — artinya tag reaksinya menempel ke B,
+     * bukan ke A. Begitu pula sebaliknya.
+     *
+     * Karena itu perannya dibaca per tag (source/target seperti pada
+     * interaksi), bukan dari pemilik kelompok.
+     */
+    private const SUB_DUA_SISI = ['sub_sasaran'];
+
     private static function addSubInteraksi(
         array $sel, array $mod, array $sufiks, bool $allowNsfw, array &$items
     ): void {
         $berlaku = array_filter(array_map('trim', explode(',', (string)($mod['sub_groups'] ?? ''))));
 
         foreach ($berlaku as $tipe) {
+            if (in_array($tipe, self::SUB_DUA_SISI, true)) {
+                self::addSubDuaSisi($tipe, $sel, $allowNsfw, $items);
+                continue;
+            }
+
             $id = $sel[$tipe . '_id'] ?? null;
             if (empty($id)) {
                 continue;
@@ -708,6 +727,57 @@ final class PromptBuilder
                     'weight' => (float)$mt['weight'],
                     'block'  => $blok,
                     'from'   => $sub['name'],
+                ];
+            }
+        }
+    }
+
+    /**
+     * Kelompok yang dipilih dua kali — satu pilihan untuk tiap petinju.
+     *
+     * ARAH TAGNYA TERBALIK ANTARA KEDUA PILIHAN, DAN DI SITULAH SELURUH
+     * GUNANYA. Sasaran A adalah ke mana pukulan A mendarat, jadi tag
+     * pelakunya milik A dan tag reaksinya milik B. Untuk sasaran B semua
+     * itu tertukar.
+     *
+     * Kalau ini disamakan saja dengan kelompok lain — satu pilihan, satu
+     * pemilik — hasilnya persis keluhan yang membuatnya dibuat: kedua
+     * pukulan mendarat di tempat yang sama, dan reaksinya menumpuk di
+     * satu orang.
+     *
+     * Pilihan yang sama boleh dipakai dua-duanya (dua-duanya ke perut).
+     * Tag yang bertabrakan tidak jadi soal: penggabungan di tahap
+     * berikutnya menyatukan tag kembar dan mengambil bobot terbesarnya.
+     */
+    private static function addSubDuaSisi(
+        string $tipe, array $sel, bool $allowNsfw, array &$items
+    ): void {
+        $sisi = [
+            // pilihan          pelaku  penerima
+            'a' => ['source' => '_a', 'target' => '_b'],
+            'b' => ['source' => '_b', 'target' => '_a'],
+        ];
+
+        foreach ($sisi as $huruf => $sufiks) {
+            $id = $sel[$tipe . '_' . $huruf . '_id'] ?? null;
+            if (empty($id)) {
+                continue;
+            }
+
+            $sub = self::loadModule((int)$id, $allowNsfw, $tipe);
+            if ($sub === null) {
+                continue;
+            }
+
+            foreach ($sub['tags'] as $mt) {
+                $peran = $mt['role'] ?? null;
+
+                $items[] = [
+                    'tag_id' => (int)$mt['tag_id'],
+                    'name'   => $mt['name'],
+                    'weight' => (float)$mt['weight'],
+                    'block'  => 'interaction' . ($sufiks[$peran] ?? ''),
+                    'from'   => $sub['name'] . ' (' . strtoupper($huruf) . ')',
                 ];
             }
         }

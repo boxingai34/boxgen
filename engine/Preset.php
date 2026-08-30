@@ -287,7 +287,8 @@ final class Preset
         foreach (['quality_id', 'style_id', 'background_id', 'lighting_id',
                   'cam_distance_id', 'cam_angle_id', 'cam_effect_id',
                   'pose_id', 'interaction_id', 'motion_id',
-                  'sub_jatuh_id', 'sub_menang_id', 'sub_reaksi_id', 'sub_lokasi_id'] as $k) {
+                  'sub_jatuh_id', 'sub_menang_id', 'sub_reaksi_id', 'sub_lokasi_id',
+                  'sub_sasaran_a_id', 'sub_sasaran_b_id'] as $k) {
             $v = self::id($sel[$k] ?? null);
             if ($v !== null) {
                 $out[$k] = $v;

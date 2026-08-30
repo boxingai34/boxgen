@@ -248,6 +248,7 @@ final class Exporter
         }
 
         $aksi = self::actionTags($sel);
+        self::actionSasaran($sel, $aksi);
 
         foreach ([['A', $milikA, 'a'], ['B', $milikB, 'b']] as [$label, $blokMilik, $sisi]) {
             $items = [];
@@ -328,6 +329,44 @@ final class Exporter
             $penyerang => 'source#' . $aksi,
             $penerima  => 'target#' . $aksi,
         ];
+    }
+
+    /**
+     * Sasaran pukulan menggantikan tag aksi bersama, per petinju.
+     *
+     * "Baku hantam" tidak berarah, jadi keduanya dapat mutual#punching —
+     * benar, tapi tumpul. Begitu sasarannya dipilih, tiap petinju bisa
+     * dapat aksinya sendiri: source#face_punch untuk yang memukul ke
+     * wajah, source#stomach_punch untuk yang ke perut.
+     *
+     * Ini bukan hiasan. Awalan itulah satu-satunya cara mengikat sebuah
+     * aksi ke satu Character Prompt di NovelAI — tanpa itu, dua sasaran
+     * berbeda cuma menumpuk di Base Prompt dan modelnya yang menebak
+     * siapa melakukan yang mana.
+     *
+     * @param  array<string,string> $aksi hasil actionTags(), diubah di tempat
+     */
+    private static function actionSasaran(array $sel, array &$aksi): void
+    {
+        foreach (['a', 'b'] as $sisi) {
+            $id = $sel['sub_sasaran_' . $sisi . '_id'] ?? null;
+            if (empty($id)) {
+                continue;
+            }
+
+            $tag = Database::value(
+                "SELECT t.name FROM module_tags mt
+                 JOIN tags t ON t.id = mt.tag_id
+                 JOIN modules m ON m.id = mt.module_id
+                 WHERE mt.module_id = ? AND m.type = 'sub_sasaran'
+                 ORDER BY mt.sort_order LIMIT 1",
+                [(int)$id]
+            );
+
+            if ($tag !== null && $tag !== '') {
+                $aksi[$sisi] = 'source#' . $tag;
+            }
+        }
     }
 
     /** Cetak semua format sekaligus. */

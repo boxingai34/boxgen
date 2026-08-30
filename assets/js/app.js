@@ -26,7 +26,11 @@ const SLOTS = ['top', 'bottom', 'hand', 'foot', 'head'];
  * Yang muncul mengikuti interaksi yang dipilih — knockdown punya posisi
  * jatuh dan sikap yang menang, pukulan punya reaksi, semuanya punya lokasi.
  */
-const SUB_IDS = ['sub_jatuh_id', 'sub_menang_id', 'sub_reaksi_id', 'sub_lokasi_id'];
+// sub_sasaran punya DUA kolom, satu untuk tiap petinju — di "Baku hantam"
+// keduanya memukul, jadi satu pilihan bersama akan selalu menaruh kedua
+// pukulan di tempat yang sama.
+const SUB_IDS = ['sub_jatuh_id', 'sub_menang_id', 'sub_reaksi_id', 'sub_lokasi_id',
+                'sub_sasaran_a_id', 'sub_sasaran_b_id'];
 
 /** Slot kondisi per bagian badan. */
 const COND_SLOTS = ['eyes', 'gaze', 'cheek', 'nose', 'mouth', 'body', 'expr', 'clothes'];
@@ -500,9 +504,12 @@ function perbaruiSubPilihan(opt) {
 
         // Yang disembunyikan dikosongkan juga, supaya pilihan lama tidak
         // ikut terkirim diam-diam saat interaksinya diganti.
+        //
+        // SEMUA menunya, bukan yang pertama saja: sasaran pukulan punya
+        // dua kolom dalam satu kotak, dan yang kedua akan tertinggal
+        // terisi kalau cuma yang pertama dibersihkan.
         if (!cocok) {
-            const sel = $('select', f);
-            if (sel) sel.value = '';
+            $$('select', f).forEach((sel) => { sel.value = ''; });
         }
     });
 }
