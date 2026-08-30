@@ -140,6 +140,44 @@ try {
     if ($tag < 1000) {
         perlu('Kamus tag masih tipis. Jalankan: php tools\sync_danbooru.php tags 200');
     }
+
+    // --- berapa lama sambungan boleh menganggur ---
+    //
+    // Ini pernah menjatuhkan tugas perawatan di hosting, dan penyebabnya
+    // sulit ditebak dari pesan galatnya. Menunggu jawaban AI untuk 60
+    // judul bisa memakan lebih dari satu menit, dan selama itu tidak ada
+    // satu pun query yang lewat. Kalau wait_timeout di hosting lebih
+    // pendek dari itu, servernya menutup sambungannya duluan.
+    say('');
+
+    $tunggu = (int)Database::value('SELECT @@wait_timeout');
+    info("Sambungan boleh menganggur: {$tunggu} detik (wait_timeout).");
+
+    if ($tunggu < 180) {
+        info('Lebih pendek dari lama menunggu jawaban AI. Sambungan yang');
+        info('mati sekarang disambung ulang sendiri, jadi ini bukan masalah —');
+        info('cuma perlu diketahui kalau nanti ada galat yang aneh.');
+    } else {
+        ok('Cukup panjang untuk tugas perawatan yang lama.');
+    }
+
+    // Diuji betulan, bukan sekadar dihitung: sambungannya dibuat mati
+    // lalu dipakai lagi.
+    try {
+        Database::run('SET SESSION wait_timeout = 2');
+        sleep(4);                                  // server menutup di detik ke-2
+
+        if ((int)Database::value('SELECT 1 + 1') === 2) {
+            ok('Sambungan yang mati berhasil disambung ulang sendiri.');
+        } else {
+            gagal('Sambung ulang menjawab nilai yang salah.');
+        }
+    } catch (Throwable $e) {
+        gagal('Sambungan yang mati TIDAK bisa disambung ulang: ' . $e->getMessage());
+        info('Tugas perawatan yang lama akan berhenti di tengah jalan.');
+    } finally {
+        Database::putus();                         // buang sesi uji cobanya
+    }
 } catch (Throwable $e) {
     gagal('Tidak bisa terhubung: ' . $e->getMessage());
     info('Periksa DB_USER / DB_PASS / DB_NAME, dan pastikan MySQL menyala.');

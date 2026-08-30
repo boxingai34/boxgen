@@ -75,17 +75,39 @@ $in    = is_array($in) ? $in : $_POST;
 $tugas = (string)($in['tugas'] ?? '');
 $batas = max(1, min((int)($in['batas'] ?? 25), 200));
 
-/** Berapa yang masih tersisa untuk tiap tugas. */
-$sisa = static function (): array {
-    $r = Sumber::ringkasan();
+/**
+ * Berapa yang masih tersisa untuk tiap tugas.
+ *
+ * Angka ini cuma hiasan di sudut layar — tugasnya sendiri sudah selesai
+ * dan sudah tersimpan sebelum fungsi ini dipanggil. Karena itu ia TIDAK
+ * boleh menjatuhkan seluruh jawaban.
+ *
+ * Ini pernah kejadian, dan bikin salah paham berhari-hari: panggilan AI
+ * gagal, lalu hitungan sisa ini ikut gagal karena sambungan databasenya
+ * sudah ditutup selama menunggu AI. Yang sampai ke layar cuma keluhan
+ * database — galat AI yang sebenarnya jadi tidak pernah terlihat, dan
+ * orang mencari masalahnya di tempat yang salah.
+ *
+ * Sambungan yang mati sekarang disambung ulang sendiri di Database::run(),
+ * jadi seharusnya tidak terulang. Tapi "seharusnya" bukan alasan untuk
+ * membiarkan angka hiasan menimpa hasil kerja yang sudah benar.
+ */
+$sisa = static function (): ?array {
+    try {
+        $r = Sumber::ringkasan();
 
-    return [
-        'judul'    => $r['judul_belum'],
-        'karakter' => $r['karakter_belum'],
-        'tag'      => (int)Database::value('SELECT COUNT(*) FROM tags'),
-        'alias'    => (int)Database::value('SELECT COUNT(*) FROM tag_aliases'),
-        'implikasi'=> (int)Database::value('SELECT COUNT(*) FROM tag_implications'),
-    ];
+        return [
+            'judul'    => $r['judul_belum'],
+            'karakter' => $r['karakter_belum'],
+            'tag'      => (int)Database::value('SELECT COUNT(*) FROM tags'),
+            'alias'    => (int)Database::value('SELECT COUNT(*) FROM tag_aliases'),
+            'implikasi'=> (int)Database::value('SELECT COUNT(*) FROM tag_implications'),
+        ];
+    } catch (Throwable $e) {
+        // JavaScript-nya sudah memeriksa `if (d.sisa)`, jadi null cuma
+        // berarti angkanya tidak ikut diperbarui kali ini.
+        return null;
+    }
 };
 
 /**
