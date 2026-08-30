@@ -38,7 +38,27 @@ defined('AI_TIMEOUT')  || define('AI_TIMEOUT', 30);
 // Sinkronisasi Danbooru
 defined('DANBOORU_BASE')       || define('DANBOORU_BASE', 'https://danbooru.donmai.us');
 defined('DANBOORU_USER_AGENT') || define('DANBOORU_USER_AGENT', 'BooruPromptGenerator/0.1 (kontak: ganti@email.kamu)');
-defined('TAG_MIN_POST_COUNT')  || define('TAG_MIN_POST_COUNT', 100);
+// Ambang bawah kamus tag. Tag dengan gambar sebanyak ini ke atas ditarik.
+//
+// Diturunkan dari 100 ke 1 supaya kamusnya lengkap: karakter yang cuma
+// punya belasan gambar pun tetap dikenali, dan tag yang kamu ketik tidak
+// lagi ditandai "tidak dikenal" padahal sebenarnya ada di Danbooru.
+//
+// Konsekuensinya jujur: kamusnya membengkak dari puluhan ribu jadi ratusan
+// ribu baris, dan penarikannya makan waktu jauh lebih lama. Pencarian tetap
+// diurutkan dari yang paling banyak gambarnya, jadi yang langka tenggelam
+// sendiri di bawah — bukan mengotori saran teratas.
+defined('TAG_MIN_POST_COUNT')  || define('TAG_MIN_POST_COUNT', 1);
+
+// AMBANG TERPISAH UNTUK KARAKTER DAN JUDUL.
+//
+// Kamus tag boleh selengkap mungkin, tapi daftar KARAKTER punya kebutuhan
+// berbeda: itu menu yang dipilih manusia, bukan kamus yang dicek mesin.
+// Tanpa ambang sendiri, menurunkan ambang tag ke 1 ikut menyeret ratusan
+// ribu tag karakter sekali-pakai ke dalam menunya.
+//
+// Turunkan sendiri kalau memang mau karakter yang lebih obscure.
+defined('CHAR_MIN_POST_COUNT') || define('CHAR_MIN_POST_COUNT', 50);
 defined('SYNC_KEY')            || define('SYNC_KEY', 'ganti-kunci-ini');
 
 // Update lewat GitHub (tools/deploy.php)

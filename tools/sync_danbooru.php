@@ -22,6 +22,26 @@ declare(strict_types=1);
  *
  * SOPAN SANTUN API: ada jeda 1 detik antar permintaan dan User-Agent yang
  * jelas. Jangan dihapus — ini syarat pemakaian API mereka.
+ *
+ * BERAPA LAMA, SETELAH AMBANGNYA DITURUNKAN KE 1
+ * ----------------------------------------------
+ * Di ambang 100, kamusnya berhenti di sekitar 77 ribu tag — kira-kira 80
+ * halaman, selesai dalam beberapa menit.
+ *
+ * Di ambang 1, tag Danbooru yang tidak kosong dan tidak usang jumlahnya di
+ * atas satu juta. Itu lebih dari seribu halaman, dan dengan jeda sopan
+ * santun satu detik saja sudah lebih dari dua puluh menit — belum
+ * termasuk waktu unduhnya. Siapkan beberapa kali jalan:
+ *
+ *      C:\xampp2\php\php.exe tools\sync_danbooru.php tags 300
+ *
+ * Posisinya diingat, jadi menjalankannya lagi MELANJUTKAN. Jalankan
+ * berulang sampai ia bilang "Data habis."
+ *
+ * SATU HAL YANG BELUM DIUJI: Danbooru membatasi kedalaman halaman di
+ * sebagian endpoint-nya. Kalau penarikannya berhenti dengan galat HTTP di
+ * halaman yang tinggi, itu batasnya — dan yang sudah terkumpul sampai
+ * situ tetap tersimpan.
  */
 
 require_once __DIR__ . '/../config.php';
@@ -153,6 +173,52 @@ function resetProgress(string $kind): void
     say("Posisi sinkronisasi '{$kind}' direset ke halaman 1.");
 }
 
+/**
+ * Simpan sekumpulan tag sekaligus.
+ *
+ * @param  array<int, array{0:string,1:int,2:int}> $rows  [nama, kategori, jumlah]
+ * @return array{0:int, 1:int}  [baru, diperbarui]
+ */
+function simpanTagMassal(array $rows): array
+{
+    if ($rows === []) {
+        return [0, 0];
+    }
+
+    $nilai  = [];
+    $params = [];
+
+    foreach ($rows as [$name, $cat, $count]) {
+        $nilai[]  = '(?,?,?,?)';
+        $params[] = $name;
+        $params[] = $cat;
+        $params[] = $count;
+        $params[] = 'danbooru';
+    }
+
+    // MySQL mengembalikan 1 untuk baris yang baru dimasukkan dan 2 untuk
+    // yang diperbarui, jadi jumlah barunya bisa dihitung mundur dari situ
+    // tanpa query tambahan.
+    //
+    // Kategorinya sengaja ikut diperbarui: tag bisa berpindah kategori di
+    // Danbooru, dan yang tersimpan di sini harus mengikuti.
+    $terpengaruh = Database::run(
+        'INSERT INTO tags (name, category, post_count, source) VALUES '
+        . implode(',', $nilai)
+        . ' ON DUPLICATE KEY UPDATE
+             post_count = VALUES(post_count),
+             category   = VALUES(category),
+             source     = VALUES(source)',
+        $params
+    )->rowCount();
+
+    $jumlah    = count($rows);
+    $diperbarui = max(0, $terpengaruh - $jumlah);
+    $baru       = max(0, $jumlah - $diperbarui);
+
+    return [$baru, $diperbarui];
+}
+
 // =====================================================================
 // TAGS
 // =====================================================================
@@ -185,6 +251,7 @@ function syncTags(int $pages): void
         }
 
         $lowest = null;
+        $batch  = [];
 
         foreach ($rows as $t) {
             if (!isset($t['name'], $t['post_count'])) {
@@ -208,23 +275,29 @@ function syncTags(int $pages): void
                 continue;
             }
 
-            $exists = Database::value('SELECT id FROM tags WHERE name = ?', [$name]);
+            $batch[$name] = [$name, (int)($t['category'] ?? 0), $count];
+        }
 
-            if ($exists !== null) {
-                Database::run(
-                    'UPDATE tags SET post_count = ?, category = ?, source = ? WHERE id = ?',
-                    [$count, (int)($t['category'] ?? 0), 'danbooru', (int)$exists]
-                );
-                $updated++;
-                $pUpdated++;
-            } else {
-                Database::run(
-                    'INSERT INTO tags (name, category, post_count, source) VALUES (?,?,?,?)',
-                    [$name, (int)($t['category'] ?? 0), $count, 'danbooru']
-                );
-                $inserted++;
-                $pInserted++;
-            }
+        // SATU QUERY PER HALAMAN, BUKAN DUA PER TAG.
+        //
+        // Dulu tiap tag dicek dulu ada atau tidak, lalu di-INSERT atau
+        // di-UPDATE — dua query untuk satu baris. Di ambang 100 itu tidak
+        // terasa: 77 ribu tag berarti 154 ribu query, selesai dalam
+        // hitungan menit.
+        //
+        // Di ambang 1, tagnya lebih dari satu juta. Dua query per baris
+        // jadi lebih dari dua juta query, dan penarikannya berubah dari
+        // urusan menit jadi urusan jam — bukan karena Danbooru-nya lambat,
+        // melainkan karena kitanya.
+        //
+        // Kolom `name` sudah unik, jadi satu INSERT berisi seribu baris
+        // dengan ON DUPLICATE KEY UPDATE mengerjakan hal yang sama persis
+        // dalam satu perjalanan ke database.
+        if ($batch !== []) {
+            [$pInserted, $pUpdated] = simpanTagMassal(array_values($batch));
+
+            $inserted += $pInserted;
+            $updated  += $pUpdated;
         }
 
         say(sprintf(

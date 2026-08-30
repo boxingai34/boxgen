@@ -58,10 +58,45 @@ C:\xampp2\php\php.exe tools\sync_danbooru.php implications 40
 
 Angka terakhir = berapa halaman ditarik sekali jalan (1 halaman = 1000 baris).
 Proses berhenti sendiri saat `post_count` sudah di bawah `TAG_MIN_POST_COUNT`
-(bawaan: 100), dan posisi terakhirnya diingat — jadi kalau terputus, tinggal
+(bawaan: **1**), dan posisi terakhirnya diingat — jadi kalau terputus, tinggal
 jalankan lagi dan otomatis melanjutkan.
 
 Mau mengulang dari awal? Tambahkan `--reset`.
+
+### Dua ambang, dan kenapa terpisah
+
+| | Bawaan | Untuk apa |
+|---|---|---|
+| `TAG_MIN_POST_COUNT` | **1** | kamus tag — dipakai MESIN untuk memeriksa tag yang kamu ketik |
+| `CHAR_MIN_POST_COUNT` | **50** | daftar karakter & judul — menu yang dipilih MANUSIA |
+
+Ambang kamus diturunkan dari 100 ke 1 supaya lengkap: karakter yang cuma
+punya belasan gambar pun dikenali, dan tag yang kamu ketik tidak lagi
+ditandai "tidak dikenal" padahal sebenarnya ada di Danbooru.
+
+Ambang karakter sengaja TIDAK ikut turun. Kamus boleh selengkap mungkin
+karena yang membacanya mesin, tapi daftar karakter itu menu yang kamu
+gulir sendiri — tanpa ambang terpisah, menurunkan ambang tag ke 1 ikut
+menyeret ratusan ribu tag karakter sekali-pakai ke dalamnya. Turunkan
+sendiri di `config.local.php` kalau memang mau karakter yang lebih obscure.
+
+### Berapa lama sekarang
+
+Di ambang 100 kamusnya berhenti di sekitar 77 ribu tag — kira-kira 80
+halaman, beberapa menit. Di ambang 1, tag Danbooru yang tidak kosong dan
+tidak usang jumlahnya **di atas satu juta**: lebih dari seribu halaman, dan
+dengan jeda sopan santun satu detik saja sudah lebih dari dua puluh menit.
+
+Jalankan berulang sampai muncul `Data habis.` — posisinya diingat:
+
+```bash
+C:
+mpp2\php\php.exe tools\sync_danbooru.php tags 300
+```
+
+Penyimpanannya sekalian dipercepat: satu `INSERT` berisi seribu baris per
+halaman, bukan dua query untuk tiap tag. Di ambang 100 bedanya tidak
+terasa; di ambang 1 itu bedanya antara urusan menit dan urusan jam.
 
 Setelah kamus terisi, masukkan seluruh karakter & judul ke tabelnya:
 

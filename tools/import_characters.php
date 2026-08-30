@@ -89,7 +89,8 @@ $offset = 0;
 
 while (true) {
     $rows = Database::all(
-        'SELECT name, post_count FROM tags WHERE category = 3 ORDER BY id LIMIT 2000 OFFSET ' . $offset
+        'SELECT name, post_count FROM tags WHERE category = 3 AND post_count >= ' . CHAR_MIN_POST_COUNT
+        . ' ORDER BY id LIMIT 2000 OFFSET ' . $offset
     );
     if ($rows === []) {
         break;
@@ -156,7 +157,8 @@ $offset = 0;
 
 while (true) {
     $rows = Database::all(
-        'SELECT id, name, post_count FROM tags WHERE category = 4 ORDER BY id LIMIT 2000 OFFSET ' . $offset
+        'SELECT id, name, post_count FROM tags WHERE category = 4 AND post_count >= ' . CHAR_MIN_POST_COUNT
+        . ' ORDER BY id LIMIT 2000 OFFSET ' . $offset
     );
     if ($rows === []) {
         break;

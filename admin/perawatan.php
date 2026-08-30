@@ -91,7 +91,9 @@ adminHeader('Perawatan', 'perawatan.php');
 </p>
 
 <?php foreach ([
-    'tags'         => ['Tag', 'Kamus utama. Berhenti sendiri saat jumlah gambarnya sudah di bawah ' . TAG_MIN_POST_COUNT . '.'],
+    'tags'         => ['Tag', 'Kamus utama, sampai tag yang gambarnya tinggal ' . TAG_MIN_POST_COUNT
+                          . '. Di ambang serendah ini tagnya lebih dari sejuta — tekan berulang '
+                          . 'sampai muncul "Data habis".'],
     'aliases'      => ['Alias', 'Nama lain untuk tag yang sama, misalnya "kick" yang menunjuk ke "kicking".'],
     'implications' => ['Implikasi', 'Tag yang otomatis menyeret tag lain — dipakai untuk membuang tag mubazir.'],
 ] as $kind => [$judul, $ket]):
