@@ -28,20 +28,29 @@ declare(strict_types=1);
  * Di ambang 100, kamusnya berhenti di sekitar 77 ribu tag — kira-kira 80
  * halaman, selesai dalam beberapa menit.
  *
- * Di ambang 1, tag Danbooru yang tidak kosong dan tidak usang jumlahnya di
- * atas satu juta. Itu lebih dari seribu halaman, dan dengan jeda sopan
- * santun satu detik saja sudah lebih dari dua puluh menit — belum
- * termasuk waktu unduhnya. Siapkan beberapa kali jalan:
+ * Di ambang 1, jumlahnya sekitar 1,07 juta tag — terukur, bukan dikira:
+ * halaman terakhir daftar Danbooru untuk saringan yang sama persis ada
+ * di nomor 1075, dengan 1000 baris per halaman. Jadi sekitar 1.075
+ * permintaan, dan dengan jeda sopan santun satu detik saja sudah lewat
+ * delapan belas menit — belum termasuk waktu unduhnya. Siapkan tiga
+ * sampai empat kali jalan:
  *
  *      C:\xampp2\php\php.exe tools\sync_danbooru.php tags 300
  *
- * Posisinya diingat, jadi menjalankannya lagi MELANJUTKAN. Jalankan
- * berulang sampai ia bilang "Data habis."
+ * Posisinya diingat, jadi menjalankannya lagi MELANJUTKAN — termasuk
+ * kalau berhenti karena galat. Jalankan berulang sampai ia bilang
+ * "Data habis."
  *
- * SATU HAL YANG BELUM DIUJI: Danbooru membatasi kedalaman halaman di
- * sebagian endpoint-nya. Kalau penarikannya berhenti dengan galat HTTP di
- * halaman yang tinggi, itu batasnya — dan yang sudah terkumpul sampai
- * situ tetap tersimpan.
+ * SOAL BATAS 1000 HALAMAN — SUDAH DIUJI, DAN SUDAH DILEWATI
+ * Danbooru menolak nomor halaman di atas 1000 untuk akun anonim. Dengan
+ * 1000 baris per halaman, langit-langitnya sejuta baris — sementara tag
+ * yang tidak kosong dan tidak usang jumlahnya sekitar 1,07 juta. Jadi
+ * puluhan ribu tag terakhir dulu TIDAK PERNAH bisa dijangkau sama
+ * sekali, dan tidak ada yang memberitahu.
+ *
+ * Penarikan tag sekarang memakai cursor (page=b<id>), yang tidak kena
+ * batas itu. Urutannya jadi menurut id, bukan post_count — artinya tag
+ * populer tidak lagi datang duluan, tapi SEMUANYA datang.
  */
 
 require_once __DIR__ . '/../config.php';
@@ -79,9 +88,22 @@ function say(string $msg): void
 /**
  * Ambil satu halaman JSON dari Danbooru.
  *
- * Catatan penting: kita memakai nomor halaman biasa (page=1,2,3...),
- * BUKAN cursor "b<id>". Cursor id tidak cocok dipakai bersama
- * search[order]=count — hasilnya jadi loncat-loncat dan tidak urut.
+ * DUA CARA MENOMORI HALAMAN, dan keduanya dipakai di berkas ini:
+ *
+ *   - alias & implikasi : nomor biasa (page=1,2,3...). Cuma 41 dan 46
+ *     halaman, jadi batas 1000 milik Danbooru tidak akan tersentuh.
+ *   - tag               : cursor (page=b<id>). Lihat posisiTag().
+ *
+ * Komentar di sini dulu berbunyi: "cursor tidak cocok dipakai bersama
+ * search[order]=count — hasilnya loncat-loncat dan tidak urut." Itu
+ * salah baca, dan ongkosnya mahal: ia yang membuat penarikan tag
+ * bertahan di nomor halaman sampai menabrak batas 1000.
+ *
+ * Yang sebenarnya terjadi: di mode cursor Danbooru MENIMPA urutan apa
+ * pun dengan id menurun. Jadi search[order]=count bukan bertabrakan,
+ * melainkan diabaikan diam-diam. Kolom post_count-nya memang terlihat
+ * berloncatan (2, 21, 1, 5, 25...) — itu yang dikira kacau — padahal
+ * id-nya menurun rapat tanpa satu pun bolong atau dobel.
  */
 function danbooruGet(string $path, array $query): array
 {
@@ -107,6 +129,19 @@ function danbooruGet(string $path, array $query): array
     if ($status === 429) {
         throw new RuntimeException('Kena rate limit Danbooru. Tunggu beberapa menit lalu ulangi.');
     }
+    // 410 di sini hampir selalu berarti satu hal: nomor halamannya
+    // melewati 1000. Pesan mentahnya menyebut PaginationError, dan itu
+    // tidak memberitahu siapa pun apa yang harus dilakukan.
+    if ($status === 410) {
+        throw new RuntimeException(
+            'Danbooru menolak nomor halaman di atas 1000 (batas akun anonim). '
+            . 'Endpoint ini masih memakai nomor halaman biasa; kalau datanya '
+            . 'memang sebanyak itu, ia harus dipindahkan ke cursor seperti '
+            . 'yang sudah dilakukan untuk tag. Pesan aslinya: '
+            . substr((string)$raw, 0, 200)
+        );
+    }
+
     if ($status >= 400) {
         throw new RuntimeException("Danbooru menjawab HTTP {$status}: " . substr((string)$raw, 0, 200));
     }
@@ -119,7 +154,60 @@ function danbooruGet(string $path, array $query): array
     return $json;
 }
 
-/** Halaman berikutnya yang harus diproses (mulai dari 1). */
+/**
+ * Puncak penelusuran tag: id yang pasti lebih tinggi dari id tag mana pun.
+ *
+ * Bukan id nyata, sengaja. Id tag tertinggi di Danbooru sekarang di
+ * kisaran 2,7 juta dan naik terus; menuliskan angka nyata di sini berarti
+ * angkanya basi minggu depan. 2^31-1 aman selamanya dan sudah dipastikan
+ * dijawab HTTP 200, bukan galat.
+ */
+const PUNCAK_ID = 2147483647;
+
+/**
+ * Posisi penelusuran tag, dalam bentuk yang langsung dipakai sebagai
+ * parameter `page`.
+ *
+ * KENAPA TAG MEMAKAI CURSOR, SEDANGKAN ALIAS DAN IMPLIKASI TIDAK
+ *
+ * Danbooru menolak nomor halaman di atas 1000 (5000 untuk akun Gold).
+ * Dengan 1000 baris per halaman, langit-langitnya sejuta baris. Alias dan
+ * implikasi cuma 41 dan 46 halaman, jadi tidak akan pernah menyentuhnya.
+ * Tag menyentuhnya: jumlah tag yang tidak kosong dan tidak usang sekitar
+ * 1,07 juta, jadi puluhan ribu tag terakhir DULU TIDAK PERNAH TERJANGKAU
+ * sama sekali — bukan cuma berhenti dengan galat, melainkan tidak pernah
+ * ada di kamus tanpa ada yang memberitahu.
+ *
+ * Cursor `b<id>` tidak kena batas itu: Danbooru memeriksa pola cursor
+ * SEBELUM memeriksa nomor halaman, jadi permintaannya tidak pernah sampai
+ * ke pemeriksaan batasnya.
+ *
+ * DUA BENTUK NILAI, karena yang lama masih ada di database orang:
+ *   "id:2716727" -> bentuk baru, lanjutkan turun dari id itu
+ *   "4", "1001"  -> bentuk lama (nomor halaman), tidak bisa diterjemahkan
+ *
+ * Nomor halaman lama memang TIDAK bisa dipetakan ke id, karena keduanya
+ * urutan yang berbeda — "sudah 1000 halaman menurut post_count" tidak
+ * menunjuk ke satu id mana pun. Jadi ia dibaca sebagai "mulai dari puncak".
+ * Itu bukan mengulang dari nol: penyimpanannya INSERT ... ON DUPLICATE KEY
+ * UPDATE di atas kolom nama yang unik, jadi melewati tag yang sudah ada
+ * cuma menyegarkan post_count dan kategorinya — persis yang diinginkan.
+ */
+function posisiTag(): string
+{
+    $val = (string)(Database::value(
+        'SELECT cursor_pos FROM sync_log WHERE source = ? AND kind = ?',
+        ['danbooru', 'tags']
+    ) ?? '');
+
+    if (preg_match('/^id:(\d+)$/', $val, $m)) {
+        return 'b' . $m[1];
+    }
+
+    return 'b' . PUNCAK_ID;
+}
+
+/** Halaman berikutnya yang harus diproses (mulai dari 1). Alias & implikasi. */
 function nextPage(string $kind): int
 {
     $val = Database::value(
@@ -139,10 +227,16 @@ function nextPage(string $kind): int
  *
  * Angka yang dikirim adalah SELISIH halaman itu saja, bukan total,
  * karena di SQL-nya ditambahkan ke nilai lama.
+ *
+ * $posisi = null berarti JANGAN sentuh posisinya, cuma catat sisanya.
+ * Itu yang dipakai jalur galat. Dulu jalur itu menulis ulang posisinya
+ * dengan hasil nextPage(), dan sejak posisi tag berbentuk teks (id:123)
+ * angka itu terbaca sebagai 0 lalu dipaksa jadi 1 — satu galat jaringan
+ * sepele sudah cukup untuk menghapus kemajuan berjam-jam.
  */
 function saveProgress(
     string $kind,
-    int $nextPage,
+    int|string|null $posisi,
     int $processed,
     int $inserted,
     int $updated,
@@ -153,14 +247,15 @@ function saveProgress(
         'INSERT INTO sync_log (source, kind, cursor_pos, processed, inserted, updated, status, message, finished_at)
          VALUES (?,?,?,?,?,?,?,?,NOW())
          ON DUPLICATE KEY UPDATE
-            cursor_pos  = VALUES(cursor_pos),
+            cursor_pos  = COALESCE(VALUES(cursor_pos), cursor_pos),
             processed   = processed + VALUES(processed),
             inserted    = inserted  + VALUES(inserted),
             updated     = updated   + VALUES(updated),
             status      = VALUES(status),
             message     = VALUES(message),
             finished_at = NOW()',
-        ['danbooru', $kind, (string)$nextPage, $processed, $inserted, $updated, $status, $msg]
+        ['danbooru', $kind, $posisi === null ? null : (string)$posisi,
+         $processed, $inserted, $updated, $status, $msg]
     );
 }
 
@@ -224,13 +319,13 @@ function simpanTagMassal(array $rows): array
 // =====================================================================
 function syncTags(int $pages): void
 {
-    $page     = nextPage('tags');
+    $posisi   = posisiTag();
     $inserted = 0;
     $updated  = 0;
     $seen     = 0;
     $done     = false;
 
-    say('Menarik tag (post_count minimal ' . TAG_MIN_POST_COUNT . '), mulai halaman ' . $page . '...');
+    say('Menarik tag (post_count minimal ' . TAG_MIN_POST_COUNT . '), mulai dari ' . $posisi . '...');
 
     for ($i = 0; $i < $pages; $i++) {
         $pInserted = 0;
@@ -238,8 +333,11 @@ function syncTags(int $pages): void
         $pSeen     = 0;
         $rows = danbooruGet('/tags.json', [
             'limit'                 => 1000,
-            'page'                  => $page,
-            'search[order]'         => 'count',
+            'page'                  => $posisi,
+            // search[order] SENGAJA tidak dikirim. Di mode cursor,
+            // Danbooru menimpa urutan apa pun dengan id menurun —
+            // mengirimnya cuma menyesatkan pembaca berikutnya, karena
+            // parameternya diabaikan diam-diam tanpa peringatan.
             'search[hide_empty]'    => 'yes',
             'search[is_deprecated]' => 'no',
         ]);
@@ -252,8 +350,19 @@ function syncTags(int $pages): void
 
         $lowest = null;
         $batch  = [];
+        $lastId = 0;
+        $idAwal = 0;
 
         foreach ($rows as $t) {
+            // Id dicatat SEBELUM saringan apa pun. Kalau ia ikut
+            // dilewati, cursor berikutnya akan menarik ulang baris itu
+            // (tumpang tindih, tidak apa-apa) — tapi kalau salah, ia
+            // MELOMPATINYA, dan tag yang hilang tidak akan ketahuan.
+            if (isset($t['id'])) {
+                $lastId = (int)$t['id'];
+                $idAwal = $idAwal ?: $lastId;
+            }
+
             if (!isset($t['name'], $t['post_count'])) {
                 continue;
             }
@@ -263,11 +372,17 @@ function syncTags(int $pages): void
             $count  = (int)$t['post_count'];
             $lowest = $count;
 
-            // Urutannya menurun. Begitu sampai di bawah ambang, sisanya
-            // pasti lebih kecil lagi — berhenti total.
+            // DULU ini `break`, dan itu benar selama urutannya menurun
+            // menurut post_count: tag pertama di bawah ambang berarti
+            // sisanya pasti lebih kecil lagi.
+            //
+            // Sekarang urutannya menurut id, dan tag ber-post_count
+            // rendah bertebaran di mana-mana. `break` di sini akan
+            // menghentikan seluruh penarikan di tag rendah PERTAMA yang
+            // kebetulan lewat, lalu melaporkannya sebagai 'selesai' —
+            // kamus terpotong diam-diam tanpa ada yang curiga.
             if ($count < TAG_MIN_POST_COUNT) {
-                $done = true;
-                break;
+                continue;
             }
 
             $name = TagResolver::canonical((string)$t["name"]);
@@ -300,20 +415,37 @@ function syncTags(int $pages): void
             $updated  += $pUpdated;
         }
 
+        // Cursor berikutnya tidak boleh ditebak. Kalau tidak satu pun
+        // baris punya id, `b0` akan menjawab kosong dan penarikannya
+        // melaporkan 'data habis' padahal baru separuh jalan.
+        if ($lastId <= 0) {
+            throw new RuntimeException(
+                'Danbooru mengembalikan ' . count($rows) . ' baris tanpa kolom id. '
+                . 'Penarikan dihentikan supaya posisinya tidak melompat.'
+            );
+        }
+
         say(sprintf(
-            '  Halaman %d selesai (post_count terendah: %s). Baru: %d, diperbarui: %d',
-            $page,
-            $lowest !== null ? number_format($lowest) : '-',
+            '  id %s -> %s selesai (%d tag). Baru: %d, diperbarui: %d',
+            number_format($idAwal),
+            number_format($lastId),
+            $pSeen,
             $inserted,
             $updated
         ));
 
         // Simpan posisi SEKARANG, sebelum lanjut ke halaman berikutnya.
-        // Kalau selesai, posisi dikembalikan ke 1 agar pemanggilan berikutnya
-        // menyegarkan post_count dari awal.
+        // Kalau selesai, posisinya dikembalikan ke puncak supaya jalan
+        // berikutnya menyegarkan post_count dari awal.
+        //
+        // Puncaknya ditulis sebagai 'id:...', BUKAN '1'. Angka 1 sekarang
+        // punya arti ganda — ia juga nomor halaman bentuk lama — dan
+        // posisiTag() akan membacanya sebagai nilai lama. Efeknya
+        // kebetulan sama, tapi kebenaran tidak boleh bersandar pada
+        // kebetulan.
         saveProgress(
             'tags',
-            $done ? 1 : $page + 1,
+            $done ? 'id:' . PUNCAK_ID : 'id:' . $lastId,
             $pSeen,
             $pInserted,
             $pUpdated,
@@ -321,24 +453,24 @@ function syncTags(int $pages): void
         );
 
         if ($done) {
-            say('  Sudah menyentuh ambang post_count. Sinkronisasi tag SELESAI.');
+            say('  Seluruh tag sudah ditelusuri. Sinkronisasi tag SELESAI.');
             break;
         }
 
-        $page++;
+        $posisi = 'b' . $lastId;
         sleep(1); // sopan santun
     }
 
     // Kalau tadi berhenti karena data habis, loop-nya keluar lewat "break"
     // sebelum sempat menyimpan. Catat status akhirnya di sini.
     if ($done) {
-        saveProgress('tags', 1, 0, 0, 0, 'done');
+        saveProgress('tags', 'id:' . PUNCAK_ID, 0, 0, 0, 'done');
     }
 
     say("Selesai. Baru: {$inserted}, diperbarui: {$updated}");
 
     if (!$done) {
-        say("Belum selesai. Jalankan lagi untuk melanjutkan dari halaman {$page}.");
+        say("Belum selesai. Jalankan lagi untuk melanjutkan dari {$posisi}.");
     }
 }
 
@@ -512,7 +644,9 @@ try {
             exit(1);
     }
 } catch (RuntimeException $e) {
-    saveProgress($kind, nextPage($kind), 0, 0, 0, 'error', $e->getMessage());
+    // null: catat galatnya, JANGAN sentuh posisinya. Apa pun yang sudah
+    // ditarik tetap bisa dilanjutkan.
+    saveProgress($kind, null, 0, 0, 0, 'error', $e->getMessage());
     say('GAGAL: ' . $e->getMessage());
     exit(1);
 }

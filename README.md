@@ -57,9 +57,11 @@ C:\xampp2\php\php.exe tools\sync_danbooru.php implications 40
 ```
 
 Angka terakhir = berapa halaman ditarik sekali jalan (1 halaman = 1000 baris).
-Proses berhenti sendiri saat `post_count` sudah di bawah `TAG_MIN_POST_COUNT`
-(bawaan: **1**), dan posisi terakhirnya diingat — jadi kalau terputus, tinggal
-jalankan lagi dan otomatis melanjutkan.
+Posisi terakhirnya diingat — kalau terputus, atau berhenti karena galat,
+tinggal jalankan lagi dan ia melanjutkan dari tempat yang sama.
+
+Penarikan **tag** berhenti saat seluruh tag sudah ditelusuri. Alias dan
+implikasi berhenti saat datanya habis.
 
 Mau mengulang dari awal? Tambahkan `--reset`.
 
@@ -83,16 +85,39 @@ sendiri di `config.local.php` kalau memang mau karakter yang lebih obscure.
 ### Berapa lama sekarang
 
 Di ambang 100 kamusnya berhenti di sekitar 77 ribu tag — kira-kira 80
-halaman, beberapa menit. Di ambang 1, tag Danbooru yang tidak kosong dan
-tidak usang jumlahnya **di atas satu juta**: lebih dari seribu halaman, dan
-dengan jeda sopan santun satu detik saja sudah lebih dari dua puluh menit.
+halaman, beberapa menit. Di ambang 1 jumlahnya **sekitar 1,07 juta tag**
+(terukur: halaman terakhir daftar Danbooru untuk saringan yang sama ada di
+nomor 1075). Itu sekitar 1.075 permintaan, dan dengan jeda sopan santun
+satu detik saja sudah lewat delapan belas menit.
 
-Jalankan berulang sampai muncul `Data habis.` — posisinya diingat:
+Jalankan berulang sampai muncul `Data habis.` — tiga sampai empat kali:
 
 ```bash
 C:
 mpp2\php\php.exe tools\sync_danbooru.php tags 300
 ```
+
+### Batas 1000 halaman, dan kenapa tag memakai cara lain
+
+Danbooru menolak nomor halaman di atas 1000 untuk akun anonim:
+
+```
+HTTP 410 — You cannot go beyond page 1000.
+```
+
+Dengan 1000 baris per halaman, langit-langitnya sejuta baris — sementara
+tagnya 1,07 juta. Jadi masalahnya bukan cuma galat yang muncul di ujung:
+**puluhan ribu tag terakhir memang tidak pernah bisa dijangkau**, dan tidak
+ada yang memberitahu. Mengecilkan `limit` justru memperburuk, karena
+batasnya ada di nomor halaman, bukan di jumlah baris.
+
+Penarikan tag sekarang memakai **cursor** (`page=b<id>`), yang tidak kena
+batas itu — Danbooru memeriksa pola cursor sebelum memeriksa nomor halaman.
+Urutannya jadi menurut id, bukan `post_count`, jadi tag populer tidak lagi
+datang duluan. Tapi semuanya datang.
+
+Alias dan implikasi tetap memakai nomor halaman biasa: 41 dan 46 halaman,
+jauh dari batas mana pun.
 
 Penyimpanannya sekalian dipercepat: satu `INSERT` berisi seribu baris per
 halaman, bukan dua query untuk tiap tag. Di ambang 100 bedanya tidak
