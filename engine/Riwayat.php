@@ -37,6 +37,15 @@ final class Riwayat
         $halaman = max(1, $halaman);
         $cari    = trim($cari);
 
+        // Nomor halaman datang dari alamat (history.php?h=...), jadi siapa
+        // pun bisa mengetik angka apa saja. Dijepit ke 1 juta bukan karena
+        // ada yang punya sejuta halaman, melainkan karena perkaliannya di
+        // bawah meluap: halaman sebesar PHP_INT_MAX dikali 20 berhenti jadi
+        // bilangan bulat dan berubah jadi pecahan, lalu tertulis ke SQL
+        // sebagai "1.844674407371E+20" — dan halamannya mati dengan galat
+        // sintaks SQL, bukan sekadar kosong.
+        $halaman = min($halaman, 1_000_000);
+
         $where  = ['user_id = ?'];
         $params = [$userId];
 

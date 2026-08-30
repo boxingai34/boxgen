@@ -285,8 +285,21 @@ say('Pose interaksi       : ' . count($interactionMap));
 
 // Pose yang kalimatnya menyebut {A} atau {B} berarti punya arah, jadi
 // bisa dibalik lewat pilihan "siapa yang menyerang" di halaman depan.
+//
+// TAPI KALIMAT BUKAN SATU-SATUNYA TANDA, dan mengandalkannya saja pernah
+// menyembunyikan satu pose. "Terkunci di Lantai" tidak punya kalimat sama
+// sekali — Danbooru sudah punya tagnya, jadi tidak perlu dikarang — tapi
+// ia punya tag berperan source/target DAN label arah "Siapa yang
+// menindih?". Karena kalimatnya kosong, ia dianggap tidak berarah,
+// menunya tidak pernah muncul, dan perannya dibagikan diam-diam menurut
+// nilai bawaan. Petinju yang sedang ditindih ikut disuruh menindih, dan
+// tidak ada yang bisa membetulkannya.
 Database::run(
-    "UPDATE modules SET is_directional = (sentence LIKE '%{A}%' OR sentence LIKE '%{B}%')
+    "UPDATE modules SET is_directional = (
+        sentence LIKE '%{A}%' OR sentence LIKE '%{B}%'
+        OR EXISTS (SELECT 1 FROM module_tags mt
+                   WHERE mt.module_id = modules.id AND mt.role IS NOT NULL)
+     )
      WHERE type = 'interaction'"
 );
 say('  punya arah         : ' . Database::value(

@@ -262,8 +262,23 @@ final class Exporter
 
             $teks = self::format($items, 'novelai');
 
-            // kata polos di depan, menggantikan tag berangka yang tinggal di base
-            $kata = $built['characters'][$sisi]['gender'] ?? 'female';
+            // Kata polos di depan, menggantikan tag berangka yang tinggal
+            // di base.
+            //
+            // DIBACA DARI PILIHAN USER DULU, BARU DARI DATA KARAKTER.
+            // Dulu ini cuma membaca baris karakter di database — dan
+            // seluruh 21.904 karakter masuk lewat impor massal dengan
+            // gender bawaan 'female', karena Danbooru tidak menyediakannya.
+            // Akibatnya cabang 'boy' praktis tidak pernah tercapai:
+            // Base Prompt bilang 2boys sementara kedua kotak karakternya
+            // bilang girl. Dua pernyataan yang saling menyangkal di satu
+            // prompt, dan yang menang biasanya yang salah.
+            $kata = $sel[$sisi]['gender'] ?? '';
+
+            if ($kata !== 'male' && $kata !== 'female') {
+                $kata = $built['characters'][$sisi]['gender'] ?? 'female';
+            }
+
             $awalan = $kata === 'male' ? 'boy' : 'girl';
 
             $potong = $awalan . ', ' . $teks;
@@ -295,7 +310,13 @@ final class Exporter
         $mod = Database::one(
             "SELECT action_tag, is_directional, direction_inverts,
                     (SELECT t.name FROM module_tags mt JOIN tags t ON t.id = mt.tag_id
-                     WHERE mt.module_id = modules.id ORDER BY mt.sort_order LIMIT 1) AS tag_utama
+                     WHERE mt.module_id = modules.id ORDER BY mt.sort_order LIMIT 1) AS tag_utama,
+                    (SELECT mt.role FROM module_tags mt JOIN tags t ON t.id = mt.tag_id
+                     WHERE mt.module_id = modules.id
+                       AND t.name = COALESCE(NULLIF(modules.action_tag, ''),
+                             (SELECT t2.name FROM module_tags mt2 JOIN tags t2 ON t2.id = mt2.tag_id
+                              WHERE mt2.module_id = modules.id ORDER BY mt2.sort_order LIMIT 1))
+                     LIMIT 1) AS peran_aksi
              FROM modules WHERE id = ? AND type = 'interaction'",
             [(int)$sel['interaction_id']]
         );
@@ -320,6 +341,26 @@ final class Exporter
         // pelaku. Tanpa pembalikan ini, yang jatuh justru diberi awalan
         // source# — persis kebalikan dari yang dimaksud user.
         if ((int)($mod['direction_inverts'] ?? 0) === 1) {
+            $penyerang = $penyerang === 'a' ? 'b' : 'a';
+        }
+
+        // TAG AKSINYA TIDAK SELALU MILIK YANG MENYERANG.
+        //
+        // "Meleset" adalah contohnya: pilihannya bertanya "Siapa yang
+        // memukul?", tapi tag utamanya dodging — dan yang mengelak justru
+        // lawannya. Tanpa pembalikan ini, yang memukul diberi
+        // source#dodging dan yang mengelak diberi target#dodging: persis
+        // kebalikan dari yang terjadi.
+        //
+        // Tag-nya sendiri sudah mendarat benar (yang memukul dapat
+        // punching, yang mengelak dapat dodging) — yang tertukar cuma
+        // awalannya. Dan awalan itulah yang dibaca NovelAI untuk
+        // menentukan siapa melakukan apa, jadi justru itu yang menentukan
+        // gambarnya.
+        //
+        // Diperiksa dari peran tagnya, bukan dari nama posenya, supaya
+        // pose baru dengan pola yang sama ikut benar tanpa disentuh.
+        if (($mod['peran_aksi'] ?? null) === 'target') {
             $penyerang = $penyerang === 'a' ? 'b' : 'a';
         }
 

@@ -156,8 +156,6 @@ $sel = [
     'sub_jatuh_id'  => $modId($in['sub_jatuh_id']  ?? null),
     'sub_menang_id' => $modId($in['sub_menang_id'] ?? null),
     'sub_reaksi_id' => $modId($in['sub_reaksi_id'] ?? null),
-    'sub_sasaran_a_id' => $modId($in['sub_sasaran_a_id'] ?? null),
-    'sub_sasaran_b_id' => $modId($in['sub_sasaran_b_id'] ?? null),
 
     'tahun'         => (int)($in['tahun'] ?? 0),
     'bahasa'        => isset(ComicPage::BAHASA[(string)($in['bahasa'] ?? '')])

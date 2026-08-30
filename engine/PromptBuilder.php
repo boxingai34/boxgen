@@ -831,6 +831,29 @@ final class PromptBuilder
     /**
      * Kelompok pemilik sebuah tag: petinju A, petinju B, atau bersama.
      * Dipakai agar pembersihan duplikat tidak menghapus tag milik orang lain.
+     *
+     * INTERACTION_A HARUS IKUT DI SINI, DAN DULU TIDAK.
+     *
+     * Blok berakhiran _b sudah tertangkap oleh pemeriksaan pertama, jadi
+     * interaction_b aman sejak awal. Pasangannya, interaction_a, tidak
+     * ada di daftar mana pun dan jatuh ke 'umum' — dan dua hal rusak
+     * karenanya, dua-duanya tanpa suara:
+     *
+     * 1. Tag aksi milik A diadu dengan blok bersama lalu terhapus sebagai
+     *    "sudah tersirat". Di Pukulan ke Wajah, face_punch (blok bersama)
+     *    mengimplikasikan punching (milik A) — dan karena keduanya
+     *    dianggap sekelompok, punching dibuang. Kalau pelakunya B,
+     *    kelompoknya berbeda dan punching selamat. Jadi menukar arah tidak
+     *    cuma menukar peran, tapi mengubah isi promptnya.
+     *
+     * 2. Tag 'umum' ikut digabung ke tiap kelompok waktu mencari
+     *    pertentangan, jadi seluruh aksi A dibandingkan dengan seluruh tag
+     *    B. Knockdown pun dilaporkan bertabrakan: "sitting" milik yang
+     *    tumbang versus "standing" milik yang berdiri — dua orang berbeda,
+     *    dan itu memang yang diminta.
+     *
+     * Exporter::formatNovelAI sudah menghitung interaction_a sebagai milik
+     * A sejak awal (lihat $milikA di sana). Yang di sini tertinggal.
      */
     public static function ownerGroup(array $item): string
     {
@@ -839,7 +862,8 @@ final class PromptBuilder
         if (str_ends_with($block, '_b')) {
             return 'b';
         }
-        if (in_array($block, ['character', 'appearance', 'outfit', 'condition'], true)) {
+        if (in_array($block, ['character', 'appearance', 'outfit', 'condition',
+                              'interaction_a'], true)) {
             return 'a';
         }
         return 'umum';

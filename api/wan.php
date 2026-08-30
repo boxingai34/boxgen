@@ -70,12 +70,18 @@ $sel = [
 
     // Berapa momen yang diambil dari alurnya, dan berapa yang dipadatkan
     // jadi satu generasi.
-    'klip'        => (int)($in['klip'] ?? 9),
-    'shot'        => (int)($in['shot'] ?? 3),
+    //
+    // Dijepit di sini, bukan cuma dijaga di bawah. Plafon 30 detik
+    // menghitung shot x detik, dan shot=0 membuat perkaliannya nol —
+    // lolos dari penjaganya, lalu keluar permintaan video 9.999 detik.
+    // Angka nol dan negatif memang tidak mungkin datang dari menunya,
+    // tapi permintaannya JSON dan siapa pun bisa mengirim apa saja.
+    'klip'        => max(1, min((int)($in['klip'] ?? 9), 40)),
+    'shot'        => max(1, min((int)($in['shot'] ?? 3), 10)),
 
     // Panjang tiap shot. Batas kerasnya 30 detik per generasi, jadi
     // shot x detik tidak boleh lewat dari itu.
-    'detik'       => (int)($in['detik'] ?? 8),
+    'detik'       => max(1, min((int)($in['detik'] ?? 8), 30)),
 
     'rasio'       => in_array($in['rasio'] ?? '', $rasioSah, true) ? (string)$in['rasio'] : '16:9',
     'acuan_latar' => !empty($in['acuan_latar']),

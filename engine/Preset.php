@@ -41,7 +41,18 @@ final class Preset
     private const MAKS_JSON  = 8000;
     private const MAKS_MILIK = 60;
 
-    public const MODE = ['single', 'duo', 'seedance', 'storyboard'];
+    /**
+     * Mode yang boleh disimpan sebagai preset.
+     *
+     * DAFTAR INI KETINGGALAN TIGA MODE, dan gagalnya tanpa suara: mode
+     * yang tidak dikenal diam-diam diubah jadi 'single' di sanitize().
+     * Jadi preset yang disimpan dari halaman Komik, Wan 3.0, atau
+     * Seedance 2.5 tetap tersimpan, tetap muncul di daftar, dan begitu
+     * ditekan "Pakai lagi" mendaratkan orangnya di mode gambar satu
+     * petinju — dengan seluruh isian modenya sendiri sudah hilang.
+     */
+    public const MODE = ['single', 'duo', 'seedance', 'storyboard',
+                         'comic', 'wan', 'seedance25'];
 
     /** Nilai penutup video yang dikenal SeedanceBuilder. */
     private const PENUTUP = ['hold', 'freeze', 'fade', 'pullout', 'react'];
@@ -329,6 +340,57 @@ final class Preset
             $catatan = is_scalar($sel['catatan'] ?? null) ? trim((string)$sel['catatan']) : '';
             if ($catatan !== '') {
                 $out['catatan'] = self::potong($catatan, 400);
+            }
+        }
+
+        if ($mode === 'comic') {
+            $out['panels'] = max(1, min((int)($sel['panels'] ?? 4), 12));
+
+            foreach (['arc_id', 'comic_layout_id', 'comic_fx_id', 'comic_time_id',
+                      'comic_arah_id', 'panel_bentuk_id'] as $k) {
+                $v = self::id($sel[$k] ?? null);
+                if ($v !== null) {
+                    $out[$k] = $v;
+                }
+            }
+        }
+
+        if ($mode === 'wan' || $mode === 'seedance25') {
+            $out['klip'] = max(1, min((int)($sel['klip'] ?? 9), 40));
+
+            if (in_array($sel['tempo'] ?? null, ['khidmat', 'sedang', 'cepat', 'kilat'], true)) {
+                $out['tempo'] = (string)$sel['tempo'];
+            }
+            if (in_array($sel['jalur'] ?? null, ['siaran', 'sinematik', 'anime'], true)) {
+                $out['jalur'] = (string)$sel['jalur'];
+            }
+
+            foreach (['arc_id', 'video_style_id', 'gerak_id', 'kamera_id', 'impact_id'] as $k) {
+                $v = self::id($sel[$k] ?? null);
+                if ($v !== null) {
+                    $out[$k] = $v;
+                }
+            }
+
+            $out['acuan_latar'] = !empty($sel['acuan_latar']);
+
+            $artis = is_scalar($sel['artis'] ?? null) ? trim((string)$sel['artis']) : '';
+            if ($artis !== '') {
+                $out['artis'] = self::potong($artis, 2000);
+            }
+        }
+
+        if ($mode === 'wan') {
+            $out['shot']  = max(1, min((int)($sel['shot'] ?? 3), 10));
+            $out['detik'] = max(1, min((int)($sel['detik'] ?? 8), 30));
+        }
+
+        if ($mode === 'seedance25') {
+            $out['detik_adegan'] = max(1, min((int)($sel['detik_adegan'] ?? 20), 120));
+            $out['ronde']        = max(0, min((int)($sel['ronde'] ?? 0), 15));
+
+            foreach (['sfx', 'bgm', 'dialog', 'subtitle'] as $k) {
+                $out[$k] = !empty($sel[$k]);
             }
         }
 
