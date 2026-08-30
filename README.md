@@ -1455,6 +1455,42 @@ penyedia memakai bentuk yang sama persis dengan OpenAI, jadi cukup ganti
 Jatah gratis tiap penyedia berubah dari waktu ke waktu — periksa sendiri
 di halaman harga mereka, jangan percaya tabel ini bulat-bulat.
 
+### Claude (Anthropic)
+
+Claude **bukan** `openai_compatible`. Bentuk API-nya berbeda, jadi ada
+penyedianya sendiri:
+
+```php
+define('AI_PROVIDER', 'claude');
+define('AI_MODEL',    'claude-opus-5');
+define('AI_API_KEY',  'sk-ant-...');   // console.anthropic.com/settings/keys
+```
+
+`AI_BASE_URL` dibiarkan kosong. Tidak ada paket gratis — kunci baru
+perlu diisi saldo dulu.
+
+Ada satu setelan tambahan, `AI_EFFORT`, yang mengatur seberapa dalam
+Claude berpikir sebelum menjawab: `low` sampai `max`. Bawaannya `low`,
+dan itu disengaja — seluruh tugas AI di sini cuma **penggolongan**
+(pilih modul dari daftar, kelompokkan judul, tebak sumber anime).
+Tidak ada yang butuh penalaran panjang, jadi effort tinggi cuma
+menambah ongkos dan waktu tunggu tanpa menambah ketepatan.
+
+Model yang lebih murah: `claude-haiku-4-5-20251001`. Untuk
+pengelompokan judul hasilnya masih rapi.
+
+### Yang TIDAK dikerjakan AI, penyedia mana pun
+
+**Menarik data dari Danbooru bukan pekerjaan AI.** `sync_danbooru.php`
+dan `import_characters.php` cuma memanggil API Danbooru lalu menyimpan
+hasilnya apa adanya — tidak ada yang perlu ditafsirkan di situ.
+Menyuruh AI melakukannya akan lebih lambat, lebih mahal, dan lebih
+gampang salah ketimbang `curl`.
+
+AI baru berguna **sesudah** datanya masuk: mengelompokkan judul,
+menebak sumber, memilih modul. Di situlah ada penilaian yang tidak
+bisa ditulis jadi aturan.
+
 ### Soal biaya, kalau memilih ChatGPT
 
 Tugas terberat di sini adalah mengelompokkan judul. Satu panggilan

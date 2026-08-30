@@ -28,7 +28,17 @@ defined('DB_USER')    || define('DB_USER', 'root');
 defined('DB_PASS')    || define('DB_PASS', '');
 
 // AI Optimizer
-defined('AI_PROVIDER') || define('AI_PROVIDER', 'gemini');   // gemini | openai_compatible
+defined('AI_PROVIDER') || define('AI_PROVIDER', 'gemini');   // gemini | claude | openai_compatible
+
+// Seberapa dalam Claude berpikir sebelum menjawab: low | medium | high |
+// xhigh | max. Cuma dipakai provider claude.
+//
+// Bawaannya low, dan itu disengaja: seluruh tugas AI di proyek ini
+// penggolongan — pilih modul dari daftar, kelompokkan judul, tebak
+// sumber anime. Tidak ada yang butuh penalaran panjang, dan effort
+// tinggi cuma menambah ongkos serta waktu tunggu tanpa menambah
+// ketepatan. Naikkan kalau hasil pengelompokannya terasa asal.
+defined('AI_EFFORT')   || define('AI_EFFORT', 'low');
 defined('AI_API_KEY')  || define('AI_API_KEY', '');
 defined('AI_MODEL')    || define('AI_MODEL', 'gemini-2.0-flash');
 defined('AI_BASE_URL') || define('AI_BASE_URL', '');          // dipakai provider openai_compatible

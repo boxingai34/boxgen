@@ -236,11 +236,19 @@ judul('5. AI Optimizer');
 if (!AiClient::isConfigured()) {
     info('AI_API_KEY kosong — fitur AI mati, sisa website tetap jalan normal.');
     info('');
-    info('Kalau mau menyalakannya:');
-    info('  1. Buka https://aistudio.google.com/apikey');
-    info('  2. Masuk pakai akun Google, klik "Create API key"');
-    info('  3. Salin kunci yang muncul ke AI_API_KEY');
-    info('  4. Jalankan pemeriksa ini lagi untuk melihat daftar model');
+    info('Kalau mau menyalakannya, pilih salah satu:');
+    info('');
+    info('  Gemini (ada paket gratis):');
+    info('    1. Buka https://aistudio.google.com/apikey');
+    info('    2. Masuk pakai akun Google, klik "Create API key"');
+    info('    3. Salin kuncinya ke AI_API_KEY, AI_PROVIDER = gemini');
+    info('');
+    info('  Claude (bayar per pemakaian, hasil penggolongannya lebih rapi):');
+    info('    1. Buka https://console.anthropic.com/settings/keys');
+    info('    2. Klik "Create Key", salin kuncinya ke AI_API_KEY');
+    info('    3. AI_PROVIDER = claude, AI_MODEL = claude-opus-5');
+    info('');
+    info('Sesudah itu jalankan pemeriksa ini lagi untuk melihat daftar model.');
 } else {
     info('Provider : ' . AI_PROVIDER);
     info('Model    : ' . AI_MODEL);
@@ -292,6 +300,51 @@ if (!AiClient::isConfigured()) {
             if (count($model) > 25) {
                 info('  ... dan ' . (count($model) - 25) . ' lainnya');
             }
+        }
+    } elseif (AI_PROVIDER === 'claude') {
+        $ch = curl_init('https://api.anthropic.com/v1/models?limit=100');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => [
+                'x-api-key: ' . AI_API_KEY,
+                'anthropic-version: 2023-06-01',
+            ],
+        ]);
+        $raw    = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($raw === false) {
+            gagal('Tidak bisa menghubungi server Claude.');
+        } elseif ($status === 401 || $status === 403) {
+            gagal("API key ditolak (HTTP {$status}). Periksa lagi kuncinya.");
+        } elseif ($status >= 400) {
+            gagal("Server Claude menjawab HTTP {$status}.");
+        } else {
+            $json  = json_decode((string)$raw, true);
+            $model = array_map(
+                static fn(array $m): string => (string)($m['id'] ?? ''),
+                $json['data'] ?? []
+            );
+
+            ok('API key valid. ' . count($model) . ' model tersedia.');
+
+            if (!in_array(AI_MODEL, $model, true)) {
+                gagal('Model "' . AI_MODEL . '" TIDAK ada di daftar. Ganti dengan salah satu di bawah.');
+            } else {
+                ok('Model "' . AI_MODEL . '" tersedia.');
+            }
+
+            say('');
+            info('Model yang bisa dipakai (yang haiku paling murah):');
+            foreach (array_slice($model, 0, 25) as $m) {
+                info('  ' . $m . ($m === AI_MODEL ? '   <- yang kamu pakai' : ''));
+            }
+
+            say('');
+            info('Kedalaman berpikir (AI_EFFORT) = ' . AI_EFFORT . '.');
+            info('Seluruh tugas AI di sini cuma penggolongan, jadi low sudah cukup.');
         }
     } else {
         info('Provider openai_compatible — pastikan AI_BASE_URL sudah diisi.');

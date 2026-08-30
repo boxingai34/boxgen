@@ -52,6 +52,7 @@ final class AiClient
 
         $text = match (AI_PROVIDER) {
             'gemini'            => self::callGemini($system, $user, $expectJson),
+            'claude'            => self::callClaude($system, $user, $expectJson),
             'openai_compatible' => self::callOpenAiCompatible($system, $user, $expectJson),
             default             => throw new RuntimeException('AI_PROVIDER tidak dikenal: ' . AI_PROVIDER),
         };
@@ -139,6 +140,128 @@ final class AiClient
         return $text;
     }
 
+    /**
+     * Claude (Anthropic Messages API).
+     *
+     * TIGA HAL YANG BERBEDA DARI DUA DRIVER LAIN, DAN SEMUANYA BISA MENGGIGIT
+     * KALAU DISAMAKAN BEGITU SAJA:
+     *
+     * 1. JAWABANNYA BUKAN SATU BLOK TEKS.
+     *    `content` itu DAFTAR blok, dan di model sekarang blok pertamanya
+     *    sering blok "thinking" — bukan teks. Mengambil `content[0].text`
+     *    seperti driver Gemini akan mengembalikan kosong, dan yang terlihat
+     *    cuma "AI tidak mengembalikan teks" padahal jawabannya ada. Jadi
+     *    blok teksnya dicari, bukan ditebak posisinya.
+     *
+     * 2. TIDAK ADA SAKELAR "BALAS DALAM JSON".
+     *    Gemini punya responseMimeType, OpenAI punya response_format. Di
+     *    sini permintaannya ditulis di prompt. parseJson() sudah tahan
+     *    terhadap pembungkus ```json, jadi cukup dipertegas kalimatnya.
+     *
+     * 3. PERMINTAAN BISA DITOLAK, DAN ITU BUKAN ERROR HTTP.
+     *    Penolakan datang sebagai HTTP 200 dengan stop_reason "refusal".
+     *    Membaca isinya tanpa memeriksa itu dulu menghasilkan pesan yang
+     *    menyesatkan. `fallbacks: default` menyuruh servernya mencoba ulang
+     *    di model lain sebelum menyerah — untuk pekerjaan di sini
+     *    (mengelompokkan judul anime, memilih modul) penolakan hampir
+     *    mustahil, tapi ongkosnya nol jadi tidak ada alasan mematikannya.
+     */
+    private static function callClaude(string $system, string $user, bool $expectJson): string
+    {
+        $model = trim((string)AI_MODEL);
+
+        // Salah model itu kesalahan paling gampang terjadi waktu berpindah
+        // provider — AI_MODEL masih berisi nama Gemini, lalu yang muncul
+        // cuma HTTP 404 yang tidak menjelaskan apa-apa.
+        if (!str_starts_with($model, 'claude-')) {
+            throw new RuntimeException(
+                'AI_PROVIDER diset "claude" tapi AI_MODEL berisi "' . $model . '". '
+                . 'Isi dengan nama model Claude, misalnya claude-opus-5.'
+            );
+        }
+
+        $body = [
+            'model'      => $model,
+            'max_tokens' => 16000,
+            'system'     => $system,
+            'messages'   => [['role' => 'user', 'content' => $user]],
+
+            // Tugas di proyek ini semuanya penggolongan: pilih dari daftar,
+            // kelompokkan judul, tebak sumber. Effort rendah sudah cukup,
+            // dan itu memangkas ongkos maupun waktu tunggunya.
+            'output_config' => ['effort' => (string)AI_EFFORT],
+
+            // Kalau permintaannya ditolak, servernya mencoba model lain
+            // sendiri alih-alih mengembalikan penolakan.
+            'fallbacks' => 'default',
+        ];
+
+        if ($expectJson) {
+            $body['system'] .= "\n\nBalas HANYA dengan satu objek JSON yang sah. "
+                             . 'Tanpa penjelasan, tanpa pembungkus ```.';
+        }
+
+        $json = self::httpPost('https://api.anthropic.com/v1/messages', $body, [
+            'Content-Type: application/json',
+            'x-api-key: ' . AI_API_KEY,
+            'anthropic-version: 2023-06-01',
+            'anthropic-beta: server-side-fallback-2026-07-01',
+        ]);
+
+        return self::bacaClaude($json);
+    }
+
+    /**
+     * Ambil teks dari jawaban Claude.
+     *
+     * Dipisah dari callClaude() supaya bisa diuji tanpa memanggil API
+     * sungguhan — tiga cabangnya (blok pikiran di depan, penolakan,
+     * jawaban terpotong) justru yang paling jarang kejadian dan paling
+     * mahal kalau salah tangan.
+     */
+    private static function bacaClaude(array $json): string
+    {
+        $alasan = (string)($json['stop_reason'] ?? '');
+
+        if ($alasan === 'refusal') {
+            $kategori = $json['stop_details']['category'] ?? 'tidak disebut';
+
+            throw new RuntimeException(
+                'Permintaan ditolak penyaring keamanan Claude (kategori: ' . $kategori . '). '
+                . 'Untuk pekerjaan di sini itu tidak wajar — periksa isi promptnya.'
+            );
+        }
+
+        // Blok teksnya dicari, bukan diambil dari posisi nol. Lihat catatan
+        // nomor 1 di atas.
+        $text = '';
+
+        foreach (($json['content'] ?? []) as $blok) {
+            if (($blok['type'] ?? '') === 'text') {
+                $text .= (string)($blok['text'] ?? '');
+            }
+        }
+
+        // Sama seperti driver Gemini: katakan apa adanya kalau kepotong.
+        // Tanpa ini yang terlihat cuma "bukan JSON yang valid" — menuduh
+        // formatnya, padahal formatnya benar dan cuma belum selesai ditulis.
+        if ($alasan === 'max_tokens') {
+            throw new RuntimeException(
+                'Jawaban Claude terpotong karena kehabisan jatah token. '
+                . 'Kecilkan permintaannya, atau naikkan max_tokens di engine/AiClient.php.'
+            );
+        }
+
+        if ($text === '') {
+            throw new RuntimeException(
+                'Claude tidak mengembalikan teks (stop_reason: ' . ($alasan ?: 'tidak ada') . '). '
+                . 'Jawaban mentah: ' . substr((string)json_encode($json), 0, 300)
+            );
+        }
+
+        return $text;
+    }
+
     private static function callOpenAiCompatible(string $system, string $user, bool $expectJson): string
     {
         $base = rtrim((string)AI_BASE_URL, '/');
@@ -215,7 +338,7 @@ final class AiClient
                 throw new RuntimeException(
                     'Jatah AI habis untuk sekarang. Ini batas dari penyedianya, '
                     . 'bukan setelan yang salah. Tunggu jatahnya pulih, aktifkan '
-                    . 'penagihan, atau ganti AI_PROVIDER ke openai_compatible. '
+                    . 'penagihan, atau ganti AI_PROVIDER ke claude / openai_compatible. '
                     . 'Pesan aslinya: ' . $msg
                 );
             }
