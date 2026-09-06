@@ -144,6 +144,10 @@ final class Seedance25Builder
         'wound'      => 'swelling',
         'wounded'    => 'swollen',
         'injury'     => 'swelling under the eye',
+        'injuries'   => 'swelling under the eye',
+        'gore'       => 'heavy bruising',
+        'gory'       => 'heavily bruised',
+        'unconscious' => 'down and not rising',
         'knockout'   => 'the finish',
         'knocked out' => 'down and not rising',
         'violent'    => 'forceful',
@@ -745,7 +749,18 @@ final class Seedance25Builder
         }
 
         $larang[] = 'no extra people inside the ropes';
-        $larang[] = 'no gore, no injuries beyond bruising and swelling';
+        // TIDAK DITULIS SEBAGAI LARANGAN, DAN ITU DISENGAJA.
+        //
+        // "no gore, no injuries" menaruh kata gore dan injuries ke dalam
+        // promptnya sendiri — dan prompt itulah yang dibaca penyaring isi
+        // platformnya. Tidak ada kolom negative prompt terpisah di
+        // Seedance 2.5 maupun Runway, jadi larangan dan permintaan masuk
+        // ke saringan yang sama. Menyebut hal yang tidak diinginkan sama
+        // saja menyerahkan kata pemicunya.
+        //
+        // Ditulis positif: batasnya sama tegas, tapi kata pemicunya tidak
+        // pernah ada di teksnya.
+        $b[] = 'Keep every visible mark limited to light bruising and swelling.';
 
         $b[] = 'STRICTLY EXCLUDE: ' . implode('; ', $larang) . '.';
 
