@@ -202,6 +202,8 @@ final class Riwayat
             'comic'      => 'Halaman Komik',
             'wan'        => 'Video Wan 3.0',
             'seedance25' => 'Video Seedance 2.5',
+            'reverse'    => 'Dari Gambar',
+            'reverse_video' => 'Dari Video',
             default      => '1 Petinju',
         };
 

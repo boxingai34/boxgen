@@ -125,7 +125,11 @@ final class TagResolver
      * Autocomplete. Diurutkan berdasarkan post_count — makin besar angkanya,
      * makin sering tag itu muncul di training data, makin patuh model AI-nya.
      */
-    public static function search(string $q, int $limit = 15, bool $allowNsfw = false): array
+    /**
+     * @param ?int $kategori batasi ke satu kategori Danbooru
+     *                       (0 umum, 1 artis, 3 judul, 4 karakter, 5 meta)
+     */
+    public static function search(string $q, int $limit = 15, bool $allowNsfw = false, ?int $kategori = null): array
     {
         $q = trim(mb_strtolower($q, 'UTF-8'));
         if ($q === '') {
@@ -139,14 +143,22 @@ final class TagResolver
 
         $nsfwFilter = $allowNsfw ? '' : ' AND t.is_nsfw = 0';
 
+        $params = [$like, $like2, $likeId];
+        $katFilter = '';
+        if ($kategori !== null) {
+            $katFilter = ' AND t.category = ?';
+            $params[]  = $kategori;
+        }
+        $params[] = $like;
+
         return Database::all(
             "SELECT t.id, t.name, t.category, t.post_count, t.label_id, t.local_group, t.source
              FROM tags t
              WHERE t.is_blocked = 0 {$nsfwFilter}
-               AND (t.name LIKE ? OR t.name LIKE ? OR t.label_id LIKE ?)
+               AND (t.name LIKE ? OR t.name LIKE ? OR t.label_id LIKE ?){$katFilter}
              ORDER BY (t.name LIKE ?) DESC, t.post_count DESC
              LIMIT {$limit}",
-            [$like, $like2, $likeId, $like]
+            $params
         );
     }
 

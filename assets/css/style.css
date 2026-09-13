@@ -751,3 +751,127 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 }
 .sub-box > .hint { margin: 0 0 10px; }
 .sub-box .field { margin-bottom: 10px; }
+
+/* ---------- reverse prompt ---------- */
+
+/* Zona seret-lepas. Kotak berkasnya tetap terlihat di dalamnya — bukan
+   disembunyikan — supaya yang tidak bisa menyeret tetap punya tombol. */
+.zona-unggah {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 20px 16px 16px;
+    text-align: center;
+    background: var(--panel-2);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.zona-unggah:hover { border-color: var(--accent); }
+.zona-unggah.aktif { border-color: var(--accent); background: rgba(110,168,254,.08); }
+.zona-unggah p { margin: 0; }
+.zona-unggah .zona-teks { font-size: 14px; }
+.zona-unggah .hint { margin: 4px 0 12px; }
+
+/* input[type=file] mengikuti gaya isian lain — sebelumnya belum pernah
+   digayakan karena belum ada halaman yang memakainya. */
+input[type="file"] {
+    width: 100%;
+    padding: 7px 11px;
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+input[type="file"]:focus { outline: none; border-color: var(--accent); }
+input[type="file"]::file-selector-button {
+    font: inherit;
+    font-size: 12px;
+    padding: 3px 10px;
+    margin-right: 10px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
+
+input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0; }
+
+/* strip thumbnail frame yang terambil (untuk gambar: satu pratinjau utuh) */
+.strip-frame { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.strip-frame:empty { display: none; }
+.strip-frame figure { margin: 0; flex: none; width: 96px; }
+.strip-frame img {
+    display: block;
+    width: 96px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: #000;
+}
+.strip-frame figcaption { font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
+.strip-frame figure.utuh { width: 100%; }
+.strip-frame img.utuh {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 260px;
+    object-fit: contain;
+    margin: 0 auto;
+}
+
+.modebar-target { flex-wrap: wrap; margin-bottom: 6px; }
+.modebar-target .modebtn { padding: 7px 16px; font-size: 14px; }
+
+/* ringkasan satu kalimat dari pembaca */
+.ringkas {
+    margin: 0 0 12px;
+    padding: 8px 11px;
+    font-size: 14px;
+    background: var(--panel-2);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+}
+.ringkas[hidden] { display: none; }
+
+/* kartu per subjek — kerabat dekat .person di Prompt Generator */
+.subjek {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 14px;
+    background: rgba(255,255,255,.015);
+}
+.subjek h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--accent);
+}
+.subjek .field { margin-bottom: 10px; }
+.subjek .field .hint { margin-top: 4px; }
+.subjek .chips { margin-top: 2px; }
+.ringkas-subjek { margin: 0 0 10px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+.field-row.tiga { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 560px) { .field-row.tiga { grid-template-columns: 1fr; } }
+
+#raw-json { font-size: 12px; line-height: 1.45; }
+
+#result-head { margin-bottom: 12px; font-size: 13px; }
+#result-ringkasan { color: var(--accent); font-weight: 600; }
+#acuan-block { margin-top: 4px; }
+#acuan-block > .out-head { margin-bottom: 10px; }
+#validasi-note .note { margin-bottom: 8px; }
+
+/* pembungkus yang ditoggle lewat atribut hidden */
+.only-ref-video[hidden],
+.only-target-video[hidden],
+.only-target-seed[hidden],
+.only-hasil-baca[hidden],
+.tab[hidden] { display: none; }

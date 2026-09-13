@@ -6,16 +6,28 @@ require __DIR__ . '/_bootstrap.php';
 /**
  * Autocomplete tag.
  *
- * GET /api/tag_search.php?q=box
+ * GET /api/tag_search.php?q=box[&limit=15][&kategori=1]
  *
  * Hasil diurutkan dari post_count terbesar: makin sering tag itu dipakai di
  * Danbooru, makin besar kemungkinan model AI benar-benar mengenalinya.
+ *
+ * kategori: 0 umum, 1 artis, 3 judul, 4 karakter, 5 meta. Dipakai kotak
+ * "tag artis" di halaman reverse — tanpa saringan itu, mengetik nama artis
+ * tenggelam di antara tag umum yang jumlah gambarnya jauh lebih besar.
  */
 
 $q     = (string)($_GET['q'] ?? '');
 $limit = (int)($_GET['limit'] ?? 15);
 
-$rows = TagResolver::search($q, $limit, ALLOW_NSFW);
+$kategori = null;
+if (isset($_GET['kategori']) && $_GET['kategori'] !== '') {
+    $k = (int)$_GET['kategori'];
+    if (in_array($k, [0, 1, 3, 4, 5], true)) {
+        $kategori = $k;
+    }
+}
+
+$rows = TagResolver::search($q, $limit, ALLOW_NSFW, $kategori);
 
 $results = array_map(static function (array $t): array {
     $count = (int)$t['post_count'];

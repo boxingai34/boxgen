@@ -45,6 +45,72 @@ defined('AI_BASE_URL') || define('AI_BASE_URL', '');          // dipakai provide
 defined('AI_DAILY_LIMIT_PER_IP') || define('AI_DAILY_LIMIT_PER_IP', 30);
 defined('AI_TIMEOUT')  || define('AI_TIMEOUT', 30);
 
+// ---------------------------------------------------------------------
+// Reverse prompt: dari gambar/video ke prompt. Tiga tahap, tiga profil.
+//
+// Setiap tahap boleh memakai penyedia dan model yang berbeda, karena
+// kebutuhannya memang berbeda: tahap VISION harus mau melihat gambar
+// topless (jadi model tanpa sensor), tahap POLISH butuh model yang paling
+// pandai menulis (dan cuma melihat versi bersihnya), tahap NSFW cukup
+// model kecil tanpa sensor yang mengubah kalimat pakaian saja.
+//
+// Kosongkan salah satu = ikut AI_PROVIDER/AI_MODEL/AI_BASE_URL. Kuncinya:
+// AI_<TAHAP>_API_KEY dulu; kalau kosong dan base_url-nya venice.ai dipakai
+// VENICE_API_KEY; kalau providernya sama dengan AI_PROVIDER dipakai
+// AI_API_KEY. Semua ini bisa ditimpa dari config.local.php seperti biasa.
+// ---------------------------------------------------------------------
+defined('VENICE_API_KEY')  || define('VENICE_API_KEY', '');
+defined('VENICE_BASE_URL') || define('VENICE_BASE_URL', 'https://api.venice.ai/api/v1');
+
+// Pembaca gambar. Bawaannya Qwen di Venice karena tanpa sensor, tapi
+// ketelitiannya biasa saja — pakaian yang tidak umum sering diseragamkan
+// jadi "sports bra". Untuk referensi yang tidak telanjang, OpenAI jauh
+// lebih teliti. Contoh memakai OpenAI langsung (isi di config.local.php):
+//
+//   define('AI_VISION_PROVIDER', 'openai_compatible');
+//   define('AI_VISION_BASE_URL', 'https://api.openai.com/v1');
+//   define('AI_VISION_MODEL',    'gpt-5.6-terra');   // luna lebih murah, sol paling teliti
+//   define('AI_VISION_API_KEY',  'sk-...');
+//
+defined('AI_VISION_PROVIDER') || define('AI_VISION_PROVIDER', 'openai_compatible');
+defined('AI_VISION_MODEL')    || define('AI_VISION_MODEL', 'qwen3-vl-235b-a22b');
+defined('AI_VISION_BASE_URL') || define('AI_VISION_BASE_URL', VENICE_BASE_URL);
+defined('AI_VISION_API_KEY')  || define('AI_VISION_API_KEY', '');
+defined('AI_VISION_TIMEOUT')  || define('AI_VISION_TIMEOUT', 120);
+
+// Pembaca cadangan, dipakai OTOMATIS kalau yang utama menolak atau gagal.
+// Inilah yang membuat OpenAI aman dipasang sebagai pembaca utama: begitu
+// dia menolak gambar telanjang, Qwen di Venice yang meneruskan, dan kamu
+// cuma melihat satu catatan kecil di hasilnya. Kosongkan AI_VISION2_MODEL
+// kalau tidak mau ada cadangan sama sekali.
+defined('AI_VISION2_PROVIDER') || define('AI_VISION2_PROVIDER', 'openai_compatible');
+defined('AI_VISION2_MODEL')    || define('AI_VISION2_MODEL', 'qwen3-vl-235b-a22b');
+defined('AI_VISION2_BASE_URL') || define('AI_VISION2_BASE_URL', VENICE_BASE_URL);
+defined('AI_VISION2_API_KEY')  || define('AI_VISION2_API_KEY', '');
+defined('AI_VISION2_TIMEOUT')  || define('AI_VISION2_TIMEOUT', 120);
+
+defined('AI_POLISH_PROVIDER') || define('AI_POLISH_PROVIDER', 'openai_compatible');
+defined('AI_POLISH_MODEL')    || define('AI_POLISH_MODEL', 'claude-sonnet-5');
+defined('AI_POLISH_BASE_URL') || define('AI_POLISH_BASE_URL', VENICE_BASE_URL);
+defined('AI_POLISH_API_KEY')  || define('AI_POLISH_API_KEY', '');
+defined('AI_POLISH_EFFORT')   || define('AI_POLISH_EFFORT', 'medium');
+defined('AI_POLISH_TIMEOUT')  || define('AI_POLISH_TIMEOUT', 120);
+
+defined('AI_NSFW_PROVIDER') || define('AI_NSFW_PROVIDER', 'openai_compatible');
+defined('AI_NSFW_MODEL')    || define('AI_NSFW_MODEL', 'venice-uncensored-1-2');
+defined('AI_NSFW_BASE_URL') || define('AI_NSFW_BASE_URL', VENICE_BASE_URL);
+defined('AI_NSFW_API_KEY')  || define('AI_NSFW_API_KEY', '');
+defined('AI_NSFW_TIMEOUT')  || define('AI_NSFW_TIMEOUT', 90);
+
+// Jatah reverse per pengunjung per hari (satu "baca" atau satu "susun"
+// = satu hit), batas ukuran gambar setelah decode, jumlah frame video
+// maksimal, dan berapa contoh emas yang disertakan ke tahap polish.
+defined('REVERSE_DAILY_LIMIT_PER_IP') || define('REVERSE_DAILY_LIMIT_PER_IP', 40);
+defined('REVERSE_MAX_IMAGE_BYTES')    || define('REVERSE_MAX_IMAGE_BYTES', 6 * 1024 * 1024);
+defined('REVERSE_MAX_FRAMES')         || define('REVERSE_MAX_FRAMES', 12);
+defined('REVERSE_FEWSHOT')            || define('REVERSE_FEWSHOT', 3);
+defined('GOLDEN_DIR')                 || define('GOLDEN_DIR', '');
+
 // Sinkronisasi Danbooru
 defined('DANBOORU_BASE')       || define('DANBOORU_BASE', 'https://danbooru.donmai.us');
 defined('DANBOORU_USER_AGENT') || define('DANBOORU_USER_AGENT', 'BooruPromptGenerator/0.1 (kontak: ganti@email.kamu)');

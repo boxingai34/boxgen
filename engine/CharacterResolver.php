@@ -224,7 +224,7 @@ final class CharacterResolver
                 'INSERT INTO characters (slug, name, series_id, booru_tag, popularity, source)
                  VALUES (?,?,?,?,?,?)',
                 [
-                    self::slug($booruTag),
+                    self::slugBebas($booruTag),
                     self::namaCantik($booruTag),
                     $seriesId,
                     $booruTag,
@@ -424,6 +424,34 @@ final class CharacterResolver
         $nama = str_replace('_', ' ', $booruTag);
         $nama = preg_replace('/\s*\([^)]*\)\s*$/', '', $nama) ?? $nama;
         return ucwords(trim($nama));
+    }
+
+    /**
+     * Slug yang dijamin belum dipakai.
+     *
+     * slug() membuang semua yang bukan huruf dan angka, jadi dua tag yang
+     * berbeda bisa menghasilkan slug yang sama — "sailor_moon" dan
+     * "sailor moon" keduanya jadi "sailor-moon". Dulu itu membuat INSERT
+     * di ensure() melempar PDOException 1062 yang tidak ditangkap siapa
+     * pun, dan seluruh permintaan gagal cuma karena satu nama karakter.
+     * Kolom booru_tag tetap yang menentukan identitas; slug cuma alamat.
+     */
+    private static function slugBebas(string $booruTag): string
+    {
+        $dasar = self::slug($booruTag);
+        $slug  = $dasar;
+
+        for ($i = 2; $i < 50; $i++) {
+            if (Database::value('SELECT 1 FROM characters WHERE slug = ?', [$slug]) === null) {
+                return $slug;
+            }
+            $akhiran = '-' . $i;
+            $slug = mb_substr($dasar, 0, 120 - mb_strlen($akhiran)) . $akhiran;
+        }
+
+        // Sudah 48 tabrakan pada nama yang sama: pakai potongan hash supaya
+        // tetap masuk, daripada permintaannya gagal.
+        return mb_substr($dasar, 0, 111) . '-' . substr(md5($booruTag), 0, 8);
     }
 
     private static function slug(string $booruTag): string

@@ -40,6 +40,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 
     $menu = [
         'index.php'   => 'Prompt Generator',
+        'reverse.php' => 'Dari Gambar/Video',
         'history.php' => 'Riwayat',
     ];
     ?>
@@ -49,7 +50,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — <?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=26">
+<link rel="stylesheet" href="assets/css/style.css?v=27">
 </head>
 <body<?= $polos ? ' class="polos"' : '' ?>>
 

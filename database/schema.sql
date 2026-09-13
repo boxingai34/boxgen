@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS `tags` (
   UNIQUE KEY `uq_tag_name` (`name`),
   KEY `idx_cat_count` (`category`, `post_count`),
   KEY `idx_group` (`local_group`),
-  KEY `idx_count` (`post_count`)
+  KEY `idx_count` (`post_count`),
+  KEY `idx_label` (`label_id`)   -- dicari TagResolver::find untuk tiap tag yang tidak dikenal
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
@@ -341,4 +342,31 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `uq_email` (`email`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- 20. golden_examples : contoh emas untuk modul reverse prompt
+--     Prompt lama yang hasilnya terbukti bagus (PNG NovelAI, CSV Venice).
+--     Tahap "polish" menyertakan beberapa yang paling mirip sebagai
+--     contoh gaya. Diisi lewat tools/import_golden.php.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `golden_examples` (
+  `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `kind`          VARCHAR(10)  NOT NULL DEFAULT 'image',   -- image|video
+  `target`        VARCHAR(20)  NOT NULL DEFAULT 'nai5',    -- nai5|wan|seedance25
+  `title`         VARCHAR(190) DEFAULT NULL,
+  `prompt`        MEDIUMTEXT   NOT NULL,                   -- prompt utuh (untuk NovelAI: base; kotak karakter di meta)
+  `undesired`     TEXT         DEFAULT NULL,
+  `tags`          TEXT         DEFAULT NULL,               -- tag Danbooru dipisah spasi, sudah divalidasi, untuk pencarian mirip
+  `character_tag` VARCHAR(190) DEFAULT NULL,
+  `model_version` VARCHAR(60)  DEFAULT NULL,               -- 'NovelAI Diffusion V5' | 'Wan 3.0 Reference' | ...
+  `source_path`   VARCHAR(500) DEFAULT NULL,
+  `source_hash`   CHAR(64)     DEFAULT NULL,               -- sha256 isi berkas, anti duplikat
+  `meta`          TEXT         DEFAULT NULL,               -- JSON: {chars:[...], size:"832x1216", seed, vibe:bool, duration, ...}
+  `is_nsfw`       TINYINT(1)   NOT NULL DEFAULT 0,
+  `rating`        TINYINT      DEFAULT NULL,               -- 1-5 nilai user, NULL = belum
+  `created_at`    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_golden_hash` (`source_hash`),
+  KEY `idx_golden_kind` (`kind`, `target`),
+  KEY `idx_golden_char` (`character_tag`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

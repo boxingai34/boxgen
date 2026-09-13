@@ -1764,3 +1764,140 @@ terhapus dari database.
 
 Setelah menambah tag baru, **selalu jalankan `tools/verify_tags.php`** untuk
 memastikan tagnya benar-benar ada di Danbooru.
+
+---
+
+## Dari Gambar/Video (reverse prompt)
+
+Kebalikan dari generator: unggah gambar atau video, halaman `reverse.php`
+membacanya, lalu menyusun prompt yang setia pada referensinya dalam format
+yang sudah ada di aplikasi — NovelAI V5 (Base Prompt + kotak karakter +
+Undesired Content), Wan 3.0, atau Seedance 2.5. Rancangan lengkapnya ada di
+`RENCANA-REVERSE.md`.
+
+### Tiga tahap, tiga profil AI
+
+| Tahap | Tugas | Konstanta | Bawaan |
+|---|---|---|---|
+| vision | membaca referensi apa adanya, termasuk bagian topless | `AI_VISION_*` | Venice `qwen3-vl-235b-a22b` |
+| polish | menulis ulang versi BERSIH-nya jadi prosa gaya rumah, dengan contoh emas | `AI_POLISH_*` | Venice `claude-sonnet-5` |
+| nsfw | mengembalikan bagian pakaian ke aslinya setelah semuanya OK | `AI_NSFW_*` atau aturan kode | Venice `venice-uncensored-1-2` |
+
+Tahap polish tidak pernah melihat kata topless: bagian itu disamarkan
+dulu jadi penanda netral dan dikembalikan belakangan. Untuk NovelAI,
+pengembaliannya cukup aturan tag; model tanpa sensor hanya dipakai untuk
+prompt video yang berbentuk kalimat panjang.
+
+### Menyalakan
+
+1. Buat API key di Venice (venice.ai → Settings → API Keys), isi kredit.
+2. Isi di `config.local.php`:
+
+```php
+define('VENICE_API_KEY', 'kunci-venice-mu');
+```
+
+Satu kunci itu dipakai ketiga tahap. Kalau mau, tiap tahap bisa dipisah:
+`AI_VISION_PROVIDER`/`_MODEL`/`_BASE_URL`/`_API_KEY`, dan seterusnya untuk
+`AI_POLISH_*` dan `AI_NSFW_*` — kosongkan untuk ikut bawaan. Provider yang
+dikenal sama seperti AI Optimizer: `gemini`, `claude`, `openai_compatible`.
+
+### Memakai OpenAI sebagai pembaca gambar
+
+Qwen di Venice tidak disensor, tapi ketelitiannya biasa saja: pakaian yang
+tidak umum sering diseragamkan jadi "sports bra". OpenAI jauh lebih teliti.
+Ambil kunci di platform.openai.com → API keys, lalu tambahkan:
+
+```php
+define('AI_VISION_PROVIDER', 'openai_compatible');
+define('AI_VISION_BASE_URL', 'https://api.openai.com/v1');
+define('AI_VISION_MODEL',    'gpt-5.6-terra');
+define('AI_VISION_API_KEY',  'sk-...');
+```
+
+| Model | Harga per 1 juta token masuk | Untuk siapa |
+|---|---|---|
+| `gpt-5.6-luna` | 0,20 dolar | paling murah, cukup untuk gambar sederhana |
+| `gpt-5.6-terra` | 2 dolar | pilihan seimbang, disarankan |
+| `gpt-5.6-sol` | 4 dolar | paling teliti |
+
+Satu gambar memakai beberapa ribu token, jadi ongkos sekali baca masih di
+bawah satu sen bahkan pada Sol.
+
+**Yang perlu kamu tahu:** kebijakan OpenAI menolak gambar yang benar-benar
+telanjang. Karena itu ada pembaca cadangan (`AI_VISION2_*`, bawaannya Qwen di
+Venice) yang otomatis mengambil alih begitu pembaca utama menolak — kamu cuma
+melihat satu catatan kuning di hasil pembacaan. Jadi pasang OpenAI untuk
+ketelitian, biarkan Venice menangani yang telanjang.
+
+3. Buat tabel contoh emas dan indeks kamus (sekali saja, aman diulang):
+
+```bash
+C:\xampp2\mysql\bin\mysql.exe -u root boxgen < database\migrations\010_reverse_prompt.sql
+C:\xampp2\mysql\bin\mysql.exe -u root boxgen < database\migrations\011_indeks_label_tag.sql
+```
+
+Migrasi 011 cuma menambah indeks pada `tags.label_id`. Tanpa itu, tiap tag
+yang tidak dikenal memicu pemindaian seluruh kamus (±40 ms), dan modul ini
+memeriksa puluhan tag per permintaan.
+
+4. Isi contoh emas dari prompt lamamu yang hasilnya bagus. PNG hasil NovelAI
+   menyimpan promptnya di dalam berkas, jadi cukup tunjuk foldernya; riwayat
+   video Venice diambil dari CSV ekspornya:
+
+```bash
+C:\xampp2\php\php.exe tools\import_golden.php png "D:\folder\hasil-novelai"
+C:\xampp2\php\php.exe tools\import_golden.php venice "D:\folder\venice-video-history.csv"
+```
+
+Aman diulang — yang sudah ada dilewati. Contoh yang paling mirip (tag dan
+karakter yang sama) disertakan ke tahap polish supaya nadanya nada promptmu,
+bukan nada model.
+
+### Gaya visual dan tag artis
+
+Kalau prompt hasilnya terasa hambar, tiga isian ini yang memberi watak:
+
+| Isian | Gunanya |
+|---|---|
+| **Gaya visual** | Menggantikan gaya bacaan dengan gaya pilihanmu. Daftarnya modul `style` (26 gaya gambar, termasuk lima "rasa studio") dan `video_style` untuk target video — sama persis dengan Prompt Generator, jadi apa yang kamu tambahkan lewat Admin langsung muncul di sini. |
+| **Tag artis** | Tuas paling ampuh: satu nama artis mengubah garis, warna, dan proporsi sekaligus. Diketik dengan saran dari kamus, boleh lebih dari satu dipisah koma. Nama yang tidak ada di kamus dibuang dan dilaporkan. |
+| **Kekuatan gaya** | Bobot NovelAI untuk tag gaya dan artis. Sedang menulis `1.15::gaya::`, Kuat menulis `1.30::gaya::`. Tanpa bobot, tag gaya kalah suara oleh puluhan tag isi. |
+
+Gaya pilihan **menggantikan**, bukan mencampur: begitu kamu memilih gaya,
+tag medium dari hasil bacaan (`realistic`, `anime_coloring`, dan sejenisnya)
+dibuang, supaya dua gaya tidak saling berkelahi di satu prompt. Untuk target
+video, gaya pilihan jadi paragraf pertama prompt dan tag artis masuk ke prompt
+lembar acuannya, karena di situlah wujud petinjunya lahir.
+
+### Alur di halaman
+
+1. **Unggah** gambar atau video. Semua pra-proses di browser: gambar
+   dikecilkan, video diambil beberapa frame plus satu lembar kontak. Server
+   hanya menerima JPEG kecil, jadi jalan juga di hosting yang tidak punya
+   ffmpeg atau GD.
+2. **Baca Referensi** → tahap vision. Hasilnya ditampilkan per petinju dan
+   **bisa dibetulkan** sebelum disusun: jenis kelamin, karakter (dengan saran
+   dari kamus), kuda-kuda, jenis pukulan, siapa memukul siapa. Pembaca paling
+   sering salah di dua hal terakhir, jadi itu sengaja dibuat mudah diganti.
+3. **Susun Prompt** → draf deterministik dari kamus (tag karangan dibuang dan
+   dilaporkan), dipoles model kuat, lalu keluar dua tab: **Versi aman** dan
+   **Versi setia** (NSFW). Untuk video ikut keluar prompt lembar acuan
+   NovelAI per petinju, sama seperti mode Wan.
+
+Yang tersimpan di Riwayat adalah hasil pembacaannya (bukan berkasnya), jadi
+tombol **Buka** di Riwayat membawa kembali ke halaman ini dan promptnya bisa
+disusun ulang dengan setelan lain.
+
+### Yang perlu diketahui
+
+- Jatah per pengunjung per hari: `REVERSE_DAILY_LIMIT_PER_IP` (bawaan 40);
+  satu "baca" atau satu "susun" yang memakai AI = satu hit. Jawaban yang sama
+  persis (gambar + prompt yang sama) diambil dari `ai_cache`, tidak dibayar dua kali.
+- Batas: gambar ≤ `REVERSE_MAX_IMAGE_BYTES` (6 MB setelah decode), frame video
+  ≤ `REVERSE_MAX_FRAMES` (12). Browser sudah mengecilkan semuanya sebelum kirim.
+- Generator video resmi (Wan, Seedance) menolak ketelanjangan. Versi setia
+  ditujukan untuk layanan tanpa sensor; versi aman untuk selebihnya.
+- Tanpa kunci apa pun, halaman tetap bisa **menyusun** dari hasil pembacaan
+  yang dibuka dari Riwayat atau dari JSON yang ditempel — hanya tombol "Baca
+  Referensi" yang mati.

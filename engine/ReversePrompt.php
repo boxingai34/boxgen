@@ -1,0 +1,2630 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Reverse prompt: dari gambar/video ke prompt.
+ *
+ * Tiga tahap, tiga profil AI (lihat RENCANA-REVERSE.md):
+ *
+ *   1. baca()    — model vision membaca referensi apa adanya, termasuk
+ *                  bagian topless, dan mengembalikan SATU objek JSON
+ *                  terstruktur ("ekstrak").
+ *   2. susun()   — PHP menyusun draf yang deterministik dari ekstrak itu
+ *                  (tag divalidasi ke kamus, format keluaran memakai
+ *                  Exporter yang sudah ada), lalu model kuat MEMOLES
+ *                  versi BERSIH-nya: kalimat natural untuk NovelAI V5,
+ *                  atau kalimat per shot untuk video.
+ *   3. lapisan NSFW — setelah semuanya OK, bagian pakaian dikembalikan
+ *                  ke keadaan aslinya: untuk NovelAI cukup aturan tag,
+ *                  untuk prosa video dipakai model tanpa sensor dengan
+ *                  perintah "ubah kalimat pakaian saja".
+ *
+ * Prinsip yang dipegang: tag dari AI selalu lewat TagResolver dan yang
+ * tidak dikenal dibuang (dilaporkan). Tahap polish tidak pernah melihat
+ * kata topless — kalimat dan contoh yang dikirim ke sana sudah dibersihkan.
+ */
+final class ReversePrompt
+{
+    public const TARGET = [
+        'nai5'       => 'NovelAI V5',
+        'wan'        => 'Video Wan 3.0',
+        'seedance25' => 'Video Seedance 2.5',
+    ];
+
+    public const AKSI = [
+        'jab', 'cross', 'lead_hook', 'rear_hook', 'uppercut', 'body_shot', 'overhand',
+        'slip', 'block', 'clinch', 'knockdown', 'guard', 'idle', 'other',
+    ];
+
+    /** Batas maksimal panjang catatan user yang ikut dikirim ke model. */
+    public const MAKS_HINT = 400;
+
+    /** Panjang maksimal isian tag artis. */
+    public const MAKS_ARTIS = 500;
+
+    /**
+     * Seberapa kuat gaya yang dipilih ditekankan.
+     *
+     * Angkanya jadi bobot NovelAI (`1.20::tag::`). "ikut" berarti tidak ada
+     * bobot sama sekali — gaya cuma ikut arus bersama tag lain. Ini yang
+     * membuat hasilnya "punya karakter": tanpa penekanan, tag gaya kalah
+     * suara oleh puluhan tag isi.
+     */
+    public const KUAT = [
+        'ikut'   => ['label' => 'Ikut apa adanya', 'bobot' => 1.0],
+        'sedang' => ['label' => 'Sedang',          'bobot' => 1.15],
+        'kuat'   => ['label' => 'Kuat',            'bobot' => 1.3],
+    ];
+
+    /**
+     * Tag medium hasil pembacaan yang DIBUANG kalau kamu memilih gaya
+     * sendiri. Kalau tidak, "realistic" dari referensi berkelahi dengan
+     * "1990s (style)" yang kamu minta, dan yang keluar bukan dua-duanya.
+     */
+    private const TAG_MEDIUM = [
+        'anime_coloring', 'realistic', 'photorealistic', 'photo_(medium)', 'comic',
+        'greyscale', 'monochrome', 'sketch', '3d', 'film_grain', 'chromatic_aberration',
+        'cel_shading', 'retro_artstyle', '1980s_(style)', '1990s_(style)', '2000s_(style)',
+        'flat_color', 'thick_outlines', 'lineart', 'painterly', 'toon_(style)', 'pixel_art',
+        'official_art', 'key_visual', 'concept_art', 'chibi', 'minimalism',
+    ];
+
+    /** Maksimal subjek yang dipakai; NovelAI di aplikasi ini mengenal A dan B. */
+    private const MAKS_SUBJEK = 2;
+
+    /** Tag yang disembunyikan dari tahap polish dan dari versi aman. */
+    private const TAG_NSFW = [
+        'topless', 'topless_female', 'topless_male', 'nude', 'completely_nude', 'nipples',
+        'nipple', 'breasts', 'bare_breasts', 'bottomless', 'nsfw', 'no_bra', 'tits',
+        'underboob', 'bare_pectorals', 'nipple_slip', 'areolae', 'pussy', 'ass',
+    ];
+
+    /** Tag penutup atas yang dilepas kalau subjeknya topless. */
+    private const PENUTUP_ATAS = [
+        'sports_bra', 'tank_top', 'crop_top', 'shirt', 'bikini_top', 'bra', 't-shirt',
+        'sleeveless_shirt', 'bikini', 'tube_top', 'jacket', 'hoodie', 'swimsuit',
+    ];
+
+    /**
+     * Sinonim yang sering ditulis model tapi bukan tag Danbooru.
+     *
+     * Tiga di antaranya BUKAN tag yang hilang, melainkan tag yang ADA
+     * dengan arti lain — dan itu justru lebih berbahaya, karena lolos
+     * validasi lalu menggambar barang yang salah:
+     *   cross  = salib (103 ribu gambar), bukan pukulan lurus
+     *   guard  = satpam, bukan sikap bertahan
+     *   trunks = nama karakter Dragon Ball, bukan celana tinju
+     * Kalau suatu saat referensinya memang berisi kalung salib, tag itu
+     * tetap bisa ditulis manual lewat kotak JSON.
+     */
+    private const SINONIM = [
+        'cross'            => 'punching',
+        'guard'            => 'fighting_stance',
+        'black_eye'        => 'bruised_eye',
+        'swollen_eye'      => 'bruised_eye',
+        'topless'          => 'topless_female',
+        'sweaty'           => 'sweat',
+        'punch'            => 'punching',
+        'shirtless'        => 'topless_male',
+        'fist'             => 'clenched_hand',
+        'clenched_fist'    => 'clenched_hand',
+        'gritted_teeth'    => 'clenched_teeth',
+        'bloody_nose'      => 'nosebleed',
+        'mouthpiece'       => 'mouth_guard',
+        'mouthguard'       => 'mouth_guard',
+        'boxing_ring_ropes'=> 'rope',
+        'ropes'            => 'rope',
+        'bandaged_hands'   => 'bandaged_hand',
+        'crouching'        => 'squatting',
+        'arms_raised'      => 'arms_up',
+        'injured'          => 'injury',
+        'bloody_face'      => 'blood_on_face',
+        'bloody'           => 'blood',
+        'exhausted_face'   => 'exhausted',
+        'ring'             => 'boxing_ring',
+        'boxer_shorts'     => 'boxing_shorts',
+        'boxing_trunks'    => 'boxing_shorts',
+        'trunks'           => 'boxing_shorts',
+        'recoiling'        => '',
+        'reeling'          => '',
+        'guarding'         => 'fighting_stance',
+        'straight_punch'   => 'punching',
+        'jab'              => 'punching',
+        'hook'             => 'punching',
+        'boots'            => 'boots',
+        'low_angle'        => 'from_below',
+        'high_angle'       => 'from_above',
+        'close_up'         => 'close-up',
+        'closeup'          => 'close-up',
+        'medium_shot'      => 'cowboy_shot',
+        'wide'             => 'wide_shot',
+        'full_shot'        => 'full_body',
+        'eye_level'        => '',
+        'rim_lighting'     => 'backlighting',
+        'rim_light'        => 'backlighting',
+        'dramatic_lighting'=> '',
+        'cinematic_lighting' => '',
+        'dynamic_angle'    => 'dutch_angle',
+    ];
+
+    private const POLA_PENAMPILAN = [
+        '/_hair$/', '/^hair_/', '/_eyes$/', '/_bun$/', '/_bangs$/', '/_skin$/',
+        '/_breasts$/', '/_horns?$/', '/_ears$/', '/_tail$/', '/ponytail$/', '/twintails$/',
+        '/^muscular/', '/^toned/', '/^abs$/', '/^mature_/', '/^tan$/', '/^tanlines$/',
+        '/^dark_skin/', '/^pale_skin/', '/_hairstyle$/', '/braid/', '/^long_hair$/', '/^short_hair$/',
+    ];
+
+    private const TAG_KAMERA = [
+        'from_below', 'from_above', 'from_side', 'from_behind', 'dutch_angle', 'close-up',
+        'foreshortening', 'fisheye', 'wide_shot', 'cowboy_shot', 'upper_body', 'full_body',
+        'portrait', 'profile', 'pov', 'depth_of_field', 'blurry', 'blurry_background',
+        'blurry_foreground', 'letterboxed', 'motion_blur', 'motion_lines', 'speed_lines',
+        'emphasis_lines', 'afterimage', 'lens_flare', 'chromatic_aberration', 'film_grain',
+        'looking_at_viewer', 'facing_viewer', 'straight-on', 'sideways',
+    ];
+
+    private const TAG_CAHAYA = [
+        'spotlight', 'stage_lights', 'floodlights', 'backlighting', 'sidelighting',
+        'underlighting', 'chiaroscuro', 'silhouette', 'dim_lighting', 'fluorescent_lamp',
+        'neon_lights', 'sunlight', 'light_particles', 'glowing', 'shade', 'shaded_face',
+        'dark', 'darkness', 'night', 'bloom', 'light_rays', 'god_rays',
+    ];
+
+    private const TAG_LATAR = [
+        'boxing_ring', 'wrestling_ring', 'octagon', 'rope', 'crowd', 'audience', 'stadium',
+        'arena', 'indoors', 'outdoors', 'gym', 'punching_bag', 'speed_bag', 'stool',
+        'referee', 'dark_background', 'simple_background', 'white_background',
+        'colored_background', 'gradient_background', 'stage', 'smoke', 'steam', 'dust',
+        'chain-link_fence', 'cage', 'bed', 'locker_room', 'bench', 'towel',
+    ];
+
+    /** Kata-kata pakaian atas versi kalimat yang dilepas di versi setia. */
+    private const FRASA_ATAS = [
+        'sports bra', 'athletic top', 'crop top', 'tank top', 'fitted top', 'sports top',
+        'boxing top', 'bikini top', 'training top', 'sleeveless top', 'bra',
+    ];
+
+    // =================================================================
+    // Tahap 1 — baca
+    // =================================================================
+
+    /**
+     * Baca gambar (atau frame video) dengan profil vision.
+     *
+     * Kalau pembaca utama gagal — menolak gambarnya, kehabisan kuota, atau
+     * servernya diam — pembaca cadangan (profil vision2) mencoba sekali.
+     * Itu yang membuat OpenAI aman dipasang sebagai pembaca utama walau
+     * kebijakannya menolak ketelanjangan: yang telanjang jatuh ke Qwen.
+     *
+     * @param  array  $images  [['data' => base64, 'mime' => 'image/jpeg', 't' => detik|null], ...]
+     * @param  ?array $sheet   contact sheet video (data, mime) atau null
+     * @return array ['ekstrak' => array, 'ringkas' => string, 'model' => string, 'catatan' => string[]]
+     * @throws RuntimeException kalau kedua pembaca gagal
+     */
+    public static function baca(array $images, ?array $sheet, string $kind, ?float $duration, string $hint): array
+    {
+        $kind    = $kind === 'video' ? 'video' : 'image';
+        $profil  = AiClient::profil('vision');
+        $catatan = [];
+
+        $kiriman = [];
+        if ($kind === 'video' && $sheet !== null && !empty($sheet['data'])) {
+            $kiriman[] = [
+                'mime'  => (string)$sheet['mime'],
+                'data'  => (string)$sheet['data'],
+                'label' => 'Contact sheet of the whole clip (read left to right, top to bottom, in time order):',
+            ];
+        }
+        foreach (array_values($images) as $i => $img) {
+            $label = $kind === 'video'
+                ? sprintf('Frame %d at %.1fs:', $i + 1, (float)($img['t'] ?? 0))
+                : ($i === 0 && count($images) === 1 ? '' : 'Image ' . ($i + 1) . ':');
+            $kiriman[] = ['mime' => (string)$img['mime'], 'data' => (string)$img['data'], 'label' => $label];
+        }
+
+        $teks = $kind === 'video'
+            ? sprintf(
+                'Analyze this %s-second video clip using the frames above. Return the JSON object described in the system prompt, and fill "video.shots" with 2-6 shots whose start/end times cover the whole clip contiguously (integers, seconds).',
+                $duration !== null ? (string)round($duration) : 'short'
+            )
+            : 'Analyze this image and return the JSON object described in the system prompt.';
+
+        $hint = trim(mb_substr($hint, 0, self::MAKS_HINT));
+        if ($hint !== '') {
+            $teks .= "\n\nExtra context from the user (trust it when it does not contradict what is visible): " . $hint;
+        }
+
+        $system = self::promptVision($kind);
+        $pesan  = ['text' => $teks, 'images' => $kiriman];
+        $opsi   = ['max_tokens' => 6000, 'temperature' => 0.2];
+
+        try {
+            $raw = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
+        } catch (RuntimeException $e) {
+            $cadangan = AiClient::profil('vision2');
+            $beda = $cadangan['api_key'] !== ''
+                 && ($cadangan['model'] !== $profil['model'] || $cadangan['base_url'] !== $profil['base_url']);
+
+            if (!$beda) {
+                throw $e;
+            }
+
+            $catatan[] = 'Pembaca utama (' . $profil['model'] . ') gagal, dipakai cadangan ('
+                       . $cadangan['model'] . '). Alasannya: ' . $e->getMessage();
+            $profil = $cadangan;
+            $raw = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
+        }
+
+        $ekstrak = self::normalisasi(AiClient::parseJson($raw), $kind, $duration);
+
+        return [
+            'ekstrak' => $ekstrak,
+            'ringkas' => self::ringkas($ekstrak),
+            'model'   => (string)$profil['model'],
+            'catatan' => $catatan,
+        ];
+    }
+
+    /** Prompt sistem tahap 1. Bahasa Indonesia untuk perintahnya, nilai JSON tetap Inggris. */
+    private static function promptVision(string $kind): string
+    {
+        $skema = <<<'JSON'
+{
+  "kind": "image",
+  "style": {"medium": "anime|photo|3d|comic|painting", "render": "short phrase describing the render look (e.g. modern digital anime, cel shading, glossy highlights)", "era": "e.g. 1990s cel anime, modern digital, live action"},
+  "subjects": [
+    {
+      "id": "a",
+      "sex": "female|male|unclear",
+      "sex_evidence": "what visual evidence decides it",
+      "character": "danbooru_character_tag_with_underscores or null",
+      "character_confidence": 0.0,
+      "series": "danbooru_copyright_tag or null",
+      "hair": ["blonde_hair", "twintails"],
+      "eyes": ["blue_eyes"],
+      "body": ["mature_female", "medium_breasts", "toned"],
+      "attire": {"top": "EXACT tag from the ATASAN list, or 'topless'", "bottom": "EXACT tag from the BAWAHAN list", "gloves": "boxing_gloves | mma_gloves | none", "gloves_color": "red|blue|black|white|pink|green|yellow|purple|orange|brown|grey|gold|silver|none", "footwear": "boots | shoes | barefoot | none", "headgear": "headgear | none", "other": ["hand_wraps", "mouth_guard", "armband"], "verbatim": "one plain-English sentence describing EXACTLY what this fighter wears, colours included, as if telling an artist who cannot see the picture"},
+      "nudity": {"topless": false, "breasts_visible": false, "nipples_visible": false, "bottomless": false},
+      "condition": {"sweat": 0, "fatigue": 0, "bruises": ["left cheek"], "blood": ["nose"], "swelling": ["left eye"]},
+      "expression": "clenched teeth, determined",
+      "gaze": "looking at opponent | looking at viewer | ...",
+      "stance": "orthodox|southpaw|unclear",
+      "pose": {"summary": "one sentence", "arms": "...", "legs": "...", "torso": "..."},
+      "action": {"type": "jab|cross|lead_hook|rear_hook|uppercut|body_shot|overhand|slip|block|clinch|knockdown|guard|idle|other", "phase": "wind-up|extension|impact|recoil|guard|falling|down|none", "confidence": 0.0, "evidence": "elbow bend, fist orientation, hip rotation..."},
+      "position": {"side": "left|right|center", "x": 0.5, "y": 0.5},
+      "tags": ["danbooru tags that describe THIS subject: pose, hands, expression, gear"]
+    }
+  ],
+  "interaction": {"striker": "a|b|null", "receiver": "a|b|null", "contact": "landed|imminent|none", "target": "face|body|null", "description": "who does what to whom, viewer-relative sides"},
+  "environment": {"venue": "short phrase", "ring": true, "ropes": true, "crowd": "none|sparse|packed|dark blur", "props": [], "tags": ["boxing_ring", "indoors", "crowd"]},
+  "lighting": {"summary": "short phrase", "tags": ["spotlight", "backlighting"]},
+  "camera": {"distance": "close-up|upper_body|cowboy_shot|full_body|wide_shot", "angle": "from_below|from_above|from_side|from_behind|dutch_angle|eye_level", "effects": ["motion_blur", "depth_of_field"], "tags": []},
+  "text_in_image": "",
+  "prose": "2-4 English sentences describing the scene exactly as seen, NovelAI-style natural language, no character names",
+  "danbooru_tags": ["every danbooru tag you are confident about, underscore form"],
+  "video": null
+}
+JSON;
+
+        $video = <<<'JSON'
+"video": {
+  "duration": 10,
+  "fps_feel": "realtime|slow_motion|mixed",
+  "style_paragraph": "one paragraph describing the animation/render style of the whole clip (line quality, shading, palette, grain, frame cadence)",
+  "shots": [
+    {"start": 0, "end": 4, "camera": "short camera description (framing + angle)", "camera_move": "static|push_in|pull_out|pan|tracking|orbit|handheld|whip_pan|slow_motion", "actor": "a|b|null", "action": "one or two sentences: who does what, with punch mechanics and the other fighter's reaction", "sound": "what is heard: impacts, breathing, crowd"}
+  ]
+}
+JSON;
+
+        $aturan = <<<'TXT'
+Kamu adalah pembaca referensi visual untuk alat pembuat prompt bergambar anime bertema tinju wanita (kadang pria, kadang campur). Ini alat untuk orang dewasa: gambarnya bisa berisi petinju topless, keringat, memar, dan darah. Tugasmu MENDESKRIPSIKAN APA YANG TERLIHAT secara faktual dan lengkap, termasuk ketelanjangan, tanpa menilai dan tanpa menghaluskan.
+
+Balas HANYA dengan satu objek JSON yang mengikuti skema di bawah, tanpa penjelasan, tanpa pembungkus ```.
+
+ATURAN:
+1. Jangan mengarang. Kalau tidak terlihat, isi null / [] / "unclear". Jangan menebak nama karakter kalau ragu; isi "character" hanya dengan tag Danbooru berbentuk underscore (contoh: tsukino_usagi, elsa_(frozen), tsunade_(naruto)) dan beri character_confidence jujur.
+2. Semua tag memakai kosakata Danbooru berbentuk underscore, huruf kecil. Contoh benar: boxing_gloves, sports_bra, fighting_stance, punching, uppercut, face_punch, clenched_teeth, sweat, bruise_on_face, bruised_eye, nosebleed, blood_on_face, from_below, dutch_angle, close-up, upper_body, cowboy_shot, full_body, motion_blur, speed_lines, spotlight, backlighting, boxing_ring, rope, crowd, audience, mature_female, muscular_female, abs, medium_breasts, topless_female, nipples. Jangan pakai kata yang bukan tag Danbooru (misalnya black_eye, dramatic_lighting, low_angle) — tulis itu di kalimat, bukan di daftar tag.
+3. Sisi kiri/kanan SELALU dari sudut pandang penonton. "side" subjek = posisi di dalam bingkai.
+4. Jenis kelamin ditentukan dari bukti yang terlihat (dada, bentuk wajah, rambut bukan bukti kuat). Semua subjek adalah orang dewasa; tulis mature_female / mature_male di "body".
+5. Untuk pukulan, sebutkan bukti mekanik (siku tertekuk, arah kepalan, rotasi pinggul). Kalau ragu antara hook dan jab, turunkan confidence, jangan mengarang.
+6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer".
+7. Kalau ada teks di gambar (poster, papan skor, judul), salin ke "text_in_image". TAPI JANGAN memakai teks itu untuk menentukan siapa yang di kiri dan siapa yang di kanan. Judul "A vs B" tidak menjamin A ada di kiri. Tentukan identitas tiap petinju dari ciri visualnya sendiri (warna dan model rambut, warna mata, mahkota, aksesori khas), lalu cocokkan dengan nama yang kamu kenali.
+8. Subjek maksimal dua orang utama (petinju). Wasit, penonton, dan orang latar masuk ke environment, bukan subjects.
+9. Untuk "character", tulis tag Danbooru yang sesungguhnya, bukan pola "nama_(judul)" karangan. Contoh yang BENAR: princess_peach, princess_daisy, tsukino_usagi, tsunade_(naruto), elsa_(frozen), cammy_white. Kalau tidak yakin bentuk tagnya, tulis nama yang paling umum dipakai saja (misalnya "princess_peach"), jangan menempelkan nama judul di dalam kurung.
+
+10. PAKAIAN ADALAH BAGIAN YANG PALING SERING KAMU SALAH. Jangan pernah menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat betul-betul potongan, panjang lengan, dan warnanya, lalu pilih dari daftar KOSAKATA di bawah. Beberapa yang paling sering keliru:
+   - kaos olahraga sekolah putih berlengan pendek (kadang ada papan nama di dada) = gym_uniform + gym_shirt + white_shirt + short_sleeves, BUKAN sports_bra
+   - celana olahraga sekolah ketat (biru/hijau/merah) = buruma, BUKAN boxing_shorts
+   - atasan bikini/bra tali = bikini_top_only (tambahkan bikini kalau bawahannya sepasang), BUKAN sports_bra
+   - bawahan bikini/celana dalam = bikini_bottom_only atau panties, BUKAN boxing_shorts
+   - celana tinju longgar selutut dengan pinggang karet lebar = boxing_shorts
+   Kalau tidak ada satu pun tag yang pas, biarkan kosong dan tulis apa adanya di "verbatim". Lebih baik kosong daripada salah.
+TXT;
+
+        // Kosakata: tag yang BENAR-BENAR ada di kamus Danbooru milik aplikasi
+        // ini. Tanpa daftar ini model menebak, dan tebakannya selalu jatuh ke
+        // pilihan paling umum — semua orang berakhir memakai sports bra dan
+        // celana tinju, walau yang di gambar seragam olahraga sekolah.
+        $kosakata = <<<'TXT'
+
+KOSAKATA — pilih hanya dari daftar ini untuk kolom pakaian, rambut, dan gear. Kalau yang kamu lihat tidak ada di sini, kosongkan kolomnya dan jelaskan di "verbatim".
+
+ATASAN: sports_bra, bikini_top_only, bikini, string_bikini, micro_bikini, bandeau, tube_top, camisole, tank_top, crop_top, shirt, white_shirt, t-shirt, gym_shirt, gym_uniform, serafuku, school_uniform, jacket, hoodie, leotard, one-piece_swimsuit, swimsuit, chest_sarashi, no_bra, topless_female, topless_male, bare_pectorals
+BAWAHAN: boxing_shorts, buruma, gym_shorts, short_shorts, dolphin_shorts, bike_shorts, micro_shorts, bikini_bottom_only, panties, skirt, pleated_skirt, leggings, bottomless
+GEAR: boxing_gloves, mma_gloves, hand_wraps, bandaged_hand, mouth_guard, headgear, armband, wristband, sweatband, boots, shoes, socks, kneehighs, thighhighs, tape, towel, championship_belt
+RAMBUT: blonde_hair, black_hair, brown_hair, red_hair, orange_hair, pink_hair, blue_hair, green_hair, purple_hair, white_hair, grey_hair, long_hair, very_long_hair, medium_hair, short_hair, twintails, low_twintails, ponytail, high_ponytail, side_ponytail, braid, twin_braids, low_twin_braids, single_braid, hair_bun, double_bun, bob_cut, messy_hair, blunt_bangs, swept_bangs, sidelocks, hair_between_eyes, ahoge, hair_ribbon, hair_ornament, scrunchie, headband
+MATA: blue_eyes, green_eyes, brown_eyes, red_eyes, purple_eyes, yellow_eyes, grey_eyes, black_eyes, heterochromia, closed_eyes, half-closed_eyes, rolling_eyes, empty_eyes
+BADAN: mature_female, mature_male, muscular_female, muscular_male, toned, abs, large_breasts, medium_breasts, small_breasts, huge_breasts, dark_skin, dark-skinned_female, pale_skin, tan, tanlines, thick_thighs, wide_hips, curvy, slim, tattoo, scar
+KONDISI: sweat, very_sweaty, shiny_skin, steaming_body, heavy_breathing, exhausted, bruise, bruise_on_face, bruised_eye, blood, blood_on_face, blood_from_mouth, nosebleed, bleeding, injury, cuts, saliva, drooling, torn_clothes, clothing_aside
+EKSPRESI: clenched_teeth, gritted_teeth, open_mouth, angry, serious, determined, furrowed_brow, glaring, screaming, shouting, pain, wince, surprised, shocked, dazed, closed_eyes, grin, smirk, sweatdrop, flying_sweatdrops
+AKSI: punching, uppercut, face_punch, stomach_punch, punching_viewer, punched, imminent_punch, fighting_stance, blocking, dodging, ducking, clenched_hand, arm_up, outstretched_arm, leaning_forward, leaning_back, falling, lying, on_ground, kneeling, squatting, dynamic_pose, motion_blur, motion_lines, speed_lines, emphasis_lines, afterimage
+TEMPAT: boxing_ring, wrestling_ring, octagon, rope, crowd, audience, stadium, arena, indoors, outdoors, gym, punching_bag, stool, referee, dark_background, simple_background, white_background, night, sunlight
+CAHAYA: spotlight, stage_lights, floodlights, backlighting, sidelighting, underlighting, chiaroscuro, silhouette, dim_lighting, fluorescent_lamp, neon_lights, lens_flare, light_particles
+KAMERA: from_below, from_above, from_side, from_behind, dutch_angle, close-up, upper_body, cowboy_shot, full_body, wide_shot, portrait, profile, pov, foreshortening, depth_of_field, blurry_background, letterboxed, looking_at_viewer, looking_at_another, eye_contact
+GAYA: anime_coloring, realistic, photorealistic, comic, greyscale, monochrome, sketch, 3d, film_grain, chromatic_aberration, cel_shading
+TXT;
+
+        $prompt = $aturan . $kosakata . "\n\nSKEMA JSON:\n" . $skema;
+
+        if ($kind === 'video') {
+            $prompt .= "\n\nUNTUK VIDEO, isi juga bagian \"video\" (bukan null) dengan bentuk:\n" . $video
+                . "\n\nFrame diberi label waktu dalam detik. Shot harus berurutan tanpa celah dari 0 sampai durasi klip, dan tiap shot punya SATU gerakan kamera saja. Baca \"style_paragraph\" dari cara gambar dirender (garis, bayangan, palet, grain, kecepatan frame).";
+        }
+
+        return $prompt;
+    }
+
+    // =================================================================
+    // Normalisasi & validasi
+    // =================================================================
+
+    /**
+     * Rapikan JSON dari model: kunci yang hilang diisi, nilai dibakukan,
+     * subjek dipangkas ke dua orang. Fungsi ini juga dipakai ulang untuk
+     * JSON hasil suntingan user sebelum disusun.
+     */
+    public static function normalisasi(array $e, ?string $kind = null, ?float $duration = null): array
+    {
+        $tagList = static function ($v): array {
+            $out = [];
+            foreach (is_array($v) ? $v : (is_string($v) ? preg_split('/[,\n]+/', $v) : []) as $t) {
+                if (!is_scalar($t)) {
+                    continue;
+                }
+                $t = TagResolver::normalize((string)$t);
+                if ($t !== '') {
+                    $out[$t] = true;
+                }
+            }
+            return array_keys($out);
+        };
+        $teks = static fn($v, int $maks = 400): string => is_scalar($v) ? trim(mb_substr((string)$v, 0, $maks)) : '';
+        $skor = static fn($v): float => is_numeric($v) ? max(0.0, min(1.0, (float)$v)) : 0.0;
+        $tingkat = static fn($v): int => is_numeric($v) ? max(0, min(3, (int)$v)) : 0;
+
+        $out = [
+            'kind'  => ($kind ?? ($e['kind'] ?? 'image')) === 'video' ? 'video' : 'image',
+            'style' => [
+                'medium' => in_array($e['style']['medium'] ?? '', ['anime', 'photo', '3d', 'comic', 'painting'], true)
+                                ? (string)$e['style']['medium'] : 'anime',
+                'render' => $teks($e['style']['render'] ?? '', 200),
+                'era'    => $teks($e['style']['era'] ?? '', 80),
+            ],
+            'subjects' => [],
+        ];
+
+        $sisi = ['a', 'b'];
+        $subjek = is_array($e['subjects'] ?? null) ? array_values($e['subjects']) : [];
+        foreach (array_slice($subjek, 0, self::MAKS_SUBJEK) as $i => $s) {
+            if (!is_array($s)) {
+                continue;
+            }
+            $sex = strtolower((string)($s['sex'] ?? 'unclear'));
+            if (!in_array($sex, ['female', 'male', 'unclear'], true)) {
+                $sex = 'unclear';
+            }
+            $char = $teks($s['character'] ?? '', 120);
+            $char = $char === '' || strtolower($char) === 'null' ? null : $char;
+
+            $aksi = strtolower((string)($s['action']['type'] ?? 'other'));
+            if (!in_array($aksi, self::AKSI, true)) {
+                $aksi = 'other';
+            }
+            $stance = strtolower((string)($s['stance'] ?? 'unclear'));
+            if (!in_array($stance, ['orthodox', 'southpaw', 'unclear'], true)) {
+                $stance = 'unclear';
+            }
+            $posisi = strtolower((string)($s['position']['side'] ?? ''));
+            if (!in_array($posisi, ['left', 'right', 'center'], true)) {
+                $posisi = $i === 0 ? 'left' : 'right';
+            }
+
+            $attire = is_array($s['attire'] ?? null) ? $s['attire'] : [];
+            $nud    = is_array($s['nudity'] ?? null) ? $s['nudity'] : [];
+            $top    = strtolower($teks($attire['top'] ?? '', 80));
+            $topless = !empty($nud['topless']) || !empty($nud['breasts_visible']) || !empty($nud['nipples_visible'])
+                    || preg_match('/\b(topless|nude|naked|bare[- ]chest)/', $top) === 1;
+
+            $out['subjects'][] = [
+                'id'                   => $sisi[$i],
+                'sex'                  => $sex,
+                'sex_evidence'         => $teks($s['sex_evidence'] ?? '', 200),
+                'character'            => $char,
+                'character_confidence' => $skor($s['character_confidence'] ?? 0),
+                'series'               => $teks($s['series'] ?? '', 120) ?: null,
+                'hair'                 => $tagList($s['hair'] ?? []),
+                'eyes'                 => $tagList($s['eyes'] ?? []),
+                'body'                 => $tagList($s['body'] ?? []),
+                'attire' => [
+                    'top'          => $top,
+                    'bottom'       => strtolower($teks($attire['bottom'] ?? '', 80)),
+                    'gloves'       => strtolower($teks($attire['gloves'] ?? '', 80)),
+                    'gloves_color' => strtolower($teks($attire['gloves_color'] ?? '', 30)),
+                    'footwear'     => strtolower($teks($attire['footwear'] ?? '', 80)),
+                    'headgear'     => strtolower($teks($attire['headgear'] ?? '', 80)),
+                    'other'        => array_values(array_filter(array_map(
+                        static fn($v) => is_scalar($v) ? strtolower(trim((string)$v)) : '',
+                        is_array($attire['other'] ?? null) ? $attire['other'] : []
+                    ))),
+                    // Kalimat bebas: penyelamat waktu pakaiannya tidak punya
+                    // tag yang pas (seragam sekolah bermotif, kostum karakter).
+                    'verbatim'     => $teks($attire['verbatim'] ?? '', 300),
+                ],
+                'nudity' => [
+                    'topless'         => $topless,
+                    'breasts_visible' => !empty($nud['breasts_visible']) || $topless,
+                    'nipples_visible' => !empty($nud['nipples_visible']),
+                    'bottomless'      => !empty($nud['bottomless']),
+                ],
+                'condition' => [
+                    'sweat'    => $tingkat($s['condition']['sweat'] ?? 0),
+                    'fatigue'  => $tingkat($s['condition']['fatigue'] ?? 0),
+                    'bruises'  => array_values(array_filter(array_map('strval', is_array($s['condition']['bruises'] ?? null) ? $s['condition']['bruises'] : []))),
+                    'blood'    => array_values(array_filter(array_map('strval', is_array($s['condition']['blood'] ?? null) ? $s['condition']['blood'] : []))),
+                    'swelling' => array_values(array_filter(array_map('strval', is_array($s['condition']['swelling'] ?? null) ? $s['condition']['swelling'] : []))),
+                ],
+                'expression' => $teks($s['expression'] ?? '', 120),
+                'gaze'       => $teks($s['gaze'] ?? '', 80),
+                'stance'     => $stance,
+                'pose' => [
+                    'summary' => $teks($s['pose']['summary'] ?? '', 300),
+                    'arms'    => $teks($s['pose']['arms'] ?? '', 200),
+                    'legs'    => $teks($s['pose']['legs'] ?? '', 200),
+                    'torso'   => $teks($s['pose']['torso'] ?? '', 200),
+                ],
+                'action' => [
+                    'type'       => $aksi,
+                    'phase'      => $teks($s['action']['phase'] ?? 'none', 20) ?: 'none',
+                    'confidence' => $skor($s['action']['confidence'] ?? 0),
+                    'evidence'   => $teks($s['action']['evidence'] ?? '', 200),
+                ],
+                'position' => [
+                    'side' => $posisi,
+                    'x'    => $skor($s['position']['x'] ?? ($posisi === 'right' ? 0.7 : 0.3)),
+                    'y'    => $skor($s['position']['y'] ?? 0.5),
+                ],
+                'tags' => $tagList($s['tags'] ?? []),
+            ];
+        }
+
+        $inter = is_array($e['interaction'] ?? null) ? $e['interaction'] : [];
+        $sisiSah = static fn($v): ?string => in_array($v, ['a', 'b'], true) ? (string)$v : null;
+        $kontak = strtolower((string)($inter['contact'] ?? 'none'));
+        $out['interaction'] = [
+            'striker'     => $sisiSah($inter['striker'] ?? null),
+            'receiver'    => $sisiSah($inter['receiver'] ?? null),
+            'contact'     => in_array($kontak, ['landed', 'imminent', 'none'], true) ? $kontak : 'none',
+            'target'      => in_array($inter['target'] ?? null, ['face', 'body'], true) ? (string)$inter['target'] : null,
+            'description' => $teks($inter['description'] ?? '', 300),
+        ];
+
+        $env = is_array($e['environment'] ?? null) ? $e['environment'] : [];
+        $out['environment'] = [
+            'venue' => $teks($env['venue'] ?? '', 120),
+            'ring'  => !empty($env['ring']),
+            'ropes' => !empty($env['ropes']),
+            'crowd' => $teks($env['crowd'] ?? 'none', 40),
+            'props' => array_values(array_filter(array_map('strval', is_array($env['props'] ?? null) ? $env['props'] : []))),
+            'tags'  => $tagList($env['tags'] ?? []),
+        ];
+        $out['lighting'] = [
+            'summary' => $teks($e['lighting']['summary'] ?? '', 160),
+            'tags'    => $tagList($e['lighting']['tags'] ?? []),
+        ];
+        $jarak = TagResolver::normalize((string)($e['camera']['distance'] ?? ''));
+        $sudut = TagResolver::normalize((string)($e['camera']['angle'] ?? ''));
+        $out['camera'] = [
+            'distance' => $jarak,
+            'angle'    => $sudut,
+            'effects'  => $tagList($e['camera']['effects'] ?? []),
+            'tags'     => $tagList($e['camera']['tags'] ?? []),
+        ];
+        $out['text_in_image'] = $teks($e['text_in_image'] ?? '', 200);
+        $out['prose']         = $teks($e['prose'] ?? '', 1200);
+        $out['danbooru_tags'] = $tagList($e['danbooru_tags'] ?? []);
+
+        // Model sering menyebut keringat/darah di tag dan di prosa, tapi lupa
+        // menaikkan angkanya di "condition". Kalau dibiarkan, tahap polish
+        // menulis "free of sweat" sementara tag `sweat` ikut di prompt —
+        // dua kalimat yang bertengkar di dalam satu prompt.
+        $semua = $out['danbooru_tags'];
+        foreach ($out['subjects'] as $s) {
+            $semua = array_merge($semua, $s['tags'], $s['body']);
+        }
+        foreach ($out['subjects'] as $i => $s) {
+            if ($s['condition']['sweat'] === 0
+                && array_intersect(['sweat', 'sweaty', 'shiny_skin', 'steaming_body', 'wet'], $semua) !== []) {
+                $out['subjects'][$i]['condition']['sweat'] = 1;
+            }
+            if ($s['condition']['blood'] === []
+                && array_intersect(['blood', 'blood_on_face', 'nosebleed', 'bleeding'], $semua) !== []) {
+                $out['subjects'][$i]['condition']['blood'] = ['face'];
+            }
+        }
+
+        $out['video'] = null;
+        if ($out['kind'] === 'video') {
+            $v = is_array($e['video'] ?? null) ? $e['video'] : [];
+            $dur = (int)round((float)($v['duration'] ?? ($duration ?? 0)));
+            $shots = [];
+            foreach ((is_array($v['shots'] ?? null) ? $v['shots'] : []) as $sh) {
+                if (!is_array($sh)) {
+                    continue;
+                }
+                $shots[] = [
+                    'start'       => max(0, (int)round((float)($sh['start'] ?? 0))),
+                    'end'         => max(0, (int)round((float)($sh['end'] ?? 0))),
+                    'camera'      => $teks($sh['camera'] ?? '', 160),
+                    'camera_move' => TagResolver::normalize((string)($sh['camera_move'] ?? 'static')) ?: 'static',
+                    'actor'       => $sisiSah($sh['actor'] ?? null),
+                    'action'      => $teks($sh['action'] ?? '', 500),
+                    'sound'       => $teks($sh['sound'] ?? '', 200),
+                ];
+            }
+            $out['video'] = [
+                'duration'        => $dur > 0 ? $dur : max(2, count($shots) * 4),
+                'fps_feel'        => in_array($v['fps_feel'] ?? '', ['realtime', 'slow_motion', 'mixed'], true) ? (string)$v['fps_feel'] : 'realtime',
+                'style_paragraph' => $teks($v['style_paragraph'] ?? '', 900),
+                'shots'           => $shots,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Cocokkan tebakan model ke database: karakter ke tabel characters,
+     * tag ke kamus. Tidak memanggil Danbooru (bolehPanggilApi = false)
+     * supaya permintaan tidak molor.
+     *
+     * @return array ['ekstrak' => array, 'karakter' => ['a' => ?array, 'b' => ?array],
+     *                'tag_dikenal' => int, 'tag_ditolak' => string[], 'catatan' => string[]]
+     */
+    public static function validasi(array $ekstrak): array
+    {
+        $catatan  = [];
+        $ditolak  = [];
+        $dikenal  = 0;
+        $karakter = ['a' => null, 'b' => null];
+
+        foreach ($ekstrak['subjects'] as $i => $s) {
+            $sisi = $s['id'];
+            $row  = self::cariKarakter($s['character'], $s['series']);
+
+            if ($row !== null) {
+                $karakter[$sisi] = $row;
+                $ekstrak['subjects'][$i]['character'] = $row['tag'];
+            } elseif ($s['character'] !== null) {
+                $catatan[] = 'Tebakan karakter "' . $s['character'] . '" untuk petinju '
+                           . strtoupper($sisi) . ' tidak ada di database, jadi tidak dipakai.';
+                $ekstrak['subjects'][$i]['character_unresolved'] = $s['character'];
+                $ekstrak['subjects'][$i]['character'] = null;
+            }
+
+            foreach (['hair', 'eyes', 'body', 'tags'] as $k) {
+                [$ok, $gagal] = self::validasiTag($s[$k]);
+                $ekstrak['subjects'][$i][$k] = $ok;
+                $dikenal += count($ok);
+                $ditolak  = array_merge($ditolak, $gagal);
+            }
+        }
+
+        foreach (['environment', 'lighting', 'camera'] as $k) {
+            [$ok, $gagal] = self::validasiTag($ekstrak[$k]['tags']);
+            $ekstrak[$k]['tags'] = $ok;
+            $dikenal += count($ok);
+            $ditolak  = array_merge($ditolak, $gagal);
+        }
+        [$ok, $gagal] = self::validasiTag($ekstrak['camera']['effects']);
+        $ekstrak['camera']['effects'] = $ok;
+        $ditolak = array_merge($ditolak, $gagal);
+
+        [$ok, $gagal] = self::validasiTag($ekstrak['danbooru_tags']);
+        $ekstrak['danbooru_tags'] = $ok;
+        $dikenal += count($ok);
+        $ditolak  = array_merge($ditolak, $gagal);
+
+        [$ekstrak, $karakter, $pesan] = self::periksaTertukar($ekstrak, $karakter);
+        $catatan = array_merge($catatan, $pesan);
+
+        $ditolak = array_values(array_unique($ditolak));
+
+        return [
+            'ekstrak'     => $ekstrak,
+            'karakter'    => $karakter,
+            'tag_dikenal' => $dikenal,
+            'tag_ditolak' => $ditolak,
+            'catatan'     => $catatan,
+        ];
+    }
+
+    /**
+     * Periksa apakah nama kedua petinju tertukar.
+     *
+     * KENAPA INI ADA. Model vision membaca judul yang tertulis di gambar
+     * ("DAISY vs. PEACH") dan diam-diam memakainya sebagai urutan kiri-kanan,
+     * padahal judul tidak menjanjikan urutan apa pun. Larangan di prompt
+     * membantu, tapi tidak menutup semuanya.
+     *
+     * Yang dipakai di sini bukan tebakan lagi, melainkan data: warna rambut
+     * yang tersimpan sebagai tag penampilan karakter di database. Kalau
+     * rambut petinju A justru cocok dengan karakter yang ditempelkan ke B,
+     * dan sebaliknya, nama keduanya ditukar. Kalau salah satu karakternya
+     * belum punya tag penampilan (tidak semua punya), tidak ada yang
+     * ditukar — cuma catatan supaya kamu memeriksanya sendiri.
+     *
+     * @return array{0:array, 1:array, 2:string[]}
+     */
+    private static function periksaTertukar(array $ekstrak, array $karakter): array
+    {
+        if ($karakter['a'] === null || $karakter['b'] === null || count($ekstrak['subjects']) < 2) {
+            return [$ekstrak, $karakter, []];
+        }
+
+        $rambutKarakter = static function (?array $k): array {
+            if ($k === null) {
+                return [];
+            }
+            return Database::column(
+                "SELECT t.name FROM character_tags ct JOIN tags t ON t.id = ct.tag_id
+                 WHERE ct.character_id = ? AND ct.role = 'appearance' AND t.name LIKE '%\_hair'",
+                [(int)$k['id']]
+            );
+        };
+        $rambutSubjek = static function (array $s): array {
+            return array_values(array_filter($s['hair'], static fn(string $t): bool => str_ends_with($t, '_hair')));
+        };
+
+        $ka = $rambutKarakter($karakter['a']);
+        $kb = $rambutKarakter($karakter['b']);
+        $sa = $rambutSubjek($ekstrak['subjects'][0]);
+        $sb = $rambutSubjek($ekstrak['subjects'][1]);
+
+        if ($ka === [] || $kb === [] || $sa === [] || $sb === []) {
+            return [$ekstrak, $karakter, [
+                'Periksa lagi nama petinju A dan B — pembaca kadang mengambil urutannya dari judul '
+                . 'yang tertulis di gambar, bukan dari orangnya.',
+            ]];
+        }
+
+        $cocok  = static fn(array $x, array $y): bool => array_intersect($x, $y) !== [];
+        $lurus  = ($cocok($sa, $ka) ? 1 : 0) + ($cocok($sb, $kb) ? 1 : 0);
+        $silang = ($cocok($sa, $kb) ? 1 : 0) + ($cocok($sb, $ka) ? 1 : 0);
+
+        if ($silang <= $lurus) {
+            // Tidak cukup bukti untuk menukar, tapi kalau ada rambut yang
+            // jelas tidak cocok, itu tetap layak disebut.
+            $pesan = [];
+            foreach ([['a', $sa, $ka, 0], ['b', $sb, $kb, 1]] as [$sisi, $rambut, $khas, $idx]) {
+                if (!$cocok($rambut, $khas)) {
+                    $pesan[] = 'Rambut petinju ' . strtoupper($sisi) . ' (' . implode(', ', $rambut)
+                        . ') tidak cocok dengan ' . $karakter[$sisi]['name'] . ' yang biasanya '
+                        . implode(' / ', $khas) . '. Periksa namanya.';
+                }
+            }
+            return [$ekstrak, $karakter, $pesan];
+        }
+
+        $namaA = $karakter['a']['name'];
+        $namaB = $karakter['b']['name'];
+
+        [$karakter['a'], $karakter['b']] = [$karakter['b'], $karakter['a']];
+        $ekstrak['subjects'][0]['character'] = $karakter['a']['tag'];
+        $ekstrak['subjects'][1]['character'] = $karakter['b']['tag'];
+
+        return [$ekstrak, $karakter, [
+            'Nama kedua petinju ditukar: warna rambutnya menunjukkan yang di '
+            . $ekstrak['subjects'][0]['position']['side'] . ' itu ' . $karakter['a']['name']
+            . ', bukan ' . $namaA . '. (Pembaca menebak ' . $namaA . ' vs ' . $namaB . '.)',
+        ]];
+    }
+
+    /**
+     * Cari baris karakter dari tebakan model. Urutannya: tag persis di
+     * kamus (kategori 4) → pencarian nama (persis/awalan). Tebakan yang
+     * tidak ketemu tidak pernah dibuatkan baris baru.
+     *
+     * @return ?array ['tag','name','series','id']
+     */
+    private static function cariKarakter(?string $tebakan, ?string $seri): ?array
+    {
+        if ($tebakan === null || $tebakan === '') {
+            return null;
+        }
+
+        $tag  = TagResolver::normalize($tebakan);
+        $inti = preg_replace('/_?\([^)]*\)$/', '', $tag) ?? $tag;   // "daisy_(super_mario)" -> "daisy"
+
+        $kandidat = [$tag];
+        if ($seri !== null && $seri !== '' && !str_contains($tag, '(')) {
+            $kandidat[] = $tag . '_(' . TagResolver::normalize($seri) . ')';
+        }
+        if ($inti !== $tag) {
+            $kandidat[] = $inti;
+        }
+
+        foreach ($kandidat as $t) {
+            if ($t === '') {
+                continue;
+            }
+            $row = TagResolver::find($t);
+            if ($row !== null && (int)$row['category'] === 4) {
+                return self::rowKarakter($row['name']);
+            }
+        }
+
+        // BAGIAN YANG PALING SERING MENYELAMATKAN TEBAKAN MODEL.
+        //
+        // Model menulis nama karakter dengan pola yang masuk akal tapi
+        // bukan pola Danbooru: "daisy_(super_mario)" padahal tagnya
+        // "princess_daisy", "peach_(super_mario)" padahal "princess_peach".
+        // Jadi kata intinya dicari sebagai POTONGAN nama tag karakter,
+        // lalu yang paling banyak gambarnya yang dipakai — di Danbooru,
+        // jumlah gambar adalah penanda "yang dimaksud orang" yang jauh
+        // lebih baik daripada kemiripan huruf.
+        if ($inti !== '' && mb_strlen($inti) >= 3) {
+            $rows = Database::all(
+                'SELECT name FROM tags WHERE category = 4 AND name LIKE ? ORDER BY post_count DESC LIMIT 12',
+                ['%' . str_replace(['%', '_'], ['\%', '\_'], $inti) . '%']
+            );
+            foreach ($rows as $r) {
+                // hanya kalau kata intinya berdiri sendiri sebagai potongan,
+                // supaya "peach" tidak menyambar "peachy_spring"
+                $potong = preg_split('/[_()]+/', (string)$r['name']) ?: [];
+                if (in_array($inti, $potong, true)) {
+                    return self::rowKarakter((string)$r['name']);
+                }
+            }
+        }
+
+        // Nama manusia ("Sailor Moon", "Tsunade") → pencarian di tabel characters.
+        $hits = CharacterResolver::search(str_replace('_', ' ', $inti), null, null, 3);
+        if ($hits !== []) {
+            $top  = $hits[0];
+            $nama = TagResolver::normalize((string)$top['name']);
+            if ($top['booru_tag'] === $inti || str_starts_with((string)$top['booru_tag'], $inti . '_')
+                || $nama === $inti || str_starts_with($nama, $inti)) {
+                return self::rowKarakter((string)$top['booru_tag']);
+            }
+        }
+
+        return null;
+    }
+
+    private static function rowKarakter(string $booruTag): ?array
+    {
+        // ensure() menulis baris baru untuk karakter yang belum pernah
+        // dipakai. Satu nama bermasalah tidak boleh menjatuhkan seluruh
+        // permintaan — lebih baik promptnya keluar tanpa tag karakter.
+        try {
+            $char = CharacterResolver::ensure($booruTag, false);
+        } catch (Throwable $e) {
+            return null;
+        }
+        if ($char === null) {
+            return null;
+        }
+        $seri = null;
+        if ($char['series_id'] !== null) {
+            $seri = Database::one('SELECT name, booru_tag FROM series WHERE id = ?', [(int)$char['series_id']]);
+        }
+        return [
+            'id'         => (int)$char['id'],
+            'tag'        => $booruTag,
+            'name'       => (string)$char['name'],
+            'series'     => $seri['name'] ?? null,
+            'series_tag' => $seri['booru_tag'] ?? CharacterResolver::seriesTagDariNama($booruTag),
+            'gender'     => (string)($char['gender'] ?? 'female'),
+        ];
+    }
+
+    /**
+     * Validasi daftar tag ke kamus, dengan sinonim dulu.
+     * @return array [string[] dikenal (nama resmi), string[] ditolak]
+     */
+    private static function validasiTag(array $tags): array
+    {
+        $cari = [];
+        foreach ($tags as $t) {
+            $t = TagResolver::normalize((string)$t);
+            if ($t === '') {
+                continue;
+            }
+            if (array_key_exists($t, self::SINONIM)) {
+                $t = self::SINONIM[$t];
+                if ($t === '') {
+                    continue;
+                }
+            }
+            $cari[$t] = true;
+        }
+        if ($cari === []) {
+            return [[], []];
+        }
+
+        $res = TagResolver::findMany(array_keys($cari));
+        $ok  = [];
+        foreach ($res['found'] as $row) {
+            $ok[$row['name']] = true;
+        }
+        return [array_keys($ok), array_values($res['unknown'])];
+    }
+
+    /** Satu kalimat Indonesia untuk kotak "hasil pembacaan". */
+    public static function ringkas(array $e): string
+    {
+        $n = count($e['subjects']);
+        if ($n === 0) {
+            return 'Tidak ada petinju yang terbaca di referensi ini.';
+        }
+
+        $orang = [];
+        foreach ($e['subjects'] as $s) {
+            $nama = $s['character'] !== null ? CharacterResolver::namaCantik($s['character'])
+                  : ($s['sex'] === 'male' ? 'petinju pria' : ($s['sex'] === 'female' ? 'petinju wanita' : 'petinju'));
+            $ciri = [];
+            foreach (array_merge($s['hair'], $s['eyes']) as $t) {
+                $ciri[] = str_replace('_', ' ', $t);
+                if (count($ciri) >= 2) {
+                    break;
+                }
+            }
+            $orang[] = $nama . ($ciri === [] ? '' : ' (' . implode(', ', $ciri) . ')');
+        }
+
+        $aksi = '';
+        $i = $e['interaction'];
+        if ($i['striker'] !== null && $i['contact'] !== 'none') {
+            $aksi = ' — ' . strtoupper($i['striker']) . ' memukul ' . strtoupper((string)($i['receiver'] ?? '?'))
+                  . ($i['target'] === 'body' ? ' ke badan' : ($i['target'] === 'face' ? ' ke wajah' : ''))
+                  . ($i['contact'] === 'imminent' ? ' (hampir kena)' : '');
+        } elseif ($n === 1) {
+            $tipe = $e['subjects'][0]['action']['type'];
+            $aksi = $tipe !== 'other' && $tipe !== 'idle' ? ' — ' . str_replace('_', ' ', $tipe) : '';
+        }
+
+        $tempat = $e['environment']['venue'] !== '' ? ', di ' . $e['environment']['venue'] : '';
+
+        return ($n === 1 ? '1 petinju: ' : '2 petinju: ') . implode(' vs ', $orang) . $aksi . $tempat . '.';
+    }
+
+    // =================================================================
+    // Tahap 2 + 3 — susun
+    // =================================================================
+
+    /**
+     * Susun prompt untuk satu target dari ekstrak (boleh sudah disunting user).
+     *
+     * $opsi: nsfw (bool), haluskan (bool), polish (bool), fewshot (bool),
+     *        gaya => ['style_id','artis','kuat'],
+     *        wan => ['rasio','detik'], seedance => ['resolusi']
+     */
+    public static function susun(array $ekstrak, string $target, array $opsi = []): array
+    {
+        if (!isset(self::TARGET[$target])) {
+            throw new InvalidArgumentException('Target tidak dikenal: ' . $target);
+        }
+
+        $ekstrak = self::normalisasi($ekstrak);
+        $val     = self::validasi($ekstrak);
+        $ekstrak = $val['ekstrak'];
+        $catatan = $val['catatan'];
+        $tahap   = ['vision' => null, 'polish' => null, 'nsfw' => null];
+
+        $opsi     = self::rapikanGaya($opsi, $target);
+        $mauNsfw  = !array_key_exists('nsfw', $opsi) || !empty($opsi['nsfw']);
+
+        $artisDitolak = self::artisDitolak($opsi);
+        if ($artisDitolak !== []) {
+            $catatan[] = 'Tag artis tidak ada di kamus, jadi dibuang: ' . implode(', ', $artisDitolak)
+                       . '. Cari namanya lewat saran yang muncul saat mengetik.';
+        }
+        $adaNsfw  = self::adaKetelanjangan($ekstrak);
+        $poles    = (!array_key_exists('polish', $opsi) || !empty($opsi['polish'])) && AiClient::siapProfil('polish');
+        $fewshot  = !array_key_exists('fewshot', $opsi) || !empty($opsi['fewshot']);
+
+        if ($target === 'nai5') {
+            $hasil = self::susunNovelAI($ekstrak, $val, $opsi, $mauNsfw && $adaNsfw, $poles, $fewshot, $catatan, $tahap);
+        } else {
+            $hasil = self::susunVideo($ekstrak, $val, $target, $opsi, $mauNsfw && $adaNsfw, $poles, $fewshot, $catatan, $tahap);
+        }
+
+        if ($adaNsfw && !$mauNsfw) {
+            $catatan[] = 'Referensinya berisi ketelanjangan, tapi versi setia dimatikan — yang keluar versi aman saja.';
+        }
+
+        $hasil['catatan'] = array_values(array_unique(array_merge($catatan, $hasil['catatan'] ?? [])));
+        $hasil['tahap']   = $tahap;
+        $hasil['notes']['unknown_tags'] = $val['tag_ditolak'];
+        $hasil['karakter'] = $val['karakter'];
+
+        return $hasil;
+    }
+
+    // -----------------------------------------------------------------
+    // Gaya visual & artis
+    // -----------------------------------------------------------------
+
+    /**
+     * Bakukan bagian "gaya" dari opsi yang datang dari halaman.
+     *
+     * Bentuknya: ['gaya' => ['style_id' => ?int, 'artis' => string, 'kuat' => string]]
+     */
+    public static function rapikanGaya(array $opsi, string $target): array
+    {
+        $g = is_array($opsi['gaya'] ?? null) ? $opsi['gaya'] : [];
+
+        $id = (int)($g['style_id'] ?? 0);
+        $kuat = (string)($g['kuat'] ?? 'sedang');
+
+        $opsi['gaya'] = [
+            'style_id' => $id > 0 ? $id : null,
+            'artis'    => mb_substr(trim((string)($g['artis'] ?? '')), 0, self::MAKS_ARTIS),
+            'kuat'     => isset(self::KUAT[$kuat]) ? $kuat : 'sedang',
+            'tipe'     => $target === 'nai5' ? 'style' : 'video_style',
+        ];
+
+        return $opsi;
+    }
+
+    /**
+     * Modul gaya yang dipilih, atau null.
+     *
+     * @return null|array{id:int, nama:string, kalimat:string, tags:string[]}
+     */
+    private static function modulGaya(array $opsi, string $tipeWajib): ?array
+    {
+        $g = $opsi['gaya'] ?? [];
+        $id = (int)($g['style_id'] ?? 0);
+        if ($id <= 0 || ($g['tipe'] ?? '') !== $tipeWajib) {
+            return null;
+        }
+
+        $mod = PromptBuilder::loadModule($id, true, $tipeWajib);
+        if ($mod === null) {
+            return null;
+        }
+
+        $kalimat = trim((string)($mod['sentence'] ?? ''));
+        $tags    = array_map(static fn(array $t): string => (string)$t['name'], $mod['tags'] ?? []);
+
+        if ($kalimat === '') {
+            $kalimat = $tags === []
+                ? (string)($mod['name'] ?? '')
+                : SeedanceBuilder::daftar(array_map(
+                    static fn(string $t): string => str_replace('_', ' ', $t),
+                    array_slice($tags, 0, 5)
+                ));
+        }
+
+        return [
+            'id'      => $id,
+            'nama'    => (string)($mod['name_id'] ?: $mod['name']),
+            'kalimat' => rtrim($kalimat, '. '),
+            'tags'    => $tags,
+        ];
+    }
+
+    private static function bobotGaya(array $opsi): float
+    {
+        $kuat = (string)($opsi['gaya']['kuat'] ?? 'sedang');
+        return (float)(self::KUAT[$kuat]['bobot'] ?? 1.0);
+    }
+
+    /**
+     * Nama artis yang benar-benar ada di kamus (kategori 1).
+     *
+     * Nama karangan dibuang tanpa suara di sini dan dilaporkan lewat
+     * catatan di susun(), karena "artist:namayangtidakada" bukan cuma
+     * mubazir — NovelAI menafsirkannya jadi tag acak dan merusak gambarnya.
+     *
+     * @return string[]
+     */
+    private static function tagArtis(array $opsi): array
+    {
+        $mentah = trim((string)($opsi['gaya']['artis'] ?? ''));
+        if ($mentah === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach (preg_split('/[,\n]+/', $mentah) ?: [] as $p) {
+            $p = TagResolver::normalize(preg_replace('/^artist:/i', '', trim($p)) ?? '');
+            if ($p === '' || isset($out[$p])) {
+                continue;
+            }
+            $row = TagResolver::find($p);
+            if ($row !== null && (int)$row['category'] === 1) {
+                $out[$row['name']] = true;
+            }
+        }
+
+        return array_keys($out);
+    }
+
+    /** Nama artis yang diketik tapi tidak ada di kamus. @return string[] */
+    private static function artisDitolak(array $opsi): array
+    {
+        $mentah = trim((string)($opsi['gaya']['artis'] ?? ''));
+        if ($mentah === '') {
+            return [];
+        }
+
+        $diterima = self::tagArtis($opsi);
+        $ditolak  = [];
+
+        foreach (preg_split('/[,\n]+/', $mentah) ?: [] as $p) {
+            $asli = trim($p);
+            $norm = TagResolver::normalize(preg_replace('/^artist:/i', '', $asli) ?? '');
+            if ($norm !== '' && !in_array($norm, $diterima, true)) {
+                $ditolak[$asli] = true;
+            }
+        }
+
+        return array_keys($ditolak);
+    }
+
+    private static function adaKetelanjangan(array $e): bool
+    {
+        foreach ($e['subjects'] as $s) {
+            if (!empty($s['nudity']['topless']) || !empty($s['nudity']['bottomless'])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // -----------------------------------------------------------------
+    // NovelAI
+    // -----------------------------------------------------------------
+
+    private static function susunNovelAI(
+        array $e, array $val, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
+        array &$catatan, array &$tahap
+    ): array {
+        $duo = count($e['subjects']) >= 2;
+
+        $sel = ['mode' => $duo ? 'duo' : 'single', 'a' => [], 'b' => []];
+        foreach ($e['subjects'] as $s) {
+            $sel[$s['id']] = ['gender' => $s['sex'] === 'male' ? 'male' : 'female'];
+        }
+
+        // Gaya pilihan menimpa gaya bacaan SEBELUM dipoles, supaya kalimat
+        // yang ditulis model polish memang menggambarkan gaya yang kamu mau,
+        // bukan gaya referensinya.
+        $gaya = self::modulGaya($opsi, 'style');
+        if ($gaya !== null) {
+            $e['style']['render'] = $gaya['kalimat'];
+            $e['style']['era']    = '';
+            $catatan[] = 'Gaya visual diganti jadi "' . $gaya['nama'] . '", bukan gaya referensinya.';
+        }
+
+        // --- prosa (V5): dari model vision, dipoles kalau bisa ---
+        // $prosaMentah masih memakai penanda {{TOP_A}}; versi aman mengisinya
+        // dengan pakaian sopan, versi setia dengan wujud aslinya.
+        $prosaMentah = self::bersihkanTeks($e['prose']);
+        if ($poles) {
+            $contoh = $fewshot ? self::contohEmas('image', 'nai5', $e, $val) : [];
+            try {
+                $prosaMentah = self::polesNovelAI($e, $val, $prosaMentah, $contoh);
+                $tahap['polish'] = AiClient::profil('polish')['model'];
+            } catch (RuntimeException $ex) {
+                $catatan[] = 'Tahap polish dilewati: ' . $ex->getMessage();
+            }
+        }
+        if ($prosaMentah === '') {
+            $prosaMentah = self::prosaCadangan($e);
+        }
+
+        // --- versi aman ---
+        $prosaAman = self::isiPenandaAman($prosaMentah, $e);
+        $itemsAman = self::itemsNovelAI($e, $val, false, $opsi);
+        $aman      = self::bangunNovelAI($itemsAman, $sel, $e, $prosaAman);
+
+        $outputs = ['sfw' => $aman, 'nsfw' => null];
+
+        // --- versi setia ---
+        if ($nsfw) {
+            $prosaSetia = self::lapisNsfwTeks($prosaMentah, $e, $poles, $tahap, $catatan);
+            $itemsSetia = self::itemsNovelAI($e, $val, true, $opsi);
+            $outputs['nsfw'] = self::bangunNovelAI($itemsSetia, $sel, $e, $prosaSetia);
+            if ($tahap['nsfw'] === null) {
+                $tahap['nsfw'] = 'aturan';
+            }
+        }
+
+        $token = Optimizer::estimateTokens($aman['flat']);
+
+        return [
+            'mode'           => 'reverse',
+            'target'         => 'nai5',
+            'outputs'        => $outputs,
+            'acuan'          => [],
+            'token_estimate' => $token,
+            'token_warning'  => Optimizer::tokenWarning($token),
+            'catatan'        => [],
+            'notes'          => [],
+        ];
+    }
+
+    /**
+     * Item tag untuk NovelAI dari ekstrak, sudah divalidasi (validasi()
+     * mengganti daftar tag dengan nama resmi). Bentuk item mengikuti
+     * PromptBuilder: tag_id, name, weight, block, from.
+     */
+    private static function itemsNovelAI(array $e, array $val, bool $nsfw, array $opsi = []): array
+    {
+        $items = [];
+        $dipakai = [];
+        $duo = count($e['subjects']) >= 2;
+
+        $tambah = static function (string $name, string $block, string $from, float $w = 1.0) use (&$items, &$dipakai): void {
+            $name = TagResolver::normalize($name);
+            if ($name === '' || isset($dipakai[$block . '|' . $name])) {
+                return;
+            }
+            $id = Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]);
+            $items[] = ['tag_id' => (int)($id ?? 0), 'name' => $name, 'weight' => $w, 'block' => $block, 'from' => $from];
+            $dipakai[$block . '|' . $name] = true;
+        };
+        $adaTag = static fn(string $name): bool => Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]) !== null;
+
+        // count
+        $sexes = array_map(static fn(array $s): string => $s['sex'], $e['subjects']);
+        if (!$duo) {
+            $tambah(($sexes[0] ?? 'female') === 'male' ? '1boy' : '1girl', 'count', 'jumlah subjek');
+            $tambah('solo', 'count', 'jumlah subjek');
+        } else {
+            $pria = count(array_filter($sexes, static fn($x) => $x === 'male'));
+            if ($pria === 0) {
+                $tambah('2girls', 'count', 'jumlah subjek');
+                $tambah('multiple_girls', 'count', 'jumlah subjek');
+            } elseif ($pria === 2) {
+                $tambah('2boys', 'count', 'jumlah subjek');
+                $tambah('multiple_boys', 'count', 'jumlah subjek');
+            } else {
+                $tambah('1boy', 'count', 'jumlah subjek');
+                $tambah('1girl', 'count', 'jumlah subjek');
+            }
+        }
+
+        // quality: modul nai5 kalau ada
+        $kualitas = ['masterpiece', 'best_quality'];
+        $idQ = Database::value("SELECT id FROM modules WHERE type = 'quality' AND slug = 'nai5' AND is_active = 1");
+        if ($idQ !== null) {
+            $mod = PromptBuilder::loadModule((int)$idQ, true, 'quality');
+            if ($mod !== null && ($mod['tags'] ?? []) !== []) {
+                $kualitas = array_map(static fn(array $t): string => $t['name'], $mod['tags']);
+            }
+        }
+        foreach ($kualitas as $q) {
+            $tambah($q, 'quality', 'kualitas');
+        }
+
+        if ($nsfw) {
+            // NovelAI mengenal kata konvensi ini walau bukan tag Danbooru.
+            $tambah('nsfw', 'style', 'versi setia');
+        }
+
+        // --- gaya visual ---
+        $gaya  = self::modulGaya($opsi, 'style');
+        $bobot = self::bobotGaya($opsi);
+
+        if ($gaya !== null) {
+            foreach ($gaya['tags'] as $t) {
+                $tambah($t, 'style', 'gaya: ' . $gaya['nama'], $bobot);
+            }
+        } elseif ($e['style']['medium'] === 'anime' && $adaTag('anime_coloring')) {
+            $tambah('anime_coloring', 'style', 'gaya');
+        }
+
+        // --- tag artis ---
+        // NovelAI mengenali artis lewat awalan "artist:", dan inilah tuas
+        // paling ampuh untuk memberi watak pada gambarnya: satu nama artis
+        // mengubah garis, warna, dan proporsi sekaligus, jauh melebihi
+        // tumpukan tag gaya.
+        foreach (self::tagArtis($opsi) as $t) {
+            $tambah('artist:' . $t, 'style', 'artis', $bobot);
+        }
+
+        // per subjek
+        foreach ($e['subjects'] as $s) {
+            $sfx  = $s['id'] === 'b' ? '_b' : '';
+            $dari = 'Petinju ' . strtoupper($s['id']);
+            $char = $val['karakter'][$s['id']] ?? null;
+
+            if ($char !== null) {
+                $tambah($char['tag'], 'character' . $sfx, $dari . ': karakter');
+                if (!empty($char['series_tag'])) {
+                    $tambah((string)$char['series_tag'], 'character' . $sfx, $dari . ': seri');
+                }
+            }
+
+            $tambah($s['sex'] === 'male' ? 'mature_male' : 'mature_female', 'appearance' . $sfx, $dari . ': dewasa');
+            foreach (array_merge($s['hair'], $s['eyes'], $s['body']) as $t) {
+                if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                    continue;
+                }
+                $tambah($t, 'appearance' . $sfx, $dari . ': penampilan');
+            }
+
+            // pakaian
+            foreach (self::tagPakaian($s, $nsfw) as [$t, $w]) {
+                $tambah($t, 'outfit' . $sfx, $dari . ': pakaian', $w);
+            }
+
+            // kondisi
+            foreach (self::tagKondisi($s) as $t) {
+                $tambah($t, 'condition' . $sfx, $dari . ': kondisi');
+            }
+            foreach (self::validasiTag(preg_split('/[,;]+/', $s['expression']) ?: [])[0] as $t) {
+                $tambah($t, 'condition' . $sfx, $dari . ': ekspresi');
+            }
+
+            // pose / aksi
+            $blokPose = $duo ? 'interaction' . ($s['id'] === 'b' ? '_b' : '_a') : 'pose';
+            foreach (self::tagAksi($s, $e) as $t) {
+                $tambah($t, $blokPose, $dari . ': aksi');
+            }
+            foreach ($s['tags'] as $t) {
+                if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                    continue;
+                }
+                if (self::penampilan($t)) {
+                    $tambah($t, 'appearance' . $sfx, $dari . ': penampilan');
+                } elseif (in_array($t, self::TAG_KAMERA, true)) {
+                    $tambah($t, 'camera', 'kamera');
+                } elseif (in_array($t, self::TAG_CAHAYA, true)) {
+                    $tambah($t, 'lighting', 'cahaya');
+                } elseif (in_array($t, self::TAG_LATAR, true)) {
+                    $tambah($t, 'background', 'latar');
+                } elseif (in_array($t, self::PENUTUP_ATAS, true) && $nsfw && !empty($s['nudity']['topless'])) {
+                    continue;
+                } else {
+                    $tambah($t, $blokPose, $dari . ': tag');
+                }
+            }
+        }
+
+        // interaksi bersama (kontak)
+        if ($duo && $e['interaction']['contact'] !== 'none') {
+            $tambah(self::tagKontak($e), 'interaction', 'interaksi');
+        }
+
+        // latar, cahaya, kamera
+        foreach ($e['environment']['tags'] as $t) {
+            $tambah($t, 'background', 'latar');
+        }
+        foreach ($e['lighting']['tags'] as $t) {
+            $tambah($t, 'lighting', 'cahaya');
+        }
+        foreach (array_filter([$e['camera']['distance'], $e['camera']['angle']]) as $t) {
+            if (self::validasiTag([$t])[0] !== []) {
+                $tambah(self::validasiTag([$t])[0][0], 'camera', 'kamera');
+            }
+        }
+        foreach (array_merge($e['camera']['effects'], $e['camera']['tags']) as $t) {
+            $tambah($t, 'camera', 'kamera');
+        }
+
+        // sisa tag global
+        foreach ($e['danbooru_tags'] as $t) {
+            if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                continue;
+            }
+            // Gaya bacaan dibuang kalau kamu sudah memilih gaya sendiri —
+            // dua gaya yang berkelahi menghasilkan gambar yang bukan
+            // dua-duanya.
+            if ($gaya !== null && in_array($t, self::TAG_MEDIUM, true)) {
+                continue;
+            }
+            if (in_array($t, self::PENUTUP_ATAS, true) && $nsfw && self::adaKetelanjangan($e)) {
+                continue;
+            }
+            if (preg_match('/^(1|2|3|multiple_)(girl|boy)s?$|^solo$/', $t) === 1) {
+                continue;
+            }
+            if (in_array($t, self::TAG_KAMERA, true)) {
+                $tambah($t, 'camera', 'kamera');
+            } elseif (in_array($t, self::TAG_CAHAYA, true)) {
+                $tambah($t, 'lighting', 'cahaya');
+            } elseif (in_array($t, self::TAG_LATAR, true)) {
+                $tambah($t, 'background', 'latar');
+            } elseif (!$duo && self::penampilan($t)) {
+                $tambah($t, 'appearance', 'Petinju A: penampilan');
+            } elseif ($duo && self::penampilan($t)) {
+                continue;   // tidak jelas milik siapa; sudah ada di per-subjek
+            } else {
+                $tambah($t, 'extra', 'tag umum');
+            }
+        }
+
+        return $items;
+    }
+
+    private static function penampilan(string $t): bool
+    {
+        foreach (self::POLA_PENAMPILAN as $p) {
+            if (preg_match($p, $t) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return array<int, array{0:string,1:float}> [tag, bobot] */
+    private static function tagPakaian(array $s, bool $nsfw): array
+    {
+        $out = [];
+        $a   = $s['attire'];
+        $topless = !empty($s['nudity']['topless']);
+
+        // atasan
+        if ($topless && $nsfw) {
+            $out[] = [$s['sex'] === 'male' ? 'topless_male' : 'topless_female', 1.0];
+            if ($s['sex'] !== 'male') {
+                $out[] = ['breasts', 1.0];
+                if (!empty($s['nudity']['nipples_visible'])) {
+                    $out[] = ['nipples', 1.0];
+                }
+            } else {
+                $out[] = ['bare_pectorals', 1.0];
+            }
+        } elseif ($topless) {
+            // versi aman: penutup sopan yang paling dekat dengan gaya tinju
+            $out[] = [$s['sex'] === 'male' ? 'topless_male' : 'sports_bra', 1.0];
+        } elseif ($a['top'] !== '' && !preg_match('/^(none|no top|nothing)/', $a['top'])) {
+            foreach (self::validasiTag([$a['top']])[0] as $t) {
+                $out[] = [$t, 1.0];
+            }
+        }
+
+        // bawahan
+        if (!empty($s['nudity']['bottomless']) && $nsfw) {
+            $out[] = ['bottomless', 1.0];
+        } elseif ($a['bottom'] !== '') {
+            foreach (self::validasiTag([$a['bottom']])[0] as $t) {
+                $out[] = [$t, 1.0];
+            }
+        }
+
+        // sarung tinju + warna
+        if ($a['gloves'] !== '' && !preg_match('/^(none|no gloves|bare)/', $a['gloves'])) {
+            $sarung = self::validasiTag([$a['gloves']])[0][0] ?? 'boxing_gloves';
+            $out[]  = [$sarung, 1.2];
+            $warna  = self::warnaPalet($a['gloves_color']);
+            if ($warna !== null) {
+                $base = Palette::baseFor($sarung);
+                $tagWarna = $base !== null ? Palette::tagFor($base, $warna) : null;
+                if ($tagWarna !== null) {
+                    $out[] = [$tagWarna, 1.0];
+                }
+            }
+        }
+
+        foreach ([$a['footwear'], $a['headgear']] as $bag) {
+            if ($bag !== '' && !preg_match('/^(none|barefoot|no )/', $bag)) {
+                foreach (self::validasiTag([$bag])[0] as $t) {
+                    $out[] = [$t, 1.0];
+                }
+            }
+        }
+        foreach ($a['other'] as $bag) {
+            foreach (self::validasiTag([$bag])[0] as $t) {
+                $out[] = [$t, 1.0];
+            }
+        }
+
+        // Jaring pengaman: kalimat "verbatim" disisir untuk nama pakaian yang
+        // dikenal kamus. Kolom top/bottom kadang kosong atau terlalu umum,
+        // padahal kalimatnya menyebut "white school gym shirt and green
+        // buruma" — tiga tag yang sayang kalau hilang.
+        $kalimat = trim((string)($a['verbatim'] ?? ''));
+        if ($kalimat !== '') {
+            $sudah = array_column($out, 0);
+            foreach (self::tagDariKalimat($kalimat) as $t) {
+                if (!in_array($t, $sudah, true)
+                    && !(in_array($t, self::PENUTUP_ATAS, true) && !empty($s['nudity']['topless']))) {
+                    $out[] = [$t, 1.0];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Nama pakaian yang dikenal kamus, dicari di dalam sebuah kalimat.
+     *
+     * Dicocokkan dari yang paling panjang dulu supaya "gym shirt" menang
+     * atas "shirt", dan bagian yang sudah terpakai dicoret supaya satu
+     * kalimat tidak menghasilkan tag yang bertumpuk.
+     *
+     * @return string[]
+     */
+    private static function tagDariKalimat(string $kalimat): array
+    {
+        static $daftar = null;
+        if ($daftar === null) {
+            $daftar = [
+                'gym_uniform', 'gym_shirt', 'gym_shorts', 'school_uniform', 'serafuku', 'buruma',
+                'bikini_top_only', 'bikini_bottom_only', 'string_bikini', 'micro_bikini', 'bikini',
+                'sports_bra', 'tank_top', 'crop_top', 'tube_top', 'camisole', 'bandeau',
+                'white_shirt', 't-shirt', 'shirt', 'jacket', 'hoodie', 'leotard',
+                'one-piece_swimsuit', 'swimsuit', 'chest_sarashi',
+                'boxing_shorts', 'short_shorts', 'dolphin_shorts', 'bike_shorts', 'micro_shorts',
+                'panties', 'skirt', 'pleated_skirt', 'leggings', 'thighhighs', 'kneehighs', 'socks',
+                'boxing_gloves', 'mma_gloves', 'hand_wraps', 'bandaged_hand', 'mouth_guard',
+                'headgear', 'armband', 'wristband', 'sweatband', 'boots', 'shoes', 'name_tag',
+                'short_sleeves', 'sleeveless', 'championship_belt', 'towel',
+            ];
+            usort($daftar, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+        }
+
+        $teks = ' ' . preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($kalimat)) . ' ';
+        $hasil = [];
+
+        foreach ($daftar as $tag) {
+            $kata = ' ' . str_replace(['_', '-'], ' ', $tag) . ' ';
+            $pos  = strpos($teks, $kata);
+            if ($pos === false) {
+                continue;
+            }
+            $hasil[] = $tag;
+            // dicoret supaya "gym shirt" tidak dihitung lagi sebagai "shirt"
+            $teks = substr_replace($teks, ' ', $pos, strlen($kata) - 1);
+        }
+
+        return self::validasiTag($hasil)[0];
+    }
+
+    /** Kata warna bebas → kunci Palette::COLORS, atau null. */
+    private static function warnaPalet(string $warna): ?string
+    {
+        $warna = strtolower(trim($warna));
+        if ($warna === '' || $warna === 'none') {
+            return null;
+        }
+        $peta = [
+            'gray' => 'grey', 'navy' => 'blue', 'dark blue' => 'blue', 'light blue' => 'blue', 'cyan' => 'blue',
+            'teal' => 'green', 'crimson' => 'red', 'scarlet' => 'red', 'maroon' => 'red', 'magenta' => 'pink',
+            'violet' => 'purple', 'lavender' => 'purple', 'beige' => 'brown', 'tan' => 'brown', 'cream' => 'white',
+            'golden' => 'gold', 'yellow-gold' => 'gold',
+        ];
+        $warna = $peta[$warna] ?? $warna;
+        foreach (array_keys(Palette::COLORS) as $k) {
+            if ($warna === $k || str_starts_with($warna, $k . ' ') || str_contains($warna, ' ' . $k)) {
+                return $k;
+            }
+        }
+        return null;
+    }
+
+    private static function tagKondisi(array $s): array
+    {
+        $c   = $s['condition'];
+        $out = [];
+        if ($c['sweat'] >= 1) {
+            $out[] = 'sweat';
+        }
+        if ($c['sweat'] >= 3) {
+            $out[] = 'steaming_body';
+        }
+        if ($c['fatigue'] >= 2) {
+            $out[] = 'heavy_breathing';
+        }
+        if ($c['fatigue'] >= 3) {
+            $out[] = 'exhausted';
+        }
+        $teks = strtolower(implode(' ', array_merge($c['bruises'], $c['swelling'])));
+        if ($c['bruises'] !== []) {
+            $out[] = 'bruise';
+            if (preg_match('/cheek|face|jaw|forehead/', $teks)) {
+                $out[] = 'bruise_on_face';
+            }
+        }
+        if (preg_match('/eye/', $teks)) {
+            $out[] = 'bruised_eye';
+        }
+        $darah = strtolower(implode(' ', $c['blood']));
+        if ($c['blood'] !== []) {
+            $out[] = 'blood';
+            if (preg_match('/nose/', $darah)) {
+                $out[] = 'nosebleed';
+            }
+            if (preg_match('/mouth|lip/', $darah)) {
+                $out[] = 'blood_from_mouth';
+            }
+            if (preg_match('/face|cheek|brow|forehead/', $darah)) {
+                $out[] = 'blood_on_face';
+            }
+        }
+        return self::validasiTag($out)[0];
+    }
+
+    private static function tagAksi(array $s, array $e): array
+    {
+        $out = [];
+        switch ($s['action']['type']) {
+            case 'jab':
+            case 'cross':
+            case 'lead_hook':
+            case 'rear_hook':
+            case 'overhand':
+                $out[] = 'punching';
+                break;
+            case 'uppercut':
+                $out[] = 'uppercut';
+                $out[] = 'punching';
+                break;
+            case 'body_shot':
+                $out[] = 'punching';
+                break;
+            case 'slip':
+                $out[] = 'dodging';
+                break;
+            case 'block':
+                $out[] = 'blocking';
+                break;
+            case 'guard':
+                $out[] = 'fighting_stance';
+                break;
+            case 'knockdown':
+                $out[] = 'lying';
+                $out[] = 'on_ground';
+                break;
+            default:
+                break;
+        }
+        if ($e['interaction']['receiver'] === $s['id'] && $e['interaction']['contact'] === 'landed') {
+            $out[] = 'punched';
+        }
+        return self::validasiTag($out)[0];
+    }
+
+    private static function tagKontak(array $e): string
+    {
+        return match ($e['interaction']['target']) {
+            'face' => 'face_punch',
+            'body' => 'stomach_punch',
+            default => 'punching',
+        };
+    }
+
+    /** Awalan source#/target# untuk kotak karakter A dan B. */
+    private static function aksiKotak(array $e): array
+    {
+        $i = $e['interaction'];
+        if ($i['striker'] === null || $i['contact'] === 'none' || count($e['subjects']) < 2) {
+            return [];
+        }
+        $tag = self::tagKontak($e);
+        $penerima = $i['receiver'] ?? ($i['striker'] === 'a' ? 'b' : 'a');
+        return [$i['striker'] => 'source#' . $tag, $penerima => 'target#' . $tag];
+    }
+
+    /**
+     * Rakit items jadi keluaran NovelAI lewat Exporter yang sudah ada.
+     * Mengembalikan ['base','characters','undesired','flat','v45'].
+     */
+    private static function bangunNovelAI(array $items, array $sel, array $e, string $prosa): array
+    {
+        $duo = ($sel['mode'] ?? 'single') === 'duo';
+        $result = Optimizer::process($items, true, $duo ? [PromptBuilder::class, 'ownerGroup'] : null);
+
+        $order = array_flip(PromptBuilder::BLOCK_ORDER);
+        $items = $result['items'];
+        usort($items, static fn(array $a, array $b): int => ($order[$a['block']] ?? 99) <=> ($order[$b['block']] ?? 99));
+
+        $blocks = [];
+        foreach ($items as $it) {
+            $blocks[$it['block']][] = $it;
+        }
+
+        // formatNovelAI memutuskan tata dua kotak dari character_b/outfit_b.
+        if ($duo && empty($blocks['character_b']) && empty($blocks['outfit_b'])) {
+            $blocks['outfit_b'] = $blocks['appearance_b'] ?? [];
+        }
+
+        $built = [
+            'items'          => $items,
+            'blocks'         => $blocks,
+            'negative_items' => PromptBuilder::buildNegative(null),
+            'characters'     => ['a' => null, 'b' => null],
+        ];
+
+        // V4.5: tag murni
+        $v45 = Exporter::formatNovelAI($built, $sel, null);
+
+        // V5: prosa + ekor tag wajib (resep Exporter::formatAll)
+        $wajib = [];
+        foreach (['count', 'quality', 'style', 'extra'] as $blok) {
+            $wajib = array_merge($wajib, $blocks[$blok] ?? []);
+        }
+        if ($v45['characters'] === []) {
+            foreach (['character', 'appearance', 'outfit', 'condition', 'pose', 'background', 'camera', 'lighting'] as $blok) {
+                $wajib = array_merge($wajib, $blocks[$blok] ?? []);
+            }
+        } else {
+            foreach (['interaction', 'background', 'camera', 'lighting'] as $blok) {
+                $wajib = array_merge($wajib, $blocks[$blok] ?? []);
+            }
+        }
+        $ekor = Exporter::format($wajib, 'nai5');
+        $base5 = trim($prosa) === '' ? $ekor : trim($prosa) . ($ekor === '' ? '' : ' ' . $ekor);
+
+        $v5 = Exporter::formatNovelAI($built, $sel, $base5);
+
+        // aksi source#/target# ditempel sebagai string mentah (underscore dipertahankan)
+        $aksi = self::aksiKotak($e);
+        $tempel = static function (array $hasil) use ($aksi): array {
+            foreach ($hasil['characters'] as $i => $c) {
+                $sisi = $i === 0 ? 'a' : 'b';
+                if (isset($aksi[$sisi])) {
+                    $hasil['characters'][$i]['prompt'] .= ', ' . $aksi[$sisi];
+                }
+            }
+            return $hasil;
+        };
+        $v5  = $tempel($v5);
+        $v45 = $tempel($v45);
+
+        $flat = $v5['base'];
+        foreach ($v5['characters'] as $c) {
+            $flat .= ' | ' . $c['prompt'];
+        }
+
+        return [
+            'base'       => $v5['base'],
+            'characters' => $v5['characters'],
+            'undesired'  => $v5['undesired'],
+            'flat'       => $flat,
+            'v45'        => [
+                'base'       => $v45['base'],
+                'characters' => $v45['characters'],
+                'vibe'       => 'Pakai gambar referensinya sebagai Vibe Transfer: Reference Strength 0.6, Information Extracted 0.3–0.5 (menjaga komposisi, bukan gaya).',
+            ],
+        ];
+    }
+
+    /** Kalimat cadangan kalau model vision tidak memberi prosa. */
+    private static function prosaCadangan(array $e): string
+    {
+        $n = count($e['subjects']);
+        $baris = $n >= 2 ? 'Two boxers face each other' : 'A boxer stands ready';
+        $baris .= $e['environment']['ring'] ? ' in a boxing ring' : ($e['environment']['venue'] !== '' ? ' in ' . $e['environment']['venue'] : '');
+        $baris .= '.';
+        if ($e['interaction']['description'] !== '') {
+            $baris .= ' ' . SeedanceBuilder::kalimat($e['interaction']['description']);
+        }
+        if ($e['lighting']['summary'] !== '') {
+            $baris .= ' ' . SeedanceBuilder::kalimat('Lit by ' . $e['lighting']['summary']);
+        }
+        return self::bersihkanTeks($baris);
+    }
+
+    /** Tahap 2 untuk NovelAI: model kuat menulis ulang prosa versi bersih. */
+    private static function polesNovelAI(array $e, array $val, string $draf, array $contoh): string
+    {
+        $bersih = self::bersihkan($e);
+
+        $system = <<<'TXT'
+Kamu penulis prompt NovelAI Diffusion V5 untuk ilustrasi anime bertema tinju. Tugasmu menulis ULANG bagian kalimat natural (prosa) dari Base Prompt supaya setia pada hasil pembacaan gambar dan mengikuti gaya contoh yang diberikan. Tag akan ditambahkan oleh sistem, jadi prosa TIDAK perlu mengulang daftar tag.
+
+Aturan:
+- 2 sampai 4 kalimat Inggris, kalimat penuh, present tense, tanpa nama karakter (sebut "the boxer", "the blonde-haired boxer", "the boxer on the left").
+- Urutan isi: siapa dan berapa orang → pose/aksi dan siapa memukul siapa (kalau ada) → kondisi tubuh (keringat, memar, darah) → tempat dan pencahayaan → framing kamera → gaya gambar/era.
+- Setia pada data: jangan menambah detail yang tidak ada di data, jangan menghilangkan aksi utamanya. Sisi kiri/kanan dari sudut pandang penonton.
+- Pertahankan penanda seperti {{TOP_A}} atau {{TOP_B}} apa adanya kalau muncul di data.
+- Balas HANYA dengan JSON: {"prose": "..."}
+TXT;
+
+        $user = "DATA PEMBACAAN (JSON):\n" . json_encode(self::ringkasUntukPolish($bersih, $val), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+              . "\n\nDRAF PROSA SAAT INI:\n" . ($draf !== '' ? $draf : '(kosong)');
+
+        if ($contoh !== []) {
+            $user .= "\n\nCONTOH GAYA (prompt yang pernah berhasil, tiru nada dan urutannya, bukan isinya):";
+            foreach ($contoh as $i => $c) {
+                $user .= "\n--- contoh " . ($i + 1) . " ---\n" . self::bersihkanTeks(mb_substr((string)$c['prompt'], 0, 900));
+            }
+        }
+
+        $jawab = AiClient::parseJson(AiClient::completeDengan(
+            AiClient::profil('polish'), $system, $user, true, ['max_tokens' => 1500, 'temperature' => 0.5]
+        ));
+        $prosa = trim((string)($jawab['prose'] ?? ''));
+        if ($prosa === '' || mb_strlen($prosa) < 40) {
+            throw new RuntimeException('model polish tidak mengembalikan prosa yang layak.');
+        }
+        return self::bersihkanTeks($prosa);
+    }
+
+    /** Data ringkas (tanpa tag mentah berlebihan) untuk dikirim ke tahap polish. */
+    private static function ringkasUntukPolish(array $e, array $val): array
+    {
+        $subjek = [];
+        foreach ($e['subjects'] as $s) {
+            $subjek[] = [
+                'id'         => $s['id'],
+                'sex'        => $s['sex'],
+                'known_character' => $val['karakter'][$s['id']]['name'] ?? null,
+                'hair'       => $s['hair'],
+                'eyes'       => $s['eyes'],
+                'body'       => $s['body'],
+                'attire'     => $s['attire'],
+                'condition'  => $s['condition'],
+                'expression' => $s['expression'],
+                'stance'     => $s['stance'],
+                'pose'       => $s['pose'],
+                'action'     => $s['action'],
+                'position'   => $s['position']['side'],
+            ];
+        }
+        return [
+            'style'       => $e['style'],
+            'subjects'    => $subjek,
+            'interaction' => $e['interaction'],
+            'environment' => ['venue' => $e['environment']['venue'], 'ring' => $e['environment']['ring'], 'crowd' => $e['environment']['crowd']],
+            'lighting'    => $e['lighting']['summary'],
+            'camera'      => ['distance' => $e['camera']['distance'], 'angle' => $e['camera']['angle'], 'effects' => $e['camera']['effects']],
+        ];
+    }
+
+    // -----------------------------------------------------------------
+    // Video (Wan 3.0 / Seedance 2.5)
+    // -----------------------------------------------------------------
+
+    private static function susunVideo(
+        array $e, array $val, string $target, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
+        array &$catatan, array &$tahap
+    ): array {
+        $rencana = self::rencanaVideo($e, $val, $target, $opsi);
+
+        if ($poles) {
+            $contoh = $fewshot ? self::contohEmas('video', $target, $e, $val) : [];
+            try {
+                $rencana = self::polesVideo($rencana, $e, $val, $target, $contoh);
+                $tahap['polish'] = AiClient::profil('polish')['model'];
+            } catch (RuntimeException $ex) {
+                $catatan[] = 'Tahap polish dilewati: ' . $ex->getMessage();
+            }
+        }
+
+        $haluskan = !empty($opsi['haluskan']);
+        $mentah = $target === 'wan' ? self::renderWan($rencana, false) : self::renderSeedance($rencana, false);
+        $aman   = self::isiPenandaAman($mentah, $e);
+        if ($haluskan) {
+            $diubah = [];
+            $aman = SeedanceBuilder::safetyRewrite($aman, $diubah);
+            if ($diubah !== []) {
+                $catatan[] = 'Beberapa kata dihaluskan supaya tidak kena penyaring: ' . implode(', ', $diubah) . '.';
+            }
+        }
+
+        $outputs = ['sfw' => ['prompt' => $aman, 'huruf' => mb_strlen($aman)], 'nsfw' => null];
+
+        if ($nsfw) {
+            // dirender ulang dengan ciri telanjang, penandanya diisi belakangan
+            $setia = $target === 'wan' ? self::renderWan($rencana, true) : self::renderSeedance($rencana, true);
+            $setia = self::lapisNsfwTeks($setia, $e, $poles, $tahap, $catatan);
+            if ($tahap['nsfw'] === null) {
+                $tahap['nsfw'] = 'aturan';
+            }
+            $outputs['nsfw'] = ['prompt' => $setia, 'huruf' => mb_strlen($setia)];
+            $catatan[] = 'Generator video resmi (Wan, Seedance) biasanya menolak ketelanjangan. Versi setia untuk layanan tanpa sensor; versi aman untuk selebihnya.';
+        }
+
+        $token = Optimizer::estimateTokens($aman);
+
+        return [
+            'mode'           => 'reverse_video',
+            'target'         => $target,
+            'outputs'        => $outputs,
+            'acuan'          => self::acuan($e, $val, $rencana, $opsi),
+            'rencana'        => $rencana,
+            'token_estimate' => $token,
+            'token_warning'  => null,
+            'catatan'        => [],
+            'notes'          => [],
+        ];
+    }
+
+    /**
+     * Rencana video: orang (nama + ciri), shot bertimestamp, gaya, durasi.
+     * Dari gambar diam, dibuat dua shot: pendekatan dan aksi utamanya.
+     */
+    private static function rencanaVideo(array $e, array $val, string $target, array $opsi): array
+    {
+        $rasio = (string)($opsi['wan']['rasio'] ?? '16:9');
+        if (!in_array($rasio, ['16:9', '9:16', '4:3', '3:4', '1:1', 'adaptive'], true)) {
+            $rasio = '16:9';
+        }
+        $durasi = (int)($opsi['wan']['detik'] ?? ($e['video']['duration'] ?? 0));
+        if ($durasi <= 0) {
+            $durasi = $target === 'wan' ? 10 : 15;
+        }
+        $durasi = max($target === 'wan' ? 2 : 4, min(30, $durasi));
+
+        $orang = [];
+        $n = 1;
+        foreach ($e['subjects'] as $s) {
+            $char = $val['karakter'][$s['id']] ?? null;
+            $nama = $char['name'] ?? ('Boxer ' . strtoupper($s['id']));
+            $orang[$s['id']] = [
+                'id'     => $s['id'],
+                'nomor'  => $n++,
+                'nama'   => $nama,
+                'sex'    => $s['sex'],
+                'ciri'   => self::ciriOrang($s, false),
+                'ciri_nsfw' => self::ciriOrang($s, true),
+                'side'   => $s['position']['side'],
+                'stance' => $s['stance'],
+            ];
+        }
+
+        $shots = [];
+        if ($e['video'] !== null && $e['video']['shots'] !== []) {
+            foreach ($e['video']['shots'] as $sh) {
+                $shots[] = $sh;
+            }
+        } else {
+            $a = $e['subjects'][0] ?? null;
+            $pemukul = $e['interaction']['striker'] ?? ($a['id'] ?? null);
+            $aksi = $e['interaction']['description'] !== ''
+                ? $e['interaction']['description']
+                : ($a !== null ? ($a['pose']['summary'] !== '' ? $a['pose']['summary'] : 'holds a tight guard and circles') : 'both boxers circle at range');
+            $shots = [
+                ['start' => 0, 'end' => 0, 'camera' => self::kameraKalimat($e), 'camera_move' => 'static',
+                 'actor' => $pemukul, 'action' => 'Both boxers settle into their stance and measure the distance with small steps; ' . ($a !== null && $a['stance'] !== 'unclear' ? ucfirst($a['stance']) . ' stance for ' . ($orang[$a['id']]['nama'] ?? 'Boxer A') . '.' : ''),
+                 'sound' => 'leather creaking, shoes squeaking on canvas, the crowd murmuring'],
+                ['start' => 0, 'end' => 0, 'camera' => self::kameraKalimat($e), 'camera_move' => 'push_in',
+                 'actor' => $pemukul, 'action' => SeedanceBuilder::kalimat($aksi),
+                 'sound' => 'a sharp leather impact, a hard exhale, the crowd surging'],
+            ];
+        }
+
+        // waktu: rapatkan jadi bilangan bulat berurutan yang jumlahnya = durasi
+        $jumlah = max(1, count($shots));
+        $dasar  = intdiv($durasi, $jumlah);
+        $sisa   = $durasi - $dasar * $jumlah;
+        $t = 0;
+        foreach ($shots as $i => &$sh) {
+            $lama = max(1, $dasar + ($i < $sisa ? 1 : 0));
+            $sh['start'] = $t;
+            $sh['end']   = $t + $lama;
+            $t += $lama;
+            if (($sh['actor'] ?? null) === null) {
+                $sh['actor'] = $e['interaction']['striker'] ?? 'a';
+            }
+            if (($sh['sound'] ?? '') === '') {
+                $sh['sound'] = 'leather impact, sharp exhales, shoes squeaking on canvas, the crowd surging';
+            }
+        }
+        unset($sh);
+
+        // Gaya pilihan menang atas gaya bacaan. Untuk video ini penting
+        // sekali: paragraf gaya adalah kalimat PERTAMA promptnya, dan itu
+        // yang paling menentukan wujud akhirnya.
+        $pilihan = self::modulGaya($opsi, 'video_style');
+        $gaya = $pilihan !== null ? $pilihan['kalimat'] : ($e['video']['style_paragraph'] ?? '');
+
+        if ($gaya === '') {
+            $era    = $e['style']['era'];
+            $render = $e['style']['render'];
+            // era yang sudah tersirat di render tidak diulang ("modern digital, modern digital anime")
+            $gaya = trim(($era !== '' && stripos($render, $era) === false ? $era . ', ' : '') . $render);
+        }
+        if ($gaya === '') {
+            $gaya = 'modern digital TV anime, clean tapered lineart, two-tone cel shading, glossy highlights on the gloves';
+        }
+
+        $tempat = $e['environment']['venue'] !== '' ? 'in ' . $e['environment']['venue'] : 'in a boxing ring';
+        if ($e['environment']['ring'] && stripos($tempat, 'ring') === false) {
+            $tempat .= ' with a regulation boxing ring';
+        }
+
+        return [
+            'target'   => $target,
+            'rasio'    => $rasio,
+            'durasi'   => $durasi,
+            'orang'    => $orang,
+            'shots'    => $shots,
+            'gaya'     => rtrim($gaya, '. '),
+            'tempat'   => $tempat,
+            'cahaya'   => $e['lighting']['summary'],
+            'acuan_latar' => false,
+            'nsfw_ada' => self::adaKetelanjangan($e),
+        ];
+    }
+
+    /** Daftar ciri stabil untuk baris jangkar "Image N is NAME — ciri." (maks 9). */
+    private static function ciriOrang(array $s, bool $nsfw): array
+    {
+        $rambut = array_map(static fn(string $t) => str_replace('_', ' ', $t), $s['hair']);
+        $mata   = array_map(static fn(string $t) => str_replace('_', ' ', $t), $s['eyes']);
+        $a = $s['attire'];
+
+        $sarung = '';
+        if ($a['gloves'] !== '' && !preg_match('/^(none|no gloves|bare)/', $a['gloves'])) {
+            $sarung = ($a['gloves_color'] !== '' && $a['gloves_color'] !== 'none' ? $a['gloves_color'] . ' ' : '') . $a['gloves'];
+        }
+
+        $lain = [];
+        if (!empty($s['nudity']['topless'])) {
+            $lain[] = $nsfw ? ($s['sex'] === 'male' ? 'bare-chested' : 'topless, bare breasts') : ($s['sex'] === 'male' ? 'bare-chested' : 'fitted sports bra');
+        } elseif (($a['verbatim'] ?? '') !== '') {
+            // Kalimat apa adanya lebih setia daripada nama tag: "white school
+            // gym shirt with a name tag" versus sekadar "gym_shirt".
+            $lain[] = rtrim($a['verbatim'], '.');
+        } elseif ($a['top'] !== '') {
+            $lain[] = str_replace('_', ' ', $a['top']);
+        }
+        if ($a['bottom'] !== '') {
+            $lain[] = $a['bottom'];
+        }
+        if ($a['footwear'] !== '' && !preg_match('/^(none|barefoot)/', $a['footwear'])) {
+            $lain[] = $a['footwear'];
+        }
+        foreach ($a['other'] as $x) {
+            $lain[] = $x;
+        }
+        foreach ($s['body'] as $t) {
+            if (preg_match('/^(muscular|toned|abs|dark_skin|tan|pale_skin)/', $t)) {
+                $lain[] = str_replace('_', ' ', $t);
+            }
+        }
+
+        $ciri = array_merge($rambut, $mata, $sarung !== '' ? [$sarung] : [], array_slice($lain, 0, 5));
+        return array_slice(array_values(array_unique(array_filter($ciri))), 0, 9);
+    }
+
+    private static function kameraKalimat(array $e): string
+    {
+        $peta = [
+            'close-up' => 'a tight close-up', 'upper_body' => 'a medium shot from the waist up',
+            'cowboy_shot' => 'a medium-wide shot from the thighs up', 'full_body' => 'a full-body shot',
+            'wide_shot' => 'a wide ringside shot',
+        ];
+        $sudut = [
+            'from_below' => 'from a low angle', 'from_above' => 'from a high angle', 'from_side' => 'from the side',
+            'from_behind' => 'from behind', 'dutch_angle' => 'with a tilted dutch angle', 'eye_level' => 'at eye level',
+        ];
+        $bag = [$peta[$e['camera']['distance']] ?? 'a medium shot'];
+        if (isset($sudut[$e['camera']['angle']])) {
+            $bag[] = $sudut[$e['camera']['angle']];
+        }
+        return implode(' ', $bag);
+    }
+
+    private static function renderWan(array $r, bool $nsfw): string
+    {
+        $bagian = [];
+        $bagian[] = 'Generate a ' . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
+                  . 'an anime boxing match, ' . $r['gaya'] . '.';
+
+        foreach ($r['orang'] as $o) {
+            $ciri = $nsfw ? $o['ciri_nsfw'] : $o['ciri'];
+            $bagian[] = 'Image ' . $o['nomor'] . ' is ' . $o['nama']
+                      . ($ciri === [] ? '' : ' — ' . implode(', ', $ciri)) . '.';
+        }
+        if (!empty($r['acuan_latar'])) {
+            $bagian[] = 'Image ' . (count($r['orang']) + 1) . ' is the ring and the arena.';
+        }
+
+        foreach ($r['shots'] as $i => $sh) {
+            $baris = 'Shot ' . ($i + 1) . ' [' . $sh['start'] . '-' . $sh['end'] . 's]: '
+                   . self::kalimatShotWan($sh, $r);
+            $baris .= "\nSound: " . rtrim((string)$sh['sound'], '.') . '.';
+            $bagian[] = $baris;
+        }
+
+        $bagian[] = self::batasanWan($r);
+
+        return implode("\n\n", array_filter($bagian));
+    }
+
+    private static function kalimatShotWan(array $sh, array $r): string
+    {
+        $aksi = self::sebutOrang((string)$sh['action'], $r, 'wan');
+        $kamera = trim((string)($sh['camera'] ?? ''));
+        $gerak  = self::gerakKamera((string)($sh['camera_move'] ?? 'static'));
+        $teks = SeedanceBuilder::kalimat($aksi);
+        if ($kamera !== '' || $gerak !== '') {
+            $teks .= ' ' . SeedanceBuilder::kalimat(trim(ucfirst($kamera) . ($gerak !== '' ? ($kamera !== '' ? ', ' : '') . $gerak : '')));
+        }
+        return $teks;
+    }
+
+    private static function gerakKamera(string $move): string
+    {
+        return match ($move) {
+            'push_in'     => 'the camera pushes in slowly',
+            'pull_out'    => 'the camera pulls out slowly',
+            'pan'         => 'the camera pans to follow the movement',
+            'tracking'    => 'the camera tracks alongside the fighters',
+            'orbit'       => 'the camera orbits around the fighters',
+            'handheld'    => 'handheld camera with slight shake',
+            'whip_pan'    => 'a whip pan into the action',
+            'slow_motion' => 'the impact plays in slow motion',
+            default       => 'the camera stays locked off',
+        };
+    }
+
+    /** Ganti "Boxer A"/"Boxer B"/"a"/"b" dengan sebutan yang benar per target. */
+    private static function sebutOrang(string $teks, array $r, string $target): string
+    {
+        foreach ($r['orang'] as $o) {
+            $sebut = $target === 'wan'
+                ? $o['nama'] . ' (Image ' . $o['nomor'] . ')'
+                : mb_strtoupper($o['nama']);
+            $teks = preg_replace('/\bBoxer ' . strtoupper($o['id']) . '\b/', $sebut, $teks) ?? $teks;
+            if ($o['nama'] !== 'Boxer ' . strtoupper($o['id'])) {
+                $teks = preg_replace('/\b' . preg_quote($o['nama'], '/') . '\b(?! \(Image)/', $sebut, $teks) ?? $teks;
+            }
+        }
+        return $teks;
+    }
+
+    private static function batasanWan(array $r): string
+    {
+        $b = [];
+        $b[] = 'Throughout the whole clip: strictly lock every character to their '
+             . 'reference image — hair colour, eye colour, glove colour and outfit '
+             . 'must not change at any point.';
+        if (count($r['orang']) === 2) {
+            $kiri = null;
+            $kanan = null;
+            foreach ($r['orang'] as $o) {
+                if ($o['side'] === 'right' && $kanan === null) {
+                    $kanan = $o;
+                } elseif ($kiri === null) {
+                    $kiri = $o;
+                } else {
+                    $kanan = $o;
+                }
+            }
+            if ($kiri !== null && $kanan !== null) {
+                $b[] = 'Keep the screen direction consistent: ' . $kiri['nama'] . ' (Image ' . $kiri['nomor'] . ') stays on the left '
+                     . 'side of frame and ' . $kanan['nama'] . ' (Image ' . $kanan['nomor'] . ') stays on the right.';
+            }
+        }
+        $b[] = 'Only the two boxers are clearly readable; the referee and the crowd '
+             . 'stay as soft background bokeh. Every movement stays physically possible, '
+             . 'with weight and follow-through.';
+        if ($r['cahaya'] !== '') {
+            $b[] = SeedanceBuilder::kalimat('Lighting stays ' . $r['cahaya']);
+        }
+        $laju = self::kalimatTempo();
+        if ($laju !== '') {
+            $b[] = SeedanceBuilder::kalimat($laju);
+        }
+        $b[] = 'No background music.';
+        return implode(' ', $b);
+    }
+
+    private static function kalimatTempo(): string
+    {
+        $id = Database::value("SELECT id FROM modules WHERE type = 'video_tempo' AND slug = 'cepat' AND is_active = 1");
+        return $id === null ? 'Cut fast and often, every cut landing on a movement rather than between them'
+                            : SeedanceBuilder::kalimatModul((int)$id, 'video_tempo', true);
+    }
+
+    private static function renderSeedance(array $r, bool $nsfw): string
+    {
+        $blok = [];
+        foreach ($r['orang'] as $o) {
+            $ciri = $nsfw ? $o['ciri_nsfw'] : $o['ciri'];
+            $sisi = $o['side'] === 'right' ? 'RIGHT' : 'LEFT';
+            $blok[] = '@Image ' . $o['nomor'] . ' is ' . mb_strtoupper($o['nama'])
+                    . ', the boxer on the ' . $sisi . ' of frame'
+                    . ($ciri === [] ? '' : ' — ' . implode(', ', $ciri)) . '.';
+        }
+        $blok[] = '';
+
+        $nama = implode(' and ', array_map(static fn(array $o) => mb_strtoupper($o['nama']), $r['orang']));
+        $blok[] = 'A ' . $r['durasi'] . '-second anime boxing match: ' . $nama
+                . (count($r['orang']) > 1 ? ' trade ' : ' works ') . $r['tempat']
+                . ', ' . $r['gaya'] . ', shot like a live boxing broadcast.';
+        $blok[] = '';
+
+        foreach ($r['shots'] as $i => $sh) {
+            $kamera = trim((string)($sh['camera'] ?? ''));
+            $gerak  = self::gerakKamera((string)($sh['camera_move'] ?? 'static'));
+            $bagian = [];
+            if ($kamera !== '') {
+                $bagian[] = ucfirst($kamera) . ($gerak !== '' ? ', ' . $gerak : '');
+            } elseif ($gerak !== '') {
+                $bagian[] = ucfirst($gerak);
+            }
+            $aksi = self::sebutOrang((string)$sh['action'], $r, 'seedance25');
+            // Setelah fragmen kamera, kalimat aksi yang diawali kata sandang
+            // diturunkan hurufnya supaya jadi satu kalimat mengalir.
+            if ($bagian !== [] && preg_match('/^(The|A|An|Both|Two|She|He|They|Her|His)\b/', $aksi) === 1) {
+                $aksi = lcfirst($aksi);
+            }
+            $bagian[] = $aksi;
+            $isi = SeedanceBuilder::kalimat(implode(', ', array_filter($bagian)));
+            $sfx = trim((string)$sh['sound']);
+            if ($sfx !== '') {
+                $isi .= ' <' . rtrim($sfx, '.') . '>';
+            }
+            $blok[] = 'Shot ' . ($i + 1) . ' (' . $sh['start'] . '-' . $sh['end'] . 's): ' . $isi;
+        }
+        $blok[] = '';
+
+        $b = [];
+        $b[] = 'Throughout: lock every fighter strictly to their reference image — hair '
+             . 'colour, eye colour, glove colour and trunks never change. Keep the screen '
+             . 'direction fixed so neither fighter swaps side of frame.';
+        $b[] = 'Only the two boxers read clearly; the referee and the crowd stay as soft '
+             . 'background bokeh. Every movement keeps weight, balance and follow-through, '
+             . 'and stays physically possible.';
+        $b[] = 'Keep the silhouette readable in every key pose even at speed, with directional motion blur on the fastest limb, and let each cut land on a movement rather than between them.';
+        $laju = self::kalimatTempo();
+        if ($laju !== '') {
+            $b[] = SeedanceBuilder::kalimat($laju);
+        }
+        if (!$nsfw) {
+            $b[] = 'Keep every visible mark limited to light bruising and swelling.';
+        }
+        $b[] = 'STRICTLY EXCLUDE: no subtitles, no on-screen text; no background music, only ambient and action sound; no spoken dialogue; no extra people inside the ropes.';
+        $blok[] = implode(' ', $b);
+
+        return implode("\n", $blok);
+    }
+
+    /** Tahap 2 untuk video: model kuat menulis ulang gaya + kalimat shot. */
+    private static function polesVideo(array $r, array $e, array $val, string $target, array $contoh): array
+    {
+        $system = <<<'TXT'
+Kamu penulis prompt video AI (Wan 3.0 / Seedance 2.5) untuk animasi tinju bergaya anime. Tugasmu menulis ulang paragraf gaya dan kalimat tiap shot supaya setia pada hasil pembacaan referensi dan mengikuti gaya contoh yang diberikan: konkret, sinematik, mekanika pukulan jelas (kaki, pinggul, siku, arah kepalan), reaksi lawan terlihat, SATU gerakan kamera per shot.
+
+Aturan:
+- Sebut petinju dengan "Boxer A" dan "Boxer B" persis (sistem akan menggantinya dengan nama dan nomor gambar).
+- Jangan mengubah jumlah shot, urutan, atau waktunya. Jangan menambah orang, senjata, atau efek sihir.
+- Tiap "text" 1-3 kalimat Inggris; tiap "sound" satu frasa pendek tanpa musik.
+- "style_paragraph" satu paragraf: kualitas garis, bayangan, palet, grain, kecepatan frame — sesuai data.
+- Pertahankan penanda {{TOP_A}} / {{TOP_B}} apa adanya kalau muncul.
+- Balas HANYA dengan JSON: {"style_paragraph": "...", "shots": [{"start": 0, "end": 4, "text": "...", "sound": "..."}]}
+TXT;
+
+        $bersih = self::bersihkan($e);
+        $data = [
+            'target'   => $target,
+            'duration' => $r['durasi'],
+            'style'    => $r['gaya'],
+            'place'    => $r['tempat'],
+            'lighting' => $r['cahaya'],
+            'subjects' => self::ringkasUntukPolish($bersih, $val)['subjects'],
+            'interaction' => $bersih['interaction'],
+            'shots'    => array_map(static fn(array $sh) => [
+                'start' => $sh['start'], 'end' => $sh['end'], 'camera' => $sh['camera'],
+                'camera_move' => $sh['camera_move'], 'actor' => $sh['actor'], 'text' => $sh['action'], 'sound' => $sh['sound'],
+            ], $r['shots']),
+        ];
+
+        $user = "DATA (JSON):\n" . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        if ($contoh !== []) {
+            $user .= "\n\nCONTOH GAYA (prompt video yang pernah berhasil; tiru nada, kepadatan, dan cara menulis mekanika — bukan isinya):";
+            foreach ($contoh as $i => $c) {
+                $user .= "\n--- contoh " . ($i + 1) . " ---\n" . self::bersihkanTeks(mb_substr((string)$c['prompt'], 0, 1800));
+            }
+        }
+
+        $jawab = AiClient::parseJson(AiClient::completeDengan(
+            AiClient::profil('polish'), $system, $user, true, ['max_tokens' => 4000, 'temperature' => 0.5]
+        ));
+
+        $shots = is_array($jawab['shots'] ?? null) ? array_values($jawab['shots']) : [];
+        if (count($shots) !== count($r['shots'])) {
+            throw new RuntimeException('model polish mengubah jumlah shot.');
+        }
+        foreach ($r['shots'] as $i => &$sh) {
+            $teks = trim((string)($shots[$i]['text'] ?? ''));
+            if ($teks !== '') {
+                $sh['action'] = self::bersihkanTeks($teks);
+            }
+            $suara = trim((string)($shots[$i]['sound'] ?? ''));
+            if ($suara !== '') {
+                $sh['sound'] = $suara;
+            }
+        }
+        unset($sh);
+
+        $gaya = trim((string)($jawab['style_paragraph'] ?? ''));
+        if ($gaya !== '') {
+            $r['gaya'] = rtrim(self::bersihkanTeks($gaya), '. ');
+        }
+        return $r;
+    }
+
+    /** Prompt lembar acuan NovelAI per petinju (meniru WanBuilder::acuan). */
+    private static function acuan(array $e, array $val, array $r, array $opsi = []): array
+    {
+        // Tag artis ikut ke lembar acuan, bukan cuma ke prompt videonya:
+        // wujud petinjunya lahir di gambar acuan itu, jadi di situlah gaya
+        // artis harus melekat supaya video ikut mewarisinya.
+        $artis = self::tagArtis($opsi);
+        $bobot = self::bobotGaya($opsi);
+        $out = [];
+        foreach ($e['subjects'] as $s) {
+            $o = $r['orang'][$s['id']];
+            $items = [];
+            $items[] = ['name' => $s['sex'] === 'male' ? '1boy' : '1girl', 'weight' => 1.0];
+            $items[] = ['name' => 'solo', 'weight' => 1.0];
+            $char = $val['karakter'][$s['id']] ?? null;
+            if ($char !== null) {
+                $items[] = ['name' => $char['tag'], 'weight' => 1.0];
+                if (!empty($char['series_tag'])) {
+                    $items[] = ['name' => (string)$char['series_tag'], 'weight' => 1.0];
+                }
+            }
+            $items[] = ['name' => $s['sex'] === 'male' ? 'mature_male' : 'mature_female', 'weight' => 1.0];
+            foreach (array_merge($s['hair'], $s['eyes'], $s['body']) as $t) {
+                if (!in_array($t, self::TAG_NSFW, true)) {
+                    $items[] = ['name' => $t, 'weight' => 1.0];
+                }
+            }
+            $pakaianAman = [];
+            $pakaianSetia = [];
+            foreach (self::tagPakaian($s, false) as [$t, $w]) {
+                $pakaianAman[] = ['name' => $t, 'weight' => $w];
+            }
+            foreach (self::tagPakaian($s, true) as [$t, $w]) {
+                $pakaianSetia[] = ['name' => $t, 'weight' => $w];
+            }
+
+            $ekor = [
+                'reference sheet, multiple views, full body, standing, fighting stance, looking at viewer, simple background, white background',
+                'backlighting, 1.20::detailed shading::',
+            ];
+            foreach ($artis as $nama) {
+                $ekor[] = abs($bobot - 1.0) < 0.01
+                    ? 'artist:' . str_replace('_', ' ', $nama)
+                    : sprintf('%.2f::artist:%s::', $bobot, str_replace('_', ' ', $nama));
+            }
+            $ekor[] = 'masterpiece, best quality, high complexity, depthness';
+
+            // Exporter::format tidak membuang duplikat; di sini namanya disaring dulu.
+            $unik = static function (array $daftar): array {
+                $lihat = [];
+                $out = [];
+                foreach ($daftar as $it) {
+                    if (isset($lihat[$it['name']])) {
+                        continue;
+                    }
+                    $lihat[$it['name']] = true;
+                    $out[] = $it;
+                }
+                return $out;
+            };
+            $items = $unik($items);
+            $pakaianAman  = $unik($pakaianAman);
+            $pakaianSetia = $unik($pakaianSetia);
+
+            $negatif = array_map(static fn(array $it) => str_replace('_', ' ', $it['name']), PromptBuilder::buildNegative(null));
+            $negatif = implode(', ', array_unique(array_merge($negatif, ['2girls', '2boys', 'multiple girls', 'multiple boys', 'crowd', 'detailed background', 'scenery', 'cropped', 'out of frame'])));
+
+            $out[] = [
+                'label'       => 'Image ' . $o['nomor'] . ' — ' . $o['nama'],
+                'untuk'       => 'NovelAI',
+                'catatan'     => 'Lembar acuan wujud DASAR: belum memar, belum berkeringat. Kerusakan datang belakangan lewat prompt adegannya.',
+                'prompt'      => implode(', ', array_merge([Exporter::format(array_merge($items, $pakaianAman), 'novelai')], $ekor)),
+                'prompt_nsfw' => self::adaKetelanjangan($e)
+                    ? implode(', ', array_merge(['nsfw', Exporter::format(array_merge($items, $pakaianSetia), 'novelai')], $ekor))
+                    : null,
+                'negative'    => $negatif,
+            ];
+        }
+        return $out;
+    }
+
+    // -----------------------------------------------------------------
+    // Lapisan bersih / NSFW
+    // -----------------------------------------------------------------
+
+    /** Salinan ekstrak tanpa ketelanjangan: untuk tahap polish. */
+    private static function bersihkan(array $e): array
+    {
+        foreach ($e['subjects'] as $i => $s) {
+            if (!empty($s['nudity']['topless'])) {
+                $e['subjects'][$i]['attire']['top'] = '{{TOP_' . strtoupper($s['id']) . '}}';
+            }
+            if (!empty($s['nudity']['bottomless'])) {
+                $e['subjects'][$i]['attire']['bottom'] = 'fitted boxing shorts';
+            }
+            $e['subjects'][$i]['nudity'] = ['topless' => false, 'breasts_visible' => false, 'nipples_visible' => false, 'bottomless' => false];
+            foreach (['body', 'tags'] as $k) {
+                $e['subjects'][$i][$k] = array_values(array_diff($s[$k], self::TAG_NSFW));
+            }
+        }
+        $e['danbooru_tags'] = array_values(array_diff($e['danbooru_tags'], self::TAG_NSFW));
+        $e['prose'] = self::bersihkanTeks($e['prose']);
+        $e['interaction']['description'] = self::bersihkanTeks($e['interaction']['description']);
+        if ($e['video'] !== null) {
+            foreach ($e['video']['shots'] as $i => $sh) {
+                $e['video']['shots'][$i]['action'] = self::bersihkanTeks($sh['action']);
+            }
+        }
+        return $e;
+    }
+
+    /**
+     * Isi penanda {{TOP_A}} / {{TOP_B}} dengan pakaian yang sopan.
+     *
+     * Penanda itu dipasang bersihkan() supaya tahap polish tidak pernah
+     * melihat kata "topless", dan model polish diminta mempertahankannya
+     * apa adanya. Kalau tidak diisi di sini, penandanya BOCOR mentah-mentah
+     * ke versi aman ("Both wear {{TOP_A}} and {{TOP_B}}"). Versi setia
+     * tidak lewat sini: penandanya diisi lapisNsfwTeks() dengan wujud
+     * aslinya.
+     */
+    public static function isiPenandaAman(string $teks, array $e): string
+    {
+        foreach ($e['subjects'] as $s) {
+            $ganti = $s['sex'] === 'male' ? 'no shirt' : 'a fitted sports bra';
+            $teks  = str_replace('{{TOP_' . strtoupper($s['id']) . '}}', $ganti, $teks);
+        }
+
+        // Penanda subjek yang sudah tidak ada (JSON disunting user) tetap
+        // harus hilang — kalimat yang sedikit janggal masih jauh lebih baik
+        // daripada kurung kurawal ikut tercetak di promptnya.
+        $teks = preg_replace('/\{\{TOP_[A-Z]\}\}/', 'a fitted sports bra', $teks) ?? $teks;
+
+        $teks = preg_replace(
+            '/\ba fitted sports bra and a fitted sports bra\b/i',
+            'fitted sports bras',
+            $teks
+        ) ?? $teks;
+
+        return self::rapikanUlangan($teks);
+    }
+
+    /**
+     * Buang kata ketelanjangan dari kalimat bebas.
+     *
+     * Frasa penggantinya sengaja dibuat wajar ("in a sports bra") supaya
+     * versi amannya enak dibaca, dan lapisNsfwAturan() tahu persis frasa
+     * mana yang boleh dikembalikan.
+     */
+    public static function bersihkanTeks(string $teks): string
+    {
+        $peta = [
+            // "topless with bare breasts", "topless, bare breasts and nipples" → satu frasa
+            '/\btopless\b(,?\s*(with|and)?\s*(fully\s+)?(bare|exposed|uncovered)?\s*(breasts?|chest|nipples?)( (fully )?(visible|exposed|out))?)*(,?\s*(with|and)\s*(visible|exposed|bare)\s*nipples?)?/i' => 'in a sports bra',
+            // "bare-chested" dibiarkan: untuk pria itu wajar, dan untuk wanita
+            // model vision hampir selalu menulis "topless" yang sudah ditangani.
+            '/\bbare[- ]breasted\b/i' => 'in a sports bra',
+            '/,?\s*(with |and )?(fully\s+)?(bare|exposed|uncovered) (breasts?|nipples?)( (fully )?(visible|exposed|out))?/i' => '',
+            '/\bbreasts (fully )?(visible|exposed|out)\b/i' => 'torso visible',
+            '/\b(completely )?(nude|naked)\b/i' => 'in fightwear',
+            '/,?\s*(with |and )?(visible |exposed |hard )?nipples?( (visible|exposed))?/i' => '',
+            '/\btits\b/i'      => '',
+            '/\bnsfw\b,?\s*/i' => '',
+            '/\bbottomless\b/i' => 'in boxing shorts',
+        ];
+        $teks = preg_replace(array_keys($peta), array_values($peta), $teks) ?? $teks;
+        // Baris baru dipertahankan, sama alasannya dengan rapikanUlangan():
+        // fungsi ini juga kena teks video yang berblok-blok.
+        $teks = preg_replace('/[^\S\n]{2,}/', ' ', $teks) ?? $teks;
+        $teks = preg_replace('/[^\S\n]+([,.])/', '$1', $teks) ?? $teks;
+        $teks = preg_replace('/,[^\S\n]*,/', ',', $teks) ?? $teks;
+        return trim($teks);
+    }
+
+    /**
+     * Tahap 3 untuk kalimat: kembalikan ketelanjangan ke teks yang sudah OK.
+     * Pakai model tanpa sensor kalau siap dan diminta; kalau tidak (atau
+     * jawabannya mencurigakan), pakai aturan regex.
+     */
+    private static function lapisNsfwTeks(string $teks, array $e, bool $bolehAi, array &$tahap, array &$catatan): string
+    {
+        $fakta = [];
+        foreach ($e['subjects'] as $s) {
+            if (!empty($s['nudity']['topless'])) {
+                $fakta[] = 'Boxer ' . strtoupper($s['id']) . ' is ' . ($s['sex'] === 'male' ? 'bare-chested' : 'topless with bare breasts' . (!empty($s['nudity']['nipples_visible']) ? ' and visible nipples' : '')) . ', wearing no top at all';
+            }
+            if (!empty($s['nudity']['bottomless'])) {
+                $fakta[] = 'Boxer ' . strtoupper($s['id']) . ' wears nothing below the waist';
+            }
+        }
+        if ($fakta === []) {
+            return $teks;
+        }
+
+        if ($bolehAi && AiClient::siapProfil('nsfw')) {
+            $system = <<<'TXT'
+Kamu penyunting teks untuk konten dewasa (semua tokoh dewasa, fiksi). Diberi sebuah prompt yang sudah final dan daftar FAKTA tentang ketelanjangan tokoh. Tugasmu HANYA mengganti frasa pakaian atas/bawah (misalnya "sports bra", "fitted top", "{{TOP_A}}") supaya sesuai fakta, dengan bahasa yang lugas dan deskriptif. Segala hal lain — urutan kalimat, kamera, aksi, suara, nama, angka — HARUS sama kata per kata. Jangan menambah kalimat baru.
+
+Satu kelonggaran, dan hanya satu: kalau penggantian membuat klausa pakaiannya salah secara tata bahasa atau berulang ("wear bare breasts and visible nipples and bare breasts and visible nipples"), tulis ulang KLAUSA ITU SAJA supaya wajar — misalnya "Both fighters are topless, bare breasts and nipples exposed, wearing only boxing shorts and gloves." Jangan menyentuh kalimat lainnya.
+
+Balas HANYA dengan JSON: {"text": "..."}
+TXT;
+            $user = "FAKTA:\n- " . implode("\n- ", $fakta) . "\n\nTEKS:\n" . $teks;
+            try {
+                $jawab = AiClient::parseJson(AiClient::completeDengan(
+                    AiClient::profil('nsfw'), $system, $user, true, ['max_tokens' => 4000, 'temperature' => 0.2]
+                ));
+                $baru = trim((string)($jawab['text'] ?? ''));
+                $rasio = mb_strlen($teks) > 0 ? mb_strlen($baru) / mb_strlen($teks) : 0;
+                if ($baru !== '' && $rasio >= 0.7 && $rasio <= 1.4
+                    && preg_match('/topless|bare[- ]chest|bare breasts|nipples|nude/i', $baru) === 1) {
+                    $tahap['nsfw'] = AiClient::profil('nsfw')['model'];
+                    return self::rapikanUlangan($baru);
+                }
+                $catatan[] = 'Jawaban model NSFW tidak lolos pemeriksaan, dipakai aturan kode.';
+            } catch (RuntimeException $ex) {
+                $catatan[] = 'Model NSFW gagal dipanggil, dipakai aturan kode: ' . $ex->getMessage();
+            }
+        }
+
+        return self::lapisNsfwAturan($teks, $e);
+    }
+
+    /**
+     * Aturan kode untuk mengembalikan ketelanjangan ke teks.
+     *
+     * Yang dikembalikan hanya (1) penanda {{TOP_X}} dan (2) frasa yang
+     * memang dibuat oleh bersihkanTeks(). Frasa "sports bra" yang wajar
+     * TIDAK disentuh kalau ada petinju lain yang memang memakainya —
+     * baris jangkar dan tag sudah membawa kebenarannya masing-masing.
+     */
+    private static function lapisNsfwAturan(string $teks, array $e): string
+    {
+        $wanitaTopless = 0;
+        $wanita = 0;
+        foreach ($e['subjects'] as $s) {
+            $ganti = $s['sex'] === 'male'
+                ? 'bare-chested'
+                : 'topless with bare breasts' . (!empty($s['nudity']['nipples_visible']) ? ' and visible nipples' : '');
+            $teks = str_replace('{{TOP_' . strtoupper($s['id']) . '}}', $ganti, $teks);
+            if ($s['sex'] !== 'male') {
+                $wanita++;
+                if (!empty($s['nudity']['topless'])) {
+                    $wanitaTopless++;
+                }
+            }
+        }
+
+        // Frasa buatan bersihkanTeks() dikembalikan hanya kalau tidak ambigu:
+        // semua petinju wanita memang topless, jadi "in a sports bra" mana pun
+        // di teks itu pasti hasil penyamaran.
+        if ($wanita > 0 && $wanitaTopless === $wanita) {
+            $teks = preg_replace('/\bin a (fitted )?sports bra\b/i', 'topless with bare breasts', $teks) ?? $teks;
+        } elseif ($wanitaTopless === 0) {
+            $teks = preg_replace('/\bin a (fitted )?sports bra\b/i', 'bare-chested', $teks) ?? $teks;
+        } else {
+            // Campur: satu topless, satu tidak. Frasa dikembalikan hanya di
+            // klausa yang menyebut sisi (atau warna rambut) petinju yang topless.
+            foreach ($e['subjects'] as $s) {
+                if ($s['sex'] === 'male' || empty($s['nudity']['topless'])) {
+                    continue;
+                }
+                $penanda = ['on the ' . $s['position']['side']];
+                foreach ($s['hair'] as $h) {
+                    if (preg_match('/^([a-z]+)_hair$/', $h, $m) === 1) {
+                        $penanda[] = $m[1] . '-haired';
+                    }
+                }
+                $alt = implode('|', array_map(static fn(string $p) => preg_quote($p, '/'), $penanda));
+                $teks = preg_replace(
+                    '/((?:' . $alt . ')[^.;]{0,120}?)\bin a (?:fitted )?sports bra\b/i',
+                    '$1topless with bare breasts',
+                    $teks
+                ) ?? $teks;
+                $teks = preg_replace(
+                    '/\bin a (?:fitted )?sports bra\b([^.;]{0,60}?(?:' . $alt . '))/i',
+                    'topless with bare breasts$1',
+                    $teks
+                ) ?? $teks;
+            }
+        }
+        $teks = preg_replace('/\btorso visible\b/i', 'bare breasts visible', $teks) ?? $teks;
+        $teks = preg_replace('/\bin fightwear\b/i', 'nude', $teks) ?? $teks;
+        return self::rapikanUlangan($teks);
+    }
+
+    /**
+     * "X and X" jadi "X".
+     *
+     * Muncul karena dua penanda pakaian yang berdampingan ({{TOP_A}} dan
+     * {{TOP_B}}) diisi dengan frasa yang sama persis. Subjeknya sudah
+     * "Both fighters", jadi menyebutnya sekali sudah benar.
+     */
+    private static function rapikanUlangan(string $teks): string
+    {
+        $teks = preg_replace('/\b([^.,;]{6,80}?) and \1\b/i', '$1', $teks) ?? $teks;
+
+        // BARIS BARU HARUS SELAMAT.
+        // Dulu di sini `\s{2,}` diratakan jadi satu spasi, dan itu benar
+        // untuk prosa satu paragraf — tapi prompt Wan dan Seedance memakai
+        // baris kosong sebagai pemisah blok, jadi seluruh strukturnya
+        // runtuh jadi satu paragraf panjang. Yang dirapikan sekarang cuma
+        // spasi dan tab; baris kosong ganda dipadatkan jadi satu.
+        $teks = preg_replace('/[^\S\n]{2,}/', ' ', $teks) ?? $teks;
+        $teks = preg_replace('/[^\S\n]*\n[^\S\n]*/', "\n", $teks) ?? $teks;
+
+        return preg_replace('/\n{3,}/', "\n\n", $teks) ?? $teks;
+    }
+
+    // -----------------------------------------------------------------
+    // Contoh emas
+    // -----------------------------------------------------------------
+
+    /** Ambil contoh terdekat dari golden set; kosong kalau tabelnya belum ada. */
+    private static function contohEmas(string $kind, string $target, array $e, array $val): array
+    {
+        if (!class_exists('Golden')) {
+            return [];
+        }
+        $tags = $e['danbooru_tags'];
+        foreach ($e['subjects'] as $s) {
+            $tags = array_merge($tags, $s['hair'], $s['eyes'], $s['body'], $s['tags']);
+        }
+        $charTag = null;
+        foreach ($val['karakter'] as $k) {
+            if ($k !== null) {
+                $charTag = $k['tag'];
+                break;
+            }
+        }
+        try {
+            $rows = Golden::cariMirip($kind, $target, array_values(array_unique($tags)), $charTag, (int)REVERSE_FEWSHOT);
+        } catch (Throwable $ex) {
+            return [];
+        }
+        // contoh aman didahulukan; yang NSFW tetap boleh karena teksnya dibersihkan sebelum dikirim
+        usort($rows, static fn(array $x, array $y): int => (int)($x['is_nsfw'] ?? 0) <=> (int)($y['is_nsfw'] ?? 0));
+        return $rows;
+    }
+
+    // -----------------------------------------------------------------
+    // Status
+    // -----------------------------------------------------------------
+
+    /** Untuk kotak status di halaman: profil siap atau belum, jumlah contoh emas. */
+    public static function status(): array
+    {
+        $profil = [];
+        foreach (['vision', 'vision2', 'polish', 'nsfw'] as $n) {
+            $p = AiClient::profil($n);
+            $profil[$n] = ['siap' => $p['api_key'] !== '', 'model' => $p['model'], 'provider' => $p['provider']];
+        }
+        $golden = ['image' => 0, 'video' => 0];
+        if (class_exists('Golden')) {
+            try {
+                $golden = Golden::jumlah();
+            } catch (Throwable $ex) {
+                // tabelnya belum dibuat — bukan masalah, cuma tanpa contoh
+            }
+        }
+        return [
+            'profil' => $profil,
+            'golden' => $golden,
+            'target' => self::TARGET,
+            'aksi'   => self::AKSI,
+            'kuat'   => array_map(static fn(array $k): string => $k['label'], self::KUAT),
+        ];
+    }
+}

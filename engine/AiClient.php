@@ -10,20 +10,32 @@ declare(strict_types=1);
  * ulang lewat TagResolver sebelum masuk ke prompt.
  *
  * Provider bisa diganti lewat config.local.php tanpa mengubah kode lain.
+ *
+ * SEJAK MODUL REVERSE ADA DUA HAL BARU:
+ *
+ * 1. PROFIL. Dulu cuma ada satu setelan (AI_PROVIDER/AI_MODEL/AI_API_KEY).
+ *    Reverse prompt butuh tiga model berbeda untuk tiga tahap: vision,
+ *    polish, nsfw. profil('vision') membaca AI_VISION_* dari config, dan
+ *    completeDengan() menerima profil itu sebagai parameter — bukan
+ *    membaca konstanta global — karena define() tidak bisa ditimpa di
+ *    tengah jalan. complete() yang lama tetap ada dan tetap memakai
+ *    profil bawaan, jadi pemanggil lama tidak berubah.
+ *
+ * 2. GAMBAR. Pesan user boleh berupa array berisi teks plus daftar gambar
+ *    (base64). Ketiga driver tahu cara mengemasnya masing-masing:
+ *    OpenAI-compatible pakai image_url data-URI, Gemini pakai inline_data,
+ *    Claude pakai blok image base64.
  */
 final class AiClient
 {
+    /** Nama profil yang dikenal, selain 'default'. */
+    public const PROFIL = ['vision', 'vision2', 'polish', 'nsfw'];
+
     public static function isConfigured(): bool
     {
         return trim((string)AI_API_KEY) !== '';
     }
 
-    /**
-     * Kirim satu permintaan ke provider AI.
-     *
-     * @param  bool $expectJson minta jawaban berbentuk JSON
-     * @throws RuntimeException kalau provider gagal dihubungi
-     */
     /**
      * Batas waktu tambahan untuk satu panggilan, dalam detik.
      *
@@ -35,33 +47,174 @@ final class AiClient
      */
     public static int $timeoutSekali = 0;
 
+    // -----------------------------------------------------------------
+    // Profil
+    // -----------------------------------------------------------------
+
+    /**
+     * Setelan satu profil: ['nama','provider','model','base_url','api_key','effort','timeout'].
+     *
+     * Aturan kunci (lihat komentar di config.php): AI_<PROFIL>_API_KEY
+     * dulu; kalau kosong dan base_url-nya venice.ai dipakai VENICE_API_KEY;
+     * kalau provider dan base_url-nya sama dengan profil bawaan, dipakai
+     * AI_API_KEY. Jadi satu kunci Venice cukup untuk ketiga tahap.
+     */
+    public static function profil(string $nama = 'default'): array
+    {
+        $nama = strtolower(trim($nama));
+
+        if ($nama === '' || $nama === 'default') {
+            return [
+                'nama'     => 'default',
+                'provider' => (string)AI_PROVIDER,
+                'model'    => (string)AI_MODEL,
+                'base_url' => (string)AI_BASE_URL,
+                'api_key'  => trim((string)AI_API_KEY),
+                'effort'   => (string)AI_EFFORT,
+                'timeout'  => (int)AI_TIMEOUT,
+            ];
+        }
+
+        $awalan = 'AI_' . strtoupper($nama) . '_';
+        $ambil  = static function (string $kunci, $bawaan) use ($awalan) {
+            return defined($awalan . $kunci) ? constant($awalan . $kunci) : $bawaan;
+        };
+
+        $provider = trim((string)$ambil('PROVIDER', AI_PROVIDER));
+        $model    = trim((string)$ambil('MODEL', AI_MODEL));
+        $base     = rtrim(trim((string)$ambil('BASE_URL', AI_BASE_URL)), '/');
+        $key      = self::kunciSah((string)$ambil('API_KEY', ''));
+
+        if ($provider === '') {
+            $provider = (string)AI_PROVIDER;
+        }
+        if ($model === '') {
+            $model = (string)AI_MODEL;
+        }
+
+        if ($key === '') {
+            if ($base !== '' && str_contains($base, 'venice.ai')) {
+                $key = self::kunciSah((string)VENICE_API_KEY);
+            }
+            if ($key === '' && $provider === (string)AI_PROVIDER
+                && $base === rtrim((string)AI_BASE_URL, '/')) {
+                $key = self::kunciSah((string)AI_API_KEY);
+            }
+        }
+
+        return [
+            'nama'     => $nama,
+            'provider' => $provider,
+            'model'    => $model,
+            'base_url' => $base,
+            'api_key'  => $key,
+            'effort'   => (string)$ambil('EFFORT', AI_EFFORT),
+            'timeout'  => max(5, (int)$ambil('TIMEOUT', AI_TIMEOUT)),
+        ];
+    }
+
+    /** Profil ini sudah punya kunci dan bisa dipanggil. */
+    public static function siapProfil(string $nama): bool
+    {
+        return self::profil($nama)['api_key'] !== '';
+    }
+
+    /**
+     * Kunci yang masih berupa penanda "GANTI-..." dari templat config
+     * dianggap kosong, supaya pesannya "belum diisi", bukan HTTP 401 yang
+     * bikin orang mengira kuncinya salah ketik.
+     */
+    private static function kunciSah(string $key): string
+    {
+        $key = trim($key);
+        return str_starts_with(strtoupper($key), 'GANTI') ? '' : $key;
+    }
+
+    // -----------------------------------------------------------------
+    // Pintu masuk
+    // -----------------------------------------------------------------
+
+    /**
+     * Kirim satu permintaan ke provider AI bawaan (perilaku lama).
+     *
+     * @param  bool $expectJson minta jawaban berbentuk JSON
+     * @throws RuntimeException kalau provider gagal dihubungi
+     */
     public static function complete(string $system, string $user, bool $expectJson = true): string
     {
         if (!self::isConfigured()) {
             throw new RuntimeException('AI belum dikonfigurasi. Isi AI_API_KEY di config.local.php.');
         }
 
-        // --- cache: input yang sama tidak memanggil API dua kali ---
-        $cacheKey = hash('sha256', AI_PROVIDER . '|' . AI_MODEL . '|' . $system . '|' . $user);
+        return self::completeDengan(self::profil('default'), $system, $user, $expectJson);
+    }
 
-        $cached = Database::one('SELECT response FROM ai_cache WHERE cache_key = ?', [$cacheKey]);
-        if ($cached !== null) {
-            Database::run('UPDATE ai_cache SET hits = hits + 1 WHERE cache_key = ?', [$cacheKey]);
-            return $cached['response'];
+    /**
+     * Kirim satu permintaan memakai profil tertentu.
+     *
+     * $user boleh string biasa, atau array:
+     *   ['text' => '...', 'images' => [['mime' => 'image/jpeg', 'data' => '<base64>', 'label' => 'Frame 1 (0.0s)'], ...]]
+     * Label (opsional) ditulis sebagai teks tepat sebelum gambarnya —
+     * begitu cara memberi tahu model frame mana yang detik berapa.
+     *
+     * $opsi: max_tokens (int), temperature (float), timeout (int),
+     *        cache (bool, bawaan true).
+     */
+    public static function completeDengan(
+        array $profil,
+        string $system,
+        string|array $user,
+        bool $expectJson = true,
+        array $opsi = []
+    ): string {
+        if (($profil['api_key'] ?? '') === '') {
+            $nama = (string)($profil['nama'] ?? 'default');
+            throw new RuntimeException(
+                $nama === 'default'
+                    ? 'AI belum dikonfigurasi. Isi AI_API_KEY di config.local.php.'
+                    : 'Profil AI ' . $nama . ' belum punya kunci. Isi AI_' . strtoupper($nama)
+                      . '_API_KEY atau VENICE_API_KEY di config.local.php.'
+            );
         }
 
-        $text = match (AI_PROVIDER) {
-            'gemini'            => self::callGemini($system, $user, $expectJson),
-            'claude'            => self::callClaude($system, $user, $expectJson),
-            'openai_compatible' => self::callOpenAiCompatible($system, $user, $expectJson),
-            default             => throw new RuntimeException('AI_PROVIDER tidak dikenal: ' . AI_PROVIDER),
+        $pesan = self::rapikanPesan($user);
+
+        // --- cache: input yang sama tidak memanggil API dua kali ---
+        // Gambar ikut di-hash (bukan disimpan) supaya unggahan yang sama
+        // persis tidak dibaca ulang berbayar.
+        $sidik = '';
+        foreach ($pesan['images'] as $img) {
+            $sidik .= '|' . hash('sha256', $img['data']) . ':' . ($img['label'] ?? '');
+        }
+        $cacheKey = hash('sha256', implode('|', [
+            (string)$profil['nama'], (string)$profil['provider'], (string)$profil['model'],
+            (string)$profil['base_url'], $system, $pesan['text'],
+        ]) . $sidik);
+
+        $pakaiCache = $opsi['cache'] ?? true;
+
+        if ($pakaiCache) {
+            $cached = Database::one('SELECT response FROM ai_cache WHERE cache_key = ?', [$cacheKey]);
+            if ($cached !== null) {
+                Database::run('UPDATE ai_cache SET hits = hits + 1 WHERE cache_key = ?', [$cacheKey]);
+                return $cached['response'];
+            }
+        }
+
+        $text = match ((string)$profil['provider']) {
+            'gemini'            => self::callGemini($profil, $system, $pesan, $expectJson, $opsi),
+            'claude'            => self::callClaude($profil, $system, $pesan, $expectJson, $opsi),
+            'openai_compatible' => self::callOpenAiCompatible($profil, $system, $pesan, $expectJson, $opsi),
+            default             => throw new RuntimeException('AI_PROVIDER tidak dikenal: ' . $profil['provider']),
         };
 
-        Database::run(
-            'INSERT INTO ai_cache (cache_key, provider, response) VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE hits = hits + 1',
-            [$cacheKey, (string)AI_PROVIDER, $text]
-        );
+        if ($pakaiCache) {
+            Database::run(
+                'INSERT INTO ai_cache (cache_key, provider, response) VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE hits = hits + 1',
+                [$cacheKey, (string)$profil['provider'], $text]
+            );
+        }
 
         return $text;
     }
@@ -86,39 +239,117 @@ final class AiClient
         return $data;
     }
 
+    /**
+     * Samakan bentuk pesan user: selalu ['text' => string, 'images' => list].
+     * Gambar tanpa data atau tanpa mime dibuang diam-diam, karena lebih
+     * baik model membaca gambar yang sah daripada seluruh permintaan
+     * gagal gara-gara satu frame kosong.
+     */
+    private static function rapikanPesan(string|array $user): array
+    {
+        if (is_string($user)) {
+            return ['text' => $user, 'images' => []];
+        }
+
+        $images = [];
+        foreach ($user['images'] ?? [] as $img) {
+            $data = trim((string)($img['data'] ?? ''));
+            $mime = trim((string)($img['mime'] ?? ''));
+            if ($data === '' || $mime === '') {
+                continue;
+            }
+            $images[] = [
+                'mime'  => $mime,
+                'data'  => $data,
+                'label' => trim((string)($img['label'] ?? '')),
+            ];
+        }
+
+        return ['text' => (string)($user['text'] ?? ''), 'images' => $images];
+    }
+
+    private static function batasWaktu(array $profil, array $opsi): int
+    {
+        if (self::$timeoutSekali > 0) {
+            return self::$timeoutSekali;
+        }
+        $t = (int)($opsi['timeout'] ?? 0);
+        return $t > 0 ? $t : (int)($profil['timeout'] ?? AI_TIMEOUT);
+    }
+
     // -----------------------------------------------------------------
     // Driver
     // -----------------------------------------------------------------
 
-    private static function callGemini(string $system, string $user, bool $expectJson): string
+    private static function callGemini(array $p, string $system, array $pesan, bool $expectJson, array $opsi): string
     {
         $url = sprintf(
             'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
-            rawurlencode((string)AI_MODEL)
+            rawurlencode((string)$p['model'])
         );
+
+        // Gambar dulu (dengan labelnya), teks utama paling akhir.
+        $parts = [];
+        foreach ($pesan['images'] as $img) {
+            if ($img['label'] !== '') {
+                $parts[] = ['text' => $img['label']];
+            }
+            $parts[] = ['inline_data' => ['mime_type' => $img['mime'], 'data' => $img['data']]];
+        }
+        $parts[] = ['text' => $pesan['text']];
 
         $body = [
             'system_instruction' => ['parts' => [['text' => $system]]],
-            'contents'           => [['role' => 'user', 'parts' => [['text' => $user]]]],
+            'contents'           => [['role' => 'user', 'parts' => $parts]],
             // 2048 dulu di sini, dan itu terlalu sempit untuk model yang
             // BERPIKIR dulu sebelum menjawab (seri Flash sekarang begitu).
             // Token berpikirnya ikut dihitung ke jatah ini, jadi jawabannya
             // terpotong di tengah — JSON separuh yang gagal diurai, dengan
             // pesan error yang menyesatkan karena menyalahkan formatnya.
-            'generationConfig'   => ['temperature' => 0.4, 'maxOutputTokens' => 8192],
+            'generationConfig'   => [
+                'temperature'     => (float)($opsi['temperature'] ?? 0.4),
+                'maxOutputTokens' => (int)($opsi['max_tokens'] ?? 8192),
+            ],
         ];
 
         if ($expectJson) {
             $body['generationConfig']['responseMimeType'] = 'application/json';
         }
 
+        // Kalau ada gambar, penyaring probabilitas dimatikan (memar, darah,
+        // dan petinju topless itu memang isi referensinya). Penyaring inti
+        // Google tetap tidak bisa dimatikan; kalau itu yang kena, pesannya
+        // dibedakan di bawah supaya jelas harus pindah ke profil lain.
+        if ($pesan['images'] !== []) {
+            $body['safetySettings'] = [];
+            foreach (['HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT',
+                      'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH'] as $kat) {
+                $body['safetySettings'][] = ['category' => $kat, 'threshold' => 'OFF'];
+            }
+        }
+
         $json = self::httpPost($url, $body, [
             'Content-Type: application/json',
-            'x-goog-api-key: ' . AI_API_KEY,
-        ]);
+            'x-goog-api-key: ' . $p['api_key'],
+        ], self::batasWaktu($p, $opsi));
 
-        $text   = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
-        $alasan = $json['candidates'][0]['finishReason'] ?? '';
+        $blokir = (string)($json['promptFeedback']['blockReason'] ?? '');
+        if ($blokir !== '') {
+            throw new RuntimeException(
+                'Gemini memblokir masukannya (' . $blokir . '). Untuk gambar dewasa, '
+                . 'pakai profil vision lain (Venice / Qwen) — penyaring ini tidak bisa dimatikan.'
+            );
+        }
+
+        // Teksnya dicari di semua part, bukan ditebak di posisi nol —
+        // model yang berpikir dulu menaruh blok pikirannya di depan.
+        $text = '';
+        foreach (($json['candidates'][0]['content']['parts'] ?? []) as $part) {
+            if (isset($part['text']) && empty($part['thought'])) {
+                $text .= (string)$part['text'];
+            }
+        }
+        $alasan = (string)($json['candidates'][0]['finishReason'] ?? '');
 
         // Katakan apa adanya kalau jawabannya kepotong. Tanpa ini, yang
         // terlihat cuma "Jawaban AI bukan JSON yang valid" — menuduh
@@ -126,11 +357,18 @@ final class AiClient
         if ($alasan === 'MAX_TOKENS') {
             throw new RuntimeException(
                 'Jawaban AI terpotong karena kehabisan jatah token. '
-                . 'Kecilkan permintaannya, atau naikkan maxOutputTokens di engine/AiClient.php.'
+                . 'Kecilkan permintaannya, atau naikkan max_tokens lewat opsi panggilan.'
             );
         }
 
-        if (!is_string($text) || $text === '') {
+        if (in_array($alasan, ['SAFETY', 'PROHIBITED_CONTENT', 'IMAGE_SAFETY', 'BLOCKLIST', 'SPII'], true)) {
+            throw new RuntimeException(
+                'Gemini menolak menjawab (finishReason: ' . $alasan . '). '
+                . 'Pakai profil lain untuk konten dewasa.'
+            );
+        }
+
+        if ($text === '') {
             throw new RuntimeException(
                 'Gemini tidak mengembalikan teks (finishReason: ' . ($alasan ?: 'tidak ada') . '). '
                 . 'Jawaban mentah: ' . substr((string)json_encode($json), 0, 300)
@@ -166,30 +404,42 @@ final class AiClient
      *    (mengelompokkan judul anime, memilih modul) penolakan hampir
      *    mustahil, tapi ongkosnya nol jadi tidak ada alasan mematikannya.
      */
-    private static function callClaude(string $system, string $user, bool $expectJson): string
+    private static function callClaude(array $p, string $system, array $pesan, bool $expectJson, array $opsi): string
     {
-        $model = trim((string)AI_MODEL);
+        $model = trim((string)$p['model']);
 
         // Salah model itu kesalahan paling gampang terjadi waktu berpindah
         // provider — AI_MODEL masih berisi nama Gemini, lalu yang muncul
         // cuma HTTP 404 yang tidak menjelaskan apa-apa.
         if (!str_starts_with($model, 'claude-')) {
             throw new RuntimeException(
-                'AI_PROVIDER diset "claude" tapi AI_MODEL berisi "' . $model . '". '
+                'Provider claude dipakai tapi modelnya "' . $model . '". '
                 . 'Isi dengan nama model Claude, misalnya claude-opus-5.'
             );
         }
 
+        $content = [];
+        foreach ($pesan['images'] as $img) {
+            if ($img['label'] !== '') {
+                $content[] = ['type' => 'text', 'text' => $img['label']];
+            }
+            $content[] = [
+                'type'   => 'image',
+                'source' => ['type' => 'base64', 'media_type' => $img['mime'], 'data' => $img['data']],
+            ];
+        }
+        $content[] = ['type' => 'text', 'text' => $pesan['text']];
+
         $body = [
             'model'      => $model,
-            'max_tokens' => 16000,
+            'max_tokens' => (int)($opsi['max_tokens'] ?? 16000),
             'system'     => $system,
-            'messages'   => [['role' => 'user', 'content' => $user]],
+            'messages'   => [['role' => 'user', 'content' => $content]],
 
             // Tugas di proyek ini semuanya penggolongan: pilih dari daftar,
             // kelompokkan judul, tebak sumber. Effort rendah sudah cukup,
             // dan itu memangkas ongkos maupun waktu tunggunya.
-            'output_config' => ['effort' => (string)AI_EFFORT],
+            'output_config' => ['effort' => (string)($p['effort'] ?: 'low')],
 
             // Kalau permintaannya ditolak, servernya mencoba model lain
             // sendiri alih-alih mengembalikan penolakan.
@@ -203,10 +453,10 @@ final class AiClient
 
         $json = self::httpPost('https://api.anthropic.com/v1/messages', $body, [
             'Content-Type: application/json',
-            'x-api-key: ' . AI_API_KEY,
+            'x-api-key: ' . $p['api_key'],
             'anthropic-version: 2023-06-01',
             'anthropic-beta: server-side-fallback-2026-07-01',
-        ]);
+        ], self::batasWaktu($p, $opsi));
 
         return self::bacaClaude($json);
     }
@@ -248,7 +498,7 @@ final class AiClient
         if ($alasan === 'max_tokens') {
             throw new RuntimeException(
                 'Jawaban Claude terpotong karena kehabisan jatah token. '
-                . 'Kecilkan permintaannya, atau naikkan max_tokens di engine/AiClient.php.'
+                . 'Kecilkan permintaannya, atau naikkan max_tokens lewat opsi panggilan.'
             );
         }
 
@@ -262,46 +512,168 @@ final class AiClient
         return $text;
     }
 
-    private static function callOpenAiCompatible(string $system, string $user, bool $expectJson): string
+    /**
+     * OpenAI-compatible: OpenAI sendiri, OpenRouter, Venice, dan sejenisnya.
+     *
+     * Dua kekhususan Venice yang disetel otomatis kalau base_url-nya venice.ai:
+     * prompt sistem bawaan Venice dimatikan (kita punya sendiri), dan blok
+     * pikiran model dibuang dari jawaban supaya parseJson tidak tersandung.
+     *
+     * response_format json_object tidak didukung semua model. Kalau server
+     * menolak dengan HTTP 400 yang menyebut response_format, permintaannya
+     * diulang sekali tanpa sakelar itu — parseJson sudah tahan pembungkus
+     * ```json, jadi jawabannya tetap terbaca.
+     */
+    private static function callOpenAiCompatible(array $p, string $system, array $pesan, bool $expectJson, array $opsi): string
     {
-        $base = rtrim((string)AI_BASE_URL, '/');
+        $base = rtrim((string)$p['base_url'], '/');
         if ($base === '') {
             throw new RuntimeException('AI_BASE_URL belum diisi untuk provider openai_compatible.');
         }
 
+        if ($pesan['images'] === []) {
+            $isi = $pesan['text'];
+        } else {
+            $isi = [];
+            foreach ($pesan['images'] as $img) {
+                if ($img['label'] !== '') {
+                    $isi[] = ['type' => 'text', 'text' => $img['label']];
+                }
+                $isi[] = [
+                    'type'      => 'image_url',
+                    'image_url' => ['url' => 'data:' . $img['mime'] . ';base64,' . $img['data']],
+                ];
+            }
+            $isi[] = ['type' => 'text', 'text' => $pesan['text']];
+        }
+
         $body = [
-            'model'       => AI_MODEL,
-            'temperature' => 0.4,
-            // Disamakan dengan driver Gemini. Sebagian model sekarang
-            // berpikir dulu sebelum menjawab, dan token berpikirnya ikut
-            // dihitung — jatah yang terlalu kecil bikin jawabannya
-            // terpotong di tengah lalu gagal diurai.
-            'max_tokens'  => 8192,
-            'messages'    => [
+            'model'    => (string)$p['model'],
+            'messages' => [
                 ['role' => 'system', 'content' => $system],
-                ['role' => 'user',   'content' => $user],
+                ['role' => 'user',   'content' => $isi],
             ],
         ];
+
+        // Jatah keluaran. Sebagian model sekarang BERPIKIR dulu sebelum
+        // menjawab dan token berpikirnya ikut dihitung, jadi jatah yang
+        // terlalu kecil bikin jawabannya terpotong lalu gagal diurai.
+        $jatah = (int)($opsi['max_tokens'] ?? 8192);
+
+        // DUA NAMA UNTUK SATU HAL, DAN ITU BUKAN SELERA.
+        // OpenAI menghapus `max_tokens` di model seri GPT-5 dan menggantinya
+        // dengan `max_completion_tokens`; kalau salah nama, jawabannya HTTP
+        // 400. Sebaliknya sebagian penyedia OpenAI-compatible (termasuk
+        // Venice) baru mengenal nama yang lama. Jadi namanya ditebak dari
+        // alamatnya, dan kalau tebakan itu salah, retry di bawah membetulkan
+        // sendiri tanpa mengganggu pemanggil.
+        $resmi = str_contains($base, 'api.openai.com');
+        $body[$resmi ? 'max_completion_tokens' : 'max_tokens'] = $jatah;
+
+        // Model penalar OpenAI cuma menerima temperature bawaan; mengirim
+        // angka lain langsung ditolak. Di penyedia lain temperature rendah
+        // berguna supaya pembacaannya tidak mengarang.
+        if (!$resmi) {
+            $body['temperature'] = (float)($opsi['temperature'] ?? 0.4);
+        }
+
+        if (str_contains($base, 'venice.ai')) {
+            $body['venice_parameters'] = [
+                'include_venice_system_prompt' => false,
+                'strip_thinking_response'      => true,
+            ];
+        }
 
         if ($expectJson) {
             $body['response_format'] = ['type' => 'json_object'];
         }
 
-        $json = self::httpPost($base . '/chat/completions', $body, [
+        $headers = [
             'Content-Type: application/json',
-            'Authorization: Bearer ' . AI_API_KEY,
-        ]);
+            'Authorization: Bearer ' . $p['api_key'],
+        ];
+        $timeout = self::batasWaktu($p, $opsi);
 
-        $text = $json['choices'][0]['message']['content'] ?? null;
-        if (!is_string($text) || $text === '') {
-            throw new RuntimeException('Provider tidak mengembalikan teks.');
+        // "OpenAI-compatible" itu keluarga, bukan satu standar: tiap
+        // penyedia mendukung sebagian parameter saja, dan daftarnya berubah
+        // tiap model baru. Daripada memelihara tabel siapa mendukung apa,
+        // permintaannya dikirim dengan bentuk yang paling mungkin benar,
+        // lalu SETIAP penolakan HTTP 400 yang menyebut nama parameter
+        // dijawab dengan membetulkan parameter itu dan mencoba lagi.
+        // Berhenti kalau tidak ada lagi yang bisa dibetulkan.
+        $coba = 0;
+        while (true) {
+            try {
+                $json = self::httpPost($base . '/chat/completions', $body, $headers, $timeout);
+                break;
+            } catch (RuntimeException $e) {
+                $pesanErr = $e->getMessage();
+                if (++$coba > 3 || !str_contains($pesanErr, 'HTTP 400')) {
+                    throw $e;
+                }
+
+                $dibetulkan = false;
+
+                if (isset($body['max_tokens']) && stripos($pesanErr, 'max_completion_tokens') !== false) {
+                    $body['max_completion_tokens'] = $body['max_tokens'];
+                    unset($body['max_tokens']);
+                    $dibetulkan = true;
+                } elseif (isset($body['max_completion_tokens']) && stripos($pesanErr, 'max_tokens') !== false) {
+                    $body['max_tokens'] = $body['max_completion_tokens'];
+                    unset($body['max_completion_tokens']);
+                    $dibetulkan = true;
+                }
+
+                if (isset($body['temperature']) && stripos($pesanErr, 'temperature') !== false) {
+                    unset($body['temperature']);
+                    $dibetulkan = true;
+                }
+
+                if (isset($body['response_format']) && stripos($pesanErr, 'response_format') !== false) {
+                    unset($body['response_format']);
+                    $body['messages'][0]['content'] .= "\n\nBalas HANYA dengan satu objek JSON yang sah, tanpa pembungkus ```.";
+                    $dibetulkan = true;
+                }
+
+                if (isset($body['venice_parameters']) && stripos($pesanErr, 'venice_parameters') !== false) {
+                    unset($body['venice_parameters']);
+                    $dibetulkan = true;
+                }
+
+                if (!$dibetulkan) {
+                    throw $e;
+                }
+            }
         }
 
-        return $text;
+        $text = $json['choices'][0]['message']['content'] ?? null;
+
+        // Beberapa penyedia mengembalikan content sebagai daftar bagian.
+        if (is_array($text)) {
+            $gabung = '';
+            foreach ($text as $bagian) {
+                if (is_array($bagian) && isset($bagian['text'])) {
+                    $gabung .= (string)$bagian['text'];
+                }
+            }
+            $text = $gabung;
+        }
+
+        if (!is_string($text) || trim($text) === '') {
+            $alasan = (string)($json['choices'][0]['finish_reason'] ?? '');
+            throw new RuntimeException(
+                'Provider tidak mengembalikan teks' . ($alasan !== '' ? " (finish_reason: {$alasan})" : '') . '.'
+            );
+        }
+
+        // Model yang berpikir dulu kadang menyertakan <think>...</think>.
+        $text = preg_replace('/<think>.*?<\/think>/s', '', $text) ?? $text;
+
+        return trim($text);
     }
 
     /** @return array hasil decode JSON dari server */
-    private static function httpPost(string $url, array $body, array $headers): array
+    private static function httpPost(string $url, array $body, array $headers, int $timeout): array
     {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Ekstensi cURL tidak aktif di server ini.');
@@ -313,7 +685,7 @@ final class AiClient
             CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => self::$timeoutSekali > 0 ? self::$timeoutSekali : (int)AI_TIMEOUT,
+            CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
 
@@ -330,7 +702,11 @@ final class AiClient
         $json = json_decode((string)$raw, true);
 
         if ($status >= 400) {
-            $msg = $json['error']['message'] ?? substr((string)$raw, 0, 300);
+            $msg = $json['error']['message'] ?? ($json['error'] ?? null);
+            if (is_array($msg)) {
+                $msg = json_encode($msg, JSON_UNESCAPED_UNICODE);
+            }
+            $msg = is_string($msg) && $msg !== '' ? $msg : substr((string)$raw, 0, 300);
 
             // 429 bukan kesalahan setelan, dan menyodorkan pesan mentah
             // penyedia bikin orang mengira ada yang salah dipasang.
@@ -338,7 +714,7 @@ final class AiClient
                 throw new RuntimeException(
                     'Jatah AI habis untuk sekarang. Ini batas dari penyedianya, '
                     . 'bukan setelan yang salah. Tunggu jatahnya pulih, aktifkan '
-                    . 'penagihan, atau ganti AI_PROVIDER ke claude / openai_compatible. '
+                    . 'penagihan, atau ganti provider. '
                     . 'Pesan aslinya: ' . $msg
                 );
             }

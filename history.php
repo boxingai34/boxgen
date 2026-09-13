@@ -40,6 +40,8 @@ $modeLabel = [
     'comic'      => 'Halaman Komik',
     'wan'        => 'Video Wan 3.0',
     'seedance25' => 'Video Seedance 2.5',
+    'reverse'       => 'Dari Gambar',
+    'reverse_video' => 'Dari Video',
 ];
 
 halamanHeader('Riwayat', 'history.php');
@@ -107,7 +109,13 @@ halamanHeader('Riwayat', 'history.php');
                  title="Klik untuk membuka penuh"><?= e((string)$r['output']) ?></div>
 
             <div class="riwayat-aksi">
-                <a class="btn tiny primary" href="index.php?r=<?= $id ?>">Pakai lagi</a>
+                <?php if (str_starts_with((string)$r['mode'], 'reverse')): ?>
+                    <!-- Reverse prompt tidak punya "pilihan" untuk dibangun ulang
+                         di Prompt Generator; yang dibuka adalah hasil pembacaannya. -->
+                    <a class="btn tiny primary" href="reverse.php?r=<?= $id ?>">Buka</a>
+                <?php else: ?>
+                    <a class="btn tiny primary" href="index.php?r=<?= $id ?>">Pakai lagi</a>
+                <?php endif; ?>
                 <button class="btn tiny" type="button"
                         onclick="salinRiwayat(this, <?= $id ?>)">Salin</button>
                 <a class="btn tiny" href="?<?= e(http_build_query([
