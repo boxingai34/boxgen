@@ -173,6 +173,10 @@ switch ($action) {
             ],
             'model' => $hasil['model'],
             'quota' => $kuota(),
+            'token' => [
+                'rincian' => AiClient::pemakaian(),
+                'jumlah'  => AiClient::totalToken(),
+            ],
         ]);
         // no break
 
@@ -276,7 +280,14 @@ switch ($action) {
         $genId = Database::lastId();
 
         unset($hasil['rencana']);
-        jsonOk($hasil + ['quota' => $kuota(), 'generation_id' => $genId]);
+        jsonOk($hasil + [
+            'quota'         => $kuota(),
+            'generation_id' => $genId,
+            'token'         => [
+                'rincian' => AiClient::pemakaian(),
+                'jumlah'  => AiClient::totalToken(),
+            ],
+        ]);
         // no break
 
     case 'muat':

@@ -47,6 +47,7 @@ let ekstrak      = null;     // hasil tahap 1, yang disunting lewat kolom
 let rawDisunting = false;    // user mengetik langsung di JSON mentah
 let hasil        = null;     // jawaban action=susun
 let versi        = 'sfw';    // tab aktif: sfw | nsfw
+let tokenTerakhir = null;    // pemakaian token dari permintaan terakhir
 let teksTersimpan = '';      // prompt dari Riwayat (action=muat) untuk "Salin semua"
 
 // ==================================================================
@@ -175,7 +176,19 @@ function ukuranTeks(b) {
 
 function teksQuota(q) {
     if (!q || q.limit === undefined) return '';
+    // Batas 0 di server berarti tanpa batas. Menampilkan "0/0, sisa -1"
+    // cuma bikin panik.
+    if (q.unlimited || q.limit === 0) {
+        return `Tanpa batas. Terpakai ${q.used}x hari ini.`;
+    }
     return `Jatah hari ini ${q.used}/${q.limit}, sisa ${q.remaining}.`;
+}
+
+/** Ringkasan token dari satu permintaan. */
+function teksToken(tok) {
+    if (!tok || !tok.jumlah || !tok.jumlah.total) return '';
+    const j = tok.jumlah;
+    return `${j.total.toLocaleString('id-ID')} token (masuk ${j.masuk.toLocaleString('id-ID')}, keluar ${j.keluar.toLocaleString('id-ID')})`;
 }
 
 function info(teks) {
@@ -699,7 +712,9 @@ async function baca() {
         });
 
         pasangEkstrak(data.ekstrak, data.ringkas, data.validasi);
-        $('#baca-note').textContent = teksQuota(data.quota);
+        tokenTerakhir = data.token || null;
+        $('#baca-note').textContent = [teksQuota(data.quota), teksToken(data.token)]
+            .filter(Boolean).join(' · ');
         bawaKeLayar($('#hasil-baca'));
     } catch (err) {
         $('#baca-note').textContent = err.message;
@@ -1336,6 +1351,7 @@ async function susun() {
 
         hasil = data;
         versi = 'sfw';
+        tokenTerakhir = data.token || null;
         renderHasil();
 
         // Promptnya di kolom kanan, dan tombol Susun ada jauh di bawah
@@ -1344,8 +1360,9 @@ async function susun() {
 
         $('#susun-note').textContent = [
             teksQuota(data.quota),
+            teksToken(data.token),
             data.generation_id ? `Tersimpan di Riwayat (#${data.generation_id}).` : ''
-        ].filter(Boolean).join(' ');
+        ].filter(Boolean).join(' · ');
     } catch (err) {
         galat(err.message);
     } finally {
@@ -1514,6 +1531,33 @@ function renderTahap(t) {
             div.appendChild(ket);
         }
     });
+
+    // Berapa token yang benar-benar dipakai permintaan ini. Dikumpulkan
+    // dari jawaban tiap penyedia, bukan ditaksir dari panjang teks.
+    const tok = tokenTerakhir;
+    if (tok && tok.jumlah && tok.jumlah.total) {
+        const blok = el('div', 'why-block');
+        blok.appendChild(el('h4', null, 'Token yang dipakai'));
+
+        (tok.rincian || []).forEach((r) => {
+            const row = el('div', 'row');
+            row.appendChild(el('span', null, r.profil + ' — ' + r.model));
+            row.appendChild(el('span', null,
+                r.total.toLocaleString('id-ID') + ' (masuk ' + r.masuk.toLocaleString('id-ID')
+                + ', keluar ' + r.keluar.toLocaleString('id-ID') + ')'));
+            blok.appendChild(row);
+        });
+
+        const total = el('div', 'row');
+        total.appendChild(el('span', null, 'Total permintaan ini'));
+        total.appendChild(el('span', null, teksToken(tok)));
+        blok.appendChild(total);
+
+        blok.appendChild(el('p', 'hint',
+            'Dihitung dari laporan penyedianya sendiri, jadi ini angka yang ditagihkan. '
+            + 'Token "keluar" sudah termasuk token berpikir kalau modelnya berpikir dulu.'));
+        box.appendChild(blok);
+    }
 
     box.appendChild(div);
 }

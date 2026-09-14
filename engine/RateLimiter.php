@@ -37,11 +37,25 @@ final class RateLimiter
             [self::ipHash(), $action]
         ) ?? 0);
 
+        // Batas 0 (atau negatif) = tanpa batas. Dipakai waktu masih dipakai
+        // sendiri; tinggal diisi angka lagi kalau nanti dibuka untuk orang
+        // lain. Pemakaiannya tetap dicatat, cuma tidak pernah menolak.
+        if ($limit <= 0) {
+            return [
+                'ok'        => true,
+                'used'      => $used,
+                'limit'     => 0,
+                'remaining' => -1,
+                'unlimited' => true,
+            ];
+        }
+
         return [
             'ok'        => $used < $limit,
             'used'      => $used,
             'limit'     => $limit,
             'remaining' => max(0, $limit - $used),
+            'unlimited' => false,
         ];
     }
 

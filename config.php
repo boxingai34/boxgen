@@ -178,7 +178,9 @@ defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 *
 // Pisahkan dengan koma kalau mau menambah.
 defined('REVERSE_TAG_DILARANG') || define('REVERSE_TAG_DILARANG', 'mouth_guard');
 
-defined('REVERSE_DAILY_LIMIT_PER_IP') || define('REVERSE_DAILY_LIMIT_PER_IP', 40);
+// 0 = tanpa batas. Masih dipakai sendiri, jadi tidak perlu dijatah;
+// isi angka lagi kalau nanti dibuka untuk orang lain.
+defined('REVERSE_DAILY_LIMIT_PER_IP') || define('REVERSE_DAILY_LIMIT_PER_IP', 0);
 defined('REVERSE_MAX_IMAGE_BYTES')    || define('REVERSE_MAX_IMAGE_BYTES', 6 * 1024 * 1024);
 defined('REVERSE_MAX_FRAMES')         || define('REVERSE_MAX_FRAMES', 12);
 defined('REVERSE_FEWSHOT')            || define('REVERSE_FEWSHOT', 3);

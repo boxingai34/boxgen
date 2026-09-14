@@ -31,6 +31,74 @@ final class AiClient
     /** Nama profil yang dikenal, selain 'default'. */
     public const PROFIL = ['vision', 'vision2', 'polish', 'nsfw', 'nsfw2'];
 
+    /**
+     * Catatan pemakaian token sepanjang satu permintaan HTTP.
+     *
+     * Diisi tiap kali sebuah model dipanggil, dibaca oleh endpoint untuk
+     * dilaporkan ke halaman. Sifatnya per-proses: PHP memulai ulang tiap
+     * permintaan, jadi tidak perlu dibersihkan sendiri.
+     *
+     * @var array<int,array{profil:string,model:string,masuk:int,keluar:int,total:int}>
+     */
+    private static array $pemakaian = [];
+
+    /** @return array<int,array{profil:string,model:string,masuk:int,keluar:int,total:int}> */
+    public static function pemakaian(): array
+    {
+        return self::$pemakaian;
+    }
+
+    /** Jumlah token seluruh panggilan sejauh ini. */
+    public static function totalToken(): array
+    {
+        $masuk = $keluar = 0;
+        foreach (self::$pemakaian as $r) {
+            $masuk  += $r['masuk'];
+            $keluar += $r['keluar'];
+        }
+        return ['masuk' => $masuk, 'keluar' => $keluar, 'total' => $masuk + $keluar];
+    }
+
+    public static function lupakanPemakaian(): void
+    {
+        self::$pemakaian = [];
+    }
+
+    /**
+     * Catat pemakaian dari jawaban server.
+     *
+     * Tiap penyedia menamainya berbeda: OpenAI dan yang meniru formatnya
+     * pakai prompt_tokens/completion_tokens, Claude pakai
+     * input_tokens/output_tokens, Gemini pakai usageMetadata dengan
+     * promptTokenCount/candidatesTokenCount. Ketiganya dipetakan ke satu
+     * bentuk supaya halaman tidak perlu tahu bedanya.
+     */
+    private static function catatToken(array $profil, array $json): void
+    {
+        $u = is_array($json['usage'] ?? null) ? $json['usage'] : [];
+        $g = is_array($json['usageMetadata'] ?? null) ? $json['usageMetadata'] : [];
+
+        $masuk = (int)($u['prompt_tokens'] ?? $u['input_tokens'] ?? $g['promptTokenCount'] ?? 0);
+        $keluar = (int)($u['completion_tokens'] ?? $u['output_tokens'] ?? $g['candidatesTokenCount'] ?? 0);
+
+        // Model yang berpikir dulu menagih token pikirannya juga, dan itu
+        // sering jauh lebih besar dari jawabannya. Kalau tidak dihitung,
+        // angka yang ditampilkan jadi jauh lebih kecil dari tagihan asli.
+        $keluar += (int)($u['reasoning_tokens'] ?? $g['thoughtsTokenCount'] ?? 0);
+
+        if ($masuk === 0 && $keluar === 0) {
+            return;   // penyedia ini tidak melaporkannya
+        }
+
+        self::$pemakaian[] = [
+            'profil' => (string)($profil['nama'] ?? '?'),
+            'model'  => (string)($profil['model'] ?? '?'),
+            'masuk'  => $masuk,
+            'keluar' => $keluar,
+            'total'  => $masuk + $keluar,
+        ];
+    }
+
     public static function isConfigured(): bool
     {
         return trim((string)AI_API_KEY) !== '';
@@ -394,6 +462,8 @@ final class AiClient
             );
         }
 
+        self::catatToken($p, $json);
+
         return $text;
     }
 
@@ -527,6 +597,8 @@ final class AiClient
                 . 'Jawaban mentah: ' . substr((string)json_encode($json), 0, 300)
             );
         }
+
+        self::catatToken($p, $json);
 
         return $text;
     }
@@ -684,6 +756,8 @@ final class AiClient
                 'Provider tidak mengembalikan teks' . ($alasan !== '' ? " (finish_reason: {$alasan})" : '') . '.'
             );
         }
+
+        self::catatToken($p, $json);
 
         // Model yang berpikir dulu kadang menyertakan <think>...</think>.
         $text = preg_replace('/<think>.*?<\/think>/s', '', $text) ?? $text;
