@@ -126,7 +126,7 @@ final class Pertandingan
         ],
         'kosong' => [
             'nama'    => 'Kosong',
-            'kalimat' => 'No audience at all — empty seats and silence beyond the ropes, so every impact echoes',
+            'kalimat' => 'No audience at all — empty seats and silence beyond the ropes, so every impact and every breath echoes off bare walls',
             'tag'     => null,
         ],
     ];
@@ -450,13 +450,22 @@ TXT;
         // jangkar "Image N is ..." di kepala prompt. Kalau berbeda, model
         // video kehilangan hubungan antara gambar acuan dan orang yang
         // disebut di adegannya.
-        $val  = ReversePrompt::validasi($ekstrak);
+        // Dinormalisasi DULU. validasi() bekerja pada bentuk baku, dan
+        // ekstrak yang datang dari halaman bisa saja kehilangan blok yang
+        // tidak pernah disentuh di sana.
+        $ekstrak = ReversePrompt::normalisasi($ekstrak, 'video', $perKlip);
+        $val     = ReversePrompt::validasi($ekstrak);
         $nama = [];
         foreach (['a', 'b'] as $id) {
             $nama[$id] = $val['karakter'][$id]['name'] ?? ('Boxer ' . strtoupper($id));
         }
 
-        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip);
+        $adegan = [
+            'wasit'    => !empty($ekstrak['environment']['wasit']),
+            'penonton' => ($ekstrak['environment']['crowd'] ?? 'packed') !== 'none',
+        ];
+
+        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip, $adegan);
 
         // ---- klip ----
         // PILIHANMU MENIMPA HASIL BACAAN, bukan ditempel sesudahnya.
@@ -542,7 +551,7 @@ TXT;
      * lebih cepat daripada yang menang — itu yang membuat penonton tahu
      * ke mana arahnya jauh sebelum pukulan terakhir.
      */
-    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama, int $perKlip): array
+    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama, int $perKlip, array $adegan = []): array
     {
         // Puncak kerusakan yang boleh dicapai masing-masing.
         //
@@ -605,7 +614,7 @@ TXT;
                 // their stance" — benar untuk klip pertama, salah untuk
                 // klip KO — dan kalimat ringkas di atas berbahasa Indonesia
                 // sedangkan prompt video harus Inggris.
-                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip),
+                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip, $adegan),
             ];
         }
 
@@ -631,7 +640,7 @@ TXT;
      */
     private static function shots(
         int $i, int $jumlah, float $maju, bool $akhir,
-        string $cara, string $menang, string $kalah, array $nama, int $detik
+        string $cara, string $menang, string $kalah, array $nama, int $detik, array $adegan = []
     ): array {
         $M = $nama[$menang] ?? ('Boxer ' . strtoupper($menang));
         $K = $nama[$kalah] ?? ('Boxer ' . strtoupper($kalah));
@@ -641,7 +650,7 @@ TXT;
         if ($akhir) {
             // Babak penutup urutannya tidak boleh diacak — pukulan penentu
             // harus datang sebelum akibatnya.
-            $inti   = self::shotsAkhir($cara, $M, $K, $menang, $kalah);
+            $inti   = self::shotsAkhir($cara, $M, $K, $menang, $kalah, $adegan);
             $kurang = max(0, $mau - count($inti));
             $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah);
             return array_merge($depan, $inti);
@@ -1065,8 +1074,19 @@ TXT;
      * jadi penutupnya selalu terasa didahului tekanan, bukan muncul
      * tiba-tiba.
      */
-    private static function shotsAkhir(string $cara, string $M, string $K, string $menang, string $kalah): array
+    private static function shotsAkhir(string $cara, string $M, string $K, string $menang, string $kalah, array $adegan = []): array
     {
+        // Siapa yang menghentikan pertandingan, dan seperti apa bunyinya.
+        //
+        // Teks penutup dulu selalu menyebut wasit dan sorak penonton. Di
+        // ring bawah tanah tanpa keduanya, itu bertabrakan langsung dengan
+        // blok Scene beberapa baris di bawahnya — dan model video
+        // menggambar wasit yang barusan dinyatakan tidak ada.
+        $adaWasit    = !empty($adegan['wasit']);
+        $adaPenonton = !array_key_exists('penonton', $adegan) || !empty($adegan['penonton']);
+        $hentikan    = $adaWasit ? 'as the referee waves the fight off' : 'and no one comes to stop it';
+        $ramai       = $adaPenonton ? ', a wall of noise' : ', then nothing but her own breathing';
+        $hitung      = $adaWasit ? 'the referee counting' : 'a glove hitting the canvas once';
         switch ($cara) {
             case 'keputusan':
                 return [
@@ -1077,9 +1097,11 @@ TXT;
                      'sound' => 'the final bell, the crowd rising, ragged breathing'],
                     ['camera' => 'a low-angle shot looking up at the centre of the ring',
                      'camera_move' => 'pull_out', 'actor' => $menang,
-                     'action' => 'The referee takes both fighters by the wrist and raises the arm of ' . $M
+                     'action' => ($adaWasit
+                                    ? 'The referee takes both fighters by the wrist and raises the arm of ' . $M
+                                    : $M . ' raises her own arm')
                                . '; ' . $K . ' bows her head, hands on her knees.',
-                     'sound' => 'the announcer, a roar from the crowd'],
+                     'sound' => ($adaPenonton ? 'the announcer, a roar from the crowd' : 'two sets of ragged breathing')],
                 ];
             case 'tko':
                 return [
@@ -1090,9 +1112,11 @@ TXT;
                      'sound' => 'three heavy impacts, the crowd surging'],
                     ['camera' => 'a medium shot from the side of the referee',
                      'camera_move' => 'push_in', 'actor' => $menang,
-                     'action' => 'The referee jumps in between them with both arms out and waves the fight off. '
+                     'action' => ($adaWasit
+                                    ? 'The referee jumps in between them with both arms out and waves the fight off. '
+                                    : 'Nobody steps in to stop it; ' . $K . ' simply stops answering. ')
                                . $M . ' steps back and lowers her gloves, still breathing hard.',
-                     'sound' => 'the referee shouting, the bell, the crowd erupting'],
+                     'sound' => ($adaWasit ? 'the referee shouting, the bell' : 'one last impact, then silence') . $ramai],
                 ];
             case 'menyerah':
                 return [
@@ -1103,9 +1127,9 @@ TXT;
                      'sound' => 'a shout from the corner, the crowd reacting'],
                     ['camera' => 'a wide shot of the whole ring',
                      'camera_move' => 'pull_out', 'actor' => $menang,
-                     'action' => $M . ' stops punching and stands upright, chest rising and falling, '
-                               . 'as the referee steps between them.',
-                     'sound' => 'the bell, a swell of noise from the crowd'],
+                     'action' => $M . ' stops punching and stands upright, chest rising and falling'
+                               . ($adaWasit ? ', as the referee steps between them.' : ', and lets her go.'),
+                     'sound' => $adaPenonton ? 'the bell, a swell of noise from the crowd' : 'the bell, then quiet'],
                 ];
             default:   // ko
                 return [
@@ -1122,8 +1146,8 @@ TXT;
                     ['camera' => 'a high wide shot looking down at the canvas',
                      'camera_move' => 'pull_out', 'actor' => $menang,
                      'action' => $K . ' lies still and does not get up. ' . $M . ' stands over her, '
-                               . 'breathing hard, then raises one glove as the referee waves the fight off.',
-                     'sound' => 'the referee counting, a wall of noise'],
+                               . 'breathing hard, then raises one glove ' . $hentikan . '.',
+                     'sound' => $hitung . $ramai],
                 ];
         }
     }
@@ -1177,7 +1201,12 @@ TXT;
             return 'the sound echoing off bare walls, breathing loud in the empty room';
         }
 
-        return implode(', ', $sisa) . ', everything echoing in the empty room';
+        // Keterangan gaungnya TIDAK ditempel ke tiap shot. Delapan shot
+        // berarti delapan kali kalimat yang sama, dan pengulangan sebanyak
+        // itu justru melemahkan seluruh prompt — modelnya mulai
+        // memperlakukan baris Sound sebagai boilerplate. Sifat ruangannya
+        // sudah disebut sekali di blok Scene, dan sekali sudah cukup.
+        return implode(', ', $sisa);
     }
 
     /** Ekstrak untuk satu klip: kondisi dan aksi disetel sesuai babaknya. */

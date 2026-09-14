@@ -878,24 +878,36 @@ TXT;
             // penggantian karakter di atas; kalau dibaca dari situ, ciri
             // karakter lama yang baru saja dibuang malah balik lagi.
             foreach (['hair', 'eyes', 'body', 'tags'] as $k) {
-                [$ok, $gagal] = self::validasiTag($ekstrak['subjects'][$i][$k]);
+                $isi = $ekstrak['subjects'][$i][$k] ?? [];
+                [$ok, $gagal] = self::validasiTag(is_array($isi) ? $isi : []);
                 $ekstrak['subjects'][$i][$k] = $ok;
                 $dikenal += count($ok);
                 $ditolak  = array_merge($ditolak, $gagal);
             }
         }
 
+        // Kunci yang hilang tidak boleh menjatuhkan seluruh permintaan.
+        //
+        // Method ini publik, jadi tidak bisa mengandaikan normalisasi()
+        // sudah jalan lebih dulu. Waktu pengandaian itu dipegang,
+        // ekstrak tanpa blok "lighting" membuat validasiTag() menerima
+        // null dan melempar TypeError — yang di hosting muncul sebagai
+        // "Terjadi kesalahan di server" tanpa keterangan apa pun, karena
+        // APP_DEBUG di sana mati.
         foreach (['environment', 'lighting', 'camera'] as $k) {
-            [$ok, $gagal] = self::validasiTag($ekstrak[$k]['tags']);
+            $tags = $ekstrak[$k]['tags'] ?? [];
+            [$ok, $gagal] = self::validasiTag(is_array($tags) ? $tags : []);
             $ekstrak[$k]['tags'] = $ok;
             $dikenal += count($ok);
             $ditolak  = array_merge($ditolak, $gagal);
         }
-        [$ok, $gagal] = self::validasiTag($ekstrak['camera']['effects']);
+        $efek = $ekstrak['camera']['effects'] ?? [];
+        [$ok, $gagal] = self::validasiTag(is_array($efek) ? $efek : []);
         $ekstrak['camera']['effects'] = $ok;
         $ditolak = array_merge($ditolak, $gagal);
 
-        [$ok, $gagal] = self::validasiTag($ekstrak['danbooru_tags']);
+        $global = $ekstrak['danbooru_tags'] ?? [];
+        [$ok, $gagal] = self::validasiTag(is_array($global) ? $global : []);
         $ekstrak['danbooru_tags'] = $ok;
         $dikenal += count($ok);
         $ditolak  = array_merge($ditolak, $gagal);
@@ -2752,8 +2764,37 @@ TXT;
         }
 
         $bagian[] = self::batasanWan($r);
+        $bagian[] = self::blokAudio();
 
         return implode("\n\n", array_filter($bagian));
+    }
+
+    /**
+     * Blok audio, berdiri sendiri di akhir prompt.
+     *
+     * Dulu cuma "No background music." yang ditempel di ujung paragraf
+     * batasan yang sudah panjang. Itu bentuk perintah paling lemah yang
+     * ada: larangan murni, tanpa menyebutkan apa yang HARUS ada, dan
+     * terkubur di antara belasan kalimat lain. Model video tetap
+     * menempelkan musik.
+     *
+     * Dua perubahan yang membuatnya dipatuhi. Pertama, audionya
+     * didefinisikan secara POSITIF lebih dulu — "hanya suara yang benar-
+     * benar ada di ruangan itu" — baru dikecualikan. Model jauh lebih
+     * patuh pada perintah yang menyebut apa yang harus dilakukan daripada
+     * apa yang tidak. Kedua, "background music" diperluas jadi "musik
+     * apa pun": larangan yang cuma menyebut musik LATAR bisa dibaca
+     * sebagai izin untuk musik yang tidak di latar.
+     */
+    private static function blokAudio(): string
+    {
+        return 'Audio: diegetic sound only — everything heard must be something happening '
+             . 'inside the room. Gloves hitting flesh and guard, feet on canvas, breathing and '
+             . 'grunts, ropes creaking, the bell, and whatever room tone the venue has. '
+             . 'ABSOLUTELY NO MUSIC OF ANY KIND at any point: no score, no soundtrack, no theme, '
+             . 'no drums, no strings, no synth, no hum or drone standing in for music, and no '
+             . 'music fading in under the action at the end. If in doubt, leave the track silent '
+             . 'except for the impacts. No narration and no commentary.';
     }
 
     private static function kalimatShotWan(array $sh, array $r): string
@@ -2950,7 +2991,7 @@ TXT;
              . 'background bokeh. Every movement keeps weight, balance and follow-through, '
              . 'and stays physically possible.';
         $b[] = 'Keep the silhouette readable in every key pose even at speed, with directional motion blur on the fastest limb, and let each cut land on a movement rather than between them.';
-        $laju = self::kalimatTempo();
+        $laju = self::kalimatTempo($r);
         if ($laju !== '') {
             $b[] = SeedanceBuilder::kalimat($laju);
         }

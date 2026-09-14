@@ -178,14 +178,64 @@ function requirePost(): void
 
 // Tangkap error tak terduga agar tetap keluar sebagai JSON, bukan halaman error HTML.
 set_exception_handler(static function (Throwable $e): void {
+    // Dicatat dengan kode pendek yang ikut dikirim ke halaman.
+    //
+    // Di hosting APP_DEBUG mati, jadi yang terlihat cuma "Terjadi kesalahan
+    // di server" — benar untuk keamanan, tapi tidak bisa dilacak sama
+    // sekali. Dengan kode ini kamu tinggal menyebut empat huruf itu, dan
+    // barisnya bisa dicari di logs/api-error.log.
+    $kode = catatGalat($e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString());
+
     bersihkanKeluaran();
     http_response_code(500);
     echo json_encode([
         'ok'    => false,
-        'error' => APP_DEBUG ? $e->getMessage() : 'Terjadi kesalahan di server.',
+        'error' => APP_DEBUG
+            ? $e->getMessage()
+            : 'Terjadi kesalahan di server. Kode: ' . $kode
+              . ' — barisnya ada di logs/api-error.log.',
+        'kode'  => $kode,
         'where' => APP_DEBUG ? basename($e->getFile()) . ':' . $e->getLine() : null,
     ], JSON_UNESCAPED_UNICODE);
 });
+
+/**
+ * Tulis satu galat ke logs/api-error.log, kembalikan kode pendeknya.
+ *
+ * Ditaruh di dalam proyek, bukan di log PHP sistem, karena di hosting
+ * bersama log PHP-nya sering tidak bisa diakses sama sekali. Berkasnya
+ * di-gitignore dan dipangkas supaya tidak tumbuh tanpa batas.
+ */
+function catatGalat(string $pesan, string $berkas, int $baris, string $jejak = ''): string
+{
+    $kode = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+    $dir  = __DIR__ . '/../logs';
+
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    $path = $dir . '/api-error.log';
+
+    // Log yang tumbuh tanpa batas akan diabaikan orang. Dipangkas di 1 MB.
+    if (is_file($path) && filesize($path) > 1048576) {
+        @file_put_contents($path, '');
+    }
+
+    $baris = sprintf(
+        "[%s] %s  %s\n  di %s:%d\n  URL %s\n%s\n\n",
+        date('Y-m-d H:i:s'),
+        $kode,
+        $pesan,
+        $berkas,
+        $baris,
+        $_SERVER['REQUEST_URI'] ?? '?',
+        $jejak !== '' ? '  ' . str_replace("\n", "\n  ", $jejak) : ''
+    );
+
+    @file_put_contents($path, $baris, FILE_APPEND);
+
+    return $kode;
+}
 
 /*
  * Error fatal BUKAN Throwable, jadi set_exception_handler tidak
@@ -202,13 +252,7 @@ register_shutdown_function(static function (): void {
 
     // Dicatat juga, bukan cuma dikirim ke halaman. Jawaban JSON hilang
     // begitu tab ditutup; log-nya tinggal.
-    error_log(sprintf(
-        'FATAL %s di %s:%d saat %s',
-        $e['message'],
-        $e['file'],
-        (int)$e['line'],
-        ($_SERVER['REQUEST_URI'] ?? '?')
-    ));
+    $kode = catatGalat('FATAL ' . $e['message'], (string)$e['file'], (int)$e['line']);
 
     bersihkanKeluaran();
     if (!headers_sent()) {
@@ -219,7 +263,7 @@ register_shutdown_function(static function (): void {
         'ok'    => false,
         'error' => APP_DEBUG
             ? 'Error fatal: ' . $e['message']
-            : 'Terjadi kesalahan berat di server.',
+            : 'Terjadi kesalahan berat di server. Kode: ' . $kode . ' — barisnya ada di logs/api-error.log.',
         'where' => APP_DEBUG ? basename((string)$e['file']) . ':' . (int)$e['line'] : null,
     ], JSON_UNESCAPED_UNICODE);
 });
