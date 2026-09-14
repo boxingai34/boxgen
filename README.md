@@ -1860,7 +1860,7 @@ Kalau prompt hasilnya terasa hambar, tiga isian ini yang memberi watak:
 
 | Isian | Gunanya |
 |---|---|
-| **Gaya visual** | Menggantikan gaya bacaan dengan gaya pilihanmu. Daftarnya modul `style` (26 gaya gambar, termasuk lima "rasa studio") dan `video_style` untuk target video — sama persis dengan Prompt Generator, jadi apa yang kamu tambahkan lewat Admin langsung muncul di sini. |
+| **Gaya visual** | Menggantikan gaya bacaan dengan gaya pilihanmu. Daftarnya modul `style` (50 gaya gambar) dan `video_style` (27 gaya video) — sama persis dengan Prompt Generator, jadi apa yang kamu tambahkan lewat Admin langsung muncul di sini. |
 | **Tag artis** | Tuas paling ampuh: satu nama artis mengubah garis, warna, dan proporsi sekaligus. Diketik dengan saran dari kamus, boleh lebih dari satu dipisah koma. Nama yang tidak ada di kamus dibuang dan dilaporkan. |
 | **Kekuatan gaya** | Bobot NovelAI untuk tag gaya dan artis. Sedang menulis `1.15::gaya::`, Kuat menulis `1.30::gaya::`. Tanpa bobot, tag gaya kalah suara oleh puluhan tag isi. |
 
@@ -1869,6 +1869,53 @@ tag medium dari hasil bacaan (`realistic`, `anime_coloring`, dan sejenisnya)
 dibuang, supaya dua gaya tidak saling berkelahi di satu prompt. Untuk target
 video, gaya pilihan jadi paragraf pertama prompt dan tag artis masuk ke prompt
 lembar acuannya, karena di situlah wujud petinjunya lahir.
+
+**Gaya berdasarkan judul anime.** Empat kelompok berisi 24 gaya yang mengacu
+ke judul anime atau manga tertentu, ada di `database/data/gaya_anime.php`:
+
+| Kelompok | Isinya |
+|---|---|
+| Rasa Tarung | Hajime no Ippo, Megalo Box, Baki, Kengan Ashura, Jujutsu Kaisen, Demon Slayer, Attack on Titan, Kill la Kill, JoJo, Mob Psycho, Ping Pong |
+| Rasa Klasik | Ashita no Joe, Hokuto no Ken, Akira, Cowboy Bebop, Sailor Moon |
+| Rasa Halus | Makoto Shinkai, Ghibli, Violet Evergarden, Mushishi |
+| Rasa Cetak | Berserk, Vagabond, One Punch Man, Junji Ito |
+
+Judulnya cuma label di menu. Tag judul dan tag studio di Danbooru jumlah
+postnya terlalu kecil untuk memberi sinyal, jadi yang benar-benar bekerja
+adalah kombinasi tag gaya di baliknya, plus nama artis yang gayanya mirip.
+Untuk video, kalimat gayanya sengaja tidak pernah menyebut judul, studio,
+atau nama tokoh, karena model video menolak atau melenceng kalau diberi nama
+kekayaan intelektual.
+
+### Menempel dan mengambil dari alamat internet
+
+Tiga cara memasukkan referensi:
+
+| Cara | Untuk apa |
+|---|---|
+| Seret berkas atau pilih lewat tombol | Berkas yang sudah ada di komputermu. |
+| **Ctrl+V** di halamannya | Salin gambar di browser lalu tempel langsung, tidak perlu disimpan dulu. Kalau yang tersalin cuma alamatnya, alamat itu yang diambil. |
+| Kotak alamat + tombol Ambil | Alamat gambar, atau alamat berkas video langsung (`.mp4`, `.webm`). |
+
+Berkas dari komputer diproses di browser. Alamat internet diproses di server
+dengan ffmpeg, karena situs lain tidak mengizinkan halaman ini membaca isinya
+sendiri. Alamat jaringan lokal ditolak, dan ukurannya dibatasi
+`REVERSE_MAX_URL_BYTES` (bawaan 200 MB).
+
+**Alamat halaman video seperti YouTube atau TikTok butuh yt-dlp.** Tanpa itu
+yang bisa diambil hanya alamat berkas videonya langsung. Untuk mengaktifkan:
+unduh `yt-dlp.exe`, lalu isi di `config.local.php`:
+
+```php
+define('YTDLP_BIN', 'C:\\alat\\yt-dlp.exe');
+```
+
+**Sertifikat HTTPS.** Daftar sertifikat bawaan XAMPP sudah lama tidak
+diperbarui, dan situs yang memakai penerbit baru ditolak dengan pesan
+"unable to get local issuer certificate". Berkas `cacert.pem` di folder
+proyek menutup lubang itu. Kalau komputermu memakai antivirus atau jaringan
+kantor yang menyadap HTTPS, tambahkan root lokalnya ke `cacert.local.pem`
+(berkas itu di-gitignore karena isinya urusan mesinmu).
 
 ### Alur di halaman
 

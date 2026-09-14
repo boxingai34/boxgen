@@ -105,6 +105,40 @@ defined('AI_NSFW_TIMEOUT')  || define('AI_NSFW_TIMEOUT', 90);
 // Jatah reverse per pengunjung per hari (satu "baca" atau satu "susun"
 // = satu hit), batas ukuran gambar setelah decode, jumlah frame video
 // maksimal, dan berapa contoh emas yang disertakan ke tahap polish.
+// Mengambil referensi dari URL. ffmpeg dipakai untuk semuanya: mengecilkan
+// gambar, memotong frame, menyusun lembar kontak — jadi ekstensi GD tidak
+// diperlukan. Kosongkan nama programnya untuk mengandalkan PATH.
+//
+// yt-dlp hanya perlu kalau kamu mau menempel alamat HALAMAN video
+// (YouTube, TikTok, dan sejenisnya). Tanpa itu, alamat berkas video
+// langsung (berakhiran .mp4/.webm) tetap bisa diambil.
+// Daftar sertifikat root untuk memeriksa HTTPS.
+//
+// XAMPP membawa daftarnya sendiri, tapi punya bawaan itu bertahun-tahun
+// tidak diperbarui, dan situs yang memakai penerbit baru jadi ditolak
+// dengan pesan "unable to get local issuer certificate". Berkas cacert.pem
+// di folder proyek ini menutup lubang itu tanpa mengutak-atik XAMPP-mu, dan
+// ikut terbawa waktu diupload ke hosting. Kosongkan kalau mau memakai
+// setelan sistem, JANGAN dimatikan pemeriksaannya.
+// cacert.local.pem (kalau ada) dipakai lebih dulu: itu tempat menaruh
+// sertifikat khusus komputermu sendiri — misalnya root buatan antivirus
+// atau jaringan kantor yang menyadap HTTPS. Berkas itu di-gitignore karena
+// isinya urusan mesinmu, bukan urusan proyeknya.
+defined('CA_BUNDLE') || define('CA_BUNDLE', (static function (): string {
+    foreach (['/cacert.local.pem', '/cacert.pem'] as $nama) {
+        if (is_file(__DIR__ . $nama)) {
+            return __DIR__ . $nama;
+        }
+    }
+    return '';
+})());
+
+defined('FFMPEG_BIN')  || define('FFMPEG_BIN', '');
+defined('FFPROBE_BIN') || define('FFPROBE_BIN', '');
+defined('YTDLP_BIN')   || define('YTDLP_BIN', '');
+defined('REVERSE_URL_TIMEOUT')   || define('REVERSE_URL_TIMEOUT', 120);
+defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 * 1024);
+
 defined('REVERSE_DAILY_LIMIT_PER_IP') || define('REVERSE_DAILY_LIMIT_PER_IP', 40);
 defined('REVERSE_MAX_IMAGE_BYTES')    || define('REVERSE_MAX_IMAGE_BYTES', 6 * 1024 * 1024);
 defined('REVERSE_MAX_FRAMES')         || define('REVERSE_MAX_FRAMES', 12);

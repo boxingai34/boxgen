@@ -231,7 +231,30 @@ say("Judul terklasifikasi : {$jumlahSeri}");
 // ---------------------------------------------------------------------
 // 2. Modul
 // ---------------------------------------------------------------------
-$styleMap = saveModules('style', dataFile('styles'));
+// Gaya dasar dan gaya berdasarkan judul anime digabung dulu, BARU disimpan.
+// saveModules() membuang modul yang slugnya tidak ada di daftar yang dikirim,
+// jadi memanggilnya dua kali akan menghapus batch yang pertama.
+$gayaAnime = dataFile('gaya_anime');
+$styleMap  = saveModules('style', array_merge(dataFile('styles'), $gayaAnime['style']));
+
+// Nama artis yang belum pernah ditarik dari Danbooru masuk ke kamus sebagai
+// tag biasa (kategori 0) waktu modulnya disimpan. Padahal kategorinya yang
+// menentukan: mesin menulis awalan "artist:" hanya untuk kategori 1, dan
+// tanpa awalan itu NovelAI tidak mengenalinya sebagai gaya seorang artis.
+$namaArtis = [];
+foreach ($gayaAnime['style'] as $g) {
+    foreach ($g['artis'] ?? [] as $a) {
+        $namaArtis[$a] = true;
+    }
+}
+if ($namaArtis !== []) {
+    $nama = array_keys($namaArtis);
+    $diperbaiki = Database::run(
+        'UPDATE tags SET category = 1 WHERE category <> 1 AND name IN (' . Database::placeholders($nama) . ')',
+        $nama
+    )->rowCount();
+    say('Tag artis                 : ' . count($nama) . ' terdaftar, ' . $diperbaiki . ' dibetulkan kategorinya');
+}
 say('Gaya gambar          : ' . count($styleMap));
 
 $outfitData = dataFile('outfits');
@@ -567,7 +590,7 @@ $videoData = dataFile('video');
 
 // Gaya visual dan cara pukulan digambarkan — dua-duanya hasil membedah
 // video rujukan frame demi frame, bukan tebakan.
-$wanGaya = count(saveModules('video_style',  $videoData['video_style']))
+$wanGaya = count(saveModules('video_style',  array_merge($videoData['video_style'], $gayaAnime['video_style'])))
          + count(saveModules('video_impact', $videoData['video_impact']));
 say('Gaya video Wan       : ' . $wanGaya);
 

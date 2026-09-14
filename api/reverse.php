@@ -7,6 +7,7 @@ require __DIR__ . '/_bootstrap.php';
  * Reverse prompt — dari gambar/video ke prompt. Lihat RENCANA-REVERSE.md §5.
  *
  * GET  api/reverse.php?action=status
+ * POST api/reverse.php?action=ambil_url { url, frames }
  * POST api/reverse.php?action=baca   { kind, images[{data,mime,t,w,h}], sheet{data,mime}|null, duration, hint }
  * POST api/reverse.php?action=susun  { ekstrak, target, opsi{nsfw,haluskan,polish,fewshot,wan{rasio,detik}} }
  * GET  api/reverse.php?action=muat&id=N
@@ -83,6 +84,30 @@ switch ($action) {
     case 'status':
         jsonOk(ReversePrompt::status() + ['quota' => $kuota()]);
         // no break — jsonOk berhenti sendiri
+
+    case 'ambil_url':
+        requirePost();
+        $in = requestBody();
+
+        $url = trim((string)($in['url'] ?? ''));
+        if ($url === '') {
+            jsonFail('Tempel dulu alamat gambar atau videonya.');
+        }
+
+        // Mengambil URL memakai jaringan dan ffmpeg, jadi ikut dibatasi jatah
+        // harian yang sama dengan pembacaan — kalau tidak, satu tombol bisa
+        // dipakai menghujani server dengan unduhan.
+        $jagaKuota();
+
+        try {
+            $ref = Referensi::dariUrl($url, (int)($in['frames'] ?? 8));
+        } catch (RuntimeException $e) {
+            jsonFail($e->getMessage(), 422);
+        }
+        RateLimiter::hit('reverse');
+
+        jsonOk($ref + ['quota' => $kuota()]);
+        // no break
 
     case 'baca':
         requirePost();

@@ -477,6 +477,69 @@ async function prosesUlang() {
     }
 }
 
+/**
+ * Ambil referensi dari alamat internet.
+ *
+ * Semua pekerjaannya di server (unduh + ffmpeg), karena situs lain tidak
+ * mengizinkan halaman ini membaca isinya langsung. Yang kembali bentuknya
+ * sama persis dengan hasil olahan browser, jadi sisa alurnya tidak berubah.
+ */
+async function ambilUrl() {
+    const input = $('#url-ref');
+    const btn   = $('#btn-url');
+    const url   = input.value.trim();
+
+    if (!url) {
+        info('Tempel dulu alamat gambar atau videonya.');
+        return;
+    }
+    if (sedangProses) return;
+
+    sedangProses = true;
+    btn.disabled = true;
+    btn.textContent = 'Mengambil…';
+    perbaruiTombol();
+    info('Mengambil dari ' + url.replace(/^https?:\/\//, '').split('/')[0] + '…');
+
+    try {
+        const data = await postJson('api/reverse.php?action=ambil_url', {
+            url,
+            frames: jumlahFrame()
+        });
+
+        // Pratinjau butuh data URL; server cuma mengirim base64-nya.
+        data.images.forEach((im) => { im.url = 'data:' + im.mime + ';base64,' + im.data; });
+
+        berkasAsli = null;
+        referensi  = data;
+        ekstrak    = null;
+        rawDisunting = false;
+        $('#hasil-baca').hidden = true;
+        $('#opsi-video').hidden = data.kind !== 'video';
+
+        renderStrip(referensi);
+        tebakRasio(data.w, data.h);
+        if (data.duration) pilihDetik(data.duration);
+
+        const asal = url.replace(/^https?:\/\//, '').split('/')[0];
+        info(
+            (data.kind === 'video'
+                ? `Video dari ${asal} · ${data.duration} detik, ${data.w}×${data.h} → ${data.images.length} frame`
+                : `Gambar dari ${asal} · ${data.images[0].w}×${data.images[0].h}`)
+            + (data.catatan && data.catatan.length ? ' · ' + data.catatan.join(' ') : '')
+        );
+    } catch (err) {
+        referensi = null;
+        renderStrip(null);
+        info(err.message);
+    } finally {
+        sedangProses = false;
+        btn.disabled = false;
+        btn.textContent = 'Ambil';
+        perbaruiTombol();
+    }
+}
+
 async function terimaBerkas(file) {
     const kind = jenisBerkas(file);
     if (!kind) {
@@ -526,19 +589,36 @@ function initUnggah() {
     document.addEventListener('dragover', (e) => e.preventDefault());
     document.addEventListener('drop', (e) => e.preventDefault());
 
-    // Tempel dari clipboard (Ctrl+V gambar hasil tangkapan layar).
+    // Tempel dari clipboard. Dua bentuk yang mungkin datang, dan keduanya
+    // sering terjadi: browser bisa menaruh GAMBARNYA (Salin gambar) atau
+    // cuma ALAMATNYA (Salin alamat gambar). Yang kedua diambil lewat server
+    // karena situs lain tidak mengizinkan halaman ini membacanya sendiri.
     document.addEventListener('paste', (e) => {
+        // Jangan bajak paste yang sedang mengetik di kotak isian.
+        const fokus = document.activeElement;
+        const sedangMengetik = fokus && (fokus.tagName === 'INPUT' || fokus.tagName === 'TEXTAREA');
+
         const items = e.clipboardData && e.clipboardData.items;
-        if (!items) return;
-        for (const item of items) {
-            if (item.kind === 'file') {
-                const f = item.getAsFile();
-                if (f && jenisBerkas(f)) {
-                    e.preventDefault();
-                    terimaBerkas(f);
-                    return;
+        if (items) {
+            for (const item of items) {
+                if (item.kind === 'file') {
+                    const f = item.getAsFile();
+                    if (f && jenisBerkas(f)) {
+                        e.preventDefault();
+                        terimaBerkas(f);
+                        return;
+                    }
                 }
             }
+        }
+
+        if (sedangMengetik) return;
+
+        const teks = (e.clipboardData && e.clipboardData.getData('text/plain') || '').trim();
+        if (/^https?:\/\/\S+$/i.test(teks)) {
+            e.preventDefault();
+            $('#url-ref').value = teks;
+            ambilUrl();
         }
     });
 
@@ -1400,6 +1480,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initUnggah();
     initArtis();
+
+    $('#btn-url').addEventListener('click', ambilUrl);
+    $('#url-ref').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            ambilUrl();
+        }
+    });
 
     $$('#target-bar .modebtn').forEach((b) => b.addEventListener('click', () => setTarget(b.dataset.target)));
     const tSimpan = bacaLokal(KUNCI_TARGET);

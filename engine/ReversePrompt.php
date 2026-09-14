@@ -298,7 +298,7 @@ final class ReversePrompt
   "interaction": {"striker": "a|b|null", "receiver": "a|b|null", "contact": "landed|imminent|none", "target": "face|body|null", "description": "who does what to whom, viewer-relative sides"},
   "environment": {"venue": "short phrase", "ring": true, "ropes": true, "crowd": "none|sparse|packed|dark blur", "props": [], "tags": ["boxing_ring", "indoors", "crowd"]},
   "lighting": {"summary": "short phrase", "tags": ["spotlight", "backlighting"]},
-  "camera": {"distance": "close-up|upper_body|cowboy_shot|full_body|wide_shot", "angle": "from_below|from_above|from_side|from_behind|dutch_angle|eye_level", "effects": ["motion_blur", "depth_of_field"], "tags": []},
+  "camera": {"distance": "close-up|upper_body|cowboy_shot|full_body|wide_shot", "angle": "from_below|from_above|from_side|from_behind|dutch_angle|eye_level", "height": "ground|low|waist|eye|high|overhead", "lens": "wide|normal|telephoto|fisheye", "pov": false, "facing": "toward_viewer|away_from_viewer|profile|three_quarter", "summary": "one sentence: where the camera is standing relative to the fighters and what that does to the shot", "effects": ["motion_blur", "depth_of_field"], "tags": []},
   "text_in_image": "",
   "prose": "2-4 English sentences describing the scene exactly as seen, NovelAI-style natural language, no character names",
   "danbooru_tags": ["every danbooru tag you are confident about, underscore form"],
@@ -333,7 +333,14 @@ ATURAN:
 8. Subjek maksimal dua orang utama (petinju). Wasit, penonton, dan orang latar masuk ke environment, bukan subjects.
 9. Untuk "character", tulis tag Danbooru yang sesungguhnya, bukan pola "nama_(judul)" karangan. Contoh yang BENAR: princess_peach, princess_daisy, tsukino_usagi, tsunade_(naruto), elsa_(frozen), cammy_white. Kalau tidak yakin bentuk tagnya, tulis nama yang paling umum dipakai saja (misalnya "princess_peach"), jangan menempelkan nama judul di dalam kurung.
 
-10. PAKAIAN ADALAH BAGIAN YANG PALING SERING KAMU SALAH. Jangan pernah menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat betul-betul potongan, panjang lengan, dan warnanya, lalu pilih dari daftar KOSAKATA di bawah. Beberapa yang paling sering keliru:
+10. SUDUT PANDANG KAMERA ITU SETENGAH DARI KESAN GAMBARNYA, jadi jangan diisi asal. Berdirilah di posisi kameranya lalu jawab tiga hal terpisah:
+   - "height": di mana kamera berada secara fisik. ground = setinggi kanvas, low = setinggi lutut sampai pinggang, waist = sepinggang, eye = setinggi mata petinju, high = di atas kepala, overhead = tepat dari atas.
+   - "angle": ke mana kamera menghadap dari posisi itu. from_below kalau melihat ke atas ke arah petinju (bikin mereka tampak besar dan mengancam), from_above kalau menunduk (bikin tampak kecil dan terdesak), from_side kalau sejajar dari samping, from_behind kalau di belakang salah satu petinju, dutch_angle kalau bingkainya miring, eye_level kalau lurus tanpa kemiringan.
+   - "lens": wide kalau tepi gambar melengkung dan yang dekat terasa jauh lebih besar (kepalan yang menjulur ke kamera), telephoto kalau latar terasa rapat dan pipih, normal kalau biasa saja.
+   Isi "pov" true HANYA kalau kita melihat lewat mata seorang petinju (sarung tangannya sendiri masuk bingkai dari bawah). Isi "facing" dengan arah badan subjek utama terhadap kamera. Tulis "summary" satu kalimat, misalnya "kamera ringside setinggi kanvas melihat ke atas, jadi kedua petinju menjulang dan tali ring memotong bagian bawah bingkai".
+   Tinggi dan sudut itu DUA HAL BERBEDA: kamera bisa tinggi tapi menghadap lurus. Jangan menyalin satu ke yang lain.
+
+11. PAKAIAN ADALAH BAGIAN YANG PALING SERING KAMU SALAH. Jangan pernah menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat betul-betul potongan, panjang lengan, dan warnanya, lalu pilih dari daftar KOSAKATA di bawah. Beberapa yang paling sering keliru:
    - kaos olahraga sekolah putih berlengan pendek (kadang ada papan nama di dada) = gym_uniform + gym_shirt + white_shirt + short_sleeves, BUKAN sports_bra
    - celana olahraga sekolah ketat (biru/hijau/merah) = buruma, BUKAN boxing_shorts
    - atasan bikini/bra tali = bikini_top_only (tambahkan bikini kalau bawahannya sepasang), BUKAN sports_bra
@@ -534,9 +541,16 @@ TXT;
         ];
         $jarak = TagResolver::normalize((string)($e['camera']['distance'] ?? ''));
         $sudut = TagResolver::normalize((string)($e['camera']['angle'] ?? ''));
+        $pilih = static fn($v, array $sah): string =>
+            in_array((string)$v, $sah, true) ? (string)$v : '';
         $out['camera'] = [
             'distance' => $jarak,
             'angle'    => $sudut,
+            'height'   => $pilih($e['camera']['height'] ?? '', ['ground', 'low', 'waist', 'eye', 'high', 'overhead']),
+            'lens'     => $pilih($e['camera']['lens'] ?? '', ['wide', 'normal', 'telephoto', 'fisheye']),
+            'pov'      => !empty($e['camera']['pov']),
+            'facing'   => $pilih($e['camera']['facing'] ?? '', ['toward_viewer', 'away_from_viewer', 'profile', 'three_quarter']),
+            'summary'  => $teks($e['camera']['summary'] ?? '', 220),
             'effects'  => $tagList($e['camera']['effects'] ?? []),
             'tags'     => $tagList($e['camera']['tags'] ?? []),
         ];
@@ -1007,7 +1021,24 @@ TXT;
         }
 
         $kalimat = trim((string)($mod['sentence'] ?? ''));
-        $tags    = array_map(static fn(array $t): string => (string)$t['name'], $mod['tags'] ?? []);
+
+        // Nama artis dipisahkan dari tag gaya biasa. Bedanya bukan gaya-gayaan:
+        // NovelAI cuma mengenali artis lewat awalan "artist:", dan tanpa itu
+        // namanya dibaca sebagai tag acak.
+        $semua = array_map(static fn(array $t): string => (string)$t['name'], $mod['tags'] ?? []);
+        $tags  = $semua;
+        $artis = [];
+
+        if ($semua !== []) {
+            $rows = Database::column(
+                'SELECT name FROM tags WHERE category = 1 AND name IN (' . Database::placeholders($semua) . ')',
+                $semua
+            );
+            if ($rows !== []) {
+                $artis = $rows;
+                $tags  = array_values(array_diff($semua, $rows));
+            }
+        }
 
         if ($kalimat === '') {
             $kalimat = $tags === []
@@ -1023,6 +1054,7 @@ TXT;
             'nama'    => (string)($mod['name_id'] ?: $mod['name']),
             'kalimat' => rtrim($kalimat, '. '),
             'tags'    => $tags,
+            'artis'   => $artis,
         ];
     }
 
@@ -1243,8 +1275,10 @@ TXT;
         // NovelAI mengenali artis lewat awalan "artist:", dan inilah tuas
         // paling ampuh untuk memberi watak pada gambarnya: satu nama artis
         // mengubah garis, warna, dan proporsi sekaligus, jauh melebihi
-        // tumpukan tag gaya.
-        foreach (self::tagArtis($opsi) as $t) {
+        // tumpukan tag gaya. Yang dari modul gaya dan yang kamu ketik sendiri
+        // digabung di sini.
+        $semuaArtis = array_unique(array_merge($gaya['artis'] ?? [], self::tagArtis($opsi)));
+        foreach ($semuaArtis as $t) {
             $tambah('artist:' . $t, 'style', 'artis', $bobot);
         }
 
@@ -1319,10 +1353,8 @@ TXT;
         foreach ($e['lighting']['tags'] as $t) {
             $tambah($t, 'lighting', 'cahaya');
         }
-        foreach (array_filter([$e['camera']['distance'], $e['camera']['angle']]) as $t) {
-            if (self::validasiTag([$t])[0] !== []) {
-                $tambah(self::validasiTag([$t])[0][0], 'camera', 'kamera');
-            }
+        foreach (self::tagKamera($e['camera']) as $t) {
+            $tambah($t, 'camera', 'kamera');
         }
         foreach (array_merge($e['camera']['effects'], $e['camera']['tags']) as $t) {
             $tambah($t, 'camera', 'kamera');
@@ -1601,6 +1633,63 @@ TXT;
             $out[] = 'punched';
         }
         return self::validasiTag($out)[0];
+    }
+
+    /**
+     * Tag Danbooru dari bagian kamera.
+     *
+     * Tinggi kamera dan arah pandangnya dua hal berbeda, tapi Danbooru cuma
+     * punya satu perbendaharaan untuk keduanya: kamera di lantai yang
+     * melihat ke atas dan kamera setinggi mata yang mendongak sama-sama
+     * jadi from_below. Jadi tingginya dipakai untuk MENGISI sudut yang
+     * tidak disebut, bukan untuk menimpanya.
+     *
+     * @return string[]
+     */
+    private static function tagKamera(array $cam): array
+    {
+        $out = [];
+
+        foreach ([$cam['distance'] ?? '', $cam['angle'] ?? ''] as $t) {
+            if ($t !== '' && $t !== 'eye_level') {
+                $out[] = $t;
+            }
+        }
+
+        if (($cam['angle'] ?? '') === '' || ($cam['angle'] ?? '') === 'eye_level') {
+            $out[] = match ($cam['height'] ?? '') {
+                'ground', 'low' => 'from_below',
+                'high'          => 'from_above',
+                'overhead'      => 'from_above',
+                default         => '',
+            };
+        }
+
+        if (!empty($cam['pov'])) {
+            $out[] = 'pov';
+        }
+
+        $out[] = match ($cam['lens'] ?? '') {
+            'fisheye'   => 'fisheye',
+            // Lensa lebar dari dekat itulah yang bikin kepalan menjulur
+            // besar ke arah kamera; di Danbooru itu namanya foreshortening.
+            'wide'      => 'foreshortening',
+            'telephoto' => 'depth_of_field',
+            default     => '',
+        };
+
+        $out[] = match ($cam['facing'] ?? '') {
+            'toward_viewer'    => 'facing_viewer',
+            'away_from_viewer' => 'facing_away',
+            'profile'          => 'profile',
+            default            => '',
+        };
+
+        foreach ($cam['effects'] ?? [] as $t) {
+            $out[] = $t;
+        }
+
+        return self::validasiTag(array_filter($out))[0];
     }
 
     private static function tagKontak(array $e): string
@@ -1999,22 +2088,55 @@ TXT;
         return array_slice(array_values(array_unique(array_filter($ciri))), 0, 9);
     }
 
+    /**
+     * Kalimat kamera untuk prompt video.
+     *
+     * Model video tidak mengenal tag; yang dimengerti kalimat juru kamera.
+     * Jadi jarak, tinggi, sudut, dan lensanya dirangkai jadi satu frasa
+     * yang bisa dibayangkan orang: "a medium-wide shot from the thighs up,
+     * camera down at canvas level looking up, on a wide lens".
+     */
     private static function kameraKalimat(array $e): string
     {
+        $cam = $e['camera'];
+
         $peta = [
             'close-up' => 'a tight close-up', 'upper_body' => 'a medium shot from the waist up',
             'cowboy_shot' => 'a medium-wide shot from the thighs up', 'full_body' => 'a full-body shot',
             'wide_shot' => 'a wide ringside shot',
         ];
         $sudut = [
-            'from_below' => 'from a low angle', 'from_above' => 'from a high angle', 'from_side' => 'from the side',
-            'from_behind' => 'from behind', 'dutch_angle' => 'with a tilted dutch angle', 'eye_level' => 'at eye level',
+            'from_below' => 'looking up at them', 'from_above' => 'looking down at them',
+            'from_side' => 'from the side', 'from_behind' => 'from behind one fighter',
+            'dutch_angle' => 'with a tilted dutch angle', 'eye_level' => 'straight on at eye level',
         ];
-        $bag = [$peta[$e['camera']['distance']] ?? 'a medium shot'];
-        if (isset($sudut[$e['camera']['angle']])) {
-            $bag[] = $sudut[$e['camera']['angle']];
+        $tinggi = [
+            'ground' => 'camera down at canvas level', 'low' => 'camera low, around knee height',
+            'waist'  => 'camera at waist height', 'eye' => 'camera at their eye level',
+            'high'   => 'camera above their heads', 'overhead' => 'camera directly overhead',
+        ];
+        $lensa = [
+            'wide' => 'on a wide lens that pushes the nearest glove large into frame',
+            'telephoto' => 'on a long lens that flattens the background',
+            'fisheye' => 'through a fisheye that bows the ropes',
+        ];
+
+        $bag = [$peta[$cam['distance'] ?? ''] ?? 'a medium shot'];
+
+        if (!empty($cam['pov'])) {
+            $bag[] = 'shot from one fighter\'s point of view, her own gloves entering the bottom of frame';
         }
-        return implode(' ', $bag);
+        if (isset($tinggi[$cam['height'] ?? ''])) {
+            $bag[] = $tinggi[$cam['height']];
+        }
+        if (isset($sudut[$cam['angle'] ?? ''])) {
+            $bag[] = $sudut[$cam['angle']];
+        }
+        if (isset($lensa[$cam['lens'] ?? ''])) {
+            $bag[] = $lensa[$cam['lens']];
+        }
+
+        return implode(', ', $bag);
     }
 
     private static function renderWan(array $r, bool $nsfw): string

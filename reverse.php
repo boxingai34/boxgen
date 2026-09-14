@@ -81,6 +81,25 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
             <p class="hint" id="berkas-info"></p>
         </div>
 
+        <div class="field">
+            <label for="url-ref">
+                Atau tempel alamatnya
+                <span class="tiny-note">gambar atau video</span>
+            </label>
+            <div class="preset-row">
+                <input type="text" id="url-ref" autocomplete="off" maxlength="2000"
+                       placeholder="https://... alamat gambar atau berkas video">
+                <button type="button" id="btn-url" class="btn">Ambil</button>
+            </div>
+            <p class="hint">
+                Untuk gambar dari internet, cara tercepat justru <strong>Ctrl+V</strong>: salin
+                gambarnya di browser lalu tempel di halaman ini, tidak perlu disimpan dulu.
+                Kalau yang tersalin cuma alamatnya, tempel di kotak ini.
+                Untuk video, isi alamat berkasnya langsung (yang berakhiran
+                <code>.mp4</code> atau <code>.webm</code>).
+            </p>
+        </div>
+
         <!-- khusus video: berapa frame yang diambil -->
         <div class="field only-ref-video" id="opsi-video" hidden>
             <label for="jumlah-frame">
@@ -326,5 +345,5 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
 </div>
 
-<script src="assets/js/reverse.js?v=3"></script>
+<script src="assets/js/reverse.js?v=4"></script>
 <?php halamanFooter(); ?>
