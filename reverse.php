@@ -278,6 +278,23 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
                 pembacanya sering salah menebak nama karakter dan siapa yang memukul.
             </p>
 
+            <div class="field">
+                <label for="adegan">Jenis adegan</label>
+                <select id="adegan">
+                    <option value="fight">Bertanding</option>
+                    <option value="corner">Istirahat di sudut ring</option>
+                    <option value="lineup">Foto bersama / berpose</option>
+                    <option value="training">Latihan</option>
+                    <option value="aftermath">Sesudah bertanding</option>
+                    <option value="other">Lainnya</option>
+                </select>
+                <p class="hint">
+                    Tidak semua gambar tinju itu pertandingan. Kalau adegannya istirahat
+                    di sudut atau foto bersama, pilih di sini supaya kuda-kuda dan tag
+                    pukulan tidak dipaksakan masuk.
+                </p>
+            </div>
+
             <div id="subjek-list"></div>
 
             <div class="field" id="striker-box">
@@ -364,5 +381,5 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
 </div>
 
-<script src="assets/js/reverse.js?v=8"></script>
+<script src="assets/js/reverse.js?v=9"></script>
 <?php halamanFooter(); ?>

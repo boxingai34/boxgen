@@ -859,8 +859,9 @@ final class PromptBuilder
     {
         $block = $item['block'];
 
-        if (str_ends_with($block, '_b')) {
-            return 'b';
+        // Orang ke-2 dan seterusnya diberi akhiran _b, _c, _d, ...
+        if (preg_match('/^(?:character|appearance|outfit|condition|interaction)_([b-f])$/', $block, $m) === 1) {
+            return $m[1];
         }
         if (in_array($block, ['character', 'appearance', 'outfit', 'condition',
                               'interaction_a'], true)) {

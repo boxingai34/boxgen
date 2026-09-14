@@ -984,13 +984,20 @@ function kartuSubjek(s, i) {
     const kartu = el('div', 'subjek');
     kartu.dataset.idx = String(i);
 
-    const h = el('h3', null, 'Petinju ' + id.toUpperCase());
+    const PERAN_LABEL = { fighter: 'Petinju', second: 'Pendamping', referee: 'Wasit', bystander: 'Orang' };
+    const h = el('h3', null, (PERAN_LABEL[s.role] || 'Petinju') + ' ' + id.toUpperCase());
     kartu.appendChild(h);
 
     const ringkas = ringkasSubjek(s);
     if (ringkas) kartu.appendChild(el('p', 'ringkas-subjek', ringkas));
 
     const row1 = el('div', 'field-row');
+    // Peran menentukan siapa yang boleh dapat tag pukulan. Pendamping yang
+    // memegang kompres es tidak ikut "punching" cuma karena ada di ring.
+    row1.appendChild(fieldSelect('Peran', 's-role',
+        [['fighter', 'Petinju'], ['second', 'Pendamping'],
+         ['referee', 'Wasit'], ['bystander', 'Orang lain']],
+        s.role || 'fighter'));
     row1.appendChild(fieldSelect('Jenis kelamin', 's-sex',
         [['female', 'Perempuan'], ['male', 'Laki-laki'], ['unclear', 'Tidak jelas']],
         s.sex || 'unclear', s.sex_evidence || ''));
@@ -1050,9 +1057,30 @@ function renderSubjek() {
     daftar.forEach((s, i) => box.appendChild(kartuSubjek(s || {}, i)));
 
     const inter = ekstrak.interaction || {};
-    $('#striker').value = inter.striker === 'a' || inter.striker === 'b' ? inter.striker : '';
-    // Satu petinju tidak punya lawan untuk dipukul; kotaknya cuma bikin bingung.
-    $('#striker-box').hidden = daftar.length < 2;
+
+    // Daftar "siapa memukul siapa" dibangun dari petinju yang benar-benar
+    // ada. Dulu isinya tetap A-vs-B; begitu orangnya bertiga — misalnya
+    // satu petinju dengan dua pendamping — pilihannya jadi salah semua.
+    const petinju = daftar.filter((x) => (x && x.role || 'fighter') === 'fighter');
+    const selStr = $('#striker');
+    selStr.innerHTML = '';
+    petinju.forEach((p) => {
+        const lawan = petinju.filter((q) => q.id !== p.id);
+        if (!lawan.length) return;
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = 'Petinju ' + String(p.id).toUpperCase() + ' memukul '
+                      + lawan.map((q) => String(q.id).toUpperCase()).join('/');
+        selStr.appendChild(o);
+    });
+    const kosong = document.createElement('option');
+    kosong.value = '';
+    kosong.textContent = 'Tidak ada yang memukul';
+    selStr.appendChild(kosong);
+
+    selStr.value = petinju.some((p) => p.id === inter.striker) ? inter.striker : '';
+    // Perlu minimal dua petinju untuk ada yang dipukul.
+    $('#striker-box').hidden = petinju.length < 2;
     $('#interaksi-note').textContent = [
         inter.contact && inter.contact !== 'none' ? 'kontak: ' + inter.contact : null,
         inter.target ? 'sasaran: ' + inter.target : null,
@@ -1061,6 +1089,8 @@ function renderSubjek() {
 }
 
 function renderAdegan() {
+    pilihOpsi($('#adegan'), ekstrak.scene || 'fight');
+
     const env   = ekstrak.environment || {};
     const cahaya = ekstrak.lighting || {};
     const cam   = ekstrak.camera || {};
@@ -1090,6 +1120,7 @@ function terapkanKolom() {
         if (!s) return;
 
         s.sex = $('.s-sex', kartu).value;
+        s.role = $('.s-role', kartu).value;
 
         const inputChar = $('.s-char', kartu);
         const c = inputChar.value.trim().toLowerCase().replace(/\s+/g, '_');
@@ -1118,11 +1149,15 @@ function terapkanKolom() {
         s.view = $('.s-view', kartu).value;
     });
 
+    ekstrak.scene = $('#adegan').value;
+
     if (!$('#striker-box').hidden) {
         const striker = $('#striker').value;
         const inter = (ekstrak.interaction && typeof ekstrak.interaction === 'object') ? ekstrak.interaction : {};
+        const ptj = (ekstrak.subjects || []).filter((x) => (x && x.role || 'fighter') === 'fighter');
+        const lawan = ptj.find((q) => q.id !== striker);
         inter.striker  = striker || null;
-        inter.receiver = striker === 'a' ? 'b' : striker === 'b' ? 'a' : null;
+        inter.receiver = striker && lawan ? lawan.id : null;
         if (!striker) {
             inter.contact = 'none';
             inter.target = null;

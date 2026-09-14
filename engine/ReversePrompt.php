@@ -70,7 +70,45 @@ final class ReversePrompt
     ];
 
     /** Maksimal subjek yang dipakai; NovelAI di aplikasi ini mengenal A dan B. */
-    private const MAKS_SUBJEK = 2;
+    /**
+     * Berapa orang yang bisa dijelaskan satu per satu.
+     *
+     * Dulu dua, karena diasumsikan isinya selalu satu pertandingan. Tapi
+     * adegan sudut ring punya satu petinju plus dua pendamping, dan foto
+     * bersama satu tim bisa lima orang. NovelAI V5 sanggup sampai 22 kotak
+     * karakter; enam sudah cukup untuk hampir semua referensi tinju tanpa
+     * membuat promptnya melar.
+     */
+    private const MAKS_SUBJEK = 6;
+
+    /**
+     * Peran orang di gambar.
+     *
+     * Ini yang menentukan siapa yang boleh dapat tag pukulan. Pendamping
+     * yang memegang kompres es tidak boleh ikut kebagian "punching" cuma
+     * karena berdiri di dalam ring.
+     */
+    private const PERAN = [
+        'fighter'   => 'Petinju',
+        'second'    => 'Pendamping',
+        'referee'   => 'Wasit',
+        'bystander' => 'Orang lain',
+    ];
+
+    /**
+     * Jenis adegan. Tidak semua gambar tinju itu pertandingan.
+     *
+     * "fight" tetap bawaan. Sisanya yang selama ini tidak punya tempat:
+     * istirahat di sudut ring, foto bersama, latihan, sesudah pertandingan.
+     */
+    private const ADEGAN = [
+        'fight'     => ['nama' => 'Bertanding',        'tags' => ['boxing', 'fighting_stance']],
+        'corner'    => ['nama' => 'Istirahat di sudut', 'tags' => ['sitting', 'towel', 'corner']],
+        'lineup'    => ['nama' => 'Foto bersama',       'tags' => ['standing', 'looking_at_viewer']],
+        'training'  => ['nama' => 'Latihan',            'tags' => ['training', 'punching_bag']],
+        'aftermath' => ['nama' => 'Sesudah bertanding', 'tags' => ['sitting', 'exhausted']],
+        'other'     => ['nama' => 'Lainnya',            'tags' => []],
+    ];
 
     /** Tag yang disembunyikan dari tahap polish dan dari versi aman. */
     private const TAG_NSFW = [
@@ -292,10 +330,12 @@ final class ReversePrompt
         $skema = <<<'JSON'
 {
   "kind": "image",
+  "scene": "fight|corner|lineup|training|aftermath|other",
   "style": {"medium": "anime|photo|3d|comic|painting", "render": "short phrase describing the render look (e.g. modern digital anime, cel shading, glossy highlights)", "era": "e.g. 1990s cel anime, modern digital, live action"},
   "subjects": [
     {
       "id": "a",
+      "role": "fighter|second|referee|bystander",
       "sex": "female|male|unclear",
       "sex_evidence": "what visual evidence decides it",
       "character": "danbooru_character_tag_with_underscores or null",
@@ -353,7 +393,12 @@ ATURAN:
 5. Untuk pukulan, sebutkan bukti mekanik (siku tertekuk, arah kepalan, rotasi pinggul). Kalau ragu antara hook dan jab, turunkan confidence, jangan mengarang.
 6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer". Kalau salah satu petinju memunggungi kamera, sebutkan itu ("seen from behind over her shoulder") — itu penentu komposisi, bukan hiasan.
 7. Kalau ada teks di gambar (poster, papan skor, judul), salin ke "text_in_image". TAPI JANGAN memakai teks itu untuk menentukan siapa yang di kiri dan siapa yang di kanan. Judul "A vs B" tidak menjamin A ada di kiri. Tentukan identitas tiap petinju dari ciri visualnya sendiri (warna dan model rambut, warna mata, mahkota, aksesori khas), lalu cocokkan dengan nama yang kamu kenali.
-8. Subjek maksimal dua orang utama (petinju). Wasit, penonton, dan orang latar masuk ke environment, bukan subjects.
+8. TIDAK SEMUA GAMBAR TINJU ITU PERTANDINGAN, DAN TIDAK SEMUA ORANG DI DALAMNYA PETINJU. Isi "scene" dan "role" apa adanya.
+   - "scene": fight kalau sedang bertukar pukulan; corner kalau istirahat di sudut ring (duduk di bangku, dikompres, diberi minum); lineup kalau berpose bersama menghadap kamera tanpa bertanding; training kalau latihan; aftermath kalau sesudah pertandingan; other kalau tidak satu pun cocok.
+   - "role" tiap orang: fighter untuk yang bertanding, second untuk pendamping di sudut (pegang handuk, botol, kompres es, biasanya berpakaian biasa atau kaos kru), referee untuk wasit, bystander untuk yang lain.
+   Masukkan ke "subjects" SEMUA orang yang tergambar jelas dan punya wujud sendiri, sampai 6 orang, bukan cuma petinjunya. Pendamping yang wajahnya kelihatan itu karakter juga dan butuh deskripsinya sendiri. Yang boleh ditinggal di environment cuma kerumunan penonton yang tidak jelas wujudnya.
+   Contoh: satu petinju duduk di bangku sudut, satu orang mengompres wajahnya, satu lagi memegang botol minum sambil bersandar di tali ring = scene "corner", tiga subjek dengan role fighter, second, second. JANGAN dipaksa jadi dua petinju yang bertanding.
+   Kalau tidak ada yang bertanding, isi "interaction.contact" dengan "none" dan striker/receiver dengan null. Jangan mengarang pukulan supaya kelihatan seperti pertandingan.
 8b. "danbooru_tags" itu tag yang berlaku untuk SELURUH gambar: tempat, kamera, cahaya, efek, suasana. Tag yang cuma milik SATU petinju — pakaiannya, hiasan rambutnya, ekspresinya, pose lengannya, memar dan keringatnya — taruh di "subjects[].tags" orang itu, JANGAN di "danbooru_tags". Alasannya teknis: tag di daftar global masuk ke Base Prompt, dan di NovelAI base berlaku untuk semua orang di gambar. "ahoge" milik satu petinju yang ditulis di daftar global membuat dua-duanya ber-ahoge; "drooling" milik yang kena pukul membuat yang sedang menang ikut ngiler.
 9. Untuk "character", tulis tag Danbooru yang sesungguhnya, bukan pola "nama_(judul)" karangan. Contoh yang BENAR: princess_peach, princess_daisy, tsukino_usagi, tsunade_(naruto), elsa_(frozen), cammy_white. Kalau tidak yakin bentuk tagnya, tulis nama yang paling umum dipakai saja (misalnya "princess_peach"), jangan menempelkan nama judul di dalam kurung.
 
@@ -444,6 +489,13 @@ TXT;
         $skor = static fn($v): float => is_numeric($v) ? max(0.0, min(1.0, (float)$v)) : 0.0;
         $tingkat = static fn($v): int => is_numeric($v) ? max(0, min(3, (int)$v)) : 0;
 
+        // Jenis adegan. Selama ini semua gambar dianggap pertandingan,
+        // jadi foto istirahat di sudut ring pun keluar dengan kuda-kuda
+        // dan tag pukulan.
+        $adegan = strtolower(trim((string)($e['scene'] ?? 'fight')));
+        if (!isset(self::ADEGAN[$adegan])) {
+            $adegan = 'fight';
+        }
         $out = [
             'kind'  => ($kind ?? ($e['kind'] ?? 'image')) === 'video' ? 'video' : 'image',
             'style' => [
@@ -452,10 +504,14 @@ TXT;
                 'render' => $teks($e['style']['render'] ?? '', 200),
                 'era'    => $teks($e['style']['era'] ?? '', 80),
             ],
+            // Jenis adegan. Selama ini selalu dianggap pertandingan, jadi
+            // gambar istirahat di sudut ring pun keluar dengan kuda-kuda
+            // dan tag pukulan.
+            'scene' => $adegan,
             'subjects' => [],
         ];
 
-        $sisi = ['a', 'b'];
+        $sisi = Exporter::ID_ORANG;
         $subjek = is_array($e['subjects'] ?? null) ? array_values($e['subjects']) : [];
         foreach (array_slice($subjek, 0, self::MAKS_SUBJEK) as $i => $s) {
             if (!is_array($s)) {
@@ -475,6 +531,10 @@ TXT;
             $stance = strtolower((string)($s['stance'] ?? 'unclear'));
             if (!in_array($stance, ['orthodox', 'southpaw', 'unclear'], true)) {
                 $stance = 'unclear';
+            }
+            $peran = strtolower(trim((string)($s['role'] ?? 'fighter')));
+            if (!isset(self::PERAN[$peran])) {
+                $peran = 'fighter';
             }
             $hadap = strtolower(str_replace([' ', '-'], '_', (string)($s['view'] ?? 'unclear')));
             if (!isset(self::TAG_HADAP[$hadap])) {
@@ -550,6 +610,9 @@ TXT;
                 ],
                 // Dari sisi mana petinju ini terlihat. Dinilai per orang,
                 // bukan sekali untuk seluruh gambar.
+                // Petinju / pendamping / wasit / orang lain. Yang bukan
+                // petinju tidak pernah dapat tag pukulan.
+                'role'          => $peran,
                 'view'          => $hadap,
                 'view_evidence' => $teks($s['view_evidence'] ?? '', 200),
                 'position' => [
@@ -562,7 +625,7 @@ TXT;
         }
 
         $inter = is_array($e['interaction'] ?? null) ? $e['interaction'] : [];
-        $sisiSah = static fn($v): ?string => in_array($v, ['a', 'b'], true) ? (string)$v : null;
+        $sisiSah = static fn($v): ?string => in_array($v, Exporter::ID_ORANG, true) ? (string)$v : null;
         $kontak = strtolower((string)($inter['contact'] ?? 'none'));
         $out['interaction'] = [
             'striker'     => $sisiSah($inter['striker'] ?? null),
@@ -670,7 +733,7 @@ TXT;
         $catatan  = [];
         $ditolak  = [];
         $dikenal  = 0;
-        $karakter = ['a' => null, 'b' => null];
+        $karakter = array_fill_keys(Exporter::ID_ORANG, null);
 
         foreach ($ekstrak['subjects'] as $i => $s) {
             $sisi = $s['id'];
@@ -794,7 +857,18 @@ TXT;
      */
     private static function periksaTertukar(array $ekstrak, array $karakter): array
     {
-        if ($karakter['a'] === null || $karakter['b'] === null || count($ekstrak['subjects']) < 2) {
+        // Pemeriksaan tertukar cuma masuk akal untuk dua petinju yang
+        // berhadapan. Di adegan sudut ring atau foto bersama, urutan orang
+        // tidak punya arti "kiri lawan kanan", jadi tidak ada yang perlu
+        // ditukar.
+        $petinju = array_values(array_filter(
+            $ekstrak['subjects'],
+            static fn(array $s): bool => ($s['role'] ?? 'fighter') === 'fighter'
+        ));
+        if (count($petinju) !== 2 || count($ekstrak['subjects']) !== 2) {
+            return [$ekstrak, $karakter, []];
+        }
+        if ($karakter['a'] === null || $karakter['b'] === null) {
             return [$ekstrak, $karakter, []];
         }
 
@@ -1029,8 +1103,9 @@ TXT;
 
         $orang = [];
         foreach ($e['subjects'] as $s) {
+            $sebut = strtolower(self::PERAN[$s['role']] ?? 'orang');
             $nama = $s['character'] !== null ? CharacterResolver::namaCantik($s['character'])
-                  : ($s['sex'] === 'male' ? 'petinju pria' : ($s['sex'] === 'female' ? 'petinju wanita' : 'petinju'));
+                  : ($s['sex'] === 'male' ? $sebut . ' pria' : ($s['sex'] === 'female' ? $sebut . ' wanita' : $sebut));
             $ciri = [];
             foreach (array_merge($s['hair'], $s['eyes']) as $t) {
                 $ciri[] = str_replace('_', ' ', $t);
@@ -1054,7 +1129,19 @@ TXT;
 
         $tempat = $e['environment']['venue'] !== '' ? ', di ' . $e['environment']['venue'] : '';
 
-        return ($n === 1 ? '1 petinju: ' : '2 petinju: ') . implode(' vs ', $orang) . $aksi . $tempat . '.';
+        // "vs" cuma benar kalau memang dua petinju yang berhadapan. Di
+        // adegan sudut ring, "Jeanne vs Mash" itu keterangan yang salah.
+        $petinju = 0;
+        foreach ($e['subjects'] as $s) {
+            if ($s['role'] === 'fighter') {
+                $petinju++;
+            }
+        }
+        $bertanding = $petinju === 2 && $n === 2 && $e['interaction']['contact'] !== 'none';
+        $judul = self::ADEGAN[$e['scene']]['nama'] ?? 'Adegan';
+
+        return $judul . ' — ' . $n . ' orang: '
+             . implode($bertanding ? ' vs ' : ', ', $orang) . $aksi . $tempat . '.';
     }
 
     // =================================================================
@@ -1335,9 +1422,15 @@ TXT;
     ): array {
         $duo = count($e['subjects']) >= 2;
 
-        $sel = ['mode' => $duo ? 'duo' : 'single', 'a' => [], 'b' => []];
+        $sel = array_merge(['mode' => $duo ? 'duo' : 'single'], array_fill_keys(Exporter::ID_ORANG, []));
         foreach ($e['subjects'] as $s) {
-            $sel[$s['id']] = ['gender' => $s['sex'] === 'male' ? 'male' : 'female'];
+            $sel[$s['id']] = [
+                'gender' => $s['sex'] === 'male' ? 'male' : 'female',
+                // Dipakai Exporter untuk menamai kotaknya. "Pendamping B"
+                // jauh lebih jelas daripada "Petinju B" waktu orangnya
+                // memang bukan petinju.
+                'label'  => (self::PERAN[$s['role']] ?? 'Orang') . ' ' . strtoupper($s['id']),
+            ];
         }
 
         // Gaya pilihan menimpa gaya bacaan SEBELUM dipoles, supaya kalimat
@@ -1485,22 +1578,27 @@ TXT;
         $adaTag = static fn(string $name): bool => Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]) !== null;
 
         // count
-        $sexes = array_map(static fn(array $s): string => $s['sex'], $e['subjects']);
-        if (!$duo) {
-            $tambah(($sexes[0] ?? 'female') === 'male' ? '1boy' : '1girl', 'count', 'jumlah subjek');
-            $tambah('solo', 'count', 'jumlah subjek');
-        } else {
-            $pria = count(array_filter($sexes, static fn($x) => $x === 'male'));
-            if ($pria === 0) {
-                $tambah('2girls', 'count', 'jumlah subjek');
-                $tambah('multiple_girls', 'count', 'jumlah subjek');
-            } elseif ($pria === 2) {
-                $tambah('2boys', 'count', 'jumlah subjek');
-                $tambah('multiple_boys', 'count', 'jumlah subjek');
-            } else {
-                $tambah('1boy', 'count', 'jumlah subjek');
-                $tambah('1girl', 'count', 'jumlah subjek');
+        // Danbooru menghitung laki-laki dan perempuan terpisah, dan berhenti
+        // di angka enam ("6+girls"). Gambar bertiga atau berlima yang dulu
+        // selalu keluar "2girls" sekarang dihitung apa adanya.
+        $sexes  = array_map(static fn(array $s): string => $s['sex'], $e['subjects']);
+        $pria   = count(array_filter($sexes, static fn($x) => $x === 'male'));
+        $wanita = count($sexes) - $pria;
+
+        $angka = static function (int $n, string $kata) use ($tambah): void {
+            if ($n <= 0) {
+                return;
             }
+            $tambah($n >= 6 ? '6+' . $kata . 's' : $n . $kata . ($n > 1 ? 's' : ''), 'count', 'jumlah orang');
+            if ($n > 1) {
+                $tambah('multiple_' . $kata . 's', 'count', 'jumlah orang');
+            }
+        };
+        $angka($wanita, 'girl');
+        $angka($pria, 'boy');
+
+        if (count($sexes) === 1) {
+            $tambah('solo', 'count', 'jumlah orang');
         }
 
         // quality: modul nai5 kalau ada
@@ -1546,8 +1644,8 @@ TXT;
 
         // per subjek
         foreach ($e['subjects'] as $s) {
-            $sfx  = $s['id'] === 'b' ? '_b' : '';
-            $dari = 'Petinju ' . strtoupper($s['id']);
+            $sfx  = $s['id'] === 'a' ? '' : '_' . $s['id'];
+            $dari = (self::PERAN[$s['role']] ?? 'Orang') . ' ' . strtoupper($s['id']);
             $char = $val['karakter'][$s['id']] ?? null;
 
             if ($char !== null) {
@@ -1581,14 +1679,19 @@ TXT;
             }
 
             // pose / aksi
-            $blokPose = $duo ? 'interaction' . ($s['id'] === 'b' ? '_b' : '_a') : 'pose';
+            $blokPose = $duo ? 'interaction_' . $s['id'] : 'pose';
 
             // arah hadap petinju ini — masuk kotaknya sendiri, bukan base
             foreach (self::TAG_HADAP[$s['view']] ?? [] as $t) {
                 $tambah($t, $blokPose, $dari . ': arah hadap');
             }
-            foreach (self::tagAksi($s, $e) as $t) {
-                $tambah($t, $blokPose, $dari . ': aksi');
+            // Hanya petinju yang boleh dapat tag pukulan. Pendamping yang
+            // memegang kompres es tidak ikut "punching" cuma karena
+            // kebetulan berdiri di dalam ring.
+            if ($s['role'] === 'fighter') {
+                foreach (self::tagAksi($s, $e) as $t) {
+                    $tambah($t, $blokPose, $dari . ': aksi');
+                }
             }
             foreach ($s['tags'] as $t) {
                 if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
@@ -1609,6 +1712,7 @@ TXT;
                 }
             }
         }
+
 
         // interaksi bersama (kontak)
         if ($duo && $e['interaction']['contact'] !== 'none') {
@@ -1650,6 +1754,15 @@ TXT;
             if (preg_match('/^(character|appearance|outfit|condition|pose|interaction_[ab])(_b)?$/', $it['block']) === 1) {
                 $milikOrang[$it['name']] = true;
             }
+        }
+
+        // tag jenis adegan — lewat saringan yang sama, supaya "sitting"
+        // tidak muncul dua kali di base dan di kotak orangnya
+        foreach (self::ADEGAN[$e['scene']]['tags'] ?? [] as $t) {
+            if (isset($milikOrang[TagResolver::normalize($t)])) {
+                continue;
+            }
+            $tambah($t, 'extra', 'adegan: ' . (self::ADEGAN[$e['scene']]['nama'] ?? $e['scene']));
         }
 
         // sisa tag global
@@ -2095,8 +2208,42 @@ TXT;
     /** Kalimat cadangan kalau model vision tidak memberi prosa. */
     private static function prosaCadangan(array $e): string
     {
-        $n = count($e['subjects']);
-        $baris = $n >= 2 ? 'Two boxers face each other' : 'A boxer stands ready';
+        // Dulu selalu "Two boxers face each other", padahal orangnya belum
+        // tentu dua dan belum tentu bertanding. Kalimat pembuka sekarang
+        // mengikuti jenis adegan dan berapa orang yang benar-benar petinju.
+        $petinju = 0;
+        foreach ($e['subjects'] as $s) {
+            if (($s['role'] ?? 'fighter') === 'fighter') {
+                $petinju++;
+            }
+        }
+        $lain = count($e['subjects']) - $petinju;
+
+        $orang = static function (int $n, string $tunggal, string $jamak): string {
+            return $n === 1 ? 'a ' . $tunggal : $n . ' ' . $jamak;
+        };
+
+        switch ($e['scene']) {
+            case 'corner':
+                $baris = $petinju >= 1
+                    ? ucfirst($orang($petinju, 'boxer', 'boxers')) . ' rests in the corner'
+                    : 'A corner crew waits between rounds';
+                if ($lain > 0) {
+                    $baris .= ' while ' . $orang($lain, 'second tends to her', 'seconds tend to her');
+                }
+                break;
+            case 'lineup':
+                $baris = ucfirst($orang(count($e['subjects']), 'fighter', 'fighters')) . ' pose together for the camera';
+                break;
+            case 'training':
+                $baris = ucfirst($orang($petinju, 'boxer', 'boxers')) . ' works through a training session';
+                break;
+            case 'aftermath':
+                $baris = ucfirst($orang($petinju, 'boxer', 'boxers')) . ' catches her breath after the fight';
+                break;
+            default:
+                $baris = $petinju >= 2 ? 'Two boxers face each other' : 'A boxer stands ready';
+        }
         $baris .= $e['environment']['ring'] ? ' in a boxing ring' : ($e['environment']['venue'] !== '' ? ' in ' . $e['environment']['venue'] : '');
         $baris .= '.';
         if ($e['interaction']['description'] !== '') {

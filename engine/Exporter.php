@@ -211,6 +211,9 @@ final class Exporter
      *
      * @return array{base:string, characters:array, undesired:string}
      */
+    /** Urutan id orang di gambar. NovelAI V5 sanggup jauh lebih banyak. */
+    public const ID_ORANG = ['a', 'b', 'c', 'd', 'e', 'f'];
+
     public static function formatNovelAI(array $built, array $sel = [], ?string $baseGanti = null): array
     {
         $blocks = $built['blocks'];
@@ -219,15 +222,51 @@ final class Exporter
         // satu orang: yang tumbang dapat defeat + on_ground, yang berdiri
         // dapat standing. Blok 'interaction' polos tetap di Base — itu
         // isinya efek gambar seperti motion_lines, bukan milik siapa pun.
-        $milikA = ['character', 'appearance', 'outfit', 'condition', 'interaction_a'];
-        $milikB = ['character_b', 'appearance_b', 'outfit_b', 'condition_b', 'interaction_b'];
+        // Orang di gambar tidak selalu dua.
+        //
+        // Adegan sudut ring punya satu petinju plus dua pendamping; foto
+        // bersama satu tim bisa lima orang sekaligus. NovelAI V5 sanggup
+        // sampai 22 kotak karakter, jadi yang membatasi cuma kode ini.
+        // Blok milik orang ke-N diberi akhiran _b, _c, _d, ... dan orang
+        // pertama tetap tanpa akhiran, persis seperti dulu — supaya
+        // pemanggil lama yang cuma mengenal a/b tidak berubah perilakunya.
+        $milik = [];
+        foreach (self::ID_ORANG as $id) {
+            $sfx = $id === 'a' ? '' : '_' . $id;
+            $milik[$id] = [
+                'character' . $sfx, 'appearance' . $sfx,
+                'outfit' . $sfx, 'condition' . $sfx, 'interaction_' . $id,
+            ];
+        }
 
-        $adaB = !empty($blocks['character_b']) || !empty($blocks['outfit_b']);
+        // Siapa saja yang benar-benar ada. Orang pertama baru dihitung
+        // sebagai "kotak sendiri" kalau memang ada orang kedua.
+        $hadir = [];
+        foreach (self::ID_ORANG as $id) {
+            if ($id === 'a') {
+                continue;
+            }
+            if (!empty($blocks['character' . '_' . $id]) || !empty($blocks['outfit_' . $id])) {
+                $hadir[] = $id;
+            }
+        }
+        if ($hadir !== []) {
+            array_unshift($hadir, 'a');
+        }
+
+        $adaB = $hadir !== [];
 
         // ---- Base: semua yang bukan milik satu karakter tertentu ----
+        $milikSiapaPun = [];
+        foreach ($hadir as $id) {
+            foreach ($milik[$id] as $nama) {
+                $milikSiapaPun[$nama] = true;
+            }
+        }
+
         $base = [];
         foreach ($blocks as $nama => $items) {
-            if ($adaB && (in_array($nama, $milikA, true) || in_array($nama, $milikB, true))) {
+            if (isset($milikSiapaPun[$nama])) {
                 continue;
             }
             $base = array_merge($base, $items);
@@ -250,7 +289,10 @@ final class Exporter
         $aksi = self::actionTags($sel);
         self::actionSasaran($sel, $aksi);
 
-        foreach ([['A', $milikA, 'a'], ['B', $milikB, 'b']] as [$label, $blokMilik, $sisi]) {
+        foreach ($hadir as $sisi) {
+            $label     = strtoupper($sisi);
+            $blokMilik = $milik[$sisi];
+
             $items = [];
             foreach ($blokMilik as $nama) {
                 $items = array_merge($items, $blocks[$nama] ?? []);
@@ -287,8 +329,13 @@ final class Exporter
                 $potong .= ', ' . $aksi[$sisi];
             }
 
+            // Sebutannya ikut peran. Di adegan sudut ring cuma satu yang
+            // petinju; dua lainnya pendamping, dan menamai mereka "Petinju
+            // B" bikin bingung waktu kotaknya disalin ke NovelAI.
+            $sebutan = trim((string)($sel[$sisi]['label'] ?? '')) ?: 'Petinju ' . $label;
+
             $hasil['characters'][] = [
-                'label'  => 'Character ' . count($hasil['characters']) + 1 . ' — Petinju ' . $label,
+                'label'  => 'Character ' . count($hasil['characters']) + 1 . ' — ' . $sebutan,
                 'prompt' => $potong,
             ];
         }
