@@ -2812,7 +2812,7 @@ TXT;
         if ($r['cahaya'] !== '') {
             $b[] = SeedanceBuilder::kalimat('Lighting stays ' . $r['cahaya']);
         }
-        $laju = self::kalimatTempo();
+        $laju = self::kalimatTempo($r);
         if ($laju !== '') {
             $b[] = SeedanceBuilder::kalimat($laju);
         }
@@ -2820,8 +2820,31 @@ TXT;
         return implode(' ', $b);
     }
 
-    private static function kalimatTempo(): string
+    /**
+     * Kalimat tempo yang COCOK dengan panjang shot yang benar-benar diminta.
+     *
+     * Dulu selalu "cut fast and often, average shot length under two
+     * seconds" — dan itu bertabrakan dengan daftar shot di atasnya. Klip
+     * 15 detik yang dipecah jadi dua shot berarti masing-masing 7,5 detik;
+     * model video mengikuti angka yang eksplisit, jadi perintah "cepat"
+     * itu diabaikan dan hasilnya terasa lambat. Dua perintah yang saling
+     * menyangkal selalu dimenangkan oleh yang paling konkret.
+     *
+     * Sekarang kalimatnya mengikuti kenyataan: kalau shot-nya memang
+     * pendek, minta potongan cepat; kalau panjang, minta kamera dan
+     * aksinya yang terus bergerak di dalam shot itu.
+     */
+    private static function kalimatTempo(array $r): string
     {
+        $jumlah = max(1, count($r['shots'] ?? []));
+        $rata   = (int)$r['durasi'] / $jumlah;
+
+        if ($rata > 3.5) {
+            return 'Hold each shot for its full stated length instead of cutting away early, '
+                 . 'but never let it go static: keep the camera drifting and the fighters '
+                 . 'shifting weight, resetting stance and breathing the whole time';
+        }
+
         $id = Database::value("SELECT id FROM modules WHERE type = 'video_tempo' AND slug = 'cepat' AND is_active = 1");
         return $id === null ? 'Cut fast and often, every cut landing on a movement rather than between them'
                             : SeedanceBuilder::kalimatModul((int)$id, 'video_tempo', true);

@@ -44,6 +44,8 @@ switch ($action) {
                 'model' => AiClient::profil('vision')['model'],
             ],
             'maks_klip'  => Pertandingan::MAKS_KLIP,
+            'latar'      => Pertandingan::LATAR,
+            'penonton'   => Pertandingan::PENONTON,
             'maks_detik' => Pertandingan::MAKS_DETIK_KLIP,
             'tahap'      => Pertandingan::TAHAP,
             'cara'       => Pertandingan::CARA,
@@ -58,6 +60,8 @@ switch ($action) {
         $a     = $ambilGambar($in['a'] ?? null);
         $b     = $ambilGambar($in['b'] ?? null);
         $arena = $ambilGambar($in['arena'] ?? null);
+        $wasit = $ambilGambar($in['wasit'] ?? null);
+        $corner = $ambilGambar($in['cornerman'] ?? null);
 
         if ($a === null || $b === null) {
             jsonFail('Butuh dua gambar petinju. Gambar arena boleh dikosongkan.');
@@ -73,7 +77,7 @@ switch ($action) {
 
         try {
             $hasil = Pertandingan::baca(
-                ['a' => $a, 'b' => $b, 'arena' => $arena],
+                ['a' => $a, 'b' => $b, 'arena' => $arena, 'wasit' => $wasit, 'cornerman' => $corner],
                 (string)($in['hint'] ?? '')
             );
         } catch (RuntimeException $e) {
@@ -113,6 +117,10 @@ switch ($action) {
             'detik_per_klip' => (int)($o['detik_per_klip'] ?? 10),
             'pemenang'       => ($o['pemenang'] ?? 'a') === 'b' ? 'b' : 'a',
             'cara'           => (string)($o['cara'] ?? 'ko'),
+            'latar'          => (string)($o['latar'] ?? 'arena'),
+            'penonton'       => (string)($o['penonton'] ?? 'penuh'),
+            'wasit'          => !empty($o['wasit']),
+            'cornerman'      => !empty($o['cornerman']),
             'nsfw'           => !empty($o['nsfw']),
             'dewasa'         => !array_key_exists('dewasa', $o) || !empty($o['dewasa']),
             'gaya'           => [

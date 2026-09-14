@@ -77,6 +77,60 @@ final class Pertandingan
         ],
     ];
 
+    /**
+     * Latar bawaan kalau kamu tidak memberi gambar arena.
+     *
+     * Bukan sekadar hiasan: tempat menentukan cahaya, warna, dan siapa yang
+     * pantas ada di pinggir ring. Ring resmi punya penonton dan kamera;
+     * ruang bawah tanah sering tidak punya wasit sama sekali.
+     */
+    public const LATAR = [
+        'arena' => [
+            'nama'    => 'Arena resmi',
+            'kalimat' => 'a packed indoor arena, raised ring under hard overhead lamps, the crowd in darkness beyond the ropes',
+            'tags'    => ['boxing_ring', 'rope', 'indoors', 'spotlight'],
+        ],
+        'gym' => [
+            'nama'    => 'Sasana latihan',
+            'kalimat' => 'a worn training gym, ring at floor level, daylight through high windows, punching bags along the wall',
+            'tags'    => ['boxing_ring', 'rope', 'indoors'],
+        ],
+        'bawahtanah' => [
+            'nama'    => 'Ring bawah tanah',
+            'kalimat' => 'a cramped underground room, bare concrete and a single caged bulb over the ring',
+            'tags'    => ['boxing_ring', 'rope', 'indoors', 'dim_lighting'],
+        ],
+        'sangkar' => [
+            'nama'    => 'Sangkar besi',
+            'kalimat' => 'a hexagonal cage on a raised platform, chain-link walls catching the light, dark arena beyond',
+            'tags'    => ['cage', 'indoors'],
+        ],
+        'luar' => [
+            'nama'    => 'Luar ruangan',
+            'kalimat' => 'an outdoor ring at night, floodlights on stands, a warm crowd pressed against the barriers',
+            'tags'    => ['boxing_ring', 'rope', 'outdoors', 'night'],
+        ],
+    ];
+
+    /** Seberapa ramai penontonnya. */
+    public const PENONTON = [
+        'penuh' => [
+            'nama'    => 'Penuh sesak',
+            'kalimat' => 'A packed crowd fills every seat; faces and phone screens read only as soft bokeh beyond the ropes, never in focus',
+            'tag'     => 'crowd',
+        ],
+        'jarang' => [
+            'nama'    => 'Sedikit',
+            'kalimat' => 'Only a thin scattering of onlookers around the ring, most seats empty and dark',
+            'tag'     => 'crowd',
+        ],
+        'kosong' => [
+            'nama'    => 'Kosong',
+            'kalimat' => 'No audience at all — empty seats and silence beyond the ropes, so every impact echoes',
+            'tag'     => null,
+        ],
+    ];
+
     /** Cara pertandingan selesai. */
     public const CARA = [
         'ko'        => 'KO — yang kalah jatuh dan tidak bangkit',
@@ -110,9 +164,18 @@ final class Pertandingan
                       'label' => 'Image 1 — BOXER A (the first fighter):'];
         $kiriman[] = ['mime' => $gambar['b']['mime'], 'data' => $gambar['b']['data'],
                       'label' => 'Image 2 — BOXER B (the second fighter):'];
+        $nomor = 3;
         if (!empty($gambar['arena']['data'])) {
             $kiriman[] = ['mime' => $gambar['arena']['mime'], 'data' => $gambar['arena']['data'],
-                          'label' => 'Image 3 — THE VENUE (no fighter here; read the place only):'];
+                          'label' => 'Image ' . $nomor++ . ' — THE VENUE (no fighter here; read the place only):'];
+        }
+        if (!empty($gambar['wasit']['data'])) {
+            $kiriman[] = ['mime' => $gambar['wasit']['mime'], 'data' => $gambar['wasit']['data'],
+                          'label' => 'Image ' . $nomor++ . ' — THE REFEREE (not a fighter; read appearance and clothing only):'];
+        }
+        if (!empty($gambar['cornerman']['data'])) {
+            $kiriman[] = ['mime' => $gambar['cornerman']['mime'], 'data' => $gambar['cornerman']['data'],
+                          'label' => 'Image ' . $nomor . ' — THE CORNER SECOND (not a fighter; read appearance and clothing only):'];
         }
 
         $teks = 'Read the reference images and return the JSON object described in the system prompt.';
@@ -190,6 +253,8 @@ final class Pertandingan
       "build_note": "one short phrase: taller/shorter, heavier/lighter, longer reach — anything that should shape how she fights"
     }
   ],
+  "referee": {"present": false, "sex": "female|male|unclear", "hair": [], "eyes": [], "verbatim": "what the referee wears; only if a referee image was given"},
+  "cornerman": {"present": false, "sex": "female|male|unclear", "hair": [], "eyes": [], "verbatim": "what the corner second wears; only if a cornerman image was given"},
   "arena": {
     "venue": "short phrase, e.g. 'packed indoor arena with a raised ring'",
     "ring": true,
@@ -220,6 +285,7 @@ ATURAN:
 5. PAKAIAN ADALAH BAGIAN YANG PALING SERING SALAH. Jangan menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat potongannya, panjang lengannya, dan warnanya. Beberapa yang sering keliru: kaos olahraga sekolah putih = gym_uniform + gym_shirt, BUKAN sports_bra; celana olahraga ketat = buruma, BUKAN boxing_shorts; atasan bikini tali = bikini_top_only, BUKAN sports_bra. Kalau tidak ada tag yang pas, kosongkan dan tulis apa adanya di "verbatim".
 6. WARNA SARUNG TANGAN WAJIB DIISI kalau terlihat. Itu penanda paling kuat untuk membedakan kedua petinju di sepanjang video — tanpa itu, model video sering menukar mereka di tengah jalan.
 7. Baca wujud DASAR mereka: belum berkeringat, belum memar. Kerusakan diatur belakangan, bukan dibaca dari sini. Kalau gambarnya sudah menunjukkan luka, tetap catat wujud dasarnya dan abaikan lukanya.
+8b. Kalau ada gambar WASIT atau CORNERMAN, isi "referee"/"cornerman" dengan present true dan baca penampilannya. Kalau gambarnya tidak ada, biarkan present false — JANGAN mengarang orangnya.
 8. "build_note" diisi apa adanya kalau terlihat jelas — lebih tinggi, lebih berat, jangkauan lebih panjang. Itu yang membuat gaya bertarung keduanya berbeda.
 
 SKEMA:
@@ -267,6 +333,40 @@ TXT;
                 'action'               => ['type' => 'guard'],
                 'position'             => ['side' => $id === 'a' ? 'left' : 'right'],
                 'tags'                 => [],
+            ];
+        }
+
+        // Wasit dan cornerman jadi subjek juga, tapi dengan peran sendiri.
+        //
+        // Alasannya praktis: subjek mendapat jangkar "Image N is ..." di
+        // kepala prompt, dan itulah satu-satunya cara mengunci wujud mereka
+        // ke gambar acuan yang kamu beri. Tanpa itu, model video menggambar
+        // wasit yang berganti wajah tiap klip. Peran yang bukan 'fighter'
+        // sudah dikecualikan dari tag pukulan dan dari kartu kondisi.
+        foreach ([['referee', 'c', 'referee'], ['cornerman', 'd', 'second']] as [$kunci, $id, $peran]) {
+            $o = is_array($j[$kunci] ?? null) ? $j[$kunci] : [];
+            if (empty($o['present'])) {
+                continue;
+            }
+            $subjects[] = [
+                'id'         => $id,
+                'role'       => $peran,
+                'sex'        => $o['sex'] ?? 'female',
+                'character'  => null,
+                'series'     => null,
+                'hair'       => $o['hair'] ?? [],
+                'eyes'       => $o['eyes'] ?? [],
+                'body'       => [],
+                'attire'     => ['verbatim' => $teks($o['verbatim'] ?? '', 300)],
+                'nudity'     => [],
+                'condition'  => [],
+                'expression' => '',
+                'stance'     => 'unclear',
+                'view'       => 'unclear',
+                'pose'       => ['summary' => ''],
+                'action'     => ['type' => 'other'],
+                'position'   => ['side' => 'center'],
+                'tags'       => [],
             ];
         }
 
@@ -354,9 +454,11 @@ TXT;
             $nama[$id] = $val['karakter'][$id]['name'] ?? ('Boxer ' . strtoupper($id));
         }
 
-        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama);
+        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip);
 
         // ---- klip ----
+        $latarBlok = self::blokLatar($ekstrak, $opsi);
+
         $klip    = [];
         $catatan = [];
         $t = 0;
@@ -387,8 +489,9 @@ TXT;
                     'a' => self::namaKartu('a', $b['tahap']['a']),
                     'b' => self::namaKartu('b', $b['tahap']['b']),
                 ],
-                'prompt'      => $hasil['outputs']['sfw']['prompt'] ?? '',
-                'prompt_nsfw' => $hasil['outputs']['nsfw']['prompt'] ?? null,
+                'prompt'      => self::tambahAnimasi($hasil['outputs']['sfw']['prompt'] ?? '', $latarBlok),
+                'prompt_nsfw' => isset($hasil['outputs']['nsfw']['prompt'])
+                    ? self::tambahAnimasi((string)$hasil['outputs']['nsfw']['prompt'], $latarBlok) : null,
             ];
 
             $t += $perKlip;
@@ -427,7 +530,7 @@ TXT;
      * lebih cepat daripada yang menang — itu yang membuat penonton tahu
      * ke mana arahnya jauh sebelum pukulan terakhir.
      */
-    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama): array
+    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama, int $perKlip): array
     {
         // Puncak kerusakan yang boleh dicapai masing-masing.
         //
@@ -490,7 +593,7 @@ TXT;
                 // their stance" — benar untuk klip pertama, salah untuk
                 // klip KO — dan kalimat ringkas di atas berbahasa Indonesia
                 // sedangkan prompt video harus Inggris.
-                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama),
+                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip),
             ];
         }
 
@@ -513,87 +616,258 @@ TXT;
      *
      * @return array<int,array{camera:string,camera_move:string,actor:string,action:string,sound:string}>
      */
+    /**
+     * Daftar shot untuk satu klip.
+     *
+     * BERAPA BANYAK ITU BAGIAN TERPENTINGNYA. Dulu selalu dua, berapa pun
+     * panjang klipnya — klip 15 detik jadi dua shot masing-masing 7,5
+     * detik. Untuk tinju itu sangat lambat, dan lebih buruk lagi: blok
+     * penutup prompt meminta "average shot length under two seconds",
+     * sehingga dua perintah saling menyangkal di satu prompt. Yang menang
+     * selalu yang paling konkret, yaitu angka di daftar shot. Sekarang
+     * jumlahnya dihitung dari durasinya, sekitar 2,5 detik per shot.
+     *
+     * VARIASINYA diambil dari kolam yang jauh lebih besar dari yang
+     * dibutuhkan, lalu digeser menurut nomor klip. Dengan begitu klip yang
+     * berdampingan tidak memakai sudut yang sama walau babaknya sama.
+     *
+     * @return array<int,array{camera:string,camera_move:string,actor:string,action:string,sound:string}>
+     */
     private static function shots(
         int $i, int $jumlah, float $maju, bool $akhir,
-        string $cara, string $menang, string $kalah, array $nama
+        string $cara, string $menang, string $kalah, array $nama, int $detik
     ): array {
         $M = $nama[$menang] ?? ('Boxer ' . strtoupper($menang));
         $K = $nama[$kalah] ?? ('Boxer ' . strtoupper($kalah));
 
-        if ($i === 0) {
-            return [
-                ['camera' => 'a wide establishing shot from the crowd side, the whole ring in frame',
-                 'camera_move' => 'push_in', 'actor' => $menang,
-                 'action' => 'The bell rings and both fighters come out of their corners. '
-                           . $M . ' and ' . $K . ' circle at range with gloves held high, '
-                           . 'feet shuffling on the canvas, neither committing yet.',
-                 'sound' => 'the bell, shoes squeaking on canvas, a low crowd murmur'],
-                ['camera' => 'a medium two-shot at eye level from ringside',
-                 'camera_move' => 'tracking', 'actor' => $menang,
-                 'action' => $M . ' flicks out a probing jab that falls just short; '
-                           . $K . ' slips it and answers with a light body shot that thuds off the guard.',
-                 'sound' => 'leather slapping leather, sharp exhales'],
-            ];
-        }
+        // Sekitar 2,5 detik per shot: cukup untuk satu pukulan dan
+        // reaksinya, cukup pendek untuk terasa seperti siaran tinju.
+        $mau = max(2, min(8, (int)round($detik / 2.5)));
 
         if ($akhir) {
-            return self::shotsAkhir($cara, $M, $K, $menang, $kalah);
+            // Babak penutup urutannya tidak boleh diacak — pukulan
+            // penentu harus datang sebelum akibatnya.
+            $inti  = self::shotsAkhir($cara, $M, $K, $menang, $kalah);
+            $depan = self::kolamTekan($M, $K, $menang, $kalah);
+            $out   = [];
+            $kurang = $mau - count($inti);
+            for ($n = 0; $n < $kurang; $n++) {
+                $out[] = $depan[($i + $n) % count($depan)];
+            }
+            return array_merge($out, $inti);
         }
 
-        if ($maju < 0.4) {
-            return [
-                ['camera' => 'a medium two-shot at eye level',
-                 'camera_move' => 'tracking', 'actor' => $menang,
-                 'action' => 'Both fighters trade short punches in the middle of the ring, still fresh, '
-                           . 'each one hunting for an opening.',
-                 'sound' => 'quick leather impacts, shoes on canvas'],
-                ['camera' => 'a close-up on the guard and gloves',
-                 'camera_move' => 'push_in', 'actor' => $kalah,
-                 'action' => $K . ' fires back a fast combination that ' . $M
-                           . ' blocks high, gloves rattling against her forearms.',
-                 'sound' => 'a fast rattle of punches on the guard'],
-            ];
+        if ($i === 0) {
+            $kolam = self::kolamAwal($M, $K, $menang, $kalah);
+        } elseif ($maju < 0.4) {
+            $kolam = self::kolamJajak($M, $K, $menang, $kalah);
+        } elseif ($maju < 0.7) {
+            $kolam = self::kolamBalik($M, $K, $menang, $kalah);
+        } else {
+            $kolam = self::kolamTekan($M, $K, $menang, $kalah);
         }
 
-        if ($maju < 0.7) {
-            return [
-                ['camera' => 'an over-the-shoulder shot from behind ' . $M,
-                 'camera_move' => 'handheld', 'actor' => $menang,
-                 'action' => $M . ' finds her range and lands a clean combination; '
-                           . $K . ' takes it flush and gives ground.',
-                 'sound' => 'two solid impacts, a grunt, the crowd lifting'],
-                ['camera' => 'a close-up on the face of ' . $K,
-                 'camera_move' => 'static', 'actor' => $kalah,
-                 'action' => $K . ' covers up behind a high guard, breathing through her teeth, '
-                           . 'sweat running down her face.',
-                 'sound' => 'hard breathing, muffled impacts on the guard'],
-            ];
+        $out = [];
+        for ($n = 0; $n < $mau; $n++) {
+            // Digeser per klip supaya dua klip berturut-turut di babak yang
+            // sama tidak membuka dengan sudut yang persis sama.
+            $out[] = $kolam[($i * 2 + $n) % count($kolam)];
         }
+        return $out;
+    }
 
+    /**
+     * Bahasa gerak animasi, bukan bahasa film live-action.
+     *
+     * Ini yang membuat hasilnya terasa anime, bukan rekaman orang bertinju.
+     * Sakuga tinju punya kosakata sendiri: satu frame putih di titik
+     * benturan, garis kecepatan yang memancar, smear pada bagian ayunan
+     * yang paling cepat, dan animasi yang ditahan "on twos" lalu meledak
+     * jadi penuh tepat di pukulannya. Tanpa disebut, model video
+     * menghasilkan gerak halus seragam yang justru terlihat seperti
+     * rekaman biasa yang diberi filter.
+     */
+    private const GERAK = [
+        'impact'    => 'A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc',
+        'smear'     => 'The fastest part of the swing draws out into a smear frame, the glove leaving a painted trail behind it',
+        'twos'      => 'The movement holds on twos while they circle, then snaps into full framerate for the punch itself',
+        'anticipate'=> 'A short anticipation crouch loads the shot before the arm fires, and the follow-through carries her shoulder past the target',
+        'ripple'    => 'The impact ripples visibly through the body, hair and flesh lagging a frame behind the bone',
+        'freeze'    => 'A one-frame freeze lands on the connection before the recoil begins',
+    ];
+
+    /** Huruf pertama dikecilkan, untuk pemakaian di tengah kalimat. */
+    private static function kecil(string $t): string
+    {
+        return mb_strtolower(mb_substr($t, 0, 1)) . mb_substr($t, 1);
+    }
+
+    /** @return array<int,array<string,string>> */
+    private static function kolamAwal(string $M, string $K, string $menang, string $kalah): array
+    {
+        return [
+            ['camera' => 'a wide establishing shot from the crowd side, the whole ring in frame',
+             'camera_move' => 'push_in', 'actor' => $menang,
+             'action' => 'The bell rings and both fighters come out of their corners. ' . $M . ' and ' . $K
+                       . ' circle at range with gloves held high, ' . self::kecil(self::GERAK['twos']) . '.',
+             'sound' => 'the bell, shoes squeaking on canvas, a low crowd murmur'],
+
+            ['camera' => 'a low-angle shot from the canvas between them, ropes cutting the top of frame',
+             'camera_move' => 'orbit', 'actor' => $menang,
+             'action' => 'The camera sweeps low around the two fighters as they cut off angles, '
+                       . 'legs and pivoting feet filling the foreground.',
+             'sound' => 'feet scuffing canvas, breathing settling into rhythm'],
+
+            ['camera' => 'a tight close-up on the eyes of ' . $M,
+             'camera_move' => 'push_in', 'actor' => $menang,
+             'action' => 'A held close-up on the eyes of ' . $M . ' as she reads the distance, '
+                       . 'jaw set, a bead of sweat already tracking down her temple.',
+             'sound' => 'a slow controlled exhale, the crowd distant'],
+
+            ['camera' => 'a medium two-shot at eye level from ringside',
+             'camera_move' => 'tracking', 'actor' => $menang,
+             'action' => $M . ' flicks out a probing jab that falls just short; ' . $K
+                       . ' slips it by a hair. ' . self::GERAK['smear'] . '.',
+             'sound' => 'leather cutting air, a sharp exhale'],
+
+            ['camera' => 'a profile two-shot, both fighters in silhouette against the ring lights',
+             'camera_move' => 'static', 'actor' => $kalah,
+             'action' => 'Both fighters read as rim-lit silhouettes for a beat, gloves up, '
+                       . 'then ' . $K . ' steps in and breaks the stillness.',
+             'sound' => 'the crowd swelling, a single shout from a corner'],
+
+            ['camera' => 'a snap zoom onto the gloves at chest height',
+             'camera_move' => 'whip_pan', 'actor' => $kalah,
+             'action' => $K . ' answers with a light body shot that thuds off the guard. '
+                       . self::GERAK['impact'] . '.',
+             'sound' => 'a dull leather thud, the crowd reacting'],
+        ];
+    }
+
+    /** @return array<int,array<string,string>> */
+    private static function kolamJajak(string $M, string $K, string $menang, string $kalah): array
+    {
+        return [
+            ['camera' => 'a medium two-shot at eye level',
+             'camera_move' => 'tracking', 'actor' => $menang,
+             'action' => 'Both fighters trade short punches in the middle of the ring, still fresh. '
+                       . self::GERAK['anticipate'] . '.',
+             'sound' => 'quick leather impacts, shoes on canvas'],
+
+            ['camera' => 'an extreme close-up on the point of impact on the guard',
+             'camera_move' => 'slow_motion', 'actor' => $kalah,
+             'action' => $K . ' fires back a fast combination that ' . $M . ' blocks high. '
+                       . self::GERAK['impact'] . '.',
+             'sound' => 'a fast rattle of punches on the guard'],
+
+            ['camera' => 'a high wide shot looking down on the ring',
+             'camera_move' => 'pull_out', 'actor' => $menang,
+             'action' => 'From above, the two figures wheel around each other on the canvas, '
+                       . 'the ropes framing them in a bright square.',
+             'sound' => 'the crowd noise widening out'],
+
+            ['camera' => 'a tracking shot moving with the shoulder of ' . $M,
+             'camera_move' => 'handheld', 'actor' => $menang,
+             'action' => $M . ' steps in behind a double jab. ' . self::GERAK['smear'] . '.',
+             'sound' => 'two crisp snaps of leather'],
+
+            ['camera' => 'a dutch-angled close-up on the face of ' . $K,
+             'camera_move' => 'static', 'actor' => $kalah,
+             'action' => 'The frame tilts as ' . $K . ' rolls under a hook, hair swinging across her face, '
+                       . 'eyes never leaving her opponent.',
+             'sound' => 'a punch passing close over her head, a grunt'],
+
+            ['camera' => 'a low shot on the feet and canvas',
+             'camera_move' => 'pan', 'actor' => $kalah,
+             'action' => 'Feet pivot and reset, boots dragging small streaks across the canvas '
+                       . 'as ' . $K . ' circles away from the power hand.',
+             'sound' => 'rubber squeaking, a corner shouting instructions'],
+        ];
+    }
+
+    /** @return array<int,array<string,string>> */
+    private static function kolamBalik(string $M, string $K, string $menang, string $kalah): array
+    {
+        return [
+            ['camera' => 'an over-the-shoulder shot from behind ' . $M,
+             'camera_move' => 'handheld', 'actor' => $menang,
+             'action' => $M . ' finds her range and lands a clean combination; ' . $K
+                       . ' takes it flush. ' . self::GERAK['ripple'] . '.',
+             'sound' => 'two solid impacts, a grunt, the crowd lifting'],
+
+            ['camera' => 'a close-up on the face of ' . $K . ' as the punch lands',
+             'camera_move' => 'slow_motion', 'actor' => $menang,
+             'action' => 'The glove flattens against her cheek and her head turns with it. '
+                       . self::GERAK['freeze'] . '.',
+             'sound' => 'one heavy crack, the crowd inhaling'],
+
+            ['camera' => 'a whip pan following the punch across the ring',
+             'camera_move' => 'whip_pan', 'actor' => $menang,
+             'action' => 'The camera whips across to catch ' . $K . ' stumbling back into open canvas, '
+                       . 'the background streaking into speed lines.',
+             'sound' => 'a rush of air, the crowd surging'],
+
+            ['camera' => 'a close-up on the guard of ' . $K,
+             'camera_move' => 'static', 'actor' => $kalah,
+             'action' => $K . ' covers up behind a high guard, breathing through her teeth, '
+                       . 'sweat running off her chin in visible droplets.',
+             'sound' => 'hard breathing, muffled impacts on the guard'],
+
+            ['camera' => 'a low-angle hero shot of ' . $M . ' from the canvas',
+             'camera_move' => 'push_in', 'actor' => $menang,
+             'action' => $M . ' stands tall in frame as she loads the next shot, rim light burning '
+                       . 'along her shoulders. ' . self::GERAK['anticipate'] . '.',
+             'sound' => 'a deep inhale, the crowd starting to chant'],
+
+            ['camera' => 'a wide shot with both fighters small against the dark arena',
+             'camera_move' => 'static', 'actor' => $menang,
+             'action' => 'Pulled back, the exchange plays out in the middle of a pool of light, '
+                       . 'the crowd a wall of darkness around them.',
+             'sound' => 'impacts echoing across the hall'],
+        ];
+    }
+
+    /** @return array<int,array<string,string>> */
+    private static function kolamTekan(string $M, string $K, string $menang, string $kalah): array
+    {
         return [
             ['camera' => 'a tracking shot along the ropes',
              'camera_move' => 'tracking', 'actor' => $menang,
              'action' => $M . ' walks ' . $K . ' down toward the corner with a steady stream of punches, '
                        . 'never letting her set her feet.',
              'sound' => 'a relentless run of impacts, the crowd on its feet'],
+
             ['camera' => 'a low-angle shot from the canvas looking up',
              'camera_move' => 'push_in', 'actor' => $kalah,
              'action' => $K . ' plants her back foot and swings back, but the punch is slow and wide; '
-                       . $M . ' leans away from it easily.',
+                       . $M . ' leans away from it easily. ' . self::GERAK['smear'] . '.',
              'sound' => 'a wild swing cutting air, a shout from the corner'],
+
+            ['camera' => 'an extreme close-up on the mouth and jaw of ' . $K,
+             'camera_move' => 'slow_motion', 'actor' => $menang,
+             'action' => 'A short uppercut snaps her chin up; spit and sweat leave her mouth in an arc. '
+                       . self::GERAK['impact'] . '.',
+             'sound' => 'a wet crack, the crowd erupting'],
+
+            ['camera' => 'a shot from outside the ropes, the ropes crossing the frame',
+             'camera_move' => 'handheld', 'actor' => $kalah,
+             'action' => $K . ' folds back over the top rope under the pressure, one glove clutching it '
+                       . 'to stay upright.',
+             'sound' => 'ropes creaking under weight, ragged breathing'],
+
+            ['camera' => 'a reaction cut to the crowd, faces out of focus',
+             'camera_move' => 'pan', 'actor' => $menang,
+             'action' => 'A fast pan across blurred faces at ringside, mouths open, phones raised, '
+                       . 'before cutting back to the ring.',
+             'sound' => 'a wall of shouting'],
+
+            ['camera' => 'a top-down shot directly above the two fighters',
+             'camera_move' => 'orbit', 'actor' => $menang,
+             'action' => 'Seen from directly overhead, ' . $M . ' pins ' . $K . ' against the corner, '
+                       . 'their shadows tight beneath them.',
+             'sound' => 'impacts and breathing, the crowd a steady roar'],
         ];
     }
-
-    /**
-     * Tahap kerusakan di klip ke-$i, naik rata sampai $puncak.
-     *
-     * Sifat yang dijaga: tidak pernah turun, tidak pernah melompati satu
-     * tahap, dan klip terakhir selalu tepat di puncaknya. Dulu tahapnya
-     * dihitung dengan floor(maju * 3.4) yang melanggar ketiganya — pada
-     * tiga klip hasilnya 0-1-3, dan pada pertandingan yang selesai lewat
-     * keputusan petinjunya justru SEMBUH dari tahap 3 ke tahap 2 di klip
-     * penutup.
-     */
     private static function tahapDi(int $i, int $jumlah, int $puncak): int
     {
         if ($puncak <= 0 || $jumlah <= 1) {
@@ -606,6 +880,14 @@ TXT;
     }
 
     /** Shot penutup, bentuknya ditentukan cara pertandingan itu selesai. */
+    /**
+     * Shot penutup, bentuknya ditentukan cara pertandingan itu selesai.
+     *
+     * Urutannya tetap dan tidak digeser: pukulan penentu harus datang
+     * sebelum akibatnya. Shot sebelum blok ini diambil dari kolam tekanan,
+     * jadi penutupnya selalu terasa didahului tekanan, bukan muncul
+     * tiba-tiba.
+     */
     private static function shotsAkhir(string $cara, string $M, string $K, string $menang, string $kalah): array
     {
         switch ($cara) {
@@ -625,9 +907,9 @@ TXT;
             case 'tko':
                 return [
                     ['camera' => 'a tight close-up on the face of ' . $K,
-                     'camera_move' => 'handheld', 'actor' => $menang,
+                     'camera_move' => 'slow_motion', 'actor' => $menang,
                      'action' => $M . ' lands three unanswered punches; the hands of ' . $K . ' drop '
-                               . 'and her eyes lose focus as she stumbles back into the ropes.',
+                               . 'and her eyes lose focus. ' . self::GERAK['ripple'] . '.',
                      'sound' => 'three heavy impacts, the crowd surging'],
                     ['camera' => 'a medium shot from the side of the referee',
                      'camera_move' => 'push_in', 'actor' => $menang,
@@ -650,21 +932,24 @@ TXT;
                 ];
             default:   // ko
                 return [
-                    ['camera' => 'a tight close-up on the point of impact',
+                    ['camera' => 'an extreme close-up on the point of impact',
                      'camera_move' => 'slow_motion', 'actor' => $menang,
-                     'action' => $M . ' steps in and lands one clean, flush punch on the jaw of ' . $K
-                               . '; sweat sprays off the impact and her head snaps around.',
+                     'action' => $M . ' steps in and lands one clean, flush punch on the jaw of ' . $K . '. '
+                               . self::GERAK['impact'] . ', and ' . self::kecil(self::GERAK['freeze']) . '.',
                      'sound' => 'one heavy leather crack, the crowd inhaling'],
+                    ['camera' => 'a whip pan following ' . $K . ' as she falls',
+                     'camera_move' => 'whip_pan', 'actor' => $menang,
+                     'action' => 'Her legs go and she drops out of frame; the camera whips down to follow her '
+                               . 'to the canvas. ' . self::GERAK['ripple'] . '.',
+                     'sound' => 'a body hitting canvas, the crowd exploding'],
                     ['camera' => 'a high wide shot looking down at the canvas',
                      'camera_move' => 'pull_out', 'actor' => $menang,
-                     'action' => $K . ' drops to the canvas and does not get up. ' . $M
-                               . ' stands over her, breathing hard, then raises one glove as the referee '
-                               . 'waves the fight off.',
-                     'sound' => 'a body hitting canvas, the referee counting, the crowd exploding'],
+                     'action' => $K . ' lies still and does not get up. ' . $M . ' stands over her, '
+                               . 'breathing hard, then raises one glove as the referee waves the fight off.',
+                     'sound' => 'the referee counting, a wall of noise'],
                 ];
         }
     }
-
     private static function kalimatAkhir(string $cara, string $menang, string $kalah): string
     {
         $M = strtoupper($menang);
@@ -697,6 +982,11 @@ TXT;
         $e['kind'] = 'video';
 
         foreach ($e['subjects'] as $i => $s) {
+            // Wasit dan cornerman tidak ikut babak belur, dan tidak boleh
+            // kebagian tag pukulan cuma karena berdiri di dalam ring.
+            if (($s['role'] ?? 'fighter') !== 'fighter') {
+                continue;
+            }
             $id    = $s['id'];
             $tahap = (int)($b['tahap'][$id] ?? 0);
             $data  = self::TAHAP[$tahap];
@@ -770,6 +1060,9 @@ TXT;
         $kartu = [];
 
         foreach ($ekstrak['subjects'] as $s) {
+            if (($s['role'] ?? 'fighter') !== 'fighter' || !isset($dipakai[$s['id']])) {
+                continue;
+            }
             $id = $s['id'];
             ksort($dipakai[$id]);
 
@@ -821,6 +1114,93 @@ TXT;
         }
 
         return $kartu;
+    }
+
+    /**
+     * Blok arahan animasi, ditempel di akhir tiap prompt klip.
+     *
+     * Ini yang membedakan "anime" dari "rekaman orang bertinju yang diberi
+     * filter". Gaya visual saja tidak cukup: model video bawaannya
+     * menggerakkan segalanya halus dan seragam, sementara anime tinju justru
+     * hidup dari ketimpangannya — tahan lama di pose, lalu meledak beberapa
+     * frame di pukulannya.
+     *
+     * Kosakatanya sengaja teknis (on twos, impact frame, smear) karena
+     * itulah istilah yang muncul di data latih bersama potongan animasi
+     * sungguhan, bukan bersama video live-action.
+     */
+    /**
+     * Blok latar: tempat, penonton, wasit, cornerman.
+     *
+     * Yang punya gambar acuan sudah terkunci lewat jangkar "Image N is ...",
+     * jadi di sini cukup ditegaskan perannya. Yang TIDAK punya gambar
+     * dijelaskan apa adanya supaya tidak dikarang berbeda tiap klip — dan
+     * yang tidak diminta disebut secara tegas TIDAK ADA, karena model video
+     * gemar menambahkan wasit sendiri kalau dibiarkan diam.
+     */
+    private static function blokLatar(array $ekstrak, array $opsi): string
+    {
+        $b = [];
+
+        $latar = isset(self::LATAR[(string)($opsi['latar'] ?? '')]) ? (string)$opsi['latar'] : null;
+        $adaGambarArena = trim((string)($ekstrak['environment']['verbatim'] ?? '')) !== '';
+
+        if ($latar !== null && !$adaGambarArena) {
+            $b[] = 'The venue is ' . self::LATAR[$latar]['kalimat'] . '.';
+        }
+
+        $penonton = isset(self::PENONTON[(string)($opsi['penonton'] ?? '')])
+            ? (string)$opsi['penonton'] : 'penuh';
+        $b[] = self::PENONTON[$penonton]['kalimat'] . '.';
+
+        $peran = [];
+        foreach ($ekstrak['subjects'] as $s) {
+            $peran[$s['role'] ?? 'fighter'] = true;
+        }
+
+        // wasit
+        if (!empty($peran['referee'])) {
+            $b[] = 'The referee is the person in the reference image; keep him consistent, '
+                 . 'circling the fighters and staying out of the way of the camera.';
+        } elseif (!empty($opsi['wasit'])) {
+            $b[] = 'A referee in a plain white shirt and dark trousers circles the fighters, '
+                 . 'kept soft and secondary, never blocking either boxer.';
+        } else {
+            $b[] = 'There is no referee in the ring at any point.';
+        }
+
+        // cornerman
+        if (!empty($peran['second'])) {
+            $b[] = 'The corner second is the person in the reference image, visible only outside '
+                 . 'the ropes in the corner, never entering the ring mid-round.';
+        } elseif (!empty($opsi['cornerman'])) {
+            $b[] = 'A corner second in a plain crew shirt waits outside the ropes with a towel '
+                 . 'and a bottle, visible only at the edge of frame.';
+        } else {
+            $b[] = 'No corner staff are visible.';
+        }
+
+        return 'Scene: ' . implode(' ', $b);
+    }
+
+    private static function tambahAnimasi(string $prompt, string $latar = ''): string
+    {
+        if (trim($prompt) === '') {
+            return $prompt;
+        }
+
+        return rtrim($prompt)
+            . ($latar === '' ? '' : "\n\n" . $latar)
+            . "\n\n"
+            . 'Animation craft: this is hand-drawn Japanese animation, not filmed footage. '
+            . 'Time the movement unevenly — hold poses on twos while they circle, then burst into '
+            . 'full framerate for two or three frames on every punch. Put a single white impact frame '
+            . 'on each clean connection, radiating speed lines from the point of contact, and let the '
+            . 'fastest part of a swing become a smear frame rather than a sharp arm. Sweat flies off '
+            . 'in discrete droplets, not a spray. Keep strong anticipation before each punch and heavy '
+            . 'follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded '
+            . 'flat colour with hard shadow edges throughout; no motion blur on the characters '
+            . 'themselves, only on the background during fast camera moves.';
     }
 
     private static function namaKartu(string $id, int $tahap): string

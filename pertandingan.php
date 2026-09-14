@@ -53,6 +53,25 @@ halamanHeader('Rancang Pertandingan');
                 <div class="strip" id="pra-arena" hidden></div>
             </div>
         </div>
+        <div class="field-row">
+            <div class="field">
+                <label>Wasit <span class="tiny-note">opsional</span></label>
+                <div class="dropzone kecil" id="zona-wasit" tabindex="0">
+                    <p>Taruh, klik, atau Ctrl+V</p>
+                    <input type="file" class="berkas" data-slot="wasit" accept="image/*" hidden>
+                </div>
+                <div class="strip" id="pra-wasit" hidden></div>
+            </div>
+            <div class="field">
+                <label>Cornerman <span class="tiny-note">opsional</span></label>
+                <div class="dropzone kecil" id="zona-cornerman" tabindex="0">
+                    <p>Taruh, klik, atau Ctrl+V</p>
+                    <input type="file" class="berkas" data-slot="cornerman" accept="image/*" hidden>
+                </div>
+                <div class="strip" id="pra-cornerman" hidden></div>
+            </div>
+        </div>
+
         <p class="hint" id="berkas-info">
             Ctrl+V menempel ke kotak yang terakhir kamu klik.
         </p>
@@ -150,6 +169,40 @@ halamanHeader('Rancang Pertandingan');
             </div>
         </div>
 
+        <div class="field-row">
+            <div class="field">
+                <label for="latar">Latar</label>
+                <select id="latar">
+                    <?php foreach (Pertandingan::LATAR as $k => $v): ?>
+                        <option value="<?= e($k) ?>"><?= e($v['nama']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="hint">Dipakai kalau kamu tidak memberi gambar arena.</p>
+            </div>
+            <div class="field">
+                <label for="penonton">Penonton</label>
+                <select id="penonton">
+                    <?php foreach (Pertandingan::PENONTON as $k => $v): ?>
+                        <option value="<?= e($k) ?>"><?= e($v['nama']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+
+        <label class="check">
+            <input type="checkbox" id="opsi-wasit" checked>
+            Ada wasit di ring
+        </label>
+        <label class="check">
+            <input type="checkbox" id="opsi-cornerman">
+            Ada cornerman di sudut
+        </label>
+        <p class="hint">
+            Dicentang tanpa gambar acuan berarti dipakai wujud bawaan yang tetap sama di
+            semua klip. Kalau tidak dicentang, promptnya menyebut tegas bahwa mereka
+            <strong>tidak ada</strong> — tanpa itu model video sering menambahkan wasit sendiri.
+        </p>
+
         <div class="field">
             <label for="gaya">Gaya visual <span class="tiny-note">opsional</span></label>
             <select id="gaya">
@@ -186,5 +239,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=1"></script>
+<script src="assets/js/pertandingan.js?v=2"></script>
 <?php halamanFooter(); ?>

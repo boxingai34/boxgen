@@ -14,7 +14,7 @@ const MAKS_HINT = 400;
 const $  = (sel, induk) => (induk || document).querySelector(sel);
 const $$ = (sel, induk) => Array.from((induk || document).querySelectorAll(sel));
 
-const gambar = { a: null, b: null, arena: null };
+const gambar = { a: null, b: null, arena: null, wasit: null, cornerman: null };
 let slotAktif = 'a';        // tujuan Ctrl+V
 let ekstrak   = null;
 let hasil     = null;
@@ -186,6 +186,7 @@ async function baca() {
     try {
         const data = await postJson('api/pertandingan.php?action=baca', {
             a: gambar.a, b: gambar.b, arena: gambar.arena,
+            wasit: gambar.wasit, cornerman: gambar.cornerman,
             hint: $('#hint').value.trim().slice(0, MAKS_HINT)
         }, {
             ulang: 4,
@@ -268,6 +269,10 @@ async function rancang() {
                 detik_per_klip: parseInt($('#perklip').value, 10),
                 pemenang: $('#pemenang').value,
                 cara: $('#cara').value,
+                latar: $('#latar').value,
+                penonton: $('#penonton').value,
+                wasit: $('#opsi-wasit').checked,
+                cornerman: $('#opsi-cornerman').checked,
                 nsfw: $('#opsi-nsfw').checked,
                 dewasa: $('#opsi-dewasa').checked,
                 gaya: { style_id: parseInt($('#gaya').value, 10) || null, artis: '', kuat: 'sedang' },
@@ -350,7 +355,7 @@ function gantiTab(nama) {
 // -------------------------------------------------------------- pasang
 
 function pasang() {
-    ['a', 'b', 'arena'].forEach((slot) => {
+    ['a', 'b', 'arena', 'wasit', 'cornerman'].forEach((slot) => {
         const zona = $('#zona-' + slot);
         const berkas = $('.berkas[data-slot="' + slot + '"]', zona);
 
