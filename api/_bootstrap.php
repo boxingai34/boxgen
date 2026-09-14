@@ -27,6 +27,22 @@ header('X-Content-Type-Options: nosniff');
 ini_set('display_errors', '0');
 ob_start();
 
+/*
+ * Selesaikan pekerjaannya walau yang meminta sudah pergi.
+ *
+ * Hosting memakai nginx di depan PHP, dan nginx memutus sambungan pada
+ * sekitar 60 detik. Membaca satu gambar dengan model vision sering lebih
+ * lama dari itu. Tanpa baris ini, PHP ikut dihentikan begitu ia sadar
+ * sambungannya putus — pekerjaan yang sudah 90% jalan dibuang, dan
+ * hasilnya tidak sempat masuk ai_cache.
+ *
+ * Dengan ini, pembacaannya diselesaikan dan disimpan. Halaman tinggal
+ * bertanya lagi beberapa saat kemudian dan langsung dapat jawabannya dari
+ * cache — tanpa memanggil AI untuk kedua kalinya, jadi tidak ada token
+ * yang terbuang.
+ */
+ignore_user_abort(true);
+
 /** Peringatan PHP yang tertangkap sepanjang permintaan ini. */
 $GLOBALS['__peringatan'] = [];
 

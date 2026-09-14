@@ -54,12 +54,67 @@ let teksTersimpan = '';      // prompt dari Riwayat (action=muat) untuk "Salin s
 // Pembantu (disalin dari app.js)
 // ==================================================================
 
-async function postJson(url, payload) {
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
+const jedaMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Kirim permintaan, ulangi kalau PROXY yang menyerah — bukan servernya.
+ *
+ * Hosting memakai nginx di depan PHP, dan nginx memutus sambungan pada
+ * sekitar 60 detik (proxy_read_timeout bawaan). Membaca satu gambar dengan
+ * model vision biasanya 50-90 detik, jadi yang sampai ke halaman adalah
+ * halaman 504 milik nginx — bukan jawaban kita, bukan pula tanda ada yang
+ * rusak.
+ *
+ * Yang penting: PHP TIDAK ikut berhenti. Pembacaannya jalan terus sampai
+ * selesai lalu hasilnya disimpan di tabel ai_cache. Jadi mengirim ulang
+ * permintaan yang SAMA PERSIS beberapa saat kemudian akan kena cache itu
+ * dan langsung dapat jawabannya, gratis, tanpa memanggil AI lagi.
+ *
+ * Itulah yang dilakukan di sini: menunggu sebentar, lalu bertanya lagi.
+ *
+ * @param {object} pilihan  { ulang: berapa kali, lapor: fn(pesan) }
+ */
+async function postJson(url, payload, pilihan) {
+    const maksUlang = (pilihan && pilihan.ulang) || 0;
+    const lapor     = (pilihan && pilihan.lapor) || (() => {});
+    const jeda      = [20000, 30000, 45000, 60000];
+
+    let res = null;
+    let putus = null;
+
+    for (let ke = 0; ke <= maksUlang; ke++) {
+        putus = null;
+        try {
+            res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            // Sambungan putus sebelum ada jawaban sama sekali.
+            res = null;
+            putus = e;
+        }
+
+        const proxyMenyerah = res !== null && [502, 503, 504].includes(res.status);
+        if (!proxyMenyerah && putus === null) {
+            break;
+        }
+        if (ke >= maksUlang) {
+            break;
+        }
+
+        const detik = Math.round(jeda[Math.min(ke, jeda.length - 1)] / 1000);
+        lapor(
+            (proxyMenyerah ? `Proxy hosting memutus di tengah jalan (HTTP ${res.status}). ` : 'Sambungan terputus. ')
+            + `Pembacaannya tetap jalan di server — menunggu ${detik} detik lalu mengambil hasilnya…`
+        );
+        await jedaMs(jeda[Math.min(ke, jeda.length - 1)]);
+    }
+
+    if (res === null) {
+        throw putus || new Error('Sambungan ke server gagal.');
+    }
 
     // Dibaca sebagai teks dulu, baru diurai. Kalau langsung res.json(),
     // isi jawabannya hilang begitu penguraian gagal — dan justru isi itu
@@ -756,6 +811,12 @@ async function baca() {
             sheet: referensi.sheet,
             duration: referensi.duration,
             hint: $('#hint').value.trim().slice(0, MAKS_HINT)
+        }, {
+            // Membaca gambar itu bagian paling lama, dan proxy hosting
+            // memutus jauh sebelum selesai. Hasilnya tetap tersimpan di
+            // server, jadi tinggal diambil lagi.
+            ulang: 4,
+            lapor: (pesan) => { $('#baca-note').textContent = pesan; }
         });
 
         pasangEkstrak(data.ekstrak, data.ringkas, data.validasi);
@@ -1384,6 +1445,9 @@ async function susun() {
             ekstrak: kirim,
             target,
             opsi: kumpulOpsi()
+        }, {
+            ulang: 3,
+            lapor: (pesan) => { $('#susun-note').textContent = pesan; }
         });
 
         // JSON mentah yang berhasil dipakai jadi kebenaran baru — kolom
