@@ -155,6 +155,11 @@ switch ($action) {
         }
         RateLimiter::hit('reverse');
 
+        // Nama model pembaca dititipkan di dalam ekstrak. Tahap baca dan
+        // tahap susun itu dua permintaan terpisah, jadi tanpa ini panel
+        // "tahap yang dipakai" tidak pernah tahu siapa yang membaca.
+        $hasil['ekstrak']['pembaca'] = $hasil['model'];
+
         $val = ReversePrompt::validasi($hasil['ekstrak']);
 
         jsonOk([
@@ -219,7 +224,7 @@ switch ($action) {
         } catch (InvalidArgumentException $e) {
             jsonFail($e->getMessage());
         }
-        if ($pakaiAi && ($hasil['tahap']['polish'] ?? null) !== null) {
+        if ($pakaiAi && ($hasil['tahap']['polish']['model'] ?? null) !== null) {
             RateLimiter::hit('reverse');
         }
 

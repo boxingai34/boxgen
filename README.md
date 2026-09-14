@@ -1936,6 +1936,27 @@ Yang tersimpan di Riwayat adalah hasil pembacaannya (bukan berkasnya), jadi
 tombol **Buka** di Riwayat membawa kembali ke halaman ini dan promptnya bisa
 disusun ulang dengan setelan lain.
 
+### Tag yang sengaja tidak pernah dipakai
+
+`REVERSE_TAG_DILARANG` di `config.php` berisi tag yang dibuang dari prompt
+walau memang terlihat di referensinya. Bukan karena pembacanya salah, tapi
+karena modelnya menggambarnya jelek. Bawaannya `mouth_guard`: NovelAI sampai
+sekarang mengubah pelindung mulut jadi mulut rusak atau gigi aneh, jadi lebih
+baik tidak disebut. Tambahkan yang lain dengan memisahkan koma.
+
+Larangan ini berlaku di semua jalur sekaligus, termasuk baris jangkar
+`Image 1 is ...` pada prompt video, karena lembar acuannya juga dibuat di
+NovelAI.
+
+### Kotak "Tahap yang dipakai"
+
+Di bawah hasil ada rincian tiga tahap beserta nama modelnya. Kalau sebuah
+tahap tidak terpakai, alasannya ditulis di bawahnya. Yang paling sering
+bikin bingung: baris **Vision** menyebut modelnya tetapi diberi keterangan
+"dipakai waktu menekan Baca Referensi, bukan di langkah ini" — membaca dan
+menyusun itu dua permintaan terpisah, jadi menyusun ulang tidak memanggil
+model vision lagi.
+
 ### Yang perlu diketahui
 
 - Jatah per pengunjung per hari: `REVERSE_DAILY_LIMIT_PER_IP` (bawaan 40);

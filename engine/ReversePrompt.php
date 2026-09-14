@@ -555,6 +555,10 @@ TXT;
             'tags'     => $tagList($e['camera']['tags'] ?? []),
         ];
         $out['text_in_image'] = $teks($e['text_in_image'] ?? '', 200);
+        // Nama model pembaca ikut disimpan supaya panel "tahap yang dipakai"
+        // bisa menyebutnya waktu prompt disusun — tahap baca dan tahap susun
+        // itu dua permintaan terpisah.
+        $out['pembaca'] = $teks($e['pembaca'] ?? '', 80);
         $out['prose']         = $teks($e['prose'] ?? '', 1200);
         $out['danbooru_tags'] = $tagList($e['danbooru_tags'] ?? []);
 
@@ -944,7 +948,24 @@ TXT;
         $val     = self::validasi($ekstrak);
         $ekstrak = $val['ekstrak'];
         $catatan = $val['catatan'];
-        $tahap   = ['vision' => null, 'polish' => null, 'nsfw' => null];
+
+        // Tiap tahap membawa alasannya sendiri, bukan cuma nama model.
+        // "tidak dipakai" tanpa keterangan itu yang paling membingungkan:
+        // tahap vision SELALU tampak tidak dipakai di sini, padahal dia
+        // sudah bekerja waktu tombol "Baca Referensi" ditekan.
+        $tahap = [
+            'vision' => ['model' => null, 'alasan' => 'Hasil pembacaan ini tidak menyimpan nama modelnya.'],
+            'polish' => ['model' => null, 'alasan' => null],
+            'nsfw'   => ['model' => null, 'alasan' => null],
+        ];
+
+        $pembaca = trim((string)($ekstrak['pembaca'] ?? ''));
+        if ($pembaca !== '') {
+            $tahap['vision'] = [
+                'model'  => $pembaca,
+                'alasan' => 'Dipakai waktu menekan "Baca Referensi", bukan di langkah ini.',
+            ];
+        }
 
         $opsi     = self::rapikanGaya($opsi, $target);
         $mauNsfw  = !array_key_exists('nsfw', $opsi) || !empty($opsi['nsfw']);
@@ -955,8 +976,24 @@ TXT;
                        . '. Cari namanya lewat saran yang muncul saat mengetik.';
         }
         $adaNsfw  = self::adaKetelanjangan($ekstrak);
-        $poles    = (!array_key_exists('polish', $opsi) || !empty($opsi['polish'])) && AiClient::siapProfil('polish');
+        $mintaPoles = !array_key_exists('polish', $opsi) || !empty($opsi['polish']);
+        $poles    = $mintaPoles && AiClient::siapProfil('polish');
         $fewshot  = !array_key_exists('fewshot', $opsi) || !empty($opsi['fewshot']);
+
+        // Alasan dicatat SEBELUM tahapnya dijalankan, supaya yang tidak
+        // dipakai pun punya keterangan. Kalau berhasil, keterangannya
+        // ditimpa nama modelnya.
+        if (!$mintaPoles) {
+            $tahap['polish']['alasan'] = 'Kamu mematikan pilihan "Poles dengan model kuat".';
+        } elseif (!AiClient::siapProfil('polish')) {
+            $tahap['polish']['alasan'] = 'Profil polish belum punya kunci di config.local.php.';
+        }
+
+        if (!$adaNsfw) {
+            $tahap['nsfw']['alasan'] = 'Tidak ada ketelanjangan di referensinya, jadi tidak ada yang perlu dikembalikan.';
+        } elseif (!$mauNsfw) {
+            $tahap['nsfw']['alasan'] = 'Kamu mematikan pilihan "Versi setia (NSFW)".';
+        }
 
         if ($target === 'nai5') {
             $hasil = self::susunNovelAI($ekstrak, $val, $opsi, $mauNsfw && $adaNsfw, $poles, $fewshot, $catatan, $tahap);
@@ -1117,6 +1154,37 @@ TXT;
         return array_keys($ditolak);
     }
 
+    /**
+     * Tag yang tidak boleh masuk prompt, sebagai peta untuk pencarian cepat.
+     *
+     * @return array<string,true>
+     */
+    private static function tagDilarang(): array
+    {
+        static $peta = null;
+        if ($peta !== null) {
+            return $peta;
+        }
+
+        $peta = [];
+        foreach (explode(',', (string)REVERSE_TAG_DILARANG) as $t) {
+            $t = TagResolver::normalize($t);
+            if ($t !== '') {
+                $peta[$t] = true;
+            }
+        }
+        return $peta;
+    }
+
+    /** Bentuk terbaca dari daftar larangan, untuk catatan di halaman. */
+    private static function tagDilarangTeks(): string
+    {
+        return implode(', ', array_map(
+            static fn(string $t): string => str_replace('_', ' ', $t),
+            array_keys(self::tagDilarang())
+        ));
+    }
+
     private static function adaKetelanjangan(array $e): bool
     {
         foreach ($e['subjects'] as $s) {
@@ -1160,9 +1228,10 @@ TXT;
             $contoh = $fewshot ? self::contohEmas('image', 'nai5', $e, $val) : [];
             try {
                 $prosaMentah = self::polesNovelAI($e, $val, $prosaMentah, $contoh);
-                $tahap['polish'] = AiClient::profil('polish')['model'];
+                $tahap['polish'] = ['model' => AiClient::profil('polish')['model'], 'alasan' => null];
             } catch (RuntimeException $ex) {
                 $catatan[] = 'Tahap polish dilewati: ' . $ex->getMessage();
+                $tahap['polish']['alasan'] = 'Gagal dipanggil: ' . $ex->getMessage();
             }
         }
         if ($prosaMentah === '') {
@@ -1181,8 +1250,8 @@ TXT;
             $prosaSetia = self::lapisNsfwTeks($prosaMentah, $e, $poles, $tahap, $catatan);
             $itemsSetia = self::itemsNovelAI($e, $val, true, $opsi);
             $outputs['nsfw'] = self::bangunNovelAI($itemsSetia, $sel, $e, $prosaSetia);
-            if ($tahap['nsfw'] === null) {
-                $tahap['nsfw'] = 'aturan';
+            if (($tahap['nsfw']['model'] ?? null) === null) {
+                $tahap['nsfw'] = ['model' => 'aturan kode', 'alasan' => 'Cukup ganti tag, tidak perlu model.'];
             }
         }
 
@@ -1211,9 +1280,16 @@ TXT;
         $dipakai = [];
         $duo = count($e['subjects']) >= 2;
 
-        $tambah = static function (string $name, string $block, string $from, float $w = 1.0) use (&$items, &$dipakai): void {
+        $dilarang = self::tagDilarang();
+
+        $tambah = static function (string $name, string $block, string $from, float $w = 1.0) use (&$items, &$dipakai, $dilarang): void {
             $name = TagResolver::normalize($name);
             if ($name === '' || isset($dipakai[$block . '|' . $name])) {
+                return;
+            }
+            // Satu pintu untuk daftar larangan: apa pun jalannya masuk,
+            // tag yang dilarang berhenti di sini.
+            if (isset($dilarang[$name])) {
                 return;
             }
             $id = Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]);
@@ -1894,9 +1970,10 @@ TXT;
             $contoh = $fewshot ? self::contohEmas('video', $target, $e, $val) : [];
             try {
                 $rencana = self::polesVideo($rencana, $e, $val, $target, $contoh);
-                $tahap['polish'] = AiClient::profil('polish')['model'];
+                $tahap['polish'] = ['model' => AiClient::profil('polish')['model'], 'alasan' => null];
             } catch (RuntimeException $ex) {
                 $catatan[] = 'Tahap polish dilewati: ' . $ex->getMessage();
+                $tahap['polish']['alasan'] = 'Gagal dipanggil: ' . $ex->getMessage();
             }
         }
 
@@ -1917,8 +1994,8 @@ TXT;
             // dirender ulang dengan ciri telanjang, penandanya diisi belakangan
             $setia = $target === 'wan' ? self::renderWan($rencana, true) : self::renderSeedance($rencana, true);
             $setia = self::lapisNsfwTeks($setia, $e, $poles, $tahap, $catatan);
-            if ($tahap['nsfw'] === null) {
-                $tahap['nsfw'] = 'aturan';
+            if (($tahap['nsfw']['model'] ?? null) === null) {
+                $tahap['nsfw'] = ['model' => 'aturan kode', 'alasan' => 'Cukup ganti tag, tidak perlu model.'];
             }
             $outputs['nsfw'] = ['prompt' => $setia, 'huruf' => mb_strlen($setia)];
             $catatan[] = 'Generator video resmi (Wan, Seedance) biasanya menolak ketelanjangan. Versi setia untuk layanan tanpa sensor; versi aman untuk selebihnya.';
@@ -2085,6 +2162,15 @@ TXT;
         }
 
         $ciri = array_merge($rambut, $mata, $sarung !== '' ? [$sarung] : [], array_slice($lain, 0, 5));
+
+        // Daftar larangan berlaku di sini juga. Lembar acuan petinju dibuat
+        // di NovelAI, jadi kalau mouth guard buruk di sana, menyebutnya di
+        // baris jangkar cuma menularkan cacatnya ke seluruh video.
+        $dilarang = self::tagDilarang();
+        $ciri = array_filter($ciri, static function (string $c) use ($dilarang): bool {
+            return !isset($dilarang[TagResolver::normalize($c)]);
+        });
+
         return array_slice(array_values(array_unique(array_filter($ciri))), 0, 9);
     }
 
@@ -2592,7 +2678,7 @@ TXT;
                 $rasio = mb_strlen($teks) > 0 ? mb_strlen($baru) / mb_strlen($teks) : 0;
                 if ($baru !== '' && $rasio >= 0.7 && $rasio <= 1.4
                     && preg_match('/topless|bare[- ]chest|bare breasts|nipples|nude/i', $baru) === 1) {
-                    $tahap['nsfw'] = AiClient::profil('nsfw')['model'];
+                    $tahap['nsfw'] = ['model' => AiClient::profil('nsfw')['model'], 'alasan' => null];
                     return self::rapikanUlangan($baru);
                 }
                 $catatan[] = 'Jawaban model NSFW tidak lolos pemeriksaan, dipakai aturan kode.';

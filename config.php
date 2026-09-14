@@ -139,6 +139,16 @@ defined('YTDLP_BIN')   || define('YTDLP_BIN', '');
 defined('REVERSE_URL_TIMEOUT')   || define('REVERSE_URL_TIMEOUT', 120);
 defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 * 1024);
 
+// Tag yang TIDAK PERNAH ikut ke prompt, walau memang terlihat di
+// referensinya. Bukan karena salah baca — pembacanya benar — tapi karena
+// modelnya menggambarnya jelek, jadi menyebutnya justru merugikan.
+//
+// mouth_guard: NovelAI sampai sekarang menggambar pelindung mulut jadi
+// mulut yang rusak atau gigi yang aneh. Lebih baik tidak disebut.
+//
+// Pisahkan dengan koma kalau mau menambah.
+defined('REVERSE_TAG_DILARANG') || define('REVERSE_TAG_DILARANG', 'mouth_guard');
+
 defined('REVERSE_DAILY_LIMIT_PER_IP') || define('REVERSE_DAILY_LIMIT_PER_IP', 40);
 defined('REVERSE_MAX_IMAGE_BYTES')    || define('REVERSE_MAX_IMAGE_BYTES', 6 * 1024 * 1024);
 defined('REVERSE_MAX_FRAMES')         || define('REVERSE_MAX_FRAMES', 12);

@@ -196,6 +196,30 @@ function perbaruiTombol() {
     $('#btn-susun').disabled = !ekstrak;
 }
 
+/**
+ * Bawa sebuah bagian halaman ke atas layar.
+ *
+ * Kelihatannya cukup scrollIntoView({behavior:'smooth'}) saja, tapi
+ * gerak halus itu DIABAIKAN diam-diam di sebagian keadaan — pengaturan
+ * "kurangi animasi" di sistem, dan beberapa browser tertanam. Kalau
+ * diabaikan, hasilnya bukan gerak yang cepat, melainkan tidak bergerak
+ * sama sekali. Jadi setelah dicoba halus, posisinya diperiksa; kalau
+ * masih di luar layar, dipindahkan langsung.
+ */
+function bawaKeLayar(el) {
+    if (!el) return;
+
+    const kurangiGerak = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: kurangiGerak ? 'auto' : 'smooth', block: 'start' });
+
+    if (kurangiGerak) return;
+    setTimeout(() => {
+        if (el.getBoundingClientRect().top < -8) {
+            el.scrollIntoView(true);
+        }
+    }, 600);
+}
+
 /** Tampilkan galat di kolom kanan, persis seperti app.js. */
 function galat(pesan) {
     $('#empty').hidden = false;
@@ -676,7 +700,7 @@ async function baca() {
 
         pasangEkstrak(data.ekstrak, data.ringkas, data.validasi);
         $('#baca-note').textContent = teksQuota(data.quota);
-        $('#hasil-baca').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        bawaKeLayar($('#hasil-baca'));
     } catch (err) {
         $('#baca-note').textContent = err.message;
         galat(err.message);
@@ -1173,6 +1197,10 @@ async function susun() {
         versi = 'sfw';
         renderHasil();
 
+        // Promptnya di kolom kanan, dan tombol Susun ada jauh di bawah
+        // kolom kiri. Tanpa ini hasilnya selesai tanpa terlihat.
+        bawaKeLayar($('#result').closest('.panel'));
+
         $('#susun-note').textContent = [
             teksQuota(data.quota),
             data.generation_id ? `Tersimpan di Riwayat (#${data.generation_id}).` : ''
@@ -1324,11 +1352,26 @@ function renderTahap(t) {
 
     [['Vision — membaca referensi', t && t.vision],
      ['Polish — menulis ulang jadi prosa', t && t.polish],
-     ['NSFW — lapisan versi setia', t && t.nsfw]].forEach(([label, model]) => {
+     ['NSFW — lapisan versi setia', t && t.nsfw]].forEach(([label, tahap]) => {
+        // Bentuk lama tahap berupa string; yang sekarang objek berisi
+        // model dan alasannya. Keduanya diterima supaya riwayat lama
+        // tetap terbaca.
+        const model  = typeof tahap === 'string' ? tahap : (tahap && tahap.model);
+        const alasan = (tahap && typeof tahap === 'object') ? tahap.alasan : null;
+
         const row = el('div', 'row');
         row.appendChild(el('span', null, label));
         row.appendChild(el('span', null, model || 'tidak dipakai'));
         div.appendChild(row);
+
+        // "Tidak dipakai" tanpa keterangan itu yang paling membingungkan,
+        // jadi alasannya ditulis tepat di bawahnya.
+        if (alasan) {
+            const ket = el('div', 'row alasan');
+            ket.appendChild(el('span', null, ''));
+            ket.appendChild(el('span', null, alasan));
+            div.appendChild(ket);
+        }
     });
 
     box.appendChild(div);

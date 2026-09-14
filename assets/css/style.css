@@ -875,3 +875,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
 .only-target-seed[hidden],
 .only-hasil-baca[hidden],
 .tab[hidden] { display: none; }
+
+/* Keterangan kecil di bawah tiap baris "tahap yang dipakai": kenapa
+   sebuah tahap tidak terpakai. Dibuat redup supaya nama modelnya
+   tetap yang pertama terbaca. */
+.why-block .row.alasan {
+    margin-top: -4px;
+    font-size: 12px;
+    color: var(--muted);
+    opacity: .85;
+}
+.why-block .row.alasan span:last-child { text-align: right; }
