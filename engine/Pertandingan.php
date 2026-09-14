@@ -436,7 +436,9 @@ TXT;
             $target = 'wan';
         }
 
-        $perKlip = max(4, min(self::MAKS_DETIK_KLIP, (int)($opsi['detik_per_klip'] ?? 10)));
+        // Batas bawah 1 detik: kamu memintanya, dan klip satu detik memang
+        // masuk akal untuk satu pukulan tunggal yang mau disambung manual.
+        $perKlip = max(1, min(self::MAKS_DETIK_KLIP, (int)($opsi['detik_per_klip'] ?? 10)));
         $total   = max($perKlip, (int)($opsi['detik_total'] ?? 60));
         $jumlah  = max(1, min(self::MAKS_KLIP, (int)ceil($total / $perKlip)));
 
@@ -457,6 +459,16 @@ TXT;
         $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip);
 
         // ---- klip ----
+        // PILIHANMU MENIMPA HASIL BACAAN, bukan ditempel sesudahnya.
+        //
+        // Ini yang dulu salah. Kalimat "tidak ada penonton" ditambahkan di
+        // akhir, sementara tag `crowd` dan kalimat cahaya "bright overhead
+        // spotlights" hasil pembacaan tetap duduk di badan prompt. Dua
+        // pernyataan yang bertabrakan, dan yang menang justru yang lebih
+        // awal dan lebih menyatu — jadi keluarlah arena yang penuh sesak
+        // padahal kamu memilih ring bawah tanah yang kosong.
+        $ekstrak = self::terapkanLatar($ekstrak, $opsi);
+
         $latarBlok = self::blokLatar($ekstrak, $opsi);
 
         $klip    = [];
@@ -706,7 +718,7 @@ TXT;
     private static function kolamAwal(string $M, string $K, string $menang, string $kalah): array
     {
         return [
-            ['camera' => 'a wide establishing shot from the crowd side, the whole ring in frame',
+            ['camera' => 'a wide establishing shot from outside the ropes, the whole ring in frame',
              'camera_move' => 'push_in', 'actor' => $menang,
              'action' => 'The bell rings and both fighters come out of their corners. ' . $M . ' and ' . $K
                        . ' circle at range with gloves held high, ' . self::kecil(self::GERAK['twos']) . '.',
@@ -822,7 +834,7 @@ TXT;
             ['camera' => 'a wide shot with both fighters small against the dark arena',
              'camera_move' => 'static', 'actor' => $menang,
              'action' => 'Pulled back, the exchange plays out in the middle of a pool of light, '
-                       . 'the crowd a wall of darkness around them.',
+                       . 'everything beyond it swallowed by darkness.',
              'sound' => 'impacts echoing across the hall'],
         ];
     }
@@ -855,7 +867,8 @@ TXT;
                        . 'to stay upright.',
              'sound' => 'ropes creaking under weight, ragged breathing'],
 
-            ['camera' => 'a reaction cut to the crowd, faces out of focus',
+            ['butuh_penonton' => true,
+             'camera' => 'a reaction cut to the crowd, faces out of focus',
              'camera_move' => 'pan', 'actor' => $menang,
              'action' => 'A fast pan across blurred faces at ringside, mouths open, phones raised, '
                        . 'before cutting back to the ring.',
@@ -975,6 +988,34 @@ TXT;
         }
     }
 
+    /**
+     * Buang penonton dari deskripsi suara.
+     *
+     * Kolam shot ditulis untuk pertandingan bertiket, jadi hampir semua
+     * suaranya menyebut kerumunan: "a low crowd murmur", "the crowd on its
+     * feet". Di ring bawah tanah yang kosong itu bukan cuma janggal — model
+     * video membaca suara sebagai petunjuk isi gambar juga, jadi menyebut
+     * kerumunan sama saja meminta kerumunan digambar.
+     *
+     * Yang tersisa setelah klausa penontonnya dibuang bisa jadi kosong;
+     * kalau begitu, diganti suara ruangan kosong supaya baris Sound-nya
+     * tidak jadi hampa.
+     */
+    private static function suaraTanpaPenonton(string $s): string
+    {
+        // klausa yang dipisah koma dan menyebut penonton
+        $bagian = array_map('trim', explode(',', $s));
+        $sisa   = array_values(array_filter($bagian, static function (string $x): bool {
+            return preg_match('/\b(crowd|audience|spectators|chant|announcer)\b/i', $x) !== 1;
+        }));
+
+        if ($sisa === []) {
+            return 'the sound echoing off bare walls, breathing loud in the empty room';
+        }
+
+        return implode(', ', $sisa) . ', everything echoing in the empty room';
+    }
+
     /** Ekstrak untuk satu klip: kondisi dan aksi disetel sesuai babaknya. */
     private static function ekstrakKlip(array $dasar, array $b, int $detik): array
     {
@@ -1028,11 +1069,22 @@ TXT;
         // $b['ringkas'] itu untuk layar, bahasa Indonesia — kalau ikut
         // masuk ke sini, promptnya jadi dua bahasa.
         $e['prose'] = '';
+        // Suara kerumunan dibuang kalau ringnya memang kosong.
+        $shots = $b['shots'];
+        if (($e['environment']['crowd'] ?? 'packed') === 'none') {
+            // Shot yang seluruhnya tentang penonton — reaction cut ke
+            // wajah-wajah di ringside — tidak punya isi di ring kosong.
+            $shots = array_values(array_filter($shots, static fn(array $x): bool => empty($x['butuh_penonton'])));
+            foreach ($shots as $k => $sh) {
+                $shots[$k]['sound'] = self::suaraTanpaPenonton((string)($sh['sound'] ?? ''));
+            }
+        }
+
         $e['video'] = [
             'duration'        => $detik,
             'fps_feel'        => $b['akhir'] ? 'mixed' : 'realtime',
             'style_paragraph' => '',
-            'shots'           => $b['shots'],
+            'shots'           => $shots,
         ];
 
         return $e;
@@ -1138,6 +1190,59 @@ TXT;
      * yang tidak diminta disebut secara tegas TIDAK ADA, karena model video
      * gemar menambahkan wasit sendiri kalau dibiarkan diam.
      */
+    /**
+     * Terapkan pilihan latar dan penonton ke DALAM ekstraknya.
+     *
+     * Bukan ditambahkan sebagai kalimat di akhir — yang itu tidak cukup,
+     * karena tag dan kalimat cahaya hasil pembacaan tetap tinggal di badan
+     * prompt dan bertabrakan dengannya. Yang dibersihkan:
+     *
+     *   - tag penonton (crowd, audience, stadium) dibuang kalau kamu
+     *     memilih ring kosong;
+     *   - tag dan kalimat cahaya bawaan latar menggantikan yang terbaca,
+     *     tapi HANYA kalau kamu tidak memberi gambar arena — gambar acuan
+     *     selalu lebih spesifik daripada pilihan dropdown, jadi itu menang.
+     */
+    private static function terapkanLatar(array $e, array $opsi): array
+    {
+        $adaGambarArena = trim((string)($e['environment']['verbatim'] ?? '')) !== '';
+
+        $latar = isset(self::LATAR[(string)($opsi['latar'] ?? '')]) ? (string)$opsi['latar'] : null;
+        if ($latar !== null && !$adaGambarArena) {
+            $e['environment']['tags']  = self::LATAR[$latar]['tags'];
+            $e['environment']['venue'] = self::LATAR[$latar]['kalimat'];
+            // Cahaya hasil pembacaan ikut diganti: "bright overhead
+            // spotlights" milik arena resmi akan melawan ruang bawah tanah
+            // yang cuma punya satu bohlam.
+            $e['lighting'] = ['summary' => '', 'tags' => []];
+        }
+
+        $penonton = isset(self::PENONTON[(string)($opsi['penonton'] ?? '')])
+            ? (string)$opsi['penonton'] : 'penuh';
+
+        $e['environment']['crowd'] = ['penuh' => 'packed', 'jarang' => 'sparse', 'kosong' => 'none'][$penonton];
+
+        // Dibaca rencanaVideo() supaya baris penutup ikut menyebut wasit
+        // waktu kamu memintanya walau tanpa gambar acuan.
+        $e['environment']['wasit'] = !empty($opsi['wasit']);
+
+        if ($penonton === 'kosong') {
+            $buang = ['crowd', 'audience', 'stadium', 'spectators'];
+            $e['environment']['tags'] = array_values(array_filter(
+                $e['environment']['tags'],
+                static fn(string $t): bool => !in_array($t, $buang, true)
+            ));
+            $e['danbooru_tags'] = array_values(array_filter(
+                $e['danbooru_tags'],
+                static fn(string $t): bool => !in_array($t, $buang, true)
+            ));
+        } elseif (!in_array('crowd', $e['environment']['tags'], true)) {
+            $e['environment']['tags'][] = 'crowd';
+        }
+
+        return $e;
+    }
+
     private static function blokLatar(array $ekstrak, array $opsi): string
     {
         $b = [];

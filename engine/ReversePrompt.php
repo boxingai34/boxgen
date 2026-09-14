@@ -710,6 +710,13 @@ TXT;
             'ring'  => !empty($env['ring']),
             'ropes' => !empty($env['ropes']),
             'crowd' => $teks($env['crowd'] ?? 'none', 40),
+            // Diminta halaman Rancang Pertandingan waktu kamu mencentang
+            // "ada wasit" tanpa memberi gambar acuannya. Harus ikut dibawa
+            // di sini: normalisasi() membangun ulang seluruh blok
+            // environment, jadi kunci yang tidak disebut akan hilang diam-
+            // diam — dan blok penutup lalu menyatakan tidak ada wasit
+            // sementara blok Scene menyatakan ada.
+            'wasit' => !empty($env['wasit']),
             'props' => array_values(array_filter(array_map('strval', is_array($env['props'] ?? null) ? $env['props'] : []))),
             'tags'  => $tagList($env['tags'] ?? []),
         ];
@@ -2608,6 +2615,14 @@ TXT;
             'gaya'     => rtrim($gaya, '. '),
             'tempat'   => $tempat,
             'cahaya'   => $e['lighting']['summary'],
+            // Dibawa supaya blok penutup tahu siapa yang benar-benar ada di
+            // pinggir ring, dan tidak menyebut penonton yang tidak ada.
+            'penonton' => (string)($e['environment']['crowd'] ?? 'packed'),
+            // Ada kalau ada subjek berperan wasit, ATAU kalau halaman
+            // memintanya tanpa gambar acuan. Dua blok yang bicara soal
+            // wasit harus sepakat; kalau tidak, promptnya menyuruh dan
+            // melarang sekaligus.
+            'wasit'    => self::adaPeran($e, 'referee') || !empty($e['environment']['wasit']),
             'acuan_latar' => false,
             'nsfw_ada' => self::adaKetelanjangan($e),
         ];
@@ -2783,6 +2798,17 @@ TXT;
         return $teks;
     }
 
+    /** Apakah ada orang dengan peran ini di antara subjeknya? */
+    private static function adaPeran(array $e, string $peran): bool
+    {
+        foreach ($e['subjects'] as $s) {
+            if (($s['role'] ?? 'fighter') === $peran) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static function batasanWan(array $r): string
     {
         $b = [];
@@ -2806,9 +2832,32 @@ TXT;
                      . 'side of frame and ' . $kanan['nama'] . ' (Image ' . $kanan['nomor'] . ') stays on the right.';
             }
         }
-        $b[] = 'Only the two boxers are clearly readable; the referee and the crowd '
-             . 'stay as soft background bokeh. Every movement stays physically possible, '
-             . 'with weight and follow-through.';
+        // Jangan menyebut penonton dan wasit kalau memang tidak ada.
+        //
+        // Kalimat ini dulu paten: "the referee and the crowd stay as soft
+        // background bokeh". Untuk ring bawah tanah tanpa penonton dan
+        // tanpa wasit, itu justru MENYURUH model menggambar keduanya —
+        // menyebut sesuatu sebagai latar tetap saja menyebutnya ada. Lalu
+        // beberapa baris kemudian ada kalimat lain yang bilang tidak ada
+        // siapa-siapa, dan promptnya menyangkal dirinya sendiri.
+        $adaPenonton = !in_array((string)($r['penonton'] ?? 'packed'), ['none', 'kosong', ''], true);
+        $adaWasit    = !empty($r['wasit']);
+
+        $latar = [];
+        if ($adaWasit) {
+            $latar[] = 'the referee';
+        }
+        if ($adaPenonton) {
+            $latar[] = 'the crowd';
+        }
+
+        $b[] = $latar === []
+            ? 'Only the two boxers are in shot at any time. Every movement stays '
+              . 'physically possible, with weight and follow-through.'
+            : 'Only the two boxers are clearly readable; ' . implode(' and ', $latar)
+              . (count($latar) === 1 ? ' stays' : ' stay')
+              . ' as soft background bokeh. Every movement stays physically possible, '
+              . 'with weight and follow-through.';
         if ($r['cahaya'] !== '') {
             $b[] = SeedanceBuilder::kalimat('Lighting stays ' . $r['cahaya']);
         }

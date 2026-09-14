@@ -101,27 +101,29 @@ halamanHeader('Rancang Pertandingan');
             <div class="field">
                 <label for="durasi">Panjang video</label>
                 <select id="durasi">
-                    <option value="30">30 detik (3 klip)</option>
-                    <option value="60" selected>1 menit (6 klip)</option>
-                    <option value="90">1,5 menit (9 klip)</option>
-                    <option value="120">2 menit (12 klip)</option>
-                    <option value="180">3 menit (18 klip)</option>
-                    <option value="240">4 menit (24 klip)</option>
+                    <option value="15">15 detik</option>
+                    <option value="30">30 detik</option>
+                    <option value="60" selected>1 menit</option>
+                    <option value="90">1,5 menit</option>
+                    <option value="120">2 menit</option>
+                    <option value="180">3 menit</option>
+                    <option value="240">4 menit</option>
                 </select>
             </div>
             <div class="field">
                 <label for="perklip">Panjang tiap klip</label>
                 <select id="perklip">
-                    <option value="5">5 detik</option>
-                    <option value="10" selected>10 detik</option>
-                    <option value="15">15 detik</option>
+                    <?php for ($d = 1; $d <= Pertandingan::MAKS_DETIK_KLIP; $d++): ?>
+                        <option value="<?= $d ?>"<?= $d === 10 ? ' selected' : '' ?>><?= $d ?> detik</option>
+                    <?php endfor; ?>
                 </select>
             </div>
         </div>
         <p class="hint">
-            Wan dan Seedance menghasilkan klip pendek, bukan satu film. "1 menit"
-            berarti <strong>6 prompt berurutan</strong> yang kamu hasilkan satu per satu
-            lalu sambung sendiri di editor video.
+            Wan dan Seedance menghasilkan klip pendek, bukan satu film. Panjang video
+            dibagi jadi beberapa prompt berurutan yang kamu hasilkan satu per satu lalu
+            sambung sendiri di editor. Jumlahnya dihitung di bawah tombol Rancang.
+            Makin pendek tiap klip, makin banyak potongan kamera per detiknya.
         </p>
 
         <div class="field-row">
@@ -239,5 +241,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=2"></script>
+<script src="assets/js/pertandingan.js?v=3"></script>
 <?php halamanFooter(); ?>

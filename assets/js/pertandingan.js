@@ -397,7 +397,11 @@ function pasang() {
         const total = parseInt($('#durasi').value, 10);
         const per   = parseInt($('#perklip').value, 10);
         const n = Math.max(1, Math.ceil(total / per));
-        $('#rancang-note').textContent = `${n} klip x ${per} detik = ${n * per} detik.`;
+        // Jumlah shot per klip kira-kira satu tiap 2,5 detik; ditampilkan
+        // supaya kelihatan bahwa klip pendek = potongan lebih cepat.
+        const shot = Math.max(2, Math.min(8, Math.round(per / 2.5)));
+        $('#rancang-note').textContent =
+            `${n} klip x ${per} detik = ${n * per} detik, sekitar ${shot} shot tiap klip.`;
     };
     $('#durasi').addEventListener('change', hitung);
     $('#perklip').addEventListener('change', hitung);
