@@ -239,6 +239,25 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
             <input type="checkbox" id="opsi-fewshot" checked>
             Sertakan contoh emas
         </label>
+        <label class="check">
+            <input type="checkbox" id="opsi-dewasa" checked>
+            Petinju dewasa (mature female/male)
+        </label>
+        <label class="check">
+            <input type="checkbox" id="opsi-agedup">
+            Versi dewasa dari karakter anak (aged up)
+        </label>
+        <p class="hint">
+            <strong>Petinju dewasa</strong> memasang tag <code>mature_female</code> /
+            <code>mature_male</code>. NovelAI cenderung menggambar wajah remaja kalau
+            tidak diberi tahu, jadi biarkan menyala. Matikan hanya kalau wajahnya jadi
+            terlalu tua.
+            <br>
+            <strong>Versi dewasa</strong> memasang <code>aged_up</code>, khusus untuk
+            karakter yang aslinya memang anak-anak. Tanpa itu, tag karakternya sendiri
+            akan menarik wujud aslinya kembali. Keduanya hanya berlaku untuk NovelAI —
+            Wan dan Seedance tidak mengerti kosakata Danbooru.
+        </p>
         <p class="hint" id="opsi-note"></p>
 
         <div class="actions">
@@ -345,5 +364,5 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
 </div>
 
-<script src="assets/js/reverse.js?v=6"></script>
+<script src="assets/js/reverse.js?v=7"></script>
 <?php halamanFooter(); ?>

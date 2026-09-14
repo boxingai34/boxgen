@@ -170,7 +170,7 @@ final class Thumbnail
             'limit' => 3,
         ]);
 
-        $ch = curl_init($url);
+        $ch = Http::buka($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 15,
@@ -236,7 +236,7 @@ final class Thumbnail
         $path = $dir . '/' . $nama;
 
         if (!is_file($path)) {
-            $ch = curl_init($hasil['url']);
+            $ch = Http::buka($hasil['url']);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT        => 15,

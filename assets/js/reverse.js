@@ -1082,6 +1082,19 @@ function terapkanKolom() {
         // Diketik atau dipilih sendiri oleh user = pasti, bukan tebakan.
         if (c && c !== inputChar.dataset.awal) s.character_confidence = 1;
 
+        // Kamu MENGGANTI karakter yang sudah dikenali pembaca.
+        //
+        // Rambut, mata, dan ukuran dada yang terbaca itu milik orang yang
+        // lama. Kalau Yor diganti Anya tanpa penanda ini, rambut hitam dan
+        // mata merah Yor ikut terbawa dan hasilnya bukan siapa-siapa.
+        // Penanda ini menyuruh server membuangnya dan mengambil ciri milik
+        // karakter yang baru.
+        //
+        // Hanya kalau sebelumnya MEMANG ada yang dikenali. Kalau kotaknya
+        // tadinya kosong, ciri yang terbaca itu berasal dari gambarnya
+        // sendiri, bukan dari karakter yang salah — itu tidak boleh dibuang.
+        s.character_diubah = Boolean(c && inputChar.dataset.awal && c !== inputChar.dataset.awal);
+
         s.stance = $('.s-stance', kartu).value;
         s.action = (s.action && typeof s.action === 'object') ? s.action : {};
         s.action.type = $('.s-action', kartu).value;
@@ -1132,6 +1145,8 @@ function kumpulOpsi() {
         haluskan: $('#opsi-haluskan').checked,
         polish:   $('#opsi-polish').checked,
         fewshot:  $('#opsi-fewshot').checked,
+        dewasa:   $('#opsi-dewasa').checked,
+        aged_up:  $('#opsi-agedup').checked,
         gaya: {
             style_id: parseInt(selGaya.value, 10) || null,
             artis:    $('#artis').value.trim().slice(0, 500),
@@ -1144,7 +1159,8 @@ function kumpulOpsi() {
 
 function pasangOpsi(o) {
     if (!o || typeof o !== 'object') return;
-    [['nsfw', '#opsi-nsfw'], ['haluskan', '#opsi-haluskan'], ['polish', '#opsi-polish'], ['fewshot', '#opsi-fewshot']]
+    [['nsfw', '#opsi-nsfw'], ['haluskan', '#opsi-haluskan'], ['polish', '#opsi-polish'],
+     ['fewshot', '#opsi-fewshot'], ['dewasa', '#opsi-dewasa'], ['aged_up', '#opsi-agedup']]
         .forEach(([k, sel]) => {
             const cb = $(sel);
             if (o[k] !== undefined && !cb.disabled) cb.checked = !!o[k];

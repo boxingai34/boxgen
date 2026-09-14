@@ -217,7 +217,7 @@ if (!function_exists('curl_init')) {
     gagal('Ekstensi cURL tidak aktif. Nyalakan extension=curl di php.ini.');
 } else {
     $t0 = microtime(true);
-    $ch = curl_init(DANBOORU_BASE . '/tags.json?limit=1&search%5Border%5D=count');
+    $ch = Http::buka(DANBOORU_BASE . '/tags.json?limit=1&search%5Border%5D=count');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 20,
@@ -294,7 +294,7 @@ if (!AiClient::isConfigured()) {
     say('');
 
     if (AI_PROVIDER === 'gemini') {
-        $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models');
+        $ch = Http::buka('https://generativelanguage.googleapis.com/v1beta/models');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
@@ -340,7 +340,7 @@ if (!AiClient::isConfigured()) {
             }
         }
     } elseif (AI_PROVIDER === 'claude') {
-        $ch = curl_init('https://api.anthropic.com/v1/models?limit=100');
+        $ch = Http::buka('https://api.anthropic.com/v1/models?limit=100');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,

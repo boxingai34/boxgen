@@ -9,7 +9,7 @@ require __DIR__ . '/_bootstrap.php';
  * GET  api/reverse.php?action=status
  * POST api/reverse.php?action=ambil_url { url, frames }
  * POST api/reverse.php?action=baca   { kind, images[{data,mime,t,w,h}], sheet{data,mime}|null, duration, hint }
- * POST api/reverse.php?action=susun  { ekstrak, target, opsi{nsfw,haluskan,polish,fewshot,wan{rasio,detik}} }
+ * POST api/reverse.php?action=susun  { ekstrak, target, opsi{nsfw,haluskan,polish,fewshot,dewasa,aged_up,wan{rasio,detik}} }
  * GET  api/reverse.php?action=muat&id=N
  *
  * Jatah: satu "baca" atau satu "susun" = satu hit pada aksi 'reverse'
@@ -200,6 +200,11 @@ switch ($action) {
             'haluskan' => !empty($o['haluskan']),
             'polish'   => !array_key_exists('polish', $o) || !empty($o['polish']),
             'fewshot'  => !array_key_exists('fewshot', $o) || !empty($o['fewshot']),
+            // Umur: dewasa nyala secara bawaan (NovelAI condong ke wajah
+            // remaja kalau dibiarkan), aged_up mati secara bawaan karena
+            // cuma perlu untuk karakter yang aslinya anak-anak.
+            'dewasa'   => !array_key_exists('dewasa', $o) || !empty($o['dewasa']),
+            'aged_up'  => !empty($o['aged_up']),
             'gaya'     => [
                 'style_id' => (int)($g['style_id'] ?? 0) > 0 ? (int)$g['style_id'] : null,
                 'artis'    => mb_substr(trim((string)($g['artis'] ?? '')), 0, ReversePrompt::MAKS_ARTIS),

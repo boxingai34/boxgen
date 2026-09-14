@@ -57,7 +57,7 @@ function suggest(string $name): array
         'search[hide_empty]'    => 'yes',
     ]);
 
-    $ch = curl_init($url);
+    $ch = Http::buka($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,

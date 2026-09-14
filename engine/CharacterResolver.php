@@ -39,6 +39,29 @@ final class CharacterResolver
         '/_skin$/', '/_breasts$/', '/_horns?$/', '/_ears$/', '/_tail$/',
     ];
 
+    /**
+     * Kata warna, dipakai untuk membedakan "pink_hair" (warna) dari
+     * "long_hair" (panjang). Keduanya berakhiran _hair, tapi yang satu
+     * saling meniadakan dan yang satu tidak.
+     */
+    private const WARNA = [
+        'aqua', 'black', 'blonde', 'blue', 'brown', 'green', 'grey', 'gray',
+        'orange', 'pink', 'purple', 'red', 'silver', 'white', 'yellow',
+        'light_brown', 'dark_brown', 'light_blue', 'dark_blue', 'light_green',
+        'dark_green', 'light_purple', 'dark_skinned', 'multicolored',
+        'two-tone', 'streaked', 'gradient', 'colored', 'dark', 'pale', 'tan',
+    ];
+
+    /**
+     * Ciri yang saling meniadakan: satu karakter tidak mungkin punya dua.
+     *
+     * Ini bukan kerewelan. /related_tag.json menghitung tag yang SERING
+     * MUNCUL BERSAMA, bukan tag milik karakternya. Anya hampir selalu
+     * digambar bersama Yor dan Loid, jadi "black_hair" ikut lolos ambang
+     * dan Anya jadi berambut merah muda sekaligus hitam. Dengan aturan
+     * ini yang dipakai cuma yang frekuensinya tertinggi — Danbooru sudah
+     * mengurutkan jawabannya dari yang paling sering.
+     */
     private const PENAMPILAN_PERSIS = [
         'long_hair', 'short_hair', 'very_long_hair', 'medium_hair',
         'twintails', 'ponytail', 'braid', 'twin_braids', 'sidelocks',
@@ -286,7 +309,8 @@ final class CharacterResolver
 
         // --- 2. tag penampilan ---
         $general = self::relatedTags($booruTag, 'general', 40);
-        $urut = 0;
+        $urut    = 0;
+        $terpakai = [];   // keluarga ciri yang sudah terisi
 
         foreach ($general as $r) {
             if ($urut >= self::MAKS_PENAMPILAN) {
@@ -297,6 +321,17 @@ final class CharacterResolver
             }
             if (!self::terlihatSepertiPenampilan($r['name'])) {
                 continue;
+            }
+
+            // Danbooru mengurutkan dari yang paling sering, jadi yang
+            // pertama masuk untuk sebuah keluarga adalah yang paling
+            // mungkin benar-benar milik karakter ini.
+            $keluarga = self::keluargaCiri($r['name']);
+            if ($keluarga !== null) {
+                if (isset($terpakai[$keluarga])) {
+                    continue;
+                }
+                $terpakai[$keluarga] = true;
             }
 
             $tagId = TagResolver::getOrCreate($r['name'], 0, 'appearance');
@@ -318,9 +353,7 @@ final class CharacterResolver
             'limit'    => $limit,
         ]);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
+        $ch = Http::buka($url, [
             CURLOPT_TIMEOUT        => 20,
             CURLOPT_CONNECTTIMEOUT => 8,
             CURLOPT_USERAGENT      => DANBOORU_USER_AGENT,
@@ -329,10 +362,14 @@ final class CharacterResolver
 
         $raw    = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $gagal  = $raw === false ? Http::pesanGagal($ch, 'Danbooru') : '';
         curl_close($ch);
 
-        if ($raw === false || $status >= 400) {
-            throw new RuntimeException('Gagal mengambil tag terkait dari Danbooru.');
+        if ($raw === false) {
+            throw new RuntimeException($gagal);
+        }
+        if ($status >= 400) {
+            throw new RuntimeException('Danbooru menolak permintaan (HTTP ' . $status . ').');
         }
 
         $json = json_decode((string)$raw, true);
@@ -352,6 +389,27 @@ final class CharacterResolver
         }
 
         return $out;
+    }
+
+    /**
+     * Nama keluarga ciri yang saling meniadakan, atau null kalau tagnya
+     * boleh berdampingan dengan yang lain.
+     */
+    private static function keluargaCiri(string $name): ?string
+    {
+        if (in_array($name, ['flat_chest'], true) || preg_match('/_breasts$/', $name) === 1) {
+            return 'dada';
+        }
+        // Didahulukan: "long_hair" juga berakhiran _hair, tapi keluarganya
+        // panjang rambut, bukan warna rambut.
+        if (in_array($name, ['long_hair', 'short_hair', 'medium_hair', 'very_long_hair', 'absurdly_long_hair'], true)) {
+            return 'panjang_rambut';
+        }
+        if (preg_match('/^(.+)_(hair|eyes|skin)$/', $name, $m) === 1
+            && in_array($m[1], self::WARNA, true)) {
+            return 'warna_' . $m[2];
+        }
+        return null;
     }
 
     private static function terlihatSepertiPenampilan(string $name): bool

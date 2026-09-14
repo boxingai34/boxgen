@@ -679,7 +679,7 @@ final class AiClient
             throw new RuntimeException('Ekstensi cURL tidak aktif di server ini.');
         }
 
-        $ch = curl_init($url);
+        $ch = Http::buka($url);
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),

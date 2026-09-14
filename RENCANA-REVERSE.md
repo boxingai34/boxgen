@@ -34,12 +34,19 @@ Prinsip yang tidak boleh dilanggar:
 
 | Berkas | Pemilik |
 |---|---|
-| `config.php` (konstanta baru), `engine/AiClient.php` (profil + input gambar), `engine/ReversePrompt.php`, `api/reverse.php`, `engine/Riwayat.php` (label judul), `README.md` | mesin (Claude, utama) |
+| `config.php` (konstanta baru), `engine/AiClient.php` (profil + input gambar), `engine/Http.php`, `engine/ReversePrompt.php`, `api/reverse.php`, `engine/Riwayat.php` (label judul), `README.md` | mesin (Claude, utama) |
 | `reverse.php`, `assets/js/reverse.js`, `assets/css/style.css` (tambahan di akhir + bump `?v=`), `_page.php` (menu + bump), `history.php` (label mode + tombol "Buka") | agen UI |
 | `database/migrations/010_reverse_prompt.sql`, `database/schema.sql` (tabel 20), `engine/Golden.php`, `tools/import_golden.php` | agen data |
 
 Jangan menyentuh berkas milik orang lain. Kalau butuh perubahan di sana,
 tulis di laporan akhir, jangan disunting sendiri.
+
+**Semua panggilan HTTP keluar lewat `Http::buka()`, jangan `curl_init()`
+langsung.** PHP di XAMPP memakai daftar sertifikat root bawaan yang sudah
+usang, jadi handle yang dibuat sendiri gagal dengan "unable to get local
+issuer certificate" — dan karena kegagalannya sering ditelan blok `catch`
+di pemanggilnya, yang terlihat cuma hasil kosong tanpa pesan kesalahan.
+`Http::buka()` memasang `CA_BUNDLE` supaya itu tidak terulang.
 
 ---
 
@@ -176,9 +183,18 @@ Permintaan:
   "ekstrak": { ...§4, boleh sudah disunting user... },
   "target": "nai5" | "wan" | "seedance25",
   "opsi": { "nsfw": true, "haluskan": false, "polish": true, "fewshot": true,
+            "dewasa": true, "aged_up": false,
             "wan": { "rasio": "16:9", "detik": 10 }, "seedance": { "resolusi": "720p" } }
 }
 ```
+`dewasa` (bawaan nyala) memasang `mature_female` / `mature_male`; `aged_up`
+(bawaan mati) memasang `aged_up` untuk karakter yang aslinya anak-anak.
+Keduanya hanya berlaku untuk `nai5` dan untuk lembar acuan video — Wan dan
+Seedance tidak mengerti kosakata Danbooru.
+
+Kalau `dewasa` dimatikan, tag `mature_female` yang terlanjur ditulis pembaca
+di `body` ikut dibuang, supaya centangnya benar-benar berpengaruh.
+
 Jawaban untuk `nai5`:
 ```json
 {

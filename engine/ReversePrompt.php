@@ -459,6 +459,10 @@ TXT;
                 'sex_evidence'         => $teks($s['sex_evidence'] ?? '', 200),
                 'character'            => $char,
                 'character_confidence' => $skor($s['character_confidence'] ?? 0),
+                // Ditandai halaman waktu kamu mengganti sendiri nama
+                // karakternya. Bedanya besar: kalau diganti, ciri yang
+                // TERBACA dari gambar itu milik orang yang lama.
+                'character_diubah'     => !empty($s['character_diubah']),
                 'series'               => $teks($s['series'] ?? '', 120) ?: null,
                 'hair'                 => $tagList($s['hair'] ?? []),
                 'eyes'                 => $tagList($s['eyes'] ?? []),
@@ -633,6 +637,55 @@ TXT;
             if ($row !== null) {
                 $karakter[$sisi] = $row;
                 $ekstrak['subjects'][$i]['character'] = $row['tag'];
+
+                // KARAKTER DIGANTI SENDIRI OLEH KAMU.
+                //
+                // Rambut dan mata yang dibaca dari gambar itu milik orang
+                // yang LAMA. Kalau Yor diganti Anya, rambut hitam dan mata
+                // merah Yor ikut terbawa dan hasilnya bukan siapa-siapa.
+                // Jadi ciri identitasnya dibuang, lalu diganti ciri milik
+                // karakter yang baru — diambil dari Danbooru sekali seumur
+                // hidup, karena kamus lokal hampir tidak pernah punya.
+                if (!empty($s['character_diubah'])) {
+                    $ciriBaru = self::ciriKarakter($row['tag']);
+
+                    $ekstrak['subjects'][$i]['hair'] = [];
+                    $ekstrak['subjects'][$i]['eyes'] = [];
+                    // ukuran dada juga identitas, bukan bentuk badan petinju
+                    $ekstrak['subjects'][$i]['body'] = array_values(array_filter(
+                        $s['body'],
+                        static fn(string $t): bool => !str_ends_with($t, '_breasts')
+                    ));
+
+                    if ($ciriBaru !== []) {
+                        // Ditaruh di kolom yang benar, bukan ditumpuk semua
+                        // di 'hair'. Panel pembacaan menampilkan tiap kolom
+                        // apa adanya, jadi mata di kotak rambut kelihatan
+                        // salah walaupun hasil promptnya sama saja.
+                        foreach ($ciriBaru as $ciri) {
+                            if (str_ends_with($ciri, '_eyes') || $ciri === 'heterochromia') {
+                                $kolom = 'eyes';
+                            } elseif (str_ends_with($ciri, '_breasts') || str_ends_with($ciri, '_skin')
+                                   || in_array($ciri, ['flat_chest', 'muscular_female', 'toned', 'abs', 'freckles'], true)) {
+                                $kolom = 'body';
+                            } else {
+                                $kolom = 'hair';
+                            }
+                            $ekstrak['subjects'][$i][$kolom][] = $ciri;
+                        }
+                        $catatan[] = 'Petinju ' . strtoupper($sisi) . ' diganti jadi ' . $row['name']
+                                   . ', jadi ciri dari gambar aslinya dibuang dan diganti ciri ' . $row['name']
+                                   . ': ' . implode(', ', array_map(
+                                       static fn(string $t): string => str_replace('_', ' ', $t),
+                                       $ciriBaru
+                                   )) . '.';
+                    } else {
+                        $catatan[] = 'Petinju ' . strtoupper($sisi) . ' diganti jadi ' . $row['name']
+                                   . ', jadi rambut dan mata dari gambar aslinya dibuang. Ciri '
+                                   . $row['name'] . ' belum ada di kamus, jadi wujudnya diserahkan '
+                                   . 'ke tag karakternya sendiri.';
+                    }
+                }
             } elseif ($s['character'] !== null) {
                 $catatan[] = 'Tebakan karakter "' . $s['character'] . '" untuk petinju '
                            . strtoupper($sisi) . ' tidak ada di database, jadi tidak dipakai.';
@@ -640,8 +693,11 @@ TXT;
                 $ekstrak['subjects'][$i]['character'] = null;
             }
 
+            // Dibaca dari $ekstrak, bukan dari $s. $s itu potret sebelum
+            // penggantian karakter di atas; kalau dibaca dari situ, ciri
+            // karakter lama yang baru saja dibuang malah balik lagi.
             foreach (['hair', 'eyes', 'body', 'tags'] as $k) {
-                [$ok, $gagal] = self::validasiTag($s[$k]);
+                [$ok, $gagal] = self::validasiTag($ekstrak['subjects'][$i][$k]);
                 $ekstrak['subjects'][$i][$k] = $ok;
                 $dikenal += count($ok);
                 $ditolak  = array_merge($ditolak, $gagal);
@@ -828,6 +884,38 @@ TXT;
         }
 
         return null;
+    }
+
+    /**
+     * Ciri penampilan milik sebuah karakter, dari kamus.
+     *
+     * Kalau belum pernah diambil, sekali ini boleh memanggil Danbooru:
+     * dari 21 ribu karakter cuma 40 yang ciri penampilannya sudah terisi,
+     * jadi tanpa panggilan itu penggantian karakter hampir selalu berakhir
+     * tanpa ciri sama sekali. Hasilnya tersimpan permanen, jadi ongkos
+     * dua detiknya cuma sekali per karakter.
+     *
+     * @return string[]
+     */
+    private static function ciriKarakter(string $booruTag): array
+    {
+        try {
+            $char = CharacterResolver::ensure($booruTag, true);
+        } catch (Throwable $e) {
+            $char = CharacterResolver::ensure($booruTag, false);
+        }
+        if ($char === null) {
+            return [];
+        }
+
+        $ciri = [];
+        foreach (PromptBuilder::characterTags((int)$char['id']) as $t) {
+            if (($t['role'] ?? '') === 'appearance') {
+                $ciri[] = (string)$t['name'];
+            }
+        }
+
+        return array_slice(array_values(array_unique($ciri)), 0, 8);
     }
 
     private static function rowKarakter(string $booruTag): ?array
@@ -1274,6 +1362,62 @@ TXT;
      * mengganti daftar tag dengan nama resmi). Bentuk item mengikuti
      * PromptBuilder: tag_id, name, weight, block, from.
      */
+    /**
+     * Tag umur untuk satu petinju.
+     *
+     * NovelAI condong menggambar wajah remaja kalau tidak diberi tahu, jadi
+     * mature_female / mature_male dipasang secara bawaan. Dua hal yang bisa
+     * kamu atur:
+     *
+     *   dewasa  (bawaan nyala) — matikan kalau tag dewasanya justru bikin
+     *                            wajahnya terlalu tua dari yang kamu mau.
+     *   aged_up (bawaan mati)  — untuk karakter yang aslinya memang anak
+     *                            kecil, misalnya Anya. Tag ini yang dipakai
+     *                            Danbooru untuk versi dewasanya, dan tanpa
+     *                            itu tag karakternya sendiri menarik wujud
+     *                            aslinya balik.
+     *
+     * Khusus NovelAI. Wan dan Seedance tidak mengerti kosakata Danbooru,
+     * jadi untuk video urusan umur diserahkan ke kalimatnya.
+     *
+     * @return string[]
+     */
+    private static function tagUmur(array $s, array $opsi): array
+    {
+        $dewasa = !array_key_exists('dewasa', $opsi) || !empty($opsi['dewasa']);
+        $agedUp = !empty($opsi['aged_up']);
+
+        $out = [];
+        if ($dewasa) {
+            $out[] = $s['sex'] === 'male' ? 'mature_male' : 'mature_female';
+        }
+        if ($agedUp) {
+            $out[] = 'aged_up';
+        }
+
+        return $out;
+    }
+
+    /**
+     * Tag penampilan sebuah petinju, dengan tag umur yang tidak kamu minta
+     * disingkirkan.
+     *
+     * Perlu disaring karena pembacanya disuruh selalu menulis mature_female
+     * di "body". Kalau centangnya kamu matikan tapi tag itu tetap lolos dari
+     * jalur penampilan, centangnya jadi tidak ada gunanya.
+     *
+     * @return string[]
+     */
+    private static function penampilanTanpaUmur(array $s, array $opsi): array
+    {
+        $umur = self::tagUmur($s, $opsi);
+
+        return array_values(array_filter(
+            array_merge($s['hair'], $s['eyes'], $s['body']),
+            static fn(string $t): bool => !in_array($t, ['mature_female', 'mature_male', 'aged_up'], true)
+                                       || in_array($t, $umur, true)
+        ));
+    }
     private static function itemsNovelAI(array $e, array $val, bool $nsfw, array $opsi = []): array
     {
         $items = [];
@@ -1371,8 +1515,10 @@ TXT;
                 }
             }
 
-            $tambah($s['sex'] === 'male' ? 'mature_male' : 'mature_female', 'appearance' . $sfx, $dari . ': dewasa');
-            foreach (array_merge($s['hair'], $s['eyes'], $s['body']) as $t) {
+            foreach (self::tagUmur($s, $opsi) as $t) {
+                $tambah($t, 'appearance' . $sfx, $dari . ': umur');
+            }
+            foreach (self::penampilanTanpaUmur($s, $opsi) as $t) {
                 if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
                     continue;
                 }
@@ -2488,8 +2634,10 @@ TXT;
                     $items[] = ['name' => (string)$char['series_tag'], 'weight' => 1.0];
                 }
             }
-            $items[] = ['name' => $s['sex'] === 'male' ? 'mature_male' : 'mature_female', 'weight' => 1.0];
-            foreach (array_merge($s['hair'], $s['eyes'], $s['body']) as $t) {
+            foreach (self::tagUmur($s, $opsi) as $t) {
+                $items[] = ['name' => $t, 'weight' => 1.0];
+            }
+            foreach (self::penampilanTanpaUmur($s, $opsi) as $t) {
                 if (!in_array($t, self::TAG_NSFW, true)) {
                     $items[] = ['name' => $t, 'weight' => 1.0];
                 }

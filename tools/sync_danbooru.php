@@ -109,7 +109,7 @@ function danbooruGet(string $path, array $query): array
 {
     $url = DANBOORU_BASE . $path . '?' . http_build_query($query);
 
-    $ch = curl_init($url);
+    $ch = Http::buka($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 45,
