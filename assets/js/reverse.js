@@ -61,19 +61,58 @@ async function postJson(url, payload) {
         body: JSON.stringify(payload)
     });
 
+    // Dibaca sebagai teks dulu, baru diurai. Kalau langsung res.json(),
+    // isi jawabannya hilang begitu penguraian gagal — dan justru isi itu
+    // yang berisi pesan error PHP atau halaman error Apache yang kita
+    // butuhkan untuk tahu apa yang sebenarnya terjadi.
+    const mentah = await res.text();
+
     let data;
     try {
-        data = await res.json();
+        data = JSON.parse(mentah);
     } catch {
-        throw new Error('Server membalas bukan JSON (kemungkinan ada error PHP).');
+        throw new Error(jelaskanBukanJson(res, mentah));
     }
     if (!data.ok) throw new Error(data.error || 'Terjadi kesalahan.');
+    if (data.peringatan_php) {
+        console.warn('Peringatan PHP dari server:', data.peringatan_php);
+    }
     return data;
+}
+
+/**
+ * Ubah jawaban yang tidak bisa diurai jadi pesan yang benar-benar berguna.
+ *
+ * "Server membalas bukan JSON" itu pesan buntu: tidak menyebut errornya,
+ * padahal errornya ADA di badan jawaban. Di sini isinya dibersihkan dari
+ * tag HTML lalu ditampilkan apa adanya, supaya yang terbaca adalah pesan
+ * PHP-nya sendiri, bukan tebakan.
+ */
+function jelaskanBukanJson(res, mentah) {
+    const bersih = String(mentah || '')
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (bersih === '') {
+        return `Server membalas kosong (HTTP ${res.status}). `
+             + 'Biasanya berarti PHP berhenti mendadak — kehabisan memori atau melewati batas waktu.';
+    }
+
+    const potong = bersih.length > 600 ? bersih.slice(0, 600) + ' …' : bersih;
+    return `Server membalas bukan JSON (HTTP ${res.status}). Isinya: ${potong}`;
 }
 
 async function getJson(url) {
     const res = await fetch(url);
-    const data = await res.json();
+    const mentah = await res.text();
+    let data;
+    try {
+        data = JSON.parse(mentah);
+    } catch {
+        throw new Error(jelaskanBukanJson(res, mentah));
+    }
     if (!data.ok) throw new Error(data.error || 'Gagal mengambil data.');
     return data;
 }

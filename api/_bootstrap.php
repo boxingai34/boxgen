@@ -184,6 +184,16 @@ register_shutdown_function(static function (): void {
         return;
     }
 
+    // Dicatat juga, bukan cuma dikirim ke halaman. Jawaban JSON hilang
+    // begitu tab ditutup; log-nya tinggal.
+    error_log(sprintf(
+        'FATAL %s di %s:%d saat %s',
+        $e['message'],
+        $e['file'],
+        (int)$e['line'],
+        ($_SERVER['REQUEST_URI'] ?? '?')
+    ));
+
     bersihkanKeluaran();
     if (!headers_sent()) {
         http_response_code(500);

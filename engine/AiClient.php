@@ -330,6 +330,25 @@ final class AiClient
             }
         }
 
+        /*
+         * SETIAP PANGGILAN AI DAPAT JATAH WAKTUNYA SENDIRI.
+         *
+         * Aritmetikanya tidak mungkin sebelum ini: PHP di Apache mati pada
+         * max_execution_time (120 detik di sini), sementara satu panggilan
+         * vision saja boleh memakan 120 detik lewat timeout cURL-nya. Jadi
+         * membaca gambar yang berat sudah mepet, dan begitu pembaca utama
+         * menolak lalu cadangan dicoba, jatahnya jelas habis di tengah
+         * jalan — PHP berhenti mendadak dan yang sampai ke halaman bukan
+         * JSON sama sekali.
+         *
+         * set_time_limit() MENGULANG hitungannya dari nol, jadi memanggilnya
+         * di sini memberi tiap percobaan jendela penuh, bukan sisa jatah
+         * percobaan sebelumnya. Ditambah kelonggaran untuk mengurai
+         * jawabannya. Tetap ada batas: kalau cURL menggantung, timeout
+         * cURL yang menghentikannya, bukan PHP.
+         */
+        @set_time_limit((int)$profil['timeout'] + 60);
+
         $text = match ((string)$profil['provider']) {
             'gemini'            => self::callGemini($profil, $system, $pesan, $expectJson, $opsi),
             'claude'            => self::callClaude($profil, $system, $pesan, $expectJson, $opsi),
