@@ -51,14 +51,14 @@ Image 1 is Boxer A — blonde hair, very long hair, high ponytail, blue eyes, re
 
 Image 2 is Boxer B — black hair, short hair, hair between eyes, brown eyes, blue boxing_gloves, a navy sports bra, white boxing shorts with a blue stripe, and bright blue boxing gloves, boxing_shorts, toned, abs.
 
-Shot 1 [0-3s]: Seen from directly overhead, Boxer A (Image 1) pins Boxer B (Image 2) against the corner, their shadows tight beneath them. A top-down shot directly above the two fighters, the camera orbits around the fighters.
-Sound: impacts and breathing, the crowd a steady roar.
+Shot 1 [0-3s]: Boxer A (Image 1) goes upstairs then downstairs — a jab high to pull the hands up, then a hook to the exposed body. A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc. A snap zoom onto the gloves at chest height, a whip pan into the action.
+Sound: a light snap high, then a heavy thud low.
 
-Shot 2 [3-6s]: Boxer A (Image 1) walks Boxer B (Image 2) down toward the corner with a steady stream of punches, never letting her set her feet. A tracking shot along the ropes, the camera tracks alongside the fighters.
-Sound: a relentless run of impacts, the crowd on its feet.
+Shot 2 [3-6s]: Boxer A (Image 1) cuts the ring off with short lateral steps rather than chasing, shrinking the space until there is nowhere left to go. A Dutch-angled medium shot, the horizon tilted hard, handheld camera with slight shake.
+Sound: short deliberate steps on canvas.
 
-Shot 3 [6-9s]: Boxer B (Image 2) plants her back foot and swings back, but the punch is slow and wide; Boxer A (Image 1) leans away from it easily. The fastest part of the swing draws out into a smear frame, the glove leaving a painted trail behind it. A low-angle shot from the canvas looking up, the camera pushes in slowly.
-Sound: a wild swing cutting air, a shout from the corner.
+Shot 3 [6-9s]: Boxer B (Image 2) digs a shovel hook in on a forty-five degree angle, half hook and half uppercut, lifting up under the elbow. A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc. A tight close-up held on the eyes, the camera pushes in slowly.
+Sound: a compact thud driven up under the ribs.
 
 Shot 4 [9-11s]: Boxer A (Image 1) steps in and lands one clean, flush punch on the jaw of Boxer B (Image 2). A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc, and a one-frame freeze lands on the connection before the recoil begins. An extreme close-up on the point of impact, the impact plays in slow motion.
 Sound: one heavy leather crack, the crowd inhaling.
@@ -87,7 +87,8 @@ lalu simpan — dua kolom berdampingan jauh lebih berguna daripada kesan
 | # | Aspek | Yang harus terlihat | Nilai |
 |---|---|---|---|
 | 1 | **Jumlah potongan** | Ada 6 potongan berbeda dalam 15 detik, bukan satu bidikan panjang | |
-| 2 | **Variasi kamera** | Top-down, tracking, low angle, extreme close-up, whip pan, high wide — enam-enamnya berbeda | |
+| 2 | **Variasi kamera** | Snap zoom, Dutch angle, close-up mata, extreme close-up, whip pan, high wide — enam-enamnya berbeda | |
+| 2b | **Variasi teknik** | Tiap shot pukulan berbeda jenisnya — atas-bawah, shovel hook, straight — bukan pukulan yang sama diulang | |
 | 3 | **Kunci karakter** | Rambut, mata, dan **warna sarung tangan** tidak pernah bertukar sepanjang klip | |
 | 4 | **Arah layar** | A tetap di kiri, B tetap di kanan | |
 | 5 | **Kerusakan** | B jelas babak belur — memar, darah, mata bengkak. A cuma basah keringat | |
