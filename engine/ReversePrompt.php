@@ -214,6 +214,41 @@ final class ReversePrompt
      * Tag ini masuk KOTAK KARAKTER masing-masing, bukan base, supaya cuma
      * mengenai orang yang dimaksud.
      */
+    /**
+     * Bentuk badan yang bisa kamu paksa, menimpa apa pun yang terbaca.
+     *
+     * Pembaca cenderung menulis muscular_female dan abs untuk hampir semua
+     * petinju, karena memang begitu tampangnya di kebanyakan gambar tinju.
+     * Padahal tidak semua karaktermu berotot, dan sekali tag itu masuk,
+     * NovelAI menggambar perut kotak-kotak walau referensinya tidak begitu.
+     *
+     * 'ikut' = pakai apa adanya dari referensi.
+     */
+    private const BENTUK = [
+        'ikut'    => null,
+        'berotot' => ['abs'],
+        'kencang' => ['toned'],
+        'biasa'   => [],
+        'ramping' => ['petite'],
+        'berisi'  => ['curvy', 'wide_hips'],
+    ];
+
+    /** Tag otot yang dibuang waktu bentuk badannya kamu tentukan sendiri. */
+    private const TAG_OTOT = [
+        'muscular', 'muscular_female', 'muscular_male', 'abs', 'toned',
+        'toned_female', 'petite', 'curvy', 'plump', 'skinny', 'wide_hips',
+    ];
+
+    /** Ukuran dada yang bisa dipaksa. 'ikut' = biarkan seperti terbaca. */
+    private const DADA = [
+        'ikut'   => null,
+        'rata'   => 'flat_chest',
+        'kecil'  => 'small_breasts',
+        'sedang' => 'medium_breasts',
+        'besar'  => 'large_breasts',
+        'sangat' => 'huge_breasts',
+    ];
+
     private const TAG_HADAP = [
         'toward_viewer'       => ['facing_viewer'],
         'three_quarter'       => [],
@@ -532,6 +567,14 @@ TXT;
             if (!in_array($stance, ['orthodox', 'southpaw', 'unclear'], true)) {
                 $stance = 'unclear';
             }
+            $bentuk = strtolower(trim((string)($s['bentuk'] ?? 'ikut')));
+            if (!array_key_exists($bentuk, self::BENTUK)) {
+                $bentuk = 'ikut';
+            }
+            $dada = strtolower(trim((string)($s['dada'] ?? 'ikut')));
+            if (!array_key_exists($dada, self::DADA)) {
+                $dada = 'ikut';
+            }
             $peran = strtolower(trim((string)($s['role'] ?? 'fighter')));
             if (!isset(self::PERAN[$peran])) {
                 $peran = 'fighter';
@@ -613,6 +656,9 @@ TXT;
                 // Petinju / pendamping / wasit / orang lain. Yang bukan
                 // petinju tidak pernah dapat tag pukulan.
                 'role'          => $peran,
+                // Ditentukan sendiri lewat halaman; menimpa yang terbaca.
+                'bentuk'        => $bentuk,
+                'dada'          => $dada,
                 'view'          => $hadap,
                 'view_evidence' => $teks($s['view_evidence'] ?? '', 200),
                 'position' => [
@@ -1261,7 +1307,7 @@ TXT;
      *
      * @return null|array{id:int, nama:string, kalimat:string, tags:string[]}
      */
-    private static function modulGaya(array $opsi, string $tipeWajib): ?array
+    public static function modulGaya(array $opsi, string $tipeWajib): ?array
     {
         $g = $opsi['gaya'] ?? [];
         $id = (int)($g['style_id'] ?? 0);
@@ -1312,7 +1358,7 @@ TXT;
         ];
     }
 
-    private static function bobotGaya(array $opsi): float
+    public static function bobotGaya(array $opsi): float
     {
         $kuat = (string)($opsi['gaya']['kuat'] ?? 'sedang');
         return (float)(self::KUAT[$kuat]['bobot'] ?? 1.0);
@@ -1327,7 +1373,7 @@ TXT;
      *
      * @return string[]
      */
-    private static function tagArtis(array $opsi): array
+    public static function tagArtis(array $opsi): array
     {
         $mentah = trim((string)($opsi['gaya']['artis'] ?? ''));
         if ($mentah === '') {
@@ -1547,11 +1593,56 @@ TXT;
     {
         $umur = self::tagUmur($s, $opsi);
 
-        return array_values(array_filter(
-            array_merge($s['hair'], $s['eyes'], $s['body']),
+        $tag = array_values(array_filter(
+            array_merge($s['hair'], $s['eyes'], self::tagBadan($s)),
             static fn(string $t): bool => !in_array($t, ['mature_female', 'mature_male', 'aged_up'], true)
                                        || in_array($t, $umur, true)
         ));
+
+        return array_values(array_unique($tag));
+    }
+
+    /**
+     * Tag badan sesudah pilihan bentuk dan ukuran dada diterapkan.
+     *
+     * Keduanya bawaan 'ikut', jadi kalau kamu tidak menyentuhnya, hasilnya
+     * persis seperti yang terbaca dari referensi.
+     *
+     * @return string[]
+     */
+    private static function tagBadan(array $s): array
+    {
+        $body   = $s['body'];
+        $bentuk = $s['bentuk'] ?? 'ikut';
+        $dada   = $s['dada'] ?? 'ikut';
+
+        if ($bentuk !== 'ikut') {
+            // Yang lama dibuang dulu. Menambah "toned" tanpa membuang
+            // "muscular_female" cuma menghasilkan dua perintah yang saling
+            // menarik, dan yang menang biasanya yang paling sering muncul
+            // di data latih — yaitu yang berotot.
+            $body = array_values(array_filter(
+                $body,
+                static fn(string $t): bool => !in_array($t, self::TAG_OTOT, true)
+            ));
+
+            foreach (self::BENTUK[$bentuk] ?? [] as $t) {
+                $body[] = $t;
+            }
+            if ($bentuk === 'berotot') {
+                $body[] = $s['sex'] === 'male' ? 'muscular_male' : 'muscular_female';
+            }
+        }
+
+        if ($dada !== 'ikut') {
+            $body = array_values(array_filter(
+                $body,
+                static fn(string $t): bool => !str_ends_with($t, '_breasts') && $t !== 'flat_chest'
+            ));
+            $body[] = self::DADA[$dada];
+        }
+
+        return array_values(array_unique(array_filter($body)));
     }
     private static function itemsNovelAI(array $e, array $val, bool $nsfw, array $opsi = []): array
     {

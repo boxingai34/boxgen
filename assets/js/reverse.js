@@ -760,6 +760,22 @@ function renderValidasi(v) {
     }
 }
 
+/** Kolom teks bebas, untuk hal yang tidak muat di daftar pilihan. */
+function fieldTeks(label, cls, nilai, placeholder, hint) {
+    const f = el('div', 'field');
+    f.appendChild(el('label', null, label));
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = cls;
+    inp.autocomplete = 'off';
+    inp.value = nilai || '';
+    if (placeholder) inp.placeholder = placeholder;
+    inp.addEventListener('change', terapkanKolom);
+    f.appendChild(inp);
+    if (hint) f.appendChild(el('p', 'hint', hint));
+    return f;
+}
+
 function fieldSelect(label, cls, pilihan, nilai, hint) {
     const f = el('div', 'field');
     f.appendChild(el('label', null, label));
@@ -1035,6 +1051,48 @@ function kartuSubjek(s, i) {
         s.view || 'unclear', s.view_evidence || ''));
     kartu.appendChild(row3);
 
+    const at = (s.attire && typeof s.attire === 'object') ? s.attire : {};
+    const kon = (s.condition && typeof s.condition === 'object') ? s.condition : {};
+    const WARNA = ['', 'red', 'blue', 'black', 'white', 'pink', 'green', 'yellow',
+                   'purple', 'orange', 'brown', 'grey', 'gold', 'silver'];
+    const TINGKAT = [['0', 'tidak ada'], ['1', 'sedikit'], ['2', 'sedang'], ['3', 'banyak']];
+
+    const row4 = el('div', 'field-row');
+    // Pembaca cenderung menulis muscular_female + abs untuk hampir semua
+    // petinju. Kalau karaktermu tidak berotot, di sinilah dibatalkan.
+    row4.appendChild(fieldSelect('Bentuk badan', 's-bentuk',
+        [['ikut', 'Ikuti referensi'], ['berotot', 'Berotot (muscular + abs)'],
+         ['kencang', 'Kencang (toned)'], ['biasa', 'Biasa, tidak berotot'],
+         ['ramping', 'Ramping (petite)'], ['berisi', 'Berisi (curvy)']],
+        s.bentuk || 'ikut'));
+    row4.appendChild(fieldSelect('Ukuran dada', 's-dada',
+        [['ikut', 'Ikuti referensi'], ['rata', 'Rata'], ['kecil', 'Kecil'],
+         ['sedang', 'Sedang'], ['besar', 'Besar'], ['sangat', 'Sangat besar']],
+        s.dada || 'ikut'));
+    row4.appendChild(fieldTeks('Ekspresi', 's-expr', s.expression || '',
+        'misal: clenched teeth, determined'));
+    kartu.appendChild(row4);
+
+    const row5 = el('div', 'field-row');
+    row5.appendChild(fieldTeks('Atasan', 's-top', at.top || '', 'sports_bra, gym_shirt, topless'));
+    row5.appendChild(fieldTeks('Bawahan', 's-bottom', at.bottom || '', 'boxing_shorts, buruma'));
+    row5.appendChild(fieldSelect('Sarung tangan', 's-gloves',
+        [['boxing_gloves', 'Sarung tinju'], ['mma_gloves', 'Sarung MMA'],
+         ['bandaged_hands', 'Perban tangan'], ['none', 'Tidak ada']],
+        at.gloves || 'boxing_gloves'));
+    row5.appendChild(fieldSelect('Warna sarung', 's-gcolor',
+        WARNA.map((w) => [w, w === '' ? 'tidak disebut' : w]), at.gloves_color || ''));
+    kartu.appendChild(row5);
+
+    const row6 = el('div', 'field-row');
+    row6.appendChild(fieldSelect('Keringat', 's-sweat', TINGKAT, String(kon.sweat || 0)));
+    row6.appendChild(fieldSelect('Kelelahan', 's-fatigue', TINGKAT, String(kon.fatigue || 0)));
+    row6.appendChild(fieldTeks('Memar di', 's-bruise',
+        (kon.bruises || []).join(', '), 'misal: left cheek, stomach'));
+    row6.appendChild(fieldTeks('Darah di', 's-blood',
+        (kon.blood || []).join(', '), 'misal: nose, mouth'));
+    kartu.appendChild(row6);
+
     const tags = unik([].concat(s.hair || [], s.eyes || [], s.body || [], s.tags || []));
     if (tags.length) {
         const chips = el('div', 'chips');
@@ -1147,6 +1205,22 @@ function terapkanKolom() {
         s.position = (s.position && typeof s.position === 'object') ? s.position : {};
         s.position.side = $('.s-side', kartu).value;
         s.view = $('.s-view', kartu).value;
+        s.bentuk = $('.s-bentuk', kartu).value;
+        s.dada = $('.s-dada', kartu).value;
+        s.expression = $('.s-expr', kartu).value.trim();
+
+        const pisah = (v) => v.split(',').map((x) => x.trim()).filter(Boolean);
+        s.attire = (s.attire && typeof s.attire === 'object') ? s.attire : {};
+        s.attire.top = $('.s-top', kartu).value.trim();
+        s.attire.bottom = $('.s-bottom', kartu).value.trim();
+        s.attire.gloves = $('.s-gloves', kartu).value;
+        s.attire.gloves_color = $('.s-gcolor', kartu).value;
+
+        s.condition = (s.condition && typeof s.condition === 'object') ? s.condition : {};
+        s.condition.sweat = parseInt($('.s-sweat', kartu).value, 10) || 0;
+        s.condition.fatigue = parseInt($('.s-fatigue', kartu).value, 10) || 0;
+        s.condition.bruises = pisah($('.s-bruise', kartu).value);
+        s.condition.blood = pisah($('.s-blood', kartu).value);
     });
 
     ekstrak.scene = $('#adegan').value;
