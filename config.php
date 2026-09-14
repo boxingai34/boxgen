@@ -102,6 +102,20 @@ defined('AI_NSFW_BASE_URL') || define('AI_NSFW_BASE_URL', VENICE_BASE_URL);
 defined('AI_NSFW_API_KEY')  || define('AI_NSFW_API_KEY', '');
 defined('AI_NSFW_TIMEOUT')  || define('AI_NSFW_TIMEOUT', 90);
 
+// Cadangan lapisan NSFW, dicoba kalau yang pertama menolak atau gagal.
+//
+// Urutannya terserah kamu: kalau AI_NSFW_* diisi model yang sopan (ChatGPT,
+// Claude) dan AI_NSFW2_* diisi model tanpa sensor, sistem akan mencoba yang
+// sopan dulu lalu turun ke cadangan waktu ditolak. Perlu diketahui, model
+// sopan hampir selalu menolak menulis ketelanjangan, jadi urutan itu artinya
+// satu panggilan terbuang di setiap permintaan. Kosongkan MODEL-nya kalau
+// tidak mau memakai cadangan sama sekali.
+defined('AI_NSFW2_PROVIDER') || define('AI_NSFW2_PROVIDER', 'openai_compatible');
+defined('AI_NSFW2_MODEL')    || define('AI_NSFW2_MODEL', '');
+defined('AI_NSFW2_BASE_URL') || define('AI_NSFW2_BASE_URL', VENICE_BASE_URL);
+defined('AI_NSFW2_API_KEY')  || define('AI_NSFW2_API_KEY', '');
+defined('AI_NSFW2_TIMEOUT')  || define('AI_NSFW2_TIMEOUT', 90);
+
 // Jatah reverse per pengunjung per hari (satu "baca" atau satu "susun"
 // = satu hit), batas ukuran gambar setelah decode, jumlah frame video
 // maksimal, dan berapa contoh emas yang disertakan ke tahap polish.

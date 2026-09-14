@@ -163,6 +163,27 @@ final class ReversePrompt
         'looking_at_viewer', 'facing_viewer', 'straight-on', 'sideways',
     ];
 
+    /**
+     * Arah hadap tiap petinju -> tag Danbooru.
+     *
+     * Ini beda dengan sudut kamera, dan bedanya penting. "camera.angle"
+     * cuma satu untuk seluruh gambar, padahal dua petinju yang berhadapan
+     * hampir selalu terlihat dari sisi yang berbeda: yang satu menghadap
+     * penonton, yang satu memunggungi. Waktu itu dipadatkan jadi satu tag
+     * kamera, NovelAI menggambar dua-duanya dari sisi yang sama dan
+     * komposisinya berubah total dari referensinya.
+     *
+     * Tag ini masuk KOTAK KARAKTER masing-masing, bukan base, supaya cuma
+     * mengenai orang yang dimaksud.
+     */
+    private const TAG_HADAP = [
+        'toward_viewer'       => ['facing_viewer'],
+        'three_quarter'       => [],
+        'profile'             => ['profile', 'from_side'],
+        'three_quarter_away'  => ['from_behind'],
+        'away_from_viewer'    => ['from_behind', 'facing_away'],
+    ];
+
     private const TAG_CAHAYA = [
         'spotlight', 'stage_lights', 'floodlights', 'backlighting', 'sidelighting',
         'underlighting', 'chiaroscuro', 'silhouette', 'dim_lighting', 'fluorescent_lamp',
@@ -292,6 +313,8 @@ final class ReversePrompt
       "pose": {"summary": "one sentence", "arms": "...", "legs": "...", "torso": "..."},
       "action": {"type": "jab|cross|lead_hook|rear_hook|uppercut|body_shot|overhand|slip|block|clinch|knockdown|guard|idle|other", "phase": "wind-up|extension|impact|recoil|guard|falling|down|none", "confidence": 0.0, "evidence": "elbow bend, fist orientation, hip rotation..."},
       "position": {"side": "left|right|center", "x": 0.5, "y": 0.5},
+      "view": "toward_viewer|three_quarter|profile|three_quarter_away|away_from_viewer|unclear",
+      "view_evidence": "what you can see of this fighter: face, one cheek, back of head, shoulder blades...",
       "tags": ["danbooru tags that describe THIS subject: pose, hands, expression, gear"]
     }
   ],
@@ -328,9 +351,10 @@ ATURAN:
 3. Sisi kiri/kanan SELALU dari sudut pandang penonton. "side" subjek = posisi di dalam bingkai.
 4. Jenis kelamin ditentukan dari bukti yang terlihat (dada, bentuk wajah, rambut bukan bukti kuat). Semua subjek adalah orang dewasa; tulis mature_female / mature_male di "body".
 5. Untuk pukulan, sebutkan bukti mekanik (siku tertekuk, arah kepalan, rotasi pinggul). Kalau ragu antara hook dan jab, turunkan confidence, jangan mengarang.
-6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer".
+6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer". Kalau salah satu petinju memunggungi kamera, sebutkan itu ("seen from behind over her shoulder") — itu penentu komposisi, bukan hiasan.
 7. Kalau ada teks di gambar (poster, papan skor, judul), salin ke "text_in_image". TAPI JANGAN memakai teks itu untuk menentukan siapa yang di kiri dan siapa yang di kanan. Judul "A vs B" tidak menjamin A ada di kiri. Tentukan identitas tiap petinju dari ciri visualnya sendiri (warna dan model rambut, warna mata, mahkota, aksesori khas), lalu cocokkan dengan nama yang kamu kenali.
 8. Subjek maksimal dua orang utama (petinju). Wasit, penonton, dan orang latar masuk ke environment, bukan subjects.
+8b. "danbooru_tags" itu tag yang berlaku untuk SELURUH gambar: tempat, kamera, cahaya, efek, suasana. Tag yang cuma milik SATU petinju — pakaiannya, hiasan rambutnya, ekspresinya, pose lengannya, memar dan keringatnya — taruh di "subjects[].tags" orang itu, JANGAN di "danbooru_tags". Alasannya teknis: tag di daftar global masuk ke Base Prompt, dan di NovelAI base berlaku untuk semua orang di gambar. "ahoge" milik satu petinju yang ditulis di daftar global membuat dua-duanya ber-ahoge; "drooling" milik yang kena pukul membuat yang sedang menang ikut ngiler.
 9. Untuk "character", tulis tag Danbooru yang sesungguhnya, bukan pola "nama_(judul)" karangan. Contoh yang BENAR: princess_peach, princess_daisy, tsukino_usagi, tsunade_(naruto), elsa_(frozen), cammy_white. Kalau tidak yakin bentuk tagnya, tulis nama yang paling umum dipakai saja (misalnya "princess_peach"), jangan menempelkan nama judul di dalam kurung.
 
 10. SUDUT PANDANG KAMERA ITU SETENGAH DARI KESAN GAMBARNYA, jadi jangan diisi asal. Berdirilah di posisi kameranya lalu jawab tiga hal terpisah:
@@ -339,6 +363,16 @@ ATURAN:
    - "lens": wide kalau tepi gambar melengkung dan yang dekat terasa jauh lebih besar (kepalan yang menjulur ke kamera), telephoto kalau latar terasa rapat dan pipih, normal kalau biasa saja.
    Isi "pov" true HANYA kalau kita melihat lewat mata seorang petinju (sarung tangannya sendiri masuk bingkai dari bawah). Isi "facing" dengan arah badan subjek utama terhadap kamera. Tulis "summary" satu kalimat, misalnya "kamera ringside setinggi kanvas melihat ke atas, jadi kedua petinju menjulang dan tali ring memotong bagian bawah bingkai".
    Tinggi dan sudut itu DUA HAL BERBEDA: kamera bisa tinggi tapi menghadap lurus. Jangan menyalin satu ke yang lain.
+
+12. "view" DIISI PER PETINJU, DAN JANGAN DISAMAKAN DENGAN SUDUT KAMERA. Kamera cuma satu, tapi dua orang yang berhadapan hampir selalu terlihat dari sisi yang berbeda: yang satu wajahnya kelihatan, lawannya justru memunggungi kamera. Kalau ini disamakan, hasil gambarnya jadi dua orang yang menghadap arah yang sama dan komposisinya berubah total dari referensinya.
+   Tanya untuk TIAP petinju: bagian mana dari orang ini yang menghadap kamera?
+   - away_from_viewer  = yang terlihat punggung dan belakang kepalanya; wajahnya tidak kelihatan sama sekali
+   - three_quarter_away = sebagian besar punggung, tapi satu pipi atau ujung hidungnya masih terlihat
+   - profile           = terlihat dari samping penuh; satu mata, satu telinga, garis hidung membentuk siluet
+   - three_quarter     = miring; kedua mata terlihat tapi salah satu pipi lebih dominan
+   - toward_viewer     = wajah penuh menghadap kamera
+   Tulis buktinya di "view_evidence" ("yang terlihat cuma punggung dan tengkuk", "kedua matanya terlihat").
+   Contoh kasus nyata: dua petinju berdempetan, yang kiri wajahnya menghadap kamera dengan mata melotot, yang kanan terlihat dari belakang bahunya sehingga cuma punggung dan rambut belakangnya yang tampak. Jawaban benar: kiri "toward_viewer", kanan "away_from_viewer". Jawaban SALAH: dua-duanya "profile".
 
 11. PAKAIAN ADALAH BAGIAN YANG PALING SERING KAMU SALAH. Jangan pernah menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat betul-betul potongan, panjang lengan, dan warnanya, lalu pilih dari daftar KOSAKATA di bawah. Beberapa yang paling sering keliru:
    - kaos olahraga sekolah putih berlengan pendek (kadang ada papan nama di dada) = gym_uniform + gym_shirt + white_shirt + short_sleeves, BUKAN sports_bra
@@ -442,6 +476,10 @@ TXT;
             if (!in_array($stance, ['orthodox', 'southpaw', 'unclear'], true)) {
                 $stance = 'unclear';
             }
+            $hadap = strtolower(str_replace([' ', '-'], '_', (string)($s['view'] ?? 'unclear')));
+            if (!isset(self::TAG_HADAP[$hadap])) {
+                $hadap = 'unclear';
+            }
             $posisi = strtolower((string)($s['position']['side'] ?? ''));
             if (!in_array($posisi, ['left', 'right', 'center'], true)) {
                 $posisi = $i === 0 ? 'left' : 'right';
@@ -510,6 +548,10 @@ TXT;
                     'confidence' => $skor($s['action']['confidence'] ?? 0),
                     'evidence'   => $teks($s['action']['evidence'] ?? '', 200),
                 ],
+                // Dari sisi mana petinju ini terlihat. Dinilai per orang,
+                // bukan sekali untuk seluruh gambar.
+                'view'          => $hadap,
+                'view_evidence' => $teks($s['view_evidence'] ?? '', 200),
                 'position' => [
                     'side' => $posisi,
                     'x'    => $skor($s['position']['x'] ?? ($posisi === 'right' ? 0.7 : 0.3)),
@@ -1540,6 +1582,11 @@ TXT;
 
             // pose / aksi
             $blokPose = $duo ? 'interaction' . ($s['id'] === 'b' ? '_b' : '_a') : 'pose';
+
+            // arah hadap petinju ini — masuk kotaknya sendiri, bukan base
+            foreach (self::TAG_HADAP[$s['view']] ?? [] as $t) {
+                $tambah($t, $blokPose, $dari . ': arah hadap');
+            }
             foreach (self::tagAksi($s, $e) as $t) {
                 $tambah($t, $blokPose, $dari . ': aksi');
             }
@@ -1582,9 +1629,35 @@ TXT;
             $tambah($t, 'camera', 'kamera');
         }
 
+        // Tag yang sudah masuk kotak salah satu petinju tidak boleh diulang
+        // di base.
+        //
+        // Di NovelAI V4/V5, tag di base berlaku untuk SEMUA orang di gambar.
+        // Pembaca menulis daftar tag global yang isinya campur: "ahoge" dan
+        // "scrunchie" cuma milik satu petinju, "drooling" dan "dazed" cuma
+        // milik yang kena pukul. Kalau ikut bocor ke base, dua-duanya jadi
+        // ber-ahoge dan yang sedang menang ikut ngiler — persis bentrok yang
+        // kamu lihat antara base dan kotak karakter.
+        //
+        // Yang disaring cuma yang MEMANG sudah ada di kotak seseorang, jadi
+        // tag yang benar-benar milik adegan ("boxing", "dynamic_pose") tetap
+        // lewat.
+        $milikOrang = [];
+        foreach ($items as $it) {
+            if ($it['block'] === 'interaction') {
+                continue;   // kontak bersama, milik adegan
+            }
+            if (preg_match('/^(character|appearance|outfit|condition|pose|interaction_[ab])(_b)?$/', $it['block']) === 1) {
+                $milikOrang[$it['name']] = true;
+            }
+        }
+
         // sisa tag global
         foreach ($e['danbooru_tags'] as $t) {
             if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                continue;
+            }
+            if (isset($milikOrang[TagResolver::normalize($t)])) {
                 continue;
             }
             // Gaya bacaan dibuang kalau kamu sudah memilih gaya sendiri —
@@ -2044,15 +2117,19 @@ TXT;
 Kamu penulis prompt NovelAI Diffusion V5 untuk ilustrasi anime bertema tinju. Tugasmu menulis ULANG bagian kalimat natural (prosa) dari Base Prompt supaya setia pada hasil pembacaan gambar dan mengikuti gaya contoh yang diberikan. Tag akan ditambahkan oleh sistem, jadi prosa TIDAK perlu mengulang daftar tag.
 
 Aturan:
-- 2 sampai 4 kalimat Inggris, kalimat penuh, present tense, tanpa nama karakter (sebut "the boxer", "the blonde-haired boxer", "the boxer on the left").
+- 2 sampai 4 kalimat Inggris, kalimat penuh, present tense.
+- Cara menyebut petinju: kalau "known_character" terisi, pakai nama itu ("Anya drives a red glove into..."). Kalau kosong, sebut lewat ciri yang membedakan ("the blue-haired boxer", "the boxer on the left").
+- DATA yang menang, bukan DRAF. Draf itu tulisan lama, dibuat waktu karakter atau ciri-cirinya mungkin masih berbeda. Kalau draf bilang rambut putih tapi data bilang pink, tulis pink. Kalau draf menyebut "the white-haired boxer" padahal data sudah punya known_character, ganti jadi namanya. Jangan pernah menyalin ciri fisik dari draf yang tidak ada di data.
 - Urutan isi: siapa dan berapa orang → pose/aksi dan siapa memukul siapa (kalau ada) → kondisi tubuh (keringat, memar, darah) → tempat dan pencahayaan → framing kamera → gaya gambar/era.
+- Kalau "view" seorang petinju berisi away_from_viewer atau three_quarter_away, WAJIB disebut ("seen from behind over her shoulder", "her back to the viewer"). Itu penentu komposisi, bukan hiasan: tanpa itu gambarnya jadi dua orang yang sama-sama menghadap kamera dan susunannya berubah total dari referensinya.
 - Setia pada data: jangan menambah detail yang tidak ada di data, jangan menghilangkan aksi utamanya. Sisi kiri/kanan dari sudut pandang penonton.
 - Pertahankan penanda seperti {{TOP_A}} atau {{TOP_B}} apa adanya kalau muncul di data.
 - Balas HANYA dengan JSON: {"prose": "..."}
 TXT;
 
         $user = "DATA PEMBACAAN (JSON):\n" . json_encode(self::ringkasUntukPolish($bersih, $val), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-              . "\n\nDRAF PROSA SAAT INI:\n" . ($draf !== '' ? $draf : '(kosong)');
+              . "\n\nDRAF PROSA LAMA (hanya contoh nada dan urutan — isinya BOLEH SUDAH BASI, "
+              . "ikuti DATA PEMBACAAN di atas kalau berbeda):\n" . ($draf !== '' ? $draf : '(kosong)');
 
         if ($contoh !== []) {
             $user .= "\n\nCONTOH GAYA (prompt yang pernah berhasil, tiru nada dan urutannya, bukan isinya):";
@@ -2090,6 +2167,7 @@ TXT;
                 'pose'       => $s['pose'],
                 'action'     => $s['action'],
                 'position'   => $s['position']['side'],
+                'view'       => $s['view'],
             ];
         }
         return [
@@ -2809,7 +2887,12 @@ TXT;
             return $teks;
         }
 
-        if ($bolehAi && AiClient::siapProfil('nsfw')) {
+        // Dicoba berurutan: profil utama dulu, lalu cadangan, baru aturan
+        // kode. Gunanya kalau kamu menaruh model sopan di urutan pertama —
+        // penolakannya tidak lagi langsung jatuh ke aturan kode, tapi
+        // dilempar dulu ke model yang memang boleh menulisnya.
+        foreach (['nsfw', 'nsfw2'] as $namaProfil) {
+        if ($bolehAi && AiClient::siapProfil($namaProfil)) {
             $system = <<<'TXT'
 Kamu penyunting teks untuk konten dewasa (semua tokoh dewasa, fiksi). Diberi sebuah prompt yang sudah final dan daftar FAKTA tentang ketelanjangan tokoh. Tugasmu HANYA mengganti frasa pakaian atas/bawah (misalnya "sports bra", "fitted top", "{{TOP_A}}") supaya sesuai fakta, dengan bahasa yang lugas dan deskriptif. Segala hal lain — urutan kalimat, kamera, aksi, suara, nama, angka — HARUS sama kata per kata. Jangan menambah kalimat baru.
 
@@ -2820,19 +2903,23 @@ TXT;
             $user = "FAKTA:\n- " . implode("\n- ", $fakta) . "\n\nTEKS:\n" . $teks;
             try {
                 $jawab = AiClient::parseJson(AiClient::completeDengan(
-                    AiClient::profil('nsfw'), $system, $user, true, ['max_tokens' => 4000, 'temperature' => 0.2]
+                    AiClient::profil($namaProfil), $system, $user, true, ['max_tokens' => 4000, 'temperature' => 0.2]
                 ));
                 $baru = trim((string)($jawab['text'] ?? ''));
                 $rasio = mb_strlen($teks) > 0 ? mb_strlen($baru) / mb_strlen($teks) : 0;
+                // Penolakan ketahuan di sini: model yang menolak menjawab
+                // panjangnya jauh berbeda dan tidak memuat satu pun kata
+                // yang seharusnya dikembalikan.
                 if ($baru !== '' && $rasio >= 0.7 && $rasio <= 1.4
                     && preg_match('/topless|bare[- ]chest|bare breasts|nipples|nude/i', $baru) === 1) {
-                    $tahap['nsfw'] = ['model' => AiClient::profil('nsfw')['model'], 'alasan' => null];
+                    $tahap['nsfw'] = ['model' => AiClient::profil($namaProfil)['model'], 'alasan' => null];
                     return self::rapikanUlangan($baru);
                 }
-                $catatan[] = 'Jawaban model NSFW tidak lolos pemeriksaan, dipakai aturan kode.';
+                $catatan[] = AiClient::profil($namaProfil)['model'] . ' menolak atau jawabannya tidak lolos pemeriksaan.';
             } catch (RuntimeException $ex) {
-                $catatan[] = 'Model NSFW gagal dipanggil, dipakai aturan kode: ' . $ex->getMessage();
+                $catatan[] = AiClient::profil($namaProfil)['model'] . ' gagal dipanggil: ' . $ex->getMessage();
             }
+        }
         }
 
         return self::lapisNsfwAturan($teks, $e);

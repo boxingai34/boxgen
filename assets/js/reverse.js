@@ -1013,6 +1013,21 @@ function kartuSubjek(s, i) {
         (s.position && s.position.side) || 'center'));
     kartu.appendChild(row2);
 
+    // Arah hadap dinilai per petinju, bukan sekali untuk seluruh gambar.
+    // Dua orang yang berhadapan hampir selalu terlihat dari sisi berbeda:
+    // yang satu wajahnya kelihatan, lawannya memunggungi kamera. Kalau ini
+    // salah, komposisinya berubah total dari referensinya.
+    const row3 = el('div', 'field-row');
+    row3.appendChild(fieldSelect('Terlihat dari sisi mana', 's-view',
+        [['toward_viewer', 'Wajah menghadap kamera'],
+         ['three_quarter', 'Miring (tiga perempat)'],
+         ['profile', 'Samping penuh (profil)'],
+         ['three_quarter_away', 'Miring membelakangi'],
+         ['away_from_viewer', 'Memunggungi kamera'],
+         ['unclear', 'Tidak jelas']],
+        s.view || 'unclear', s.view_evidence || ''));
+    kartu.appendChild(row3);
+
     const tags = unik([].concat(s.hair || [], s.eyes || [], s.body || [], s.tags || []));
     if (tags.length) {
         const chips = el('div', 'chips');
@@ -1100,6 +1115,7 @@ function terapkanKolom() {
         s.action.type = $('.s-action', kartu).value;
         s.position = (s.position && typeof s.position === 'object') ? s.position : {};
         s.position.side = $('.s-side', kartu).value;
+        s.view = $('.s-view', kartu).value;
     });
 
     if (!$('#striker-box').hidden) {
