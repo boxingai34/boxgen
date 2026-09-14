@@ -41,6 +41,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
     $menu = [
         'index.php'   => 'Prompt Generator',
         'reverse.php' => 'Dari Gambar/Video',
+        'komik.php'   => 'Dari Komik',
         'history.php' => 'Riwayat',
     ];
     ?>
