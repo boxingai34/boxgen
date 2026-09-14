@@ -332,24 +332,47 @@ final class ReversePrompt
         $pesan  = ['text' => $teks, 'images' => $kiriman];
         $opsi   = ['max_tokens' => 6000, 'temperature' => 0.2];
 
-        try {
-            $raw = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
-        } catch (RuntimeException $e) {
-            $cadangan = AiClient::profil('vision2');
-            $beda = $cadangan['api_key'] !== ''
-                 && ($cadangan['model'] !== $profil['model'] || $cadangan['base_url'] !== $profil['base_url']);
+        // PENGURAIAN IKUT DI DALAM PERCOBAAN, BUKAN SESUDAHNYA.
+        //
+        // Model yang menolak gambar telanjang sering tidak menjawab dengan
+        // error HTTP. Yang datang adalah HTTP 200 berisi kalimat penolakan
+        // biasa — "I'm sorry, I can't help with that". Waktu penguraian JSON
+        // dikerjakan di luar blok try, penolakan itu meledak SESUDAH bagian
+        // cadangan terlewat, jadi Qwen tidak pernah dipanggil dan yang
+        // terlihat cuma "Jawaban AI bukan JSON yang valid". Justru untuk
+        // kasus inilah cadangannya dipasang.
+        $jawaban = null;
+        $galat   = null;
 
-            if (!$beda) {
-                throw $e;
+        foreach (['vision', 'vision2'] as $urutan => $nama) {
+            $ini = $urutan === 0 ? $profil : AiClient::profil($nama);
+
+            if ($urutan > 0) {
+                $beda = $ini['api_key'] !== ''
+                     && ($ini['model'] !== $profil['model'] || $ini['base_url'] !== $profil['base_url']);
+                if (!$beda) {
+                    break;   // tidak ada cadangan yang benar-benar berbeda
+                }
+                $catatan[] = 'Pembaca utama (' . $profil['model'] . ') gagal, dipakai cadangan ('
+                           . $ini['model'] . '). Alasannya: ' . $galat->getMessage();
+                $profil = $ini;
             }
 
-            $catatan[] = 'Pembaca utama (' . $profil['model'] . ') gagal, dipakai cadangan ('
-                       . $cadangan['model'] . '). Alasannya: ' . $e->getMessage();
-            $profil = $cadangan;
-            $raw = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
+            try {
+                $raw     = AiClient::completeDengan($ini, $system, $pesan, true, $opsi);
+                $jawaban = AiClient::parseJson($raw);
+                $galat   = null;
+                break;
+            } catch (RuntimeException $e) {
+                $galat = $e;
+            }
         }
 
-        $ekstrak = self::normalisasi(AiClient::parseJson($raw), $kind, $duration);
+        if ($jawaban === null) {
+            throw $galat ?? new RuntimeException('Pembaca gambar tidak menghasilkan apa pun.');
+        }
+
+        $ekstrak = self::normalisasi($jawaban, $kind, $duration);
 
         return [
             'ekstrak' => $ekstrak,

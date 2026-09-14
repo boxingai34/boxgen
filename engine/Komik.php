@@ -97,21 +97,42 @@ final class Komik
         $pesan  = ['text' => $teks, 'images' => $kiriman];
         $opsi   = ['max_tokens' => 6000, 'temperature' => 0.15];
 
-        try {
-            $raw = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
-        } catch (RuntimeException $ex) {
-            // Pembaca cadangan, sama seperti di ReversePrompt: kalau yang
-            // utama menolak atau errornya soal parameter, jangan gagalkan
-            // seluruh permintaan.
-            if (!AiClient::siapProfil('vision2')) {
-                throw $ex;
+        // Penguraian JSON ikut di dalam percobaan, sama alasannya seperti
+        // di ReversePrompt::baca(): penolakan datang sebagai HTTP 200 berisi
+        // kalimat biasa, jadi kalau diurai di luar blok try, cadangannya
+        // sudah terlewat waktu penolakan itu ketahuan.
+        $jawaban = null;
+        $galat   = null;
+
+        foreach (['vision', 'vision2'] as $urutan => $nama) {
+            $ini = $urutan === 0 ? $profil : AiClient::profil($nama);
+
+            if ($urutan > 0) {
+                $beda = $ini['api_key'] !== ''
+                     && ($ini['model'] !== $profil['model'] || $ini['base_url'] !== $profil['base_url']);
+                if (!$beda) {
+                    break;
+                }
+                $catatan[] = 'Pembaca utama (' . $profil['model'] . ') gagal, dipakai cadangan ('
+                           . $ini['model'] . '). Alasannya: ' . $galat->getMessage();
+                $profil = $ini;
             }
-            $catatan[] = 'Pembaca utama (' . $profil['model'] . ') gagal, dipakai cadangan. Alasannya: ' . $ex->getMessage();
-            $profil = AiClient::profil('vision2');
-            $raw    = AiClient::completeDengan($profil, $system, $pesan, true, $opsi);
+
+            try {
+                $raw     = AiClient::completeDengan($ini, $system, $pesan, true, $opsi);
+                $jawaban = AiClient::parseJson($raw);
+                $galat   = null;
+                break;
+            } catch (RuntimeException $e) {
+                $galat = $e;
+            }
         }
 
-        $ekstrak = self::normalisasi(AiClient::parseJson($raw));
+        if ($jawaban === null) {
+            throw $galat ?? new RuntimeException('Pembaca halaman tidak menghasilkan apa pun.');
+        }
+
+        $ekstrak = self::normalisasi($jawaban);
 
         return [
             'ekstrak' => $ekstrak,

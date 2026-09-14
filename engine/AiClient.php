@@ -362,7 +362,31 @@ final class AiClient
 
         $data = json_decode($text, true);
         if (!is_array($data)) {
-            throw new RuntimeException('Jawaban AI bukan JSON yang valid.');
+            // Pesannya harus menyebut APA yang dijawab model, bukan cuma
+            // bahwa itu bukan JSON. Penyebab paling sering bukan format
+            // yang rusak, melainkan penolakan yang datang sebagai kalimat
+            // biasa dengan HTTP 200 — dan tanpa cuplikan ini, penolakan
+            // dan jawaban terpotong terlihat sama persis.
+            $cuplik = trim(preg_replace('/\s+/', ' ', mb_substr($text, 0, 200)) ?? '');
+
+            if ($cuplik === '') {
+                throw new RuntimeException('Model menjawab kosong, bukan JSON.');
+            }
+
+            // Penolakan punya bentuk yang khas dan layak disebut apa adanya,
+            // supaya jelas bahwa yang perlu diganti itu modelnya, bukan
+            // gambarnya.
+            $menolak = preg_match(
+                '/\b(i\'?m sorry|i cannot|i can\'?t|unable to (?:help|assist|comply)|as an ai|tidak dapat membantu|maaf)\b/i',
+                $cuplik
+            ) === 1;
+
+            throw new RuntimeException(
+                ($menolak
+                    ? 'Model menolak membaca gambar ini. Jawabannya: "'
+                    : 'Jawaban AI bukan JSON yang valid. Awalnya: "')
+                . $cuplik . '"'
+            );
         }
 
         return $data;
