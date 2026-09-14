@@ -116,6 +116,21 @@ defined('AI_NSFW2_BASE_URL') || define('AI_NSFW2_BASE_URL', VENICE_BASE_URL);
 defined('AI_NSFW2_API_KEY')  || define('AI_NSFW2_API_KEY', '');
 defined('AI_NSFW2_TIMEOUT')  || define('AI_NSFW2_TIMEOUT', 90);
 
+// Contoh isian untuk config.local.php (pilih salah satu, JANGAN di sini —
+// berkas ini ikut ke git, config.local.php tidak):
+//
+//   OpenRouter — model yang sama dengan Venice, penyedia berbeda:
+//     define('AI_NSFW2_BASE_URL', 'https://openrouter.ai/api/v1');
+//     define('AI_NSFW2_MODEL',    'cognitivecomputations/dolphin-mistral-24b-venice-edition');
+//     define('AI_NSFW2_API_KEY',  'sk-or-v1-...');
+//
+//   Ollama di komputer sendiri — gratis, tanpa kuota, tidak ada data keluar:
+//     define('AI_NSFW2_BASE_URL', 'http://localhost:11434/v1');
+//     define('AI_NSFW2_MODEL',    'dolphin-mistral:7b');
+//     define('AI_NSFW2_API_KEY',  'ollama');   // Ollama tidak memeriksa kunci,
+//                                              // tapi harus diisi supaya
+//                                              // profilnya dianggap siap
+
 // Jatah reverse per pengunjung per hari (satu "baca" atau satu "susun"
 // = satu hit), batas ukuran gambar setelah decode, jumlah frame video
 // maksimal, dan berapa contoh emas yang disertakan ke tahap polish.

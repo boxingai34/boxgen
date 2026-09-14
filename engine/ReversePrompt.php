@@ -2892,7 +2892,10 @@ TXT;
         // penolakannya tidak lagi langsung jatuh ke aturan kode, tapi
         // dilempar dulu ke model yang memang boleh menulisnya.
         foreach (['nsfw', 'nsfw2'] as $namaProfil) {
-        if ($bolehAi && AiClient::siapProfil($namaProfil)) {
+        $siap = $namaProfil === 'nsfw'
+            ? AiClient::siapProfil($namaProfil)
+            : AiClient::profilDiatur($namaProfil);   // cadangan: harus disetel sendiri
+        if ($bolehAi && $siap) {
             $system = <<<'TXT'
 Kamu penyunting teks untuk konten dewasa (semua tokoh dewasa, fiksi). Diberi sebuah prompt yang sudah final dan daftar FAKTA tentang ketelanjangan tokoh. Tugasmu HANYA mengganti frasa pakaian atas/bawah (misalnya "sports bra", "fitted top", "{{TOP_A}}") supaya sesuai fakta, dengan bahasa yang lugas dan deskriptif. Segala hal lain — urutan kalimat, kamera, aksi, suara, nama, angka — HARUS sama kata per kata. Jangan menambah kalimat baru.
 

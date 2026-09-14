@@ -120,6 +120,25 @@ final class AiClient
     }
 
     /**
+     * Apakah profil ini memang disetel sendiri, bukan cuma ikut bawaan?
+     *
+     * profil() sengaja jatuh ke AI_MODEL waktu MODEL profilnya kosong,
+     * supaya profil yang setengah diisi tetap jalan. Untuk profil CADANGAN
+     * itu justru berbahaya: AI_NSFW2_MODEL yang dibiarkan kosong akan
+     * terbaca sebagai "siap" dan sistem menembak model bawaan — model
+     * sopan yang sudah pasti menolak — jadi satu panggilan terbuang tanpa
+     * pernah kamu minta. Cadangan hanya dipakai kalau MODEL-nya diisi.
+     */
+    public static function profilDiatur(string $nama): bool
+    {
+        $konstanta = 'AI_' . strtoupper(trim($nama)) . '_MODEL';
+
+        return defined($konstanta)
+            && trim((string)constant($konstanta)) !== ''
+            && self::siapProfil($nama);
+    }
+
+    /**
      * Kunci yang masih berupa penanda "GANTI-..." dari templat config
      * dianggap kosong, supaya pesannya "belum diisi", bukan HTTP 401 yang
      * bikin orang mengira kuncinya salah ketik.
