@@ -186,9 +186,17 @@ function teksQuota(q) {
 
 /** Ringkasan token dari satu permintaan. */
 function teksToken(tok) {
-    if (!tok || !tok.jumlah || !tok.jumlah.total) return '';
+    if (!tok || !tok.jumlah) return '';
     const j = tok.jumlah;
-    return `${j.total.toLocaleString('id-ID')} token (masuk ${j.masuk.toLocaleString('id-ID')}, keluar ${j.keluar.toLocaleString('id-ID')})`;
+    const dariCache = (tok.rincian || []).some((r) => r.cache);
+
+    // Nol token bukan berarti pencatatnya rusak: jawaban yang sama persis
+    // diambil dari cache dan memang tidak menagih apa pun.
+    if (!j.total) {
+        return dariCache ? 'Diambil dari cache — 0 token, tidak ditagih.' : '';
+    }
+    const dasar = `${j.total.toLocaleString('id-ID')} token (masuk ${j.masuk.toLocaleString('id-ID')}, keluar ${j.keluar.toLocaleString('id-ID')})`;
+    return dariCache ? dasar + ' — sebagian dari cache' : dasar;
 }
 
 function info(teks) {
@@ -1535,16 +1543,17 @@ function renderTahap(t) {
     // Berapa token yang benar-benar dipakai permintaan ini. Dikumpulkan
     // dari jawaban tiap penyedia, bukan ditaksir dari panjang teks.
     const tok = tokenTerakhir;
-    if (tok && tok.jumlah && tok.jumlah.total) {
+    if (tok && tok.rincian && tok.rincian.length) {
         const blok = el('div', 'why-block');
         blok.appendChild(el('h4', null, 'Token yang dipakai'));
 
         (tok.rincian || []).forEach((r) => {
             const row = el('div', 'row');
             row.appendChild(el('span', null, r.profil + ' — ' + r.model));
-            row.appendChild(el('span', null,
-                r.total.toLocaleString('id-ID') + ' (masuk ' + r.masuk.toLocaleString('id-ID')
-                + ', keluar ' + r.keluar.toLocaleString('id-ID') + ')'));
+            row.appendChild(el('span', null, r.cache
+                ? 'dari cache — tidak ditagih'
+                : r.total.toLocaleString('id-ID') + ' (masuk ' + r.masuk.toLocaleString('id-ID')
+                  + ', keluar ' + r.keluar.toLocaleString('id-ID') + ')'));
             blok.appendChild(row);
         });
 
@@ -1555,7 +1564,8 @@ function renderTahap(t) {
 
         blok.appendChild(el('p', 'hint',
             'Dihitung dari laporan penyedianya sendiri, jadi ini angka yang ditagihkan. '
-            + 'Token "keluar" sudah termasuk token berpikir kalau modelnya berpikir dulu.'));
+            + 'Token "keluar" sudah termasuk token berpikir kalau modelnya berpikir dulu. '
+            + 'Referensi yang sama persis diambil dari cache dan tidak ditagih ulang.'));
         box.appendChild(blok);
     }
 

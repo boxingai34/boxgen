@@ -1164,7 +1164,11 @@ TXT;
 
         $aksi = '';
         $i = $e['interaction'];
-        if ($i['striker'] !== null && $i['contact'] !== 'none') {
+        // Butuh DUA orang untuk ada yang dipukul. Satu petinju yang sedang
+        // latihan sendirian pernah keluar sebagai "A memukul ?" — pembaca
+        // mengisi striker tapi tidak ada penerimanya, dan tanda tanya itu
+        // muncul di ringkasan seolah datanya rusak.
+        if ($i['striker'] !== null && $i['receiver'] !== null && $i['contact'] !== 'none' && $n >= 2) {
             $aksi = ' — ' . strtoupper($i['striker']) . ' memukul ' . strtoupper((string)($i['receiver'] ?? '?'))
                   . ($i['target'] === 'body' ? ' ke badan' : ($i['target'] === 'face' ? ' ke wajah' : ''))
                   . ($i['contact'] === 'imminent' ? ' (hampir kena)' : '');

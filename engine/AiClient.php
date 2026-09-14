@@ -73,6 +73,33 @@ final class AiClient
      * promptTokenCount/candidatesTokenCount. Ketiganya dipetakan ke satu
      * bentuk supaya halaman tidak perlu tahu bedanya.
      */
+    /**
+     * Base64 tanpa awalan data URI.
+     *
+     * Halaman mengirim gambar lewat canvas.toDataURL(), yang hasilnya sudah
+     * berupa "data:image/jpeg;base64,...". Kalau pemanggil lupa memotong
+     * awalan itu dan driver menambahkannya lagi, yang terkirim jadi
+     * "data:image/jpeg;base64,data:image/jpeg;base64,..." dan penyedia
+     * menolaknya dengan pesan yang tidak menyebut sebabnya sama sekali:
+     * "Supplied image did not pass validation checks".
+     *
+     * Daripada mengandalkan tiap pemanggil ingat, dipotong di sini.
+     */
+    private static function base64Polos(string $data): string
+    {
+        $koma = strpos($data, ',');
+        if ($koma !== false && stripos(substr($data, 0, 5), 'data:') === 0) {
+            return substr($data, $koma + 1);
+        }
+        return $data;
+    }
+
+    /** Data URI utuh untuk driver yang memintanya begitu. */
+    private static function dataUri(array $img): string
+    {
+        return 'data:' . $img['mime'] . ';base64,' . self::base64Polos((string)$img['data']);
+    }
+
     private static function catatToken(array $profil, array $json): void
     {
         $u = is_array($json['usage'] ?? null) ? $json['usage'] : [];
@@ -96,6 +123,7 @@ final class AiClient
             'masuk'  => $masuk,
             'keluar' => $keluar,
             'total'  => $masuk + $keluar,
+            'cache'  => false,
         ];
     }
 
@@ -284,6 +312,20 @@ final class AiClient
             $cached = Database::one('SELECT response FROM ai_cache WHERE cache_key = ?', [$cacheKey]);
             if ($cached !== null) {
                 Database::run('UPDATE ai_cache SET hits = hits + 1 WHERE cache_key = ?', [$cacheKey]);
+
+                // Dicatat sebagai pemakaian bernilai nol, bukan tidak dicatat
+                // sama sekali. Bedanya penting di layar: "0 token" tanpa
+                // keterangan terlihat seperti pencatatnya rusak, padahal
+                // artinya membaca ulang gambar yang sama memang gratis.
+                self::$pemakaian[] = [
+                    'profil' => (string)($profil['nama'] ?? '?'),
+                    'model'  => (string)($profil['model'] ?? '?'),
+                    'masuk'  => 0,
+                    'keluar' => 0,
+                    'total'  => 0,
+                    'cache'  => true,
+                ];
+
                 return $cached['response'];
             }
         }
@@ -514,7 +556,7 @@ final class AiClient
             }
             $content[] = [
                 'type'   => 'image',
-                'source' => ['type' => 'base64', 'media_type' => $img['mime'], 'data' => $img['data']],
+                'source' => ['type' => 'base64', 'media_type' => $img['mime'], 'data' => self::base64Polos($img['data'])],
             ];
         }
         $content[] = ['type' => 'text', 'text' => $pesan['text']];
@@ -632,7 +674,7 @@ final class AiClient
                 }
                 $isi[] = [
                     'type'      => 'image_url',
-                    'image_url' => ['url' => 'data:' . $img['mime'] . ';base64,' . $img['data']],
+                    'image_url' => ['url' => self::dataUri($img)],
                 ];
             }
             $isi[] = ['type' => 'text', 'text' => $pesan['text']];

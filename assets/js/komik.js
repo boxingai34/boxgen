@@ -34,9 +34,14 @@ function galat(pesan) {
 }
 
 function teksToken(tok) {
-    if (!tok || !tok.jumlah || !tok.jumlah.total) return '';
+    if (!tok || !tok.jumlah) return '';
     const j = tok.jumlah;
-    return `${j.total.toLocaleString('id-ID')} token (masuk ${j.masuk.toLocaleString('id-ID')}, keluar ${j.keluar.toLocaleString('id-ID')})`;
+    const dariCache = (tok.rincian || []).some((r) => r.cache);
+    if (!j.total) {
+        return dariCache ? 'Diambil dari cache — 0 token, tidak ditagih.' : '';
+    }
+    const dasar = `${j.total.toLocaleString('id-ID')} token (masuk ${j.masuk.toLocaleString('id-ID')}, keluar ${j.keluar.toLocaleString('id-ID')})`;
+    return dariCache ? dasar + ' — sebagian dari cache' : dasar;
 }
 
 function teksQuota(q) {
@@ -91,7 +96,14 @@ function siapkanGambar(file) {
 
             // JPEG mutu tinggi: halaman komik penuh teks kecil, dan mutu
             // rendah membuat dialognya tidak terbaca oleh pembacanya.
-            resolve({ data: c.toDataURL('image/jpeg', 0.92), mime: 'image/jpeg', w, h });
+            //
+            // "data" HARUS base64 telanjang, tanpa awalan "data:...;base64,".
+            // Driver di server yang menambahkan awalan itu sendiri, jadi
+            // mengirim data URL utuh menghasilkan awalan ganda dan penyedia
+            // menolaknya dengan "Supplied image did not pass validation
+            // checks". "url" yang lengkap dipakai untuk pratinjau saja.
+            const url = c.toDataURL('image/jpeg', 0.92);
+            resolve({ url, data: url.slice(url.indexOf(',') + 1), mime: 'image/jpeg', w, h });
         };
         img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Gambar tidak terbaca.')); };
         img.src = url;
@@ -110,7 +122,7 @@ async function pasangBerkas(file) {
         const pra = $('#pratinjau');
         pra.innerHTML = '';
         const im = document.createElement('img');
-        im.src = g.data;
+        im.src = g.url;
         im.alt = 'Halaman komik';
         pra.appendChild(im);
         pra.hidden = false;
