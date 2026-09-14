@@ -42,6 +42,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
         'index.php'   => 'Prompt Generator',
         'reverse.php' => 'Dari Gambar/Video',
         'komik.php'   => 'Dari Komik',
+        'pertandingan.php' => 'Rancang Pertandingan',
         'history.php' => 'Riwayat',
     ];
     ?>
