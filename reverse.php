@@ -381,5 +381,6 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
 </div>
 
-<script src="assets/js/reverse.js?v=14"></script>
+<script src="assets/js/gambar.js?v=1"></script>
+<script src="assets/js/reverse.js?v=15"></script>
 <?php halamanFooter(); ?>

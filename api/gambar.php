@@ -98,7 +98,7 @@ switch ($action) {
         }
 
         try {
-            $g = GambarAi::buat($prompt);
+            $g = GambarAi::buat($prompt, ['rasio' => (string)($in['rasio'] ?? '16:9')]);
         } catch (InvalidArgumentException $e) {
             jsonFail($e->getMessage());
         } catch (RuntimeException $e) {

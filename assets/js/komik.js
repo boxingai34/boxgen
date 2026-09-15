@@ -400,6 +400,20 @@ function renderHasil() {
     });
     hal.appendChild(kotakTeks('Semuanya sekaligus', hasil.halaman.flat));
 
+    // Bentuknya sudah sama dengan yang diminta API NovelAI, jadi
+    // halamannya bisa langsung digambar tanpa pindah ke situs lain.
+    hal.appendChild(tombolGambar({
+        url: 'api/gambar.php?action=tokoh',
+        alt: 'Halaman komik',
+        muatan: () => ({
+            bagian: {
+                base: hasil.halaman.base || '',
+                characters: (hasil.halaman.characters || []).map((c) => ({ prompt: c.prompt || '' })),
+                undesired: hasil.halaman.undesired || ''
+            }
+        })
+    }));
+
     const pan = $('#isi-panel');
     pan.innerHTML = '';
     (hasil.panel || []).forEach((p) => {

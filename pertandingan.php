@@ -299,5 +299,6 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=10"></script>
+<script src="assets/js/gambar.js?v=1"></script>
+<script src="assets/js/pertandingan.js?v=11"></script>
 <?php halamanFooter(); ?>

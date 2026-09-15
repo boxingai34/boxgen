@@ -65,11 +65,13 @@ final class GambarAi
         $p = self::ambilProfil('gambar', 'AI_GAMBAR');
 
         return match ($p['provider']) {
-            'gemini'  => self::lewatGemini($p, $prompt, $opsi),
-            'novelai' => self::lewatNovelAi($p, ['base' => $prompt], $opsi),
-            default   => throw new RuntimeException(
+            'gemini'            => self::lewatGemini($p, $prompt, $opsi),
+            'openai',
+            'openai_compatible' => self::lewatOpenAi($p, $prompt, $opsi),
+            'novelai'           => self::lewatNovelAi($p, ['base' => $prompt], $opsi),
+            default             => throw new RuntimeException(
                 'Provider "' . $p['provider'] . '" belum didukung untuk membuat gambar. '
-                . 'Yang ada: gemini, novelai.'
+                . 'Yang ada: gemini, openai, novelai.'
             ),
         };
     }
@@ -238,6 +240,10 @@ final class GambarAi
     public static function daftarModel(): array
     {
         $p = self::ambilProfil('gambar', 'AI_GAMBAR');
+
+        if ($p['provider'] === 'openai' || $p['provider'] === 'openai_compatible') {
+            return self::daftarOpenAi($p);
+        }
         if ($p['provider'] !== 'gemini') {
             return [];
         }
@@ -269,6 +275,97 @@ final class GambarAi
         sort($out);
 
         return $out;
+    }
+
+    /** Model gambar di akun OpenAI, disaring dari daftar yang juga berisi model teks. */
+    private static function daftarOpenAi(array $p): array
+    {
+        $base = rtrim(trim((string)($p['base_url'] ?? '')), '/') ?: 'https://api.openai.com/v1';
+
+        $json = self::post($base . '/models', [], [
+            'Authorization: Bearer ' . $p['api_key'],
+        ], 30, 'GET');
+
+        $out = [];
+        foreach (($json['data'] ?? []) as $m) {
+            $id = (string)($m['id'] ?? '');
+            if (str_contains($id, 'image') || str_contains($id, 'dall-e')) {
+                $out[] = ['nama' => $id, 'keterangan' => ''];
+            }
+        }
+
+        sort($out);
+
+        return $out;
+    }
+
+    // =================================================================
+    // OpenAI
+    // =================================================================
+
+    /**
+     * Endpoint gambar OpenAI — bentuknya jauh lebih sederhana dari Gemini.
+     *
+     * Satu POST dengan prompt dan ukuran, balasannya JSON berisi
+     * b64_json. Tidak ada ZIP, tidak ada modalitas yang harus diminta.
+     *
+     * Ukurannya TIDAK bebas: cuma tiga yang diterima (persegi, lanskap,
+     * potret). Rasio yang kamu pilih untuk video dipetakan ke yang
+     * terdekat, bukan dikirim apa adanya — kalau dikirim apa adanya,
+     * permintaannya ditolak dengan pesan yang tidak menyebut sebabnya.
+     *
+     * Sama seperti Gemini: ini untuk LATAR. Penyaring OpenAI menolak
+     * ketelanjangan, jadi tokoh tetap lewat NovelAI.
+     */
+    private static function lewatOpenAi(array $p, string $prompt, array $opsi): array
+    {
+        $base = rtrim(trim((string)($p['base_url'] ?? '')), '/') ?: 'https://api.openai.com/v1';
+
+        $json = self::post($base . '/images/generations', [
+            'model'  => (string)$p['model'],
+            'prompt' => $prompt,
+            'n'      => 1,
+            'size'   => self::ukuranOpenAi($opsi),
+        ], [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $p['api_key'],
+        ], max(60, (int)$p['timeout']));
+
+        $d    = $json['data'][0] ?? [];
+        $data = (string)($d['b64_json'] ?? '');
+
+        if ($data === '') {
+            throw new RuntimeException(
+                'OpenAI tidak mengembalikan gambar. Pastikan AI_GAMBAR_MODEL memang model '
+                . 'gambar (gpt-image-...), bukan model teks.'
+            );
+        }
+
+        $byte = (int)floor(strlen($data) * 3 / 4);
+        if ($byte > self::MAKS_BYTE) {
+            throw new RuntimeException(
+                'Gambarnya ' . round($byte / 1048576, 1) . ' MB, lebih besar dari batas '
+                . round(self::MAKS_BYTE / 1048576) . ' MB.'
+            );
+        }
+
+        return ['mime' => 'image/png', 'data' => $data, 'model' => (string)$p['model'], 'byte' => $byte];
+    }
+
+    /** Rasio video dipetakan ke salah satu dari tiga ukuran yang diterima OpenAI. */
+    private static function ukuranOpenAi(array $opsi): string
+    {
+        $rasio = (string)($opsi['rasio'] ?? '16:9');
+
+        [$w, $t] = array_pad(array_map('intval', explode(':', $rasio, 2)), 2, 0);
+        if ($w <= 0 || $t <= 0) {
+            return '1536x1024';
+        }
+
+        if ($w > $t) { return '1536x1024'; }
+        if ($t > $w) { return '1024x1536'; }
+
+        return '1024x1024';
     }
 
     // =================================================================

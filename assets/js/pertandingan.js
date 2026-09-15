@@ -324,44 +324,6 @@ function kotakTeks(label, isi, ket) {
  * menyimpannya sama sekali. Kalau kamu mau menyimpannya, klik kanan lalu
  * simpan sendiri; begitu halaman ini ditutup, gambarnya hilang.
  */
-function bikinGambar(url, muatan, alt) {
-    const bung = el('div', 'buat-latar');
-    const btn  = el('button', 'btn kecil', 'Buat gambarnya');
-    btn.type = 'button';
-
-    const pesan = el('p', 'hint');
-    const tampil = el('div', 'hasil-latar');
-
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.textContent = 'Menggambar...';
-        pesan.textContent = 'Biasanya 10-30 detik.';
-        pesan.classList.remove('galat');
-
-        try {
-            const data = await postJson(url, muatan);
-            tampil.innerHTML = '';
-            const img = el('img');
-            img.src = data.gambar;
-            img.alt = alt;
-            tampil.appendChild(img);
-            pesan.textContent = Math.round(data.byte / 1024) + ' KB · ' + data.model
-                + ' · tidak disimpan di server, klik kanan untuk menyimpannya sendiri.';
-        } catch (err) {
-            pesan.textContent = err.message;
-            pesan.classList.add('galat');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = 'Buat gambarnya';
-        }
-    });
-
-    bung.appendChild(btn);
-    bung.appendChild(pesan);
-    bung.appendChild(tampil);
-    return bung;
-}
-
 function renderHasil() {
     if (!hasil) return;
     $('#keluaran').hidden = false;
@@ -395,7 +357,7 @@ function renderHasil() {
         // Tokoh lewat NovelAI, bukan Gemini — penyaring ketelanjangan
         // Gemini tidak bisa dimatikan.
         if (bagian && bagian.base) {
-            kotak.appendChild(bikinGambar('api/gambar.php?action=tokoh', { bagian }, 'Tokoh hasil NovelAI'));
+            kotak.appendChild(tombolGambar({ url: 'api/gambar.php?action=tokoh', muatan: () => ({ bagian }), alt: 'Tokoh acuan' }));
         }
         ka.appendChild(kotak);
     });
@@ -413,7 +375,7 @@ function renderHasil() {
     (hasil.latar || []).forEach((c) => {
         const kotak = kotakTeks(c.nama, c.prompt,
             c.tempat + ' · dipakai di klip ' + c.klip.join(', '));
-        kotak.appendChild(bikinGambar('api/gambar.php?action=latar', { prompt: c.prompt }, 'Latar hasil Gemini'));
+        kotak.appendChild(tombolGambar({ url: 'api/gambar.php?action=latar', muatan: () => ({ prompt: c.prompt, rasio: ($('#rasio') || {}).value || '16:9' }), alt: 'Latar' }));
         la.appendChild(kotak);
         if (c.prompt_tag) {
             la.appendChild(kotakTeks(c.nama + ' — versi tag', c.prompt_tag,

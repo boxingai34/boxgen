@@ -1537,6 +1537,22 @@ function tampilkanVersi(v) {
 
         box.appendChild(el('p', 'hint',
             'Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.'));
+
+        // Atau langsung digambar di sini. Bentuk keluaran NovelAI di atas
+        // (base + kotak karakter + undesired) memang persis yang diminta
+        // API-nya, jadi tidak ada yang perlu dirakit ulang.
+        box.appendChild(tombolGambar({
+            url: 'api/gambar.php?action=tokoh',
+            alt: 'Hasil NovelAI',
+            muatan: () => ({
+                bagian: {
+                    base: out.base || '',
+                    characters: (out.characters || []).map((c) => ({ prompt: c.prompt || '' })),
+                    undesired: out.undesired || ''
+                }
+            })
+        }));
+
         blokAcuan.hidden = true;
         return;
     }
