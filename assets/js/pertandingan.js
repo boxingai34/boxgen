@@ -404,6 +404,50 @@ function renderHasil() {
     gantiTab(tab);
 }
 
+/**
+ * Salin seluruh isi tab yang sedang terbuka.
+ *
+ * Mengikuti tab, bukan cuma klip: kartu tokoh dan kartu latar sama
+ * panjangnya dan sama repotnya disalin satu-satu. Yang disalin juga
+ * versi yang sedang KAMU LIHAT — kalau centang NSFW menyala, yang ikut
+ * versi setianya, bukan salinan amannya.
+ */
+async function salinSemua() {
+    if (!hasil) return;
+
+    const nsfw = $('#opsi-nsfw').checked;
+    const btn  = $('#btn-salin-semua');
+    let blok   = [];
+
+    if (tab === 'klip') {
+        blok = (hasil.klip || []).map((k) => {
+            const kepala = `=== KLIP ${k.nomor} — ${k.judul} ===`;
+            const info   = [`${k.mulai}-${k.selesai}s`]
+                .concat((k.urut || []).map((u) => `Image ${u.nomor}: ${u.nama}`))
+                .join(' · ');
+            return `${kepala}\n${info}\n\n${(nsfw && k.prompt_nsfw) ? k.prompt_nsfw : k.prompt}`;
+        });
+    } else if (tab === 'kartu') {
+        blok = (hasil.kartu || []).map((c) =>
+            `=== ${c.nama} ===\ndipakai di klip ${(c.klip || []).join(', ')}\n\n`
+            + ((nsfw && c.prompt_nsfw) ? c.prompt_nsfw : c.prompt));
+    } else {
+        blok = (hasil.latar || []).map((c) =>
+            `=== ${c.nama} ===\ndipakai di klip ${(c.klip || []).join(', ')}\n\n${c.prompt}`
+            + (c.prompt_tag ? `\n\n--- versi tag (NovelAI) ---\n${c.prompt_tag}` : ''));
+    }
+
+    if (!blok.length) return;
+
+    try {
+        await navigator.clipboard.writeText(blok.join('\n\n'));
+        btn.textContent = `Tersalin (${blok.length})`;
+    } catch (e) {
+        btn.textContent = 'Gagal';
+    }
+    setTimeout(() => { btn.textContent = 'Salin semua'; }, 1500);
+}
+
 function gantiTab(nama) {
     tab = nama;
     $$('#tabs .tab').forEach((b) => b.classList.toggle('aktif', b.dataset.tab === nama));
@@ -699,6 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
         b.addEventListener('click', () => gantiMode(b.dataset.mode)));
     $('#btn-baca-cerita').addEventListener('click', bacaCerita);
     $('#btn-simpan').addEventListener('click', simpanCerita);
+    $('#btn-salin-semua').addEventListener('click', salinSemua);
 
     const r = new URLSearchParams(location.search).get('r');
     if (r) { bukaTersimpan(r); }
