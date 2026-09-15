@@ -612,6 +612,18 @@ TXT;
                 'jenis'   => self::JENIS[$r['adegan']['jenis']] ?? $r['adegan']['jenis'],
                 'waktu'   => $r['adegan']['waktu'],
                 'acuan'   => $acuan,
+                // Apa yang terjadi di klip ini, supaya kamu tahu isinya
+                // tanpa harus membaca seluruh promptnya dulu.
+                //
+                // Adegan panjang dipecah jadi beberapa klip, dan ketiganya
+                // berbagi satu "isi" yang sama — dipakai apa adanya, tiga
+                // klip berturut-turut berbunyi identik dan ringkasannya
+                // tidak memberitahu apa pun. Untuk potongan begitu yang
+                // dipakai shot pertama klipnya sendiri, karena di situlah
+                // bedanya.
+                'ringkas' => $r['dari'] > 1
+                    ? self::ringkasShot($hasil['rencana'] ?? [], $r['adegan']['isi'])
+                    : $r['adegan']['isi'],
                 'latar'   => 'LATAR ' . mb_strtoupper(self::lokasiDi($ekstrak, $r)['nama']),
                 // Urutan unggah gambarnya, sudah bernomor. Nomornya
                 // BERBEDA tiap klip — klip berisi satu tokoh menaruh
@@ -1003,6 +1015,25 @@ TXT;
              . 'same objects in the same positions, the same surfaces, the same single light source.';
 
         return rtrim($prompt) . "\n\n" . implode(' ', $b);
+    }
+
+    /**
+     * Kalimat pertama dari shot pembuka klip, sebagai ringkasannya.
+     *
+     * Dipotong di titik pertama: satu kalimat cukup untuk tahu isinya, dan
+     * shot lengkap membawa sudut kamera serta efek yang cuma jadi derau
+     * di judul.
+     */
+    private static function ringkasShot(array $rencana, string $cadangan): string
+    {
+        $aksi = trim((string)($rencana['shots'][0]['action'] ?? ''));
+        if ($aksi === '') {
+            return $cadangan;
+        }
+
+        $titik = strpos($aksi, '. ');
+
+        return $titik === false ? $aksi : substr($aksi, 0, $titik + 1);
     }
 
     /**

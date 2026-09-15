@@ -293,10 +293,18 @@ async function rancang() {
     }
 }
 
-function kotakTeks(label, isi, ket) {
+function kotakTeks(label, isi, ket, ringkas) {
     const b = el('div', 'kotak-prompt');
     const h = el('div', 'kotak-kepala');
-    h.appendChild(el('strong', null, label));
+
+    // Nomor klip tetap tebal dan pendek; ringkasannya menyusul di
+    // bawahnya dengan bobot normal. Digabung jadi satu baris tebal,
+    // "Klip 2" hilang ditelan kalimat panjang dan daftarnya jadi susah
+    // dipindai.
+    const kiri = el('div', 'kotak-judul');
+    kiri.appendChild(el('strong', null, label));
+    if (ringkas) { kiri.appendChild(el('span', 'kotak-ringkas', ringkas)); }
+    h.appendChild(kiri);
 
     const salin = el('button', 'btn kecil', 'Salin');
     salin.type = 'button';
@@ -351,7 +359,7 @@ function renderHasil() {
             if (k.latar)     bag.push(k.latar);
         }
 
-        kl.appendChild(kotakTeks('Klip ' + k.nomor, isi, bag.join(' · ')));
+        kl.appendChild(kotakTeks('Klip ' + k.nomor, isi, bag.join(' · '), k.ringkas));
     });
 
     const ka = $('#isi-kartu');
