@@ -289,13 +289,15 @@ halamanHeader('Rancang Pertandingan');
             <div class="tabs" id="tabs">
                 <button class="tab aktif" data-tab="klip" type="button">Prompt klip</button>
                 <button class="tab" data-tab="kartu" type="button">Kartu kondisi</button>
+                <button class="tab" data-tab="latar" type="button">Latar</button>
             </div>
             <div id="isi-klip"></div>
             <div id="isi-kartu" hidden></div>
+            <div id="isi-latar" hidden></div>
         </div>
     </section>
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=7"></script>
+<script src="assets/js/pertandingan.js?v=8"></script>
 <?php halamanFooter(); ?>

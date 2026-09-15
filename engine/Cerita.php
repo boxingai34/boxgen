@@ -43,6 +43,16 @@ final class Cerita
     /** Klip paling banyak, mengikuti batas di Pertandingan. */
     public const MAKS_KLIP = 40;
 
+    /**
+     * Tempat paling banyak dalam satu cerita.
+     *
+     * Tiap tempat berarti satu gambar latar yang harus kamu buat sendiri,
+     * jadi batasnya rendah dengan sengaja: cerita yang pindah ke enam
+     * ruangan berbeda lebih sering salah baca daripada benar-benar butuh
+     * enam latar.
+     */
+    public const MAKS_LOKASI = 5;
+
     /** Jenis adegan dan bahasa kameranya. */
     public const JENIS = [
         'cerita'  => 'Adegan biasa',
@@ -147,12 +157,16 @@ final class Cerita
     "mulai": "01:00",
     "keterangan": "one English phrase for the time of day and what it does to the light, e.g. 'the middle of the night, one warm lamp in a dark room'"
   },
-  "latar": {
-    "tempat": "short English phrase: the living room of a modern city apartment",
-    "verbatim": "two English sentences describing the room as if telling someone who cannot see it: furniture, floor, what is on the walls, where the light comes from",
-    "tags": ["indoors", "living_room", "night"],
-    "ring": false
-  },
+  "lokasi": [
+    {
+      "kunci": "ruangtamu",
+      "nama": "Ruang tamu",
+      "tempat": "short English phrase: the living room of a modern city apartment",
+      "verbatim": "two English sentences describing the room as if telling someone who cannot see it: furniture, floor, what is on the walls, where the light comes from",
+      "tags": ["indoors", "living_room", "night"],
+      "ring": false
+    }
+  ],
   "cast": [
     {
       "id": "a",
@@ -180,6 +194,7 @@ final class Cerita
       "jenis": "cerita|tinju|transisi|penutup",
       "detik": 20,
       "waktu": "00:40",
+      "lokasi": "ruangtamu",
       "pelaku": ["a"],
       "kostum": {"a": "awal"},
       "isi": "one or two English sentences: what actually happens on screen in this beat",
@@ -204,17 +219,19 @@ ATURAN:
 
 3. WAKTU. Kalau ceritanya menyebut jam ("pukul 1 malam"), isi "waktu.mulai" dan jadikan "waktu.keterangan" kalimat tentang cahayanya. Tiap adegan juga punya "waktu" sendiri; kalau ceritanya menyebut lompatan ("setelah 30 menit"), majukan jamnya. Ini yang menentukan pencahayaan seluruh video, jadi jangan dikosongkan kalau ada petunjuknya.
 
-4. TOKOH. Ambil dari ceritanya. Isi "character" dengan tag Danbooru berbentuk underscore hanya kalau kamu yakin tokohnya memang ada di Danbooru (misalnya yor_briar, loid_forger, anya_\(spy_x_family\)); kalau ragu isi null. Tokoh yang cuma disebut lewat dan tidak muncul di layar tidak usah dimasukkan.
+4. TEMPAT. Daftar semua tempat yang benar-benar terlihat di layar, tiap tempat satu entri di "lokasi" dengan "kunci" pendek, dan tiap adegan menyebut tempatnya lewat "lokasi". Biasanya cuma satu atau dua; jangan dipecah-pecah kalau adegannya masih di ruangan yang sama. "verbatim" ditulis lengkap sampai bisa dibayangkan orang yang belum pernah ke sana — perabot, lantai, dinding, dan dari mana cahayanya datang — karena kalimat inilah yang dipakai membuat gambar latarnya, dan gambar itu harus sama persis di semua klip yang memakai tempat yang sama.
 
-5. KOSTUM ITU BAGIAN TERPENTING. Satu tokoh bisa berganti wujud beberapa kali dalam satu cerita — menunggu dengan baju tidur, lalu melepas baju, lalu bertinju. Tiap wujud yang berbeda jadi satu entri di "kostum" dengan "kunci" pendek, dan tiap adegan menyebut kostum mana yang dipakai lewat "kostum". Ini yang menentukan berapa gambar acuan yang harus dibuat, jadi jangan digabung: kalau di cerita dia melepas bajunya, itu DUA kostum, bukan satu.
+5. TOKOH. Ambil dari ceritanya. Isi "character" dengan tag Danbooru berbentuk underscore hanya kalau kamu yakin tokohnya memang ada di Danbooru (misalnya yor_briar, loid_forger, anya_\(spy_x_family\)); kalau ragu isi null. Tokoh yang cuma disebut lewat dan tidak muncul di layar tidak usah dimasukkan.
 
-6. ADEGAN dipecah berurutan mengikuti ceritanya, maksimal 20. Tiap adegan punya "detik" — berapa detik bagian itu di video. Jumlah seluruh "detik" HARUS sama dengan "durasi_detik". Bagi porsinya menurut bobot ceritanya: bagian pertandingan biasanya dapat porsi terbesar, adegan pembuka secukupnya.
+6. KOSTUM ITU BAGIAN TERPENTING. Satu tokoh bisa berganti wujud beberapa kali dalam satu cerita — menunggu dengan baju tidur, lalu melepas baju, lalu bertinju. Tiap wujud yang berbeda jadi satu entri di "kostum" dengan "kunci" pendek, dan tiap adegan menyebut kostum mana yang dipakai lewat "kostum". Ini yang menentukan berapa gambar acuan yang harus dibuat, jadi jangan digabung: kalau di cerita dia melepas bajunya, itu DUA kostum, bukan satu.
 
-7. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban".
+7. ADEGAN dipecah berurutan mengikuti ceritanya, maksimal 20. Tiap adegan punya "detik" — berapa detik bagian itu di video. Jumlah seluruh "detik" HARUS sama dengan "durasi_detik". Bagi porsinya menurut bobot ceritanya: bagian pertandingan biasanya dapat porsi terbesar, adegan pembuka secukupnya.
 
-8. "isi" ditulis sebagai APA YANG TERLIHAT DI LAYAR, bukan ringkasan cerita. Bukan "Yor marah kepada Loid" melainkan "Yor yanks the door open and drags Loid inside by the collar, jaw set". Jangan menulis dialog; video tidak bisa menampilkan suara percakapan dengan baik.
+8. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban".
 
-9. PEMENANG dan CARA diambil dari ceritanya. Kalau yang kalah dijatuhkan lalu diduduki, itu "ko".
+9. "isi" ditulis sebagai APA YANG TERLIHAT DI LAYAR, bukan ringkasan cerita. Bukan "Yor marah kepada Loid" melainkan "Yor yanks the door open and drags Loid inside by the collar, jaw set". Jangan menulis dialog; video tidak bisa menampilkan suara percakapan dengan baik.
+
+10. PEMENANG dan CARA diambil dari ceritanya. Kalau yang kalah dijatuhkan lalu diduduki, itu "ko".
 
 SKEMA:
 {$skema}
@@ -334,6 +351,7 @@ TXT;
                 'jenis'     => $jenis,
                 'detik'     => max(1, (int)($a['detik'] ?? 0)),
                 'waktu'     => $teks($a['waktu'] ?? '', 12),
+                'lokasi'    => $teks($a['lokasi'] ?? '', 24),
                 'pelaku'    => $pelaku !== [] ? $pelaku : array_slice(array_keys($cast), 0, 2),
                 'kostum'    => $kostum,
                 'isi'       => $teks($a['isi'] ?? '', 500),
@@ -366,7 +384,53 @@ TXT;
             $cara = 'ko';
         }
 
-        $lat = is_array($j['latar'] ?? null) ? $j['latar'] : [];
+        // ---- lokasi ----
+        // Bentuk lama cuma punya satu "latar". Kalau yang datang masih
+        // bentuk itu (hasil suntingan lama, atau model yang mengabaikan
+        // skema baru), dibungkus jadi daftar berisi satu supaya sisa kode
+        // tidak perlu tahu bedanya.
+        $mentah = is_array($j['lokasi'] ?? null) ? array_values($j['lokasi']) : [];
+        if ($mentah === [] && is_array($j['latar'] ?? null)) {
+            $mentah = [$j['latar']];
+        }
+
+        $lokasi = [];
+        foreach (array_slice($mentah, 0, self::MAKS_LOKASI) as $i => $l) {
+            if (!is_array($l)) {
+                continue;
+            }
+            $kunci = preg_replace('/[^a-z0-9_]/', '', strtolower($teks($l['kunci'] ?? '', 24)));
+            if ($kunci === '' || isset($lokasi[$kunci])) {
+                $kunci = 'tempat' . ($i + 1);
+            }
+            $lokasi[$kunci] = [
+                'kunci'    => $kunci,
+                'nama'     => $teks($l['nama'] ?? '', 60) ?: ('Tempat ' . ($i + 1)),
+                'tempat'   => $teks($l['tempat'] ?? '', 200),
+                'verbatim' => $teks($l['verbatim'] ?? '', 400),
+                'tags'     => $tagList($l['tags'] ?? []),
+                'ring'     => !empty($l['ring']),
+            ];
+        }
+        if ($lokasi === []) {
+            $lokasi['tempat1'] = ['kunci' => 'tempat1', 'nama' => 'Tempat 1', 'tempat' => '',
+                                  'verbatim' => '', 'tags' => [], 'ring' => false];
+        }
+
+        // Adegan menyebut tempatnya lewat kunci; yang tidak menyebut
+        // dianggap masih di tempat adegan sebelumnya, bukan pindah.
+        $kunciLokasi = array_key_first($lokasi);
+        foreach ($adegan as $i => $a) {
+            $k = preg_replace('/[^a-z0-9_]/', '', strtolower((string)$a['lokasi']));
+            if ($k !== '' && isset($lokasi[$k])) {
+                $kunciLokasi = $k;
+            }
+            $adegan[$i]['lokasi'] = $kunciLokasi;
+        }
+
+        // "latar" dipertahankan: dipakai ringkasan dan kartu acuan sebagai
+        // tempat bawaan kalau adegannya tidak jelas di mana.
+        $lat = $lokasi[array_key_first($lokasi)];
 
         return [
             'judul'        => $teks($j['judul'] ?? '', 120),
@@ -375,12 +439,8 @@ TXT;
                 'mulai'      => $teks($j['waktu']['mulai'] ?? '', 12),
                 'keterangan' => $teks($j['waktu']['keterangan'] ?? '', 200),
             ],
-            'latar' => [
-                'tempat'   => $teks($lat['tempat'] ?? '', 200),
-                'verbatim' => $teks($lat['verbatim'] ?? '', 400),
-                'tags'     => $tagList($lat['tags'] ?? []),
-                'ring'     => !empty($lat['ring']),
-            ],
+            'lokasi' => $lokasi,
+            'latar'  => $lat,
             'cast'     => $cast,
             'pemenang' => $pemenang,
             'cara'     => $cara,
@@ -548,13 +608,15 @@ TXT;
                 'jenis'   => self::JENIS[$r['adegan']['jenis']] ?? $r['adegan']['jenis'],
                 'waktu'   => $r['adegan']['waktu'],
                 'acuan'   => $acuan,
+                'latar'   => 'LATAR ' . mb_strtoupper(self::lokasiDi($ekstrak, $r)['nama']),
                 'prompt'      => self::tambahKonteks($hasil['outputs']['sfw']['prompt'] ?? '', $ekstrak, $r),
                 'prompt_nsfw' => isset($hasil['outputs']['nsfw']['prompt'])
                     ? self::tambahKonteks((string)$hasil['outputs']['nsfw']['prompt'], $ekstrak, $r) : null,
             ];
         }
 
-        $kartu = self::kartuAcuan($ekstrak, $rencana, $opsi);
+        $kartu  = self::kartuAcuan($ekstrak, $rencana, $opsi);
+        $latar  = self::kartuLokasi($ekstrak, $rencana, $opsi);
 
         $catatan = [];
         $jadi = 0;
@@ -581,6 +643,9 @@ TXT;
         }
         $catatan[] = 'Gambar acuannya ada ' . count($kartu) . ' buah. Buat semuanya di NovelAI dulu, '
                    . 'lalu pakai yang disebut di tiap klip.';
+        $catatan[] = 'Latarnya ada ' . count($latar) . ' tempat. Buat gambarnya di Gemini (latar '
+                   . 'lebih rapi di sana daripada di NovelAI), satu gambar per tempat, lalu pakai '
+                   . 'gambar yang sama di semua klip yang menyebut tempat itu.';
 
         return [
             'mode'    => 'cerita',
@@ -590,6 +655,7 @@ TXT;
             'jumlah'  => count($klip),
             'klip'    => $klip,
             'kartu'   => $kartu,
+            'latar'   => $latar,
             'catatan' => $catatan,
             'ringkas' => self::ringkas($ekstrak),
         ];
@@ -700,7 +766,8 @@ TXT;
      */
     private static function ekstrakKlip(array $e, array $r, int $detik, string $pemenang, string $kalah): array
     {
-        $a = $r['adegan'];
+        $a   = $r['adegan'];
+        $lok = self::lokasiDi($e, $r);
 
         $subjects = [];
         $sisi = ['a', 'b', 'c', 'd', 'e', 'f'];
@@ -761,12 +828,12 @@ TXT;
                 'description' => $a['isi'],
             ],
             'environment' => [
-                'venue'    => $e['latar']['tempat'],
-                'ring'     => (bool)$e['latar']['ring'],
-                'ropes'    => (bool)$e['latar']['ring'],
+                'venue'    => $lok['tempat'],
+                'ring'     => (bool)$lok['ring'],
+                'ropes'    => (bool)$lok['ring'],
                 'crowd'    => 'none',
-                'tags'     => $e['latar']['tags'],
-                'verbatim' => $e['latar']['verbatim'],
+                'tags'     => $lok['tags'],
+                'verbatim' => $lok['verbatim'],
                 'acuan'    => false,
                 'wasit'    => false,
             ],
@@ -892,21 +959,41 @@ TXT;
             return $prompt;
         }
 
-        $b = [];
-        $b[] = 'Setting: ' . ($e['latar']['verbatim'] !== ''
-            ? rtrim($e['latar']['verbatim'], '.') . '.'
-            : rtrim($e['latar']['tempat'], '.') . '.');
+        $l = self::lokasiDi($e, $r);
 
-        if ($e['waktu']['keterangan'] !== '') {
+        $b = [];
+        // Kalimat tempatnya ditulis SAMA PERSIS di tiap klip yang memakai
+        // tempat itu. Itu intinya: model tidak melihat klip sebelumnya,
+        // jadi satu-satunya yang membuat ruangannya tetap sama adalah
+        // kalimat yang tidak berubah satu kata pun.
+        $b[] = 'Setting: ' . ($l['verbatim'] !== ''
+            ? rtrim($l['verbatim'], '.') . '.'
+            : rtrim($l['tempat'], '.') . '.');
+
+        // Keterangan cahaya ditulis model untuk seluruh cerita sekaligus dan
+        // sering menyebut ruangannya ("satu lampu hangat di ruangan gelap").
+        // Begitu ceritanya pindah ke halaman belakang, kalimat itu jadi
+        // salah — jadi cuma dipakai kalau tempatnya memang satu. Cahaya
+        // tiap tempat sudah ada di keterangan tempatnya sendiri.
+        if ($e['waktu']['keterangan'] !== '' && count($e['lokasi']) <= 1) {
             $b[] = 'It is ' . rtrim($e['waktu']['keterangan'], '.') . '.';
         }
         if ($r['adegan']['waktu'] !== '') {
             $b[] = 'The clock reads about ' . $r['adegan']['waktu'] . '.';
         }
-        $b[] = 'This is beat ' . $r['nomor'] . ' of the story; keep the room, the light and the '
-             . 'time of day identical to every other beat.';
+        $b[] = 'This is beat ' . $r['nomor'] . ' of the story; keep the light and the time of day '
+             . 'identical to every other beat, and keep this place exactly as described above — the '
+             . 'same objects in the same positions, the same surfaces, the same single light source.';
 
         return rtrim($prompt) . "\n\n" . implode(' ', $b);
+    }
+
+    /** Tempat berlangsungnya satu klip, dengan bawaan kalau kuncinya hilang. */
+    private static function lokasiDi(array $e, array $r): array
+    {
+        $k = (string)($r['adegan']['lokasi'] ?? '');
+
+        return $e['lokasi'][$k] ?? $e['latar'];
     }
 
     /**
@@ -999,6 +1086,76 @@ TXT;
                 'klip'    => array_values(array_unique($klipnya)),
                 'prompt'      => $hasil['outputs']['sfw']['flat'] ?? '',
                 'prompt_nsfw' => $hasil['outputs']['nsfw']['flat'] ?? null,
+            ];
+        }
+
+        return $kartu;
+    }
+
+    /**
+     * Gambar latar yang harus dibuat, satu per tempat yang benar-benar dipakai.
+     *
+     * Tanpa ini, tiap klip menggambar ulang ruangannya dari kalimat saja —
+     * dan model tidak melihat klip sebelumnya, jadi sofanya pindah, jendelanya
+     * berubah, lampunya berpindah sisi. Satu gambar latar yang dipakai ulang
+     * jauh lebih patuh daripada kalimat sepanjang apa pun.
+     *
+     * Promptnya sengaja prosa, bukan tag: latar adalah bagian yang paling
+     * lemah di NovelAI dan paling kuat di model prosa seperti Gemini. Baris
+     * tagnya tetap disertakan buat yang mau membuatnya di NovelAI juga.
+     */
+    private static function kartuLokasi(array $e, array $rencana, array $opsi): array
+    {
+        $pakai = [];
+        foreach ($rencana as $r) {
+            $k = (string)($r['adegan']['lokasi'] ?? '');
+            if (!isset($e['lokasi'][$k])) {
+                $k = (string)array_key_first($e['lokasi']);
+            }
+            $pakai[$k][] = $r['nomor'];
+        }
+
+        $rasio = (string)($opsi['wan']['rasio'] ?? '16:9');
+        $waktu = $e['waktu']['keterangan'] !== '' ? rtrim($e['waktu']['keterangan'], '.') : '';
+
+        $kartu = [];
+        foreach ($pakai as $k => $klipnya) {
+            $l    = $e['lokasi'][$k];
+            $isi  = $l['verbatim'] !== '' ? rtrim($l['verbatim'], '.') : rtrim($l['tempat'], '.');
+
+            $b   = [];
+            $b[] = 'Anime background art of ' . ($l['tempat'] !== '' ? rtrim($l['tempat'], '.') : 'the location')
+                 . ', with no people in it.';
+            if ($isi !== '') {
+                $b[] = $isi . '.';
+            }
+            if ($waktu !== '' && count($e['lokasi']) <= 1) {
+                $b[] = 'It is ' . $waktu . '; the light in this image has to read as that time of day.';
+            } elseif ($e['waktu']['mulai'] !== '') {
+                $b[] = 'It is about ' . $e['waktu']['mulai']
+                     . '; the light has to read as that hour, lit only by what the description above names.';
+            }
+            // "Pelat bersih" — tidak ada orang, tidak ada yang terpotong
+            // badan orang. Kalau ada figur di gambar latar, model video
+            // memperlakukannya sebagai tokoh tambahan di tiap klip.
+            $b[] = 'Wide establishing view of the whole space at standing eye level, ' . $rasio
+                 . ', everything in frame and nothing hidden behind a figure.';
+            $b[] = 'Painted anime background style: flat colour areas, soft gradient light, '
+                 . 'clean line edges on the solid shapes, gentle brush texture in the shadows.';
+            $b[] = 'No characters, no people, no animals, no text, no watermark, no signature.';
+
+            $tag = array_values(array_unique(array_merge(
+                ['no_humans', 'scenery'], $l['tags']
+            )));
+
+            sort($klipnya);
+            $kartu[] = [
+                'kunci'      => $k,
+                'nama'       => 'LATAR ' . mb_strtoupper($l['nama']),
+                'tempat'     => $l['nama'],
+                'klip'       => array_values(array_unique($klipnya)),
+                'prompt'     => implode(' ', $b),
+                'prompt_tag' => implode(', ', $tag),
             ];
         }
 

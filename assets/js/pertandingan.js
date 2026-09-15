@@ -327,8 +327,14 @@ function renderHasil() {
     kl.innerHTML = '';
     (hasil.klip || []).forEach((k) => {
         const isi = (nsfw && k.prompt_nsfw) ? k.prompt_nsfw : k.prompt;
-        const ket = `${k.mulai}-${k.selesai}s · ${k.judul} · pakai acuan: ${k.acuan.a} + ${k.acuan.b}`;
-        kl.appendChild(kotakTeks('Klip ' + k.nomor, isi, ket));
+        // Mode gambar selalu punya petinju a dan b; mode cerita bisa punya
+        // satu tokoh saja, atau tiga. Dulu ditulis k.acuan.a + k.acuan.b
+        // dan klip satu orang jadi "... + undefined".
+        const nama = Object.values(k.acuan || {}).filter(Boolean);
+        const bag  = [`${k.mulai}-${k.selesai}s`, k.judul];
+        if (nama.length) bag.push('pakai acuan: ' + nama.join(' + '));
+        if (k.latar)     bag.push(k.latar);
+        kl.appendChild(kotakTeks('Klip ' + k.nomor, isi, bag.join(' · ')));
     });
 
     const ka = $('#isi-kartu');
@@ -342,6 +348,25 @@ function renderHasil() {
         ka.appendChild(kotakTeks(c.nama, isi, c.ket + ' · dipakai di klip ' + c.klip.join(', ')));
     });
 
+    // Latar dipisah dari kartu tokoh karena dibuat di tempat yang berbeda:
+    // tokoh di NovelAI, latar di Gemini yang jauh lebih rapi menggambar
+    // ruangan. Satu gambar per tempat, dipakai ulang di semua klipnya —
+    // itu yang membuat ruangannya tidak berubah bentuk antar potongan.
+    const la = $('#isi-latar');
+    la.innerHTML = '';
+    la.appendChild(el('p', 'hint',
+        'Buat tiap latar di Gemini, satu gambar per tempat, lalu pakai gambar yang sama '
+        + 'di semua klip yang menyebutnya. Baris tag di bawahnya untuk yang mau '
+        + 'membuatnya di NovelAI.'));
+    (hasil.latar || []).forEach((c) => {
+        la.appendChild(kotakTeks(c.nama, c.prompt,
+            c.tempat + ' · dipakai di klip ' + c.klip.join(', ')));
+        if (c.prompt_tag) {
+            la.appendChild(kotakTeks(c.nama + ' — versi tag', c.prompt_tag,
+                'Kalau mau dibuat di NovelAI, bukan Gemini.'));
+        }
+    });
+
     gantiTab(tab);
 }
 
@@ -350,6 +375,7 @@ function gantiTab(nama) {
     $$('#tabs .tab').forEach((b) => b.classList.toggle('aktif', b.dataset.tab === nama));
     $('#isi-klip').hidden = nama !== 'klip';
     $('#isi-kartu').hidden = nama !== 'kartu';
+    $('#isi-latar').hidden = nama !== 'latar';
 }
 
 // -------------------------------------------------------------- pasang

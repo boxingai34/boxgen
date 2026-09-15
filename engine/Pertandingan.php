@@ -527,11 +527,15 @@ TXT;
 
         // ---- kartu kondisi ----
         $kartu = self::kartuKondisi($ekstrak, $babak, $opsi);
+        $latar = self::kartuLokasi($ekstrak, $opsi, $jumlah);
 
         if ($total !== $jumlah * $perKlip) {
             $catatan[] = 'Durasi dibulatkan jadi ' . ($jumlah * $perKlip) . ' detik ('
                        . $jumlah . ' klip x ' . $perKlip . ' detik).';
         }
+        $catatan[] = 'Ada satu prompt latar arena di bawah. Buat gambarnya di Gemini (latar lebih '
+                   . 'rapi di sana daripada di NovelAI), lalu pakai gambar yang sama untuk semua '
+                   . 'klip supaya ringnya tidak berubah bentuk di tengah jalan.';
         $catatan[] = 'Wan dan Seedance menghasilkan klip pendek, bukan satu film. '
                    . $jumlah . ' prompt di bawah ini dibuat berurutan — hasilkan satu per satu, '
                    . 'lalu sambung sendiri di editor video.';
@@ -545,8 +549,73 @@ TXT;
             'cara'    => $cara,
             'klip'    => $klip,
             'kartu'   => $kartu,
+            'latar'   => $latar,
             'catatan' => $catatan,
         ];
+    }
+
+    /**
+     * Prompt gambar arena, supaya latarnya sama di semua klip.
+     *
+     * Tiap klip dihasilkan sendiri-sendiri dan model tidak melihat klip
+     * sebelumnya, jadi tanpa satu gambar arena yang dipakai ulang, tiang
+     * ringnya berpindah dan penontonnya berganti warna tiap potongan.
+     *
+     * Prosa, bukan tag: latar justru bagian paling lemah di NovelAI.
+     *
+     * @return list<array{nama:string,tempat:string,klip:list<int>,prompt:string,prompt_tag:string}>
+     */
+    private static function kartuLokasi(array $ekstrak, array $opsi, int $jumlah): array
+    {
+        $dariGambar = trim((string)($ekstrak['environment']['verbatim'] ?? ''));
+        $pilihan    = isset(self::LATAR[(string)($opsi['latar'] ?? '')]) ? (string)$opsi['latar'] : null;
+
+        // Gambar arena yang kamu unggah selalu menang atas pilihan dropdown:
+        // hasil pembacaan jauh lebih spesifik daripada lima kalimat bawaan.
+        if ($dariGambar !== '') {
+            $isi  = rtrim($dariGambar, '.');
+            $nama = 'Arena dari gambarmu';
+        } elseif ($pilihan !== null) {
+            $isi  = rtrim(self::LATAR[$pilihan]['kalimat'], '.');
+            $nama = self::LATAR[$pilihan]['nama'];
+        } else {
+            $isi  = rtrim(self::LATAR['arena']['kalimat'], '.');
+            $nama = self::LATAR['arena']['nama'];
+        }
+
+        $penonton = isset(self::PENONTON[(string)($opsi['penonton'] ?? '')])
+            ? (string)$opsi['penonton'] : 'penuh';
+
+        $b   = [];
+        $b[] = 'Anime background art of ' . $isi . ', with no people fighting in it.';
+        $b[] = 'Wide establishing view from just outside the ring at standing eye level, '
+             . (string)($opsi['wan']['rasio'] ?? '16:9')
+             . ', the whole ring and the space around it in frame.';
+
+        // Penonton itu bagian dari latar, bukan tokoh: kalau digambar tajam
+        // mereka akan ikut bergerak sendiri-sendiri di tiap klip.
+        $b[] = $penonton === 'kosong'
+            ? 'No spectators anywhere; the space around the ring is empty.'
+            : ($penonton === 'jarang'
+                ? 'A thin scattering of spectators in the dark beyond the ropes, painted as soft shapes, no readable faces.'
+                : 'A packed crowd beyond the ropes, painted as soft bokeh shapes and points of light, no readable faces.');
+
+        $b[] = 'Painted anime background style: flat colour areas, soft gradient light, clean line '
+             . 'edges on the ring posts and ropes, gentle brush texture in the shadows.';
+        $b[] = 'No boxers, no referee, no text, no watermark, no signature — this is the empty set only.';
+
+        $tag = array_values(array_unique(array_merge(
+            ['no_humans', 'scenery'],
+            $pilihan !== null ? self::LATAR[$pilihan]['tags'] : self::LATAR['arena']['tags']
+        )));
+
+        return [[
+            'nama'       => 'LATAR ARENA',
+            'tempat'     => $nama,
+            'klip'       => range(1, max(1, $jumlah)),
+            'prompt'     => implode(' ', $b),
+            'prompt_tag' => implode(', ', $tag),
+        ]];
     }
 
     /**
