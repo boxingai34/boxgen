@@ -1109,6 +1109,10 @@ halamanHeader('Prompt Generator', 'index.php');
                 <textarea id="out-negative" rows="3" readonly></textarea>
             </div>
 
+            <!-- Diisi assets/js/app.js lewat tombolGambar(); isinya dibaca
+                 dari kotak di atas SAAT DIKLIK, jadi suntinganmu ikut. -->
+            <div id="blok-gambar" hidden></div>
+
             <div id="story-block" hidden>
                 <div class="out-head">
                     <span id="story-ringkasan"></span>

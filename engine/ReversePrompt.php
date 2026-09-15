@@ -2714,7 +2714,14 @@ TXT;
             'wasit'    => self::adaPeran($e, 'referee') || !empty($e['environment']['wasit']),
             'acuan_latar'  => $adaAcuanLatar,
             'nomor_latar'  => $nomorLatar,
-            'latar_kalimat' => trim((string)($e['environment']['verbatim'] ?? '')),
+            // Kalau tidak ada gambar arena yang dibaca, keterangannya diambil
+            // dari latar pilihanmu — jangkar "Image 3 is the venue." tanpa
+            // keterangan apa pun tidak memberi tahu model apa-apa.
+            'latar_kalimat' => trim((string)($e['environment']['verbatim'] ?? ''))
+                ?: trim((string)($e['environment']['venue'] ?? '')),
+            // Ring atau bukan menentukan kalimat jangkarnya: "pakai untuk
+            // ring, tali, dan tiang sudut" salah total untuk ruang tamu.
+            'latar_ring'   => !empty($e['environment']['ring']),
             'nsfw_ada' => self::adaKetelanjangan($e),
         ];
     }
@@ -2838,9 +2845,13 @@ TXT;
         }
         if (!empty($r['acuan_latar']) && (int)$r['nomor_latar'] > 0) {
             $ket = $r['latar_kalimat'] !== '' ? ' — ' . rtrim($r['latar_kalimat'], '.') : '';
-            $anchor[(int)$r['nomor_latar']] = 'Image ' . (int)$r['nomor_latar'] . ' is the venue' . $ket
-                      . '. Use it for the ring, the ropes, the corner posts, the floor and the '
-                      . 'lighting; there is no fighter to take from that image.';
+            $anchor[(int)$r['nomor_latar']] = 'Image ' . (int)$r['nomor_latar'] . ' is the '
+                      . (!empty($r['latar_ring']) ? 'venue' : 'location') . $ket . '. '
+                      . (!empty($r['latar_ring'])
+                          ? 'Use it for the ring, the ropes, the corner posts, the floor and the lighting'
+                          : 'Use it as the set — the walls, the floor, the furniture and where the light '
+                            . 'comes from must match it exactly in every shot')
+                      . '; there is nobody to take from that image.';
         }
 
         ksort($anchor);
@@ -3076,9 +3087,12 @@ TXT;
         }
         if (!empty($r['acuan_latar']) && (int)$r['nomor_latar'] > 0) {
             $ket = ($r['latar_kalimat'] ?? '') !== '' ? ' — ' . rtrim($r['latar_kalimat'], '.') : '';
-            $anchor[(int)$r['nomor_latar']] = '@Image ' . (int)$r['nomor_latar'] . ' is THE VENUE' . $ket
-                    . '. Take the ring, ropes, corner posts, floor and lighting from it; '
-                    . 'there is no fighter in that image.';
+            $anchor[(int)$r['nomor_latar']] = '@Image ' . (int)$r['nomor_latar'] . ' is THE '
+                    . (!empty($r['latar_ring']) ? 'VENUE' : 'LOCATION') . $ket . '. '
+                    . (!empty($r['latar_ring'])
+                        ? 'Take the ring, ropes, corner posts, floor and lighting from it'
+                        : 'Take the walls, floor, furniture and lighting from it, unchanged in every shot')
+                    . '; there is nobody in that image.';
         }
         ksort($anchor);
         foreach ($anchor as $baris) {

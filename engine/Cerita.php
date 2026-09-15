@@ -838,7 +838,12 @@ TXT;
                 'crowd'    => 'none',
                 'tags'     => $lok['tags'],
                 'verbatim' => $lok['verbatim'],
-                'acuan'    => false,
+                // Tiap tempat punya kartu latarnya sendiri, dan kamu memang
+                // diminta membuat gambarnya. Tanpa jangkar ini prompt tidak
+                // pernah menyuruh model memakainya, jadi ruangannya digambar
+                // ulang dari kalimat tiap klip — dan itulah kenapa sofanya
+                // pindah-pindah antar potongan.
+                'acuan'    => true,
                 'wasit'    => false,
             ],
             'lighting'      => ['summary' => $e['waktu']['keterangan'], 'tags' => []],

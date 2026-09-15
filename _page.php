@@ -108,7 +108,8 @@ function halamanFooter(bool $skrip = false): void
 <?php endif; ?>
 
 <?php if ($skrip): ?>
-<script src="assets/js/app.js?v=24"></script>
+<script src="assets/js/gambar.js?v=1"></script>
+<script src="assets/js/app.js?v=25"></script>
 <?php endif; ?>
 </body>
 </html>

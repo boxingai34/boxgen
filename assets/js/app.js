@@ -932,10 +932,49 @@ function initTagInput() {
 // Generate
 // ==================================================================
 
+/**
+ * Tombol "Buat gambarnya" di bawah keluaran.
+ *
+ * Hanya untuk keluaran NovelAI: yang dipanggil memang API NovelAI, dan
+ * prompt Stable Diffusion punya kebiasaan bobot sendiri yang tidak
+ * diartikan sama di sana.
+ *
+ * Isinya dibaca dari kotak DI HALAMAN saat diklik, bukan dari hasil yang
+ * tersimpan — supaya prompt yang sudah kamu sunting sendiri yang dipakai,
+ * bukan versi aslinya.
+ */
+function pasangTombolGambar(target) {
+    const blok = $('#blok-gambar');
+    if (!blok) return;
+
+    blok.innerHTML = '';
+    blok.hidden = !String(target).startsWith('nai');
+    if (blok.hidden || typeof tombolGambar !== 'function') return;
+
+    blok.appendChild(tombolGambar({
+        url: 'api/gambar.php?action=tokoh',
+        alt: 'Hasil NovelAI',
+        muatan: () => {
+            const perKarakter = !$('#nai-block').hidden;
+            return {
+                bagian: {
+                    base: perKarakter ? $('#nai-base').value : $('#out-prompt').value,
+                    characters: perKarakter
+                        ? $$('#nai-chars textarea').map((n) => ({ prompt: n.value }))
+                        : [],
+                    undesired: $('#out-negative').value
+                }
+            };
+        }
+    }));
+}
+
 function showOutput(target) {
     if (!lastOutputs) return;
     activeTarget = target;
     const out = lastOutputs[target];
+
+    pasangTombolGambar(target);
 
     // NovelAI punya kotak prompt terpisah per karakter. Kalau ada dua
     // petinju, tampilkan bentuk itu; selain itu kotak biasa saja.

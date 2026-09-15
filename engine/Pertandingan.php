@@ -1714,6 +1714,13 @@ TXT;
 
         $e['environment']['crowd'] = ['penuh' => 'packed', 'jarang' => 'sparse', 'kosong' => 'none'][$penonton];
 
+        // Arenanya SELALU punya gambar acuan sekarang: kalau kamu tidak
+        // mengunggahnya, kartu LATAR ARENA memberimu promptnya dan kamu
+        // diminta membuatnya. Tanpa jangkar ini prompt tidak pernah
+        // menyuruh model memakai gambar itu, jadi ringnya digambar ulang
+        // tiap klip dan bentuknya berubah di tengah pertandingan.
+        $e['environment']['acuan'] = true;
+
         // Dibaca rencanaVideo() supaya baris penutup ikut menyebut wasit
         // waktu kamu memintanya walau tanpa gambar acuan.
         $e['environment']['wasit'] = !empty($opsi['wasit']);
