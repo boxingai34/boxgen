@@ -21,6 +21,40 @@ halamanHeader('Rancang Pertandingan');
 <div class="grid-2">
 
     <section class="panel">
+        <div class="tabs" id="mode-tabs">
+            <button class="tab aktif" data-mode="gambar" type="button">Dari gambar acuan</button>
+            <button class="tab" data-mode="cerita" type="button">Dari cerita</button>
+        </div>
+
+        <div id="mode-cerita" hidden>
+            <h2>Jalan cerita</h2>
+            <p class="hint">
+                Tidak perlu gambar apa pun. Tulis saja jalan ceritanya — siapa tokohnya, di mana,
+                jam berapa, apa yang terjadi, siapa menang, dan berapa panjang videonya. Mesin yang
+                menentukan siapa perlu gambar acuan apa dan di adegan mana.
+            </p>
+            <div class="field">
+                <label for="cerita">Ceritanya</label>
+                <textarea id="cerita" rows="14" maxlength="6000"
+                    placeholder="Char: Loid vs Yor&#10;&#10;Pada malam itu Yor menunggu kepulangan Loid di ruang tamu. Jam menunjukkan pukul 1 malam...&#10;&#10;Yor menang, buat video berdurasi 3 menit 30 detik."></textarea>
+                <p class="hint">
+                    Sebutkan panjang videonya di dalam cerita ("buat video 3 menit 30 detik") dan jamnya
+                    ("pukul 1 malam") — keduanya dipakai otomatis. Kalau tokohmu berganti pakaian di
+                    tengah cerita, sebutkan; tiap wujud jadi satu gambar acuan sendiri.
+                </p>
+            </div>
+            <div class="actions">
+                <button id="btn-baca-cerita" class="btn primary" type="button">Baca Cerita</button>
+            </div>
+            <p class="hint" id="cerita-note"></p>
+            <div id="hasil-cerita" hidden>
+                <h3>Terbaca</h3>
+                <p class="hint" id="cerita-ringkas"></p>
+                <div id="adegan-list"></div>
+            </div>
+        </div>
+
+        <div id="mode-gambar">
         <h2>Gambar acuan</h2>
         <p class="hint">
             Tiga gambar: dua petinjunya, dan arenanya. Wujud dasar saja —
@@ -97,6 +131,7 @@ halamanHeader('Rancang Pertandingan');
             <h3>Terbaca</h3>
             <p class="hint" id="ringkas"></p>
             <div id="petinju-list"></div>
+        </div>
         </div>
     </section>
 
@@ -247,5 +282,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=4"></script>
+<script src="assets/js/pertandingan.js?v=5"></script>
 <?php halamanFooter(); ?>

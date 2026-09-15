@@ -414,3 +414,144 @@ function pasang() {
 }
 
 document.addEventListener('DOMContentLoaded', pasang);
+
+// ==================================================================
+// Mode cerita
+//
+// Tidak ada gambar sama sekali: cukup jalan ceritanya, mesin yang
+// menentukan siapa perlu gambar acuan apa dan di adegan mana. Alurnya
+// tetap dua langkah seperti mode gambar — baca dulu, lalu rancang.
+// ==================================================================
+
+let mode          = 'gambar';
+let ekstrakCerita = null;
+
+function gantiMode(nama) {
+    mode = nama;
+    $$('#mode-tabs .tab').forEach((b) => b.classList.toggle('aktif', b.dataset.mode === nama));
+    $('#mode-gambar').hidden = nama !== 'gambar';
+    $('#mode-cerita').hidden = nama !== 'cerita';
+
+    // Tombol Rancang melayani dua mode, jadi syaratnya ikut berganti.
+    $('#btn-rancang').disabled = nama === 'gambar' ? ekstrak === null : ekstrakCerita === null;
+}
+
+async function bacaCerita() {
+    const btn = $('#btn-baca-cerita');
+    btn.disabled = true;
+    btn.textContent = 'Membaca…';
+
+    try {
+        const data = await postJson('api/cerita.php?action=baca', {
+            cerita: $('#cerita').value.trim(),
+            detik_total: 0
+        }, {
+            ulang: 3,
+            lapor: (p) => { $('#cerita-note').textContent = p; }
+        });
+
+        ekstrakCerita = data.ekstrak;
+        $('#cerita-ringkas').textContent = data.ringkas || '';
+        $('#hasil-cerita').hidden = false;
+        $('#btn-rancang').disabled = false;
+
+        // Durasi dari ceritanya menimpa pilihan dropdown — itu yang kamu
+        // tulis sendiri, jadi lebih berhak daripada nilai bawaan.
+        pilihOpsiDurasi(data.ekstrak.durasi_detik);
+        renderAdegan();
+
+        $('#cerita-note').textContent = [
+            teksQuota(data.quota), teksToken(data.token), (data.catatan || []).join(' ')
+        ].filter(Boolean).join(' · ');
+
+        bawaKeLayar($('#hasil-cerita'));
+    } catch (err) {
+        $('#cerita-note').textContent = err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Baca Cerita';
+    }
+}
+
+/** Pilih durasi terdekat yang tersedia, atau tambahkan pilihannya. */
+function pilihOpsiDurasi(detik) {
+    const sel = $('#durasi');
+    if (!detik || !sel) return;
+    if (![...sel.options].some((o) => Number(o.value) === detik)) {
+        const o = document.createElement('option');
+        o.value = String(detik);
+        const m = Math.floor(detik / 60);
+        const d = detik % 60;
+        o.textContent = (m ? m + ' menit' : '') + (d ? (m ? ' ' : '') + d + ' detik' : '') + ' (dari cerita)';
+        sel.appendChild(o);
+    }
+    sel.value = String(detik);
+}
+
+function renderAdegan() {
+    const box = $('#adegan-list');
+    box.innerHTML = '';
+    if (!ekstrakCerita) return;
+
+    const cast = ekstrakCerita.cast || {};
+    const nama = (id) => (cast[id] && cast[id].nama) || String(id).toUpperCase();
+
+    (ekstrakCerita.adegan || []).forEach((a) => {
+        const baris = el('div', 'row');
+        const kiri = el('span', null, a.no + '. ' + a.judul
+            + (a.waktu ? '  ·  ' + a.waktu : ''));
+        const isi = (a.pelaku || []).map((id) => {
+            const k = (a.kostum || {})[id];
+            const kk = k && cast[id] && cast[id].kostum && cast[id].kostum[k];
+            return nama(id) + (kk ? ' (' + kk.nama + ')' : '');
+        }).join(' + ');
+        baris.appendChild(kiri);
+        baris.appendChild(el('span', null, a.detik + 's · ' + isi));
+        box.appendChild(baris);
+    });
+}
+
+/** Rancang untuk mode cerita — endpoint dan bentuk jawabannya berbeda. */
+async function rancangCerita() {
+    if (!ekstrakCerita) return;
+    const btn = $('#btn-rancang');
+    btn.disabled = true;
+    btn.textContent = 'Merancang…';
+
+    try {
+        const data = await postJson('api/cerita.php?action=rancang', {
+            ekstrak: ekstrakCerita,
+            opsi: {
+                target: $('#target').value,
+                detik_per_klip: parseInt($('#perklip').value, 10),
+                nsfw: $('#opsi-nsfw').checked,
+                dewasa: $('#opsi-dewasa').checked,
+                gaya: { style_id: parseInt($('#gaya').value, 10) || null, artis: '', kuat: 'sedang' },
+                wan: { rasio: $('#rasio').value },
+                seedance: { resolusi: $('#resolusi').value }
+            }
+        }, { ulang: 2, lapor: (p) => { $('#rancang-note').textContent = p; } });
+
+        hasil = data;
+        renderHasil();
+        $('#rancang-note').textContent = (data.catatan || []).join(' ');
+        bawaKeLayar($('#keluaran'));
+    } catch (err) {
+        $('#rancang-note').textContent = err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Rancang Pertandingan';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    $$('#mode-tabs .tab').forEach((b) =>
+        b.addEventListener('click', () => gantiMode(b.dataset.mode)));
+    $('#btn-baca-cerita').addEventListener('click', bacaCerita);
+
+    // Tombol Rancang dibelokkan ke endpoint yang benar sesuai modenya.
+    const btn = $('#btn-rancang');
+    const asli = btn.cloneNode(true);
+    btn.parentNode.replaceChild(asli, btn);
+    asli.addEventListener('click', () => (mode === 'cerita' ? rancangCerita() : rancang()));
+});

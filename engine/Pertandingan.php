@@ -862,6 +862,24 @@ TXT;
                 return 'takes it flush, head snapping to the side before she recovers';
         }
     }
+
+    /**
+     * Pintu masuk ke perpustakaan teknik dari luar kelas ini.
+     *
+     * Dipakai mode cerita, yang punya adegan bukan-tinju sendiri tapi
+     * tetap ingin pertukaran pukulannya memakai teknik dan sudut kamera
+     * yang sama. Tanpa ini perpustakaannya harus disalin, dan salinan
+     * selalu berakhir berbeda dari aslinya.
+     *
+     * @param string $babak awal|jajak|balik|tekan
+     */
+    public static function shotsBabak(
+        string $babak, int $berapa, int $klip,
+        string $M, string $K, string $menang, string $kalah
+    ): array {
+        return self::rakit($babak, $berapa, $klip, $M, $K, $menang, $kalah);
+    }
+
     private const GERAK = [
         'impact'    => 'A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc',
         'smear'     => 'The fastest part of the swing draws out into a smear frame, the glove leaving a painted trail behind it',

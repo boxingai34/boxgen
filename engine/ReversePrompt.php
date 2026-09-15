@@ -1615,6 +1615,18 @@ TXT;
      */
     private static function tagUmur(array $s, array $opsi): array
     {
+        // HANYA untuk petinju.
+        //
+        // Centang "semua dewasa" ada supaya NovelAI tidak menggambar wajah
+        // remaja pada PETINJUNYA. Menerapkannya ke semua orang di frame
+        // salah begitu ada figuran: mode cerita bisa memasukkan anak kecil
+        // yang kebetulan disebut di ceritamu — Anya tidur di kamarnya —
+        // dan menempelkan "mature female" pada tokoh anak itu keliru,
+        // sekaligus hal yang memang tidak boleh dihasilkan.
+        if (($s['role'] ?? 'fighter') !== 'fighter') {
+            return [];
+        }
+
         $dewasa = !array_key_exists('dewasa', $opsi) || !empty($opsi['dewasa']);
         $agedUp = !empty($opsi['aged_up']);
 
