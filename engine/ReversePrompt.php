@@ -2678,6 +2678,11 @@ TXT;
             'cahaya'   => $e['lighting']['summary'],
             // Dibawa supaya blok penutup tahu siapa yang benar-benar ada di
             // pinggir ring, dan tidak menyebut penonton yang tidak ada.
+            // Apakah klip ini memang pertandingan? Mode cerita punya adegan
+            // biasa — menunggu di sofa, mengetuk pintu — yang tidak boleh
+            // membawa perlengkapan tinju di promptnya.
+            'bertinju' => ($e['scene'] ?? 'fight') === 'fight',
+            'orang_n'  => count($e['subjects']),
             'penonton' => (string)($e['environment']['crowd'] ?? 'packed'),
             // Ada kalau ada subjek berperan wasit, ATAU kalau halaman
             // memintanya tanpa gambar acuan. Dua blok yang bicara soal
@@ -2796,7 +2801,8 @@ TXT;
     {
         $bagian = [];
         $bagian[] = 'Generate a ' . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
-                  . 'an anime boxing match, ' . $r['gaya'] . '.';
+                  . ($r['bertinju'] ? 'an anime boxing match' : 'a scene from an anime')
+                  . ', ' . $r['gaya'] . '.';
 
         // Dikumpulkan dulu lalu diurutkan menurut nomornya. Gambar arena
         // menyelip di tengah, jadi kalau dicetak sesuai urutan subjek saja,
@@ -2827,7 +2833,7 @@ TXT;
         }
 
         $bagian[] = self::batasanWan($r);
-        $bagian[] = self::blokAudio();
+        $bagian[] = self::blokAudio((bool)$r['bertinju']);
 
         return implode("\n\n", array_filter($bagian));
     }
@@ -2849,15 +2855,25 @@ TXT;
      * apa pun": larangan yang cuma menyebut musik LATAR bisa dibaca
      * sebagai izin untuk musik yang tidak di latar.
      */
-    private static function blokAudio(): string
+    private static function blokAudio(bool $bertinju = true): string
     {
+        // Daftar suaranya harus milik adegan itu. Menyebut sarung tangan,
+        // tali ring, dan bel di adegan menunggu di sofa bukan cuma janggal —
+        // model video membaca deskripsi suara sebagai petunjuk isi gambar,
+        // jadi menyebut ring sama saja meminta ring digambar di ruang tamu.
+        $isi = $bertinju
+            ? 'Gloves hitting flesh and guard, feet on canvas, breathing and grunts, '
+              . 'ropes creaking, the bell, and whatever room tone the venue has.'
+            : 'Footsteps, clothing, doors and furniture, breathing, and the room tone '
+              . 'of the place itself.';
+
         return 'Audio: diegetic sound only — everything heard must be something happening '
-             . 'inside the room. Gloves hitting flesh and guard, feet on canvas, breathing and '
-             . 'grunts, ropes creaking, the bell, and whatever room tone the venue has. '
+             . 'inside the room. ' . $isi . ' '
              . 'ABSOLUTELY NO MUSIC OF ANY KIND at any point: no score, no soundtrack, no theme, '
              . 'no drums, no strings, no synth, no hum or drone standing in for music, and no '
              . 'music fading in under the action at the end. If in doubt, leave the track silent '
-             . 'except for the impacts. No narration and no commentary.';
+             . ($bertinju ? 'except for the impacts. ' : 'except for room tone. ')
+             . 'No narration and no commentary.';
     }
 
     private static function kalimatShotWan(array $sh, array $r): string
@@ -2919,7 +2935,7 @@ TXT;
         $b[] = 'Throughout the whole clip: strictly lock every character to their '
              . 'reference image — hair colour, eye colour, glove colour and outfit '
              . 'must not change at any point.';
-        if (count($r['orang']) === 2) {
+        if (count($r['orang']) === 2 && $r['bertinju']) {
             $kiri = null;
             $kanan = null;
             foreach ($r['orang'] as $o) {
@@ -2955,10 +2971,19 @@ TXT;
             $latar[] = 'the crowd';
         }
 
+        // Jangan bilang "dua petinju" kalau yang di layar cuma satu orang,
+        // dan jangan menyebut petinju sama sekali di adegan yang bukan
+        // pertandingan. Keduanya membuat model mengarang orang tambahan
+        // untuk memenuhi kalimatnya.
+        $jml    = (int)($r['orang_n'] ?? count($r['orang']));
+        $sebut  = !$r['bertinju']
+            ? ($jml === 1 ? 'Only the one character' : 'Only the ' . $jml . ' characters named above')
+            : ($jml === 1 ? 'Only the one boxer' : 'Only the two boxers');
+
         $b[] = $latar === []
-            ? 'Only the two boxers are in shot at any time. Every movement stays '
+            ? $sebut . ' ' . ($jml === 1 ? 'is' : 'are') . ' in shot at any time. Every movement stays '
               . 'physically possible, with weight and follow-through.'
-            : 'Only the two boxers are clearly readable; ' . implode(' and ', $latar)
+            : $sebut . ' ' . ($jml === 1 ? 'is' : 'are') . ' clearly readable; ' . implode(' and ', $latar)
               . (count($latar) === 1 ? ' stays' : ' stay')
               . ' as soft background bokeh. Every movement stays physically possible, '
               . 'with weight and follow-through.';
@@ -2989,6 +3014,15 @@ TXT;
      */
     private static function kalimatTempo(array $r): string
     {
+        // Adegan bukan pertandingan tidak pernah minta potongan cepat.
+        // "Cut fast and often, average shot length under two seconds" di
+        // adegan menunggu di sofa membuat model memotong-motong sesuatu
+        // yang seharusnya dibiarkan bernapas.
+        if (!($r['bertinju'] ?? true)) {
+            return 'Let the scene breathe: long, unhurried takes, the camera moving slowly '
+                 . 'if at all, and the performance carried by small movements rather than cuts';
+        }
+
         $jumlah = max(1, count($r['shots'] ?? []));
         $rata   = (int)$r['durasi'] / $jumlah;
 

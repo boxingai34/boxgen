@@ -59,7 +59,7 @@ final class Pertandingan
             'nama'  => 'Panas',
             'ket'   => 'basah keringat, napas mulai berat',
             'tags'  => ['sweat', 'heavy_breathing', 'wet_hair', 'messy_hair'],
-            'prosa' => 'soaked in sweat, hair stuck to her face, breathing hard',
+            'prosa' => 'soaked in sweat, hair stuck to {nya} face, breathing hard',
         ],
         2 => [
             'nama'  => 'Rusak',
@@ -469,7 +469,10 @@ TXT;
             'penonton' => ($ekstrak['environment']['crowd'] ?? 'packed') !== 'none',
         ];
 
-        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip, $adegan);
+        $jk = [];
+        foreach ($ekstrak['subjects'] as $s) { $jk[$s['id']] = $s['sex']; }
+
+        $babak = self::busur($jumlah, $menang, $kalah, $cara, $nama, $perKlip, $adegan, $jk);
 
         // ---- klip ----
         // PILIHANMU MENIMPA HASIL BACAAN, bukan ditempel sesudahnya.
@@ -555,7 +558,7 @@ TXT;
      * lebih cepat daripada yang menang — itu yang membuat penonton tahu
      * ke mana arahnya jauh sebelum pukulan terakhir.
      */
-    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama, int $perKlip, array $adegan = []): array
+    private static function busur(int $jumlah, string $menang, string $kalah, string $cara, array $nama, int $perKlip, array $adegan = [], array $jk = []): array
     {
         // Puncak kerusakan yang boleh dicapai masing-masing.
         //
@@ -631,7 +634,7 @@ TXT;
                 // their stance" — benar untuk klip pertama, salah untuk
                 // klip KO — dan kalimat ringkas di atas berbahasa Indonesia
                 // sedangkan prompt video harus Inggris.
-                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip, $adegan, $luka),
+                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip, $adegan, $luka, $jk),
             ];
         }
 
@@ -658,7 +661,7 @@ TXT;
     private static function shots(
         int $i, int $jumlah, float $maju, bool $akhir,
         string $cara, string $menang, string $kalah, array $nama, int $detik,
-        array $adegan = [], ?array $luka = null
+        array $adegan = [], ?array $luka = null, array $jk = []
     ): array {
         $M = $nama[$menang] ?? ('Boxer ' . strtoupper($menang));
         $K = $nama[$kalah] ?? ('Boxer ' . strtoupper($kalah));
@@ -670,7 +673,7 @@ TXT;
             // harus datang sebelum akibatnya.
             $inti   = self::shotsAkhir($cara, $M, $K, $menang, $kalah, $adegan);
             $kurang = max(0, $mau - count($inti));
-            $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah, $nama, $luka);
+            $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah, $nama, $luka, $jk);
             return array_merge($depan, $inti);
         }
 
@@ -678,12 +681,12 @@ TXT;
             // Klip pembuka selalu dimulai dari bel, supaya penonton tahu
             // ini awal pertandingan dan bukan potongan tengah.
             $babak = 'awal';
-            $sisa  = self::rakit($babak, max(0, $mau - 1), $i, $M, $K, $menang, $kalah, $nama, $luka);
+            $sisa  = self::rakit($babak, max(0, $mau - 1), $i, $M, $K, $menang, $kalah, $nama, $luka, $jk);
             return array_merge([self::shotBel($M, $K, $menang)], $sisa);
         }
 
         $babak = $maju < 0.4 ? 'jajak' : ($maju < 0.7 ? 'balik' : 'tekan');
-        return self::rakit($babak, $mau, $i, $M, $K, $menang, $kalah, $nama, $luka);
+        return self::rakit($babak, $mau, $i, $M, $K, $menang, $kalah, $nama, $luka, $jk);
     }
 
     /** Shot pembuka: bel berbunyi, keduanya keluar dari sudut. */
@@ -712,7 +715,7 @@ TXT;
     private static function rakit(
         string $babak, int $berapa, int $klip,
         string $M, string $K, string $menang, string $kalah,
-        array $nama = [], ?array $luka = null
+        array $nama = [], ?array $luka = null, array $jk = []
     ): array {
         if ($berapa <= 0) {
             return [];
@@ -741,7 +744,11 @@ TXT;
             $nama  = $pelaku === $menang ? $M : $K;
             $lawan = $pelaku === $menang ? $K : $M;
 
-            $kalimat = $nama . ' ' . $tek['aksi'] . '.';
+            // Kata ganti diisi menurut jenis kelamin PELAKUNYA, bukan
+            // dipukul rata perempuan seperti dulu.
+            $sexPelaku = $jk[$pelaku] ?? 'female';
+            $sexLawan  = $jk[$pelaku === $menang ? $kalah : $menang] ?? 'female';
+            $kalimat = $nama . ' ' . self::ganti($tek['aksi'], $sexPelaku) . '.';
 
             // Efek animasi ditempel hanya kalau tekniknya memang punya
             // momen yang pantas diberi efek. Memberi impact frame pada
@@ -764,7 +771,7 @@ TXT;
             // cuma pukulan badan biasa yang kebetulan diberi nama.
             $mendarat = in_array($tek['tag'], ['punching', 'uppercut', 'stomach_punch'], true);
             if ($mendarat && ($kunci === 'liver' || $n % 2 === 1)) {
-                $kalimat .= ' ' . $lawan . ' ' . self::reaksi($kunci, $tek['tag']) . '.';
+                $kalimat .= ' ' . $lawan . ' ' . self::ganti(self::reaksi($kunci, $tek['tag']), $sexLawan) . '.';
             }
 
             $out[] = [
@@ -788,7 +795,8 @@ TXT;
         if (isset($calon)) {
             $korban = $nama[$luka['korban']] ?? ($luka['korban'] === $menang ? $M : $K);
             $out[$calon]['action'] = rtrim($out[$calon]['action'])
-                . ' ' . self::lukaBaru($sasaran, (int)$luka['ke'], $korban) . '.';
+                . ' ' . self::ganti(self::lukaBaru($sasaran, (int)$luka['ke'], $korban),
+                    $jk[$luka['korban']] ?? 'female') . '.';
         }
 
         return $out;
@@ -815,22 +823,22 @@ TXT;
         if ($sasaran === 'badan') {
             $b = [
                 1 => 'The body shot leaves ' . $korban . ' breathing in short, shallow pulls, '
-                   . 'one glove dropping a few inches to cover her ribs',
+                   . 'one glove dropping a few inches to cover {nya} ribs',
                 2 => 'A red welt spreads across the ribs of ' . $korban . ' where the punches keep landing, '
-                   . 'and her elbow stays clamped to her side from here on',
+                   . 'and {nya} elbow stays clamped to {nya} side from here on',
                 3 => 'The body attack has done its work — ' . $korban . ' can no longer straighten up '
-                   . 'between punches, and her guard has dropped to her chest',
+                   . 'between punches, and {nya} guard has dropped to {nya} chest',
             ];
             return $b[$ke] ?? $b[1];
         }
 
         $k = [
-            1 => 'The punch snaps the head of ' . $korban . ' around and leaves a red mark high on her '
+            1 => 'The punch snaps the head of ' . $korban . ' around and leaves a red mark high on {nya} '
                . 'cheekbone that stays there for the rest of the fight',
-            2 => 'Blood starts from the nose of ' . $korban . ' on this punch and runs down over her '
-               . 'mouth and chin; the skin over her cheekbone is split and beginning to swell',
+            2 => 'Blood starts from the nose of ' . $korban . ' on this punch and runs down over {nya} '
+               . 'mouth and chin; the skin over {nya} cheekbone is split and beginning to swell',
             3 => 'This is the punch that closes the eye of ' . $korban . ' — the swelling comes up fast, '
-               . 'blood runs from her nose and from the corner of her mouth, and her head hangs',
+               . 'blood runs from {nya} nose and from the corner of {nya} mouth, and {nya} head hangs',
         ];
         return $k[$ke] ?? $k[1];
     }
@@ -845,21 +853,21 @@ TXT;
         // sendiri tanpa pukulan kedua. Jauh lebih kuat daripada langsung
         // tumbang, dan tidak ada model video yang melakukannya sendiri.
         if ($kunci === 'liver') {
-            return 'freezes for a beat with her eyes wide, looking almost unhurt, '
-                 . 'then her legs fold under her and she goes down on one knee, '
+            return 'freezes for a beat with {nya} eyes wide, looking almost unhurt, '
+                 . 'then {nya} legs fold under {nya} and {dia} goes down on one knee, '
                  . 'unable to breathe';
         }
 
         switch ($tag) {
             case 'stomach_punch':
-                return 'folds forward over the glove, mouth open, air driven out of her';
+                return 'folds forward over the glove, mouth open, air driven out of {nya}';
             case 'uppercut':
-                return 'has her chin lifted and her heels come off the canvas for a moment';
+                return 'has {nya} chin lifted and {nya} heels come off the canvas for a moment';
             case 'dodging':
             case 'blocking':
-                return 'resets her stance and comes straight back forward';
+                return 'resets {nya} stance and comes straight back forward';
             default:
-                return 'takes it flush, head snapping to the side before she recovers';
+                return 'takes it flush, head snapping to the side before {dia} recovers';
         }
     }
 
@@ -875,19 +883,69 @@ TXT;
      */
     public static function shotsBabak(
         string $babak, int $berapa, int $klip,
-        string $M, string $K, string $menang, string $kalah
+        string $M, string $K, string $menang, string $kalah, array $jk = []
     ): array {
-        return self::rakit($babak, $berapa, $klip, $M, $K, $menang, $kalah);
+        return self::rakit($babak, $berapa, $klip, $M, $K, $menang, $kalah, [], null, $jk);
     }
 
     private const GERAK = [
         'impact'    => 'A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc',
         'smear'     => 'The fastest part of the swing draws out into a smear frame, the glove leaving a painted trail behind it',
         'twos'      => 'The movement holds on twos while they circle, then snaps into full framerate for the punch itself',
-        'anticipate'=> 'A short anticipation crouch loads the shot before the arm fires, and the follow-through carries her shoulder past the target',
+        'anticipate'=> 'A short anticipation crouch loads the shot before the arm fires, and the follow-through carries {nya} shoulder past the target',
         'ripple'    => 'The impact ripples visibly through the body, hair and flesh lagging a frame behind the bone',
         'freeze'    => 'A one-frame freeze lands on the connection before the recoil begins',
     ];
+
+    /**
+     * Ganti penanda kata ganti sesuai jenis kelamin orangnya.
+     *
+     * Seluruh kalimat templat di kelas ini dulu memakai "her" dan "she"
+     * secara langsung, karena awalnya memang dibuat untuk tinju wanita.
+     * Begitu mode cerita memasukkan pertandingan campur — Loid lawan Yor —
+     * hasilnya kartu acuan Loid berbunyi "hair stuck to HER face", dan
+     * model gambar membacanya sebagai perempuan lalu memakaikan pakaian
+     * perempuan. Penandanya diisi di sini, sekali, di tempat jenis
+     * kelaminnya diketahui.
+     */
+    public static function ganti(string $teks, string $sex): string
+    {
+        $pria = $sex === 'male';
+        return strtr($teks, [
+            '{dia}' => $pria ? 'he'  : 'she',
+            '{nya}' => $pria ? 'his' : 'her',
+        ]);
+    }
+
+    /**
+     * Buang pakaian yang tidak mungkin dipakai jenis kelamin itu.
+     *
+     * Jaring pengaman, bukan pengganti pembacaan yang benar: pembaca
+     * cerita bisa saja keliru menandai jenis kelamin, atau menulis tag
+     * pakaian perempuan untuk tokoh laki-laki karena terbawa konteks
+     * tinju wanita. Satu tag salah di sini cukup untuk membuat seluruh
+     * gambar acuannya salah orang.
+     *
+     * @param string[] $tags
+     * @return string[]
+     */
+    public static function saringGender(array $tags, string $sex): array
+    {
+        $khususWanita = ['sports_bra', 'bra', 'bikini', 'bikini_top_only', 'bikini_bottom',
+                          'side-tie_bikini_bottom', 'string_bikini', 'panties', 'dress', 'skirt',
+                          'nightgown', 'breasts', 'nipples', 'large_breasts', 'medium_breasts',
+                          'small_breasts', 'huge_breasts', 'flat_chest', 'topless_female',
+                          'mature_female', 'muscular_female', 'toned_female'];
+        $khususPria   = ['topless_male', 'bare_pectorals', 'mature_male', 'muscular_male',
+                          'pectorals'];
+
+        $buang = $sex === 'male' ? $khususWanita : $khususPria;
+
+        return array_values(array_filter(
+            $tags,
+            static fn(string $t): bool => !in_array($t, $buang, true)
+        ));
+    }
 
     /** Huruf pertama dikecilkan, untuk pemakaian di tengah kalimat. */
     private static function kecil(string $t): string
@@ -1022,7 +1080,7 @@ TXT;
         ],
         'overhand' => [
             'nama'  => 'Overhand',
-            'aksi'  => 'steps off-line and loops an overhand right over the top of the guard, dropping her head as the arm comes down',
+            'aksi'  => 'steps off-line and loops an overhand right over the top of the guard, dropping {nya} head as the arm comes down',
             'efek'  => 'impact',
             'suara' => 'a whistling arc then a dull crack on the temple',
             'sasaran' => 'kepala',
@@ -1030,7 +1088,7 @@ TXT;
         ],
         'check_hook' => [
             'nama'  => 'Check hook',
-            'aksi'  => 'catches the charge with a check hook and pivots away on the lead foot at the same time, leaving her opponent swinging at empty canvas',
+            'aksi'  => 'catches the charge with a check hook and pivots away on the lead foot at the same time, leaving {nya} opponent swinging at empty canvas',
             'efek'  => 'smear',
             'suara' => 'a short slap of leather and shoes skidding on canvas',
             'sasaran' => 'kepala',
@@ -1073,7 +1131,7 @@ TXT;
             // Itu beat animasi yang jauh lebih menarik daripada jatuh biasa.
             'aksi'  => 'drives a short left hook up under the right side of the ribcage, right into the liver',
             'efek'  => 'impact',
-            'suara' => 'a dull deep thud, then a sound like the air leaving her',
+            'suara' => 'a dull deep thud, then a sound like the air leaving {nya}',
             'sasaran' => 'badan',
             'tag'   => 'stomach_punch',
         ],
@@ -1089,9 +1147,9 @@ TXT;
         // ---------- bertahan ----------
         'slip' => [
             'nama'  => 'Slip',
-            'aksi'  => 'slips her head off the centre line by inches, the punch passing so close it moves her hair',
+            'aksi'  => 'slips {nya} head off the centre line by inches, the punch passing so close it moves {nya} hair',
             'efek'  => 'smear',
-            'suara' => 'a punch cutting air past her ear',
+            'suara' => 'a punch cutting air past {nya} ear',
             'tag'   => 'dodging',
         ],
         'roll' => [
@@ -1103,21 +1161,21 @@ TXT;
         ],
         'bahu' => [
             'nama'  => 'Shoulder roll',
-            'aksi'  => 'turns her lead shoulder into the punch and lets it slide off, chin tucked behind it',
+            'aksi'  => 'turns {nya} lead shoulder into the punch and lets it slide off, chin tucked behind it',
             'efek'  => 'none',
             'suara' => 'a punch skidding off the shoulder',
             'tag'   => 'blocking',
         ],
         'tangkis' => [
             'nama'  => 'Tepis',
-            'aksi'  => 'catches the straight on her open glove and deflects it past her ear',
+            'aksi'  => 'catches the straight on {nya} open glove and deflects it past {nya} ear',
             'efek'  => 'none',
             'suara' => 'a flat slap of glove on glove',
             'tag'   => 'blocking',
         ],
         'tarik' => [
             'nama'  => 'Pull counter',
-            'aksi'  => 'pulls straight back so the punch falls short, then fires the counter into the space her opponent left open',
+            'aksi'  => 'pulls straight back so the punch falls short, then fires the counter into the space {nya} opponent left open',
             'efek'  => 'impact',
             'suara' => 'air moving, then one clean counter landing',
             'sasaran' => 'kepala',
@@ -1125,14 +1183,14 @@ TXT;
         ],
         'tutup' => [
             'nama'  => 'Tutup rapat',
-            'aksi'  => 'tightens into a high guard, forearms together, and eats the combination on her gloves',
+            'aksi'  => 'tightens into a high guard, forearms together, and eats the combination on {nya} gloves',
             'efek'  => 'none',
             'suara' => 'a fast rattle of punches on the guard',
             'tag'   => 'blocking',
         ],
         'clinch' => [
             'nama'  => 'Clinch',
-            'aksi'  => 'steps inside and ties up the arms, leaning her weight on her opponent to buy a few seconds',
+            'aksi'  => 'steps inside and ties up the arms, leaning {nya} weight on {nya} opponent to buy a few seconds',
             'efek'  => 'none',
             'suara' => 'gloves scraping, laboured breathing close to the mic',
             'tag'   => 'blocking',
@@ -1141,9 +1199,9 @@ TXT;
         // ---------- kaki ----------
         'pivot' => [
             'nama'  => 'Pivot',
-            'aksi'  => 'pivots off the lead foot to take an angle, turning her opponent so the corner is behind them instead',
+            'aksi'  => 'pivots off the lead foot to take an angle, turning {nya} opponent so the corner is behind them instead',
             'efek'  => 'smear',
-            'suara' => 'shoes squeaking as she turns',
+            'suara' => 'shoes squeaking as {dia} turns',
             'tag'   => 'fighting_stance',
         ],
         'potong' => [
@@ -1215,7 +1273,7 @@ TXT;
                     ['camera' => 'a tight close-up on the face of ' . $K,
                      'camera_move' => 'slow_motion', 'actor' => $menang,
                      'action' => $M . ' lands three unanswered punches; the hands of ' . $K . ' drop '
-                               . 'and her eyes lose focus. ' . self::GERAK['ripple'] . '.',
+                               . 'and {nya} eyes lose focus. ' . self::GERAK['ripple'] . '.',
                      'sound' => 'three heavy impacts, the crowd surging'],
                     ['camera' => 'a medium shot from the side of the referee',
                      'camera_move' => 'push_in', 'actor' => $menang,
@@ -1230,7 +1288,7 @@ TXT;
                     ['camera' => 'a medium shot from ringside',
                      'camera_move' => 'static', 'actor' => $kalah,
                      'action' => $K . ' turns away mid-exchange, shaking her head toward her own corner, '
-                               . 'and lowers both gloves to signal she is done.',
+                               . 'and lowers both gloves to signal {dia} is done.',
                      'sound' => 'a shout from the corner, the crowd reacting'],
                     ['camera' => 'a wide shot of the whole ring',
                      'camera_move' => 'pull_out', 'actor' => $menang,
@@ -1247,7 +1305,7 @@ TXT;
                      'sound' => 'one heavy leather crack, the crowd inhaling'],
                     ['camera' => 'a whip pan following ' . $K . ' as she falls',
                      'camera_move' => 'whip_pan', 'actor' => $menang,
-                     'action' => 'Her legs go and she drops out of frame; the camera whips down to follow her '
+                     'action' => 'Her legs go and {dia} drops out of frame; the camera whips down to follow {nya} '
                                . 'to the canvas. ' . self::GERAK['ripple'] . '.',
                      'sound' => 'a body hitting canvas, the crowd exploding'],
                     ['camera' => 'a high wide shot looking down at the canvas',
@@ -1442,7 +1500,7 @@ TXT;
                 $satu['interaction'] = ['striker' => null, 'receiver' => null,
                                         'contact' => 'none', 'target' => null, 'description' => ''];
                 $satu['prose'] = 'A full-body reference of the boxer, standing in a fighting stance, '
-                               . $data['prosa'] . '.';
+                               . self::ganti($data['prosa'], $s['sex']) . '.';
 
                 $hasil = ReversePrompt::susun($satu, 'nai5', [
                     'polish'  => false,

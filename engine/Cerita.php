@@ -702,7 +702,8 @@ TXT;
                 'action'     => ['type' => in_array($a['jenis'], ['tinju', 'penutup'], true)
                     ? ($a['penyerang'] === $id ? 'cross' : 'block') : 'idle'],
                 'position'   => ['side' => $n === 0 ? 'left' : ($n === 1 ? 'right' : 'center')],
-                'tags'       => array_values(array_unique(array_merge($baju['tags'], $rusak['tags']))),
+                'tags'       => Pertandingan::saringGender(
+                    array_values(array_unique(array_merge($baju['tags'], $rusak['tags']))), $c['sex']),
             ];
             $n++;
         }
@@ -774,7 +775,11 @@ TXT;
             $sisiK = self::petaSisi($a, $kalah) ?? 'b';
 
             $babak = $a['jenis'] === 'penutup' ? 'tekan' : 'balik';
-            return Pertandingan::shotsBabak($babak, $mau, $r['nomor'], $M, $K, $sisiM, $sisiK);
+            $jk = [];
+            foreach ($a['pelaku'] as $i => $id) {
+                $jk[['a','b','c','d','e','f'][$i] ?? 'a'] = $e['cast'][$id]['sex'] ?? 'female';
+            }
+            return Pertandingan::shotsBabak($babak, $mau, $r['nomor'], $M, $K, $sisiM, $sisiK, $jk);
         }
 
         // ---- adegan biasa ----
@@ -899,7 +904,8 @@ TXT;
                     'pose'       => ['summary' => ''],
                     'action'     => ['type' => 'idle'],
                     'position'   => ['side' => 'center'],
-                    'tags'       => array_values(array_unique(array_merge($baju['tags'], $rusak['tags']))),
+                    'tags'       => Pertandingan::saringGender(
+                        array_values(array_unique(array_merge($baju['tags'], $rusak['tags']))), $c['sex']),
                 ]],
                 'interaction' => ['striker' => null, 'receiver' => null, 'contact' => 'none',
                                   'target' => null, 'description' => ''],
@@ -910,7 +916,7 @@ TXT;
                 'danbooru_tags' => [],
                 'prose'         => 'A full-body reference of ' . $c['nama'] . ', standing facing the viewer, '
                                  . ($baju['verbatim'] !== '' ? rtrim($baju['verbatim'], '.') . ', ' : '')
-                                 . $rusak['prosa'] . '.',
+                                 . Pertandingan::ganti($rusak['prosa'], $c['sex']) . '.',
             ];
 
             $hasil = ReversePrompt::susun($satu, 'nai5', [
