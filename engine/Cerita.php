@@ -1050,7 +1050,14 @@ TXT;
     private static function shotsAdegan(array $e, array $r, int $detik, string $pemenang, string $kalah): array
     {
         $a   = $r['adegan'];
-        $mau = max(1, min(6, (int)round($detik / 3)));
+        // Adegan tinju hidup dari potongan cepat; adegan biasa justru mati
+        // karenanya. Tiga detik per shot memaksa klip 8 detik jadi tiga
+        // shot, padahal ceritanya cuma memberi satu kalimat — dua sisanya
+        // terpaksa diisi filler. Lima detik per shot membuat klip yang
+        // sama jadi dua shot, dan itu juga yang dijanjikan baris temponya
+        // sendiri: "long, unhurried takes".
+        $perShot = self::adaPukulan($a) ? 3 : 5;
+        $mau     = max(1, min(6, (int)round($detik / $perShot)));
 
         if (self::adaPukulan($a)) {
             // Penyerang ADEGAN INI, bukan pemenang pertandingan. Ronde
