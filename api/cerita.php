@@ -79,9 +79,12 @@ switch ($action) {
 
         $opsi = [
             'target'         => (string)($o['target'] ?? 'wan'),
-            'detik_per_klip' => (int)($o['detik_per_klip'] ?? 10),
-            'nsfw'           => !empty($o['nsfw']),
-            'dewasa'         => !array_key_exists('dewasa', $o) || !empty($o['dewasa']),
+            // 0 = biarkan mesin menentukan panjang tiap klip sendiri.
+            'detik_per_klip' => (int)($o['detik_per_klip'] ?? 0),
+            // Mode cerita tidak menanyakan keduanya: wujud tiap tokoh sudah
+            // dibaca dari ceritamu, jadi tidak ada yang perlu kamu putuskan.
+            'nsfw'           => true,
+            'dewasa'         => true,
             'gaya'           => [
                 'style_id' => (int)($g['style_id'] ?? 0) > 0 ? (int)$g['style_id'] : null,
                 'artis'    => mb_substr(trim((string)($g['artis'] ?? '')), 0, ReversePrompt::MAKS_ARTIS),

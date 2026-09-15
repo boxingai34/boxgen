@@ -437,7 +437,13 @@ function gantiMode(nama) {
     // cornerman. Membiarkannya tampil bukan cuma bikin penuh — isiannya
     // diabaikan, jadi orang mengira setelannya tidak berfungsi.
     const dariCerita = nama === 'cerita';
-    ['#blok-hasil', '#blok-latar'].forEach((sel) => {
+    // Panjang video dan panjang klip juga: keduanya ditentukan ceritanya
+    // dan mesin. Memajang dropdown yang isinya diabaikan cuma membuat
+    // orang mengira setelannya rusak.
+    const cat = $('#catatan-cerita');
+    if (cat) cat.hidden = !dariCerita;
+
+    ['#blok-hasil', '#blok-latar', '#blok-durasi', '#blok-centang'].forEach((sel) => {
         const n = $(sel);
         if (n) n.hidden = dariCerita;
     });
@@ -533,9 +539,7 @@ async function rancangCerita() {
             ekstrak: ekstrakCerita,
             opsi: {
                 target: $('#target').value,
-                detik_per_klip: parseInt($('#perklip').value, 10),
-                nsfw: $('#opsi-nsfw').checked,
-                dewasa: $('#opsi-dewasa').checked,
+                detik_per_klip: 0,   // 0 = mesin yang menentukan per adegan
                 gaya: { style_id: parseInt($('#gaya').value, 10) || null, artis: '', kuat: 'sedang' },
                 wan: { rasio: $('#rasio').value },
                 seedance: { resolusi: $('#resolusi').value }

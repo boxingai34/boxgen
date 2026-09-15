@@ -138,6 +138,7 @@ halamanHeader('Rancang Pertandingan');
     <section class="panel">
         <h2>Jalannya pertandingan</h2>
 
+        <div id="blok-durasi">
         <div class="field-row">
             <div class="field">
                 <label for="durasi">Panjang video</label>
@@ -165,6 +166,13 @@ halamanHeader('Rancang Pertandingan');
             dibagi jadi beberapa prompt berurutan yang kamu hasilkan satu per satu lalu
             sambung sendiri di editor. Jumlahnya dihitung di bawah tombol Rancang.
             Makin pendek tiap klip, makin banyak potongan kamera per detiknya.
+        </p>
+        </div>
+
+        <p class="hint" id="catatan-cerita" hidden>
+            Panjang video diambil dari ceritamu, dan panjang tiap klip ditentukan mesin
+            per adegan — pertukaran pukulan dipotong lebih pendek supaya kameranya sering
+            berganti, adegan biasa dibiarkan panjang supaya bisa bernapas.
         </p>
 
         <div id="blok-hasil">
@@ -261,6 +269,7 @@ halamanHeader('Rancang Pertandingan');
             </select>
         </div>
 
+        <div id="blok-centang">
         <label class="check">
             <input type="checkbox" id="opsi-nsfw" checked>
             Versi setia (NSFW)
@@ -269,6 +278,7 @@ halamanHeader('Rancang Pertandingan');
             <input type="checkbox" id="opsi-dewasa" checked>
             Semua petinju dewasa
         </label>
+        </div>
 
         <div class="actions">
             <button id="btn-rancang" class="btn primary" type="button" disabled>Rancang Pertandingan</button>
@@ -287,5 +297,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=6"></script>
+<script src="assets/js/pertandingan.js?v=7"></script>
 <?php halamanFooter(); ?>

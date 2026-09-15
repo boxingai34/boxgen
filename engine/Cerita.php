@@ -425,7 +425,10 @@ TXT;
         if (!isset(ReversePrompt::TARGET[$target]) || $target === 'nai5') {
             $target = 'wan';
         }
-        $perKlip = max(1, min(Pertandingan::MAKS_DETIK_KLIP, (int)($opsi['detik_per_klip'] ?? 10)));
+        // detik_per_klip 0 (atau tidak diisi) = biarkan mesin yang menentukan.
+        $minta     = (int)($opsi['detik_per_klip'] ?? 0);
+        $otomatis  = $minta <= 0;
+        $perKlip   = $otomatis ? 10 : max(1, min(Pertandingan::MAKS_DETIK_KLIP, $minta));
 
         $pemenang = $ekstrak['pemenang'];
         $kalah    = self::lawanDari($ekstrak, $pemenang);
@@ -439,7 +442,29 @@ TXT;
         $urutKlip = 0;
         $t = 0;
 
-        $jatah      = self::bagiKlip($ekstrak['adegan'], $ekstrak['durasi_detik'], $perKlip);
+        // PANJANG TIAP KLIP DITENTUKAN PER ADEGAN, bukan dipatok satu angka.
+        //
+        // Memakai satu panjang untuk semuanya memaksa adegan pendek
+        // diregangkan: adegan menunggu 15 detik yang dipatok 30 detik
+        // harus diisi enam shot, padahal isinya cuma satu kejadian — jadi
+        // lima shot sisanya terisi kalimat yang sama berulang-ulang.
+        //
+        // Sekarang tiap adegan memakai panjangnya sendiri, dipecah hanya
+        // kalau melewati batas yang wajar: pertukaran pukulan dipotong
+        // lebih pendek supaya kameranya sering berganti, adegan biasa
+        // boleh panjang supaya bisa bernapas.
+        $jatah = self::bagiKlip($ekstrak['adegan'], $ekstrak['durasi_detik'], $perKlip);
+        $panjangKlip = [];
+        if ($otomatis) {
+            foreach ($ekstrak['adegan'] as $i => $a) {
+                $maks = in_array($a['jenis'], ['tinju', 'penutup'], true) ? 12 : 20;
+                $n    = max(1, (int)ceil($a['detik'] / $maks));
+                $jatah[$i]       = $n;
+                $panjangKlip[$i] = max(3, min(Pertandingan::MAKS_DETIK_KLIP, (int)round($a['detik'] / $n)));
+            }
+        } else {
+            foreach ($ekstrak['adegan'] as $i => $a) { $panjangKlip[$i] = $perKlip; }
+        }
         $totalTinju = 0;
         foreach ($ekstrak['adegan'] as $i => $a) {
             if (in_array($a['jenis'], ['tinju', 'penutup'], true)) {
@@ -478,20 +503,22 @@ TXT;
                 $rencana[] = [
                     'nomor'   => ++$urutKlip,
                     'mulai'   => $t,
-                    'selesai' => $t + $perKlip,
+                    'selesai' => $t + $panjangKlip[$indeksAdegan],
+                    'detik'   => $panjangKlip[$indeksAdegan],
                     'adegan'  => $a,
                     'bagian'  => $k + 1,
                     'dari'    => $berapa,
                     'tahap'   => $tahap,
                 ];
-                $t += $perKlip;
+                $t += $panjangKlip[$indeksAdegan];
             }
         }
 
         // ---- bangun prompt tiap klip ----
         $klip = [];
         foreach ($rencana as $r) {
-            $e = self::ekstrakKlip($ekstrak, $r, $perKlip, $pemenang, $kalah);
+            $detikKlip = (int)($r['detik'] ?? $perKlip);
+            $e = self::ekstrakKlip($ekstrak, $r, $detikKlip, $pemenang, $kalah);
 
             $hasil = ReversePrompt::susun($e, $target, [
                 'polish'   => false,
@@ -499,12 +526,17 @@ TXT;
                 'fewshot'  => false,
                 'dewasa'   => !array_key_exists('dewasa', $opsi) || !empty($opsi['dewasa']),
                 'gaya'     => $opsi['gaya'] ?? [],
-                'wan'      => ['rasio' => $opsi['wan']['rasio'] ?? '16:9', 'detik' => $perKlip],
+                'wan'      => ['rasio' => $opsi['wan']['rasio'] ?? '16:9', 'detik' => $detikKlip],
                 'seedance' => ['resolusi' => $opsi['seedance']['resolusi'] ?? '720p'],
             ]);
 
             $acuan = [];
             foreach ($r['adegan']['pelaku'] as $id) {
+                // Pelaku yang tidak ada di cast tidak punya kartu acuan —
+                // dulu tetap dimasukkan dan tampil sebagai "undefined".
+                if (!isset($ekstrak['cast'][$id])) {
+                    continue;
+                }
                 $acuan[$id] = self::namaKartu($ekstrak, $id, self::kostumDi($ekstrak, $r, $id), $r['tahap'][$id] ?? 0);
             }
 
@@ -525,8 +557,14 @@ TXT;
         $kartu = self::kartuAcuan($ekstrak, $rencana, $opsi);
 
         $catatan = [];
-        $jadi    = count($klip) * $perKlip;
-        $catatan[] = count($klip) . ' klip x ' . $perKlip . ' detik = ' . $jadi
+        $jadi = 0;
+        foreach ($klip as $k) { $jadi += $k['selesai'] - $k['mulai']; }
+
+        $panjang = array_map(static fn(array $k): int => $k['selesai'] - $k['mulai'], $klip);
+        $ragam   = count(array_unique($panjang)) > 1
+            ? min($panjang) . '-' . max($panjang) . ' detik'
+            : ($panjang[0] ?? 0) . ' detik';
+        $catatan[] = count($klip) . ' klip, ' . $ragam . ' per klip, total ' . $jadi
                    . ' detik. Hasilkan satu per satu lalu sambung sendiri.';
 
         // Kalau hasilnya tidak persis sepanjang yang diminta, sebutkan
@@ -788,7 +826,7 @@ TXT;
             ['a medium shot at eye level', 'static'],
             ['a close-up on the face', 'push_in'],
             ['a low shot on the hands', 'static'],
-            ['a shot from the doorway looking in', 'tracking'],
+            ['a shot from the doorway looking in', 'push_in'],
             ['an over-the-shoulder shot', 'handheld'],
         ];
 
@@ -798,6 +836,35 @@ TXT;
         }
         $siapa = implode(' and ', $nama);
 
+        // Shot lanjutan, masing-masing menyorot hal YANG BERBEDA.
+        //
+        // Dulu shot kedua sampai keenam memakai kalimat yang sama persis
+        // berulang-ulang, karena satu adegan cuma punya satu kalimat isi.
+        // Enam shot identik bukan cuma malas dibaca — model video
+        // membacanya sebagai perintah untuk tidak bergerak sama sekali.
+        // Sekarang tiap shot punya sudut perhatiannya sendiri, jadi satu
+        // kejadian bisa dilihat dari beberapa sisi tanpa mengarang
+        // kejadian baru yang tidak ada di ceritamu.
+        $utama = rtrim($a['isi'], '.') . '.';
+        $lanjut = [
+            $siapa . ' stays with the moment: the breath, the set of the jaw, the eyes moving '
+                . 'before anything else does.',
+            'Hold on the smallest detail in the action — a hand, the grip on something, the way '
+                . 'the weight shifts from one foot to the other.',
+            'Cut to what ' . $siapa . ' is looking at, held just long enough to read it.',
+            'The room around ' . $siapa . ' — the light, the empty space, how little else is '
+                . 'moving in it.',
+            $siapa . ' shifts position slightly and settles again, the feeling of the scene '
+                . 'unchanged but the framing new.',
+        ];
+
+        $suara = [
+            'room tone, clothing shifting, quiet footsteps',
+            'the room quiet enough to hear breathing',
+            'a small sound from elsewhere in the building',
+            'fabric moving, a floorboard, nothing else',
+        ];
+
         $out = [];
         for ($i = 0; $i < $mau; $i++) {
             [$k, $gerak] = $kam[($r['nomor'] * 2 + $i) % count($kam)];
@@ -805,13 +872,8 @@ TXT;
                 'camera'      => $k,
                 'camera_move' => $gerak,
                 'actor'       => self::petaSisi($a, $a['pelaku'][0] ?? null),
-                'action'      => $i === 0
-                    ? rtrim($a['isi'], '.') . '.'
-                    : $siapa . ' hold the moment — small movements only, breathing, a shift of weight, '
-                      . 'eyes moving before anything else does.',
-                'sound'       => $i === 0
-                    ? 'room tone, clothing shifting, quiet footsteps'
-                    : 'the room quiet enough to hear breathing',
+                'action'      => $i === 0 ? $utama : $lanjut[($i - 1) % count($lanjut)],
+                'sound'       => $i === 0 ? $suara[0] : $suara[$i % count($suara)],
             ];
         }
         return $out;
