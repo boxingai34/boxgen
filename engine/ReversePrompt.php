@@ -717,6 +717,10 @@ TXT;
             // diam — dan blok penutup lalu menyatakan tidak ada wasit
             // sementara blok Scene menyatakan ada.
             'wasit' => !empty($env['wasit']),
+            // Ada gambar acuan arenanya? Menentukan apakah prompt menyebut
+            // "Image N is the venue" dan bagaimana nomor gambar disusun.
+            'acuan' => !empty($env['acuan']),
+            'verbatim' => $teks($env['verbatim'] ?? '', 400),
             'props' => array_values(array_filter(array_map('strval', is_array($env['props'] ?? null) ? $env['props'] : []))),
             'tags'  => $tagList($env['tags'] ?? []),
         ];
@@ -2540,11 +2544,44 @@ TXT;
         }
         $durasi = max($target === 'wan' ? 2 : 4, min(30, $durasi));
 
+        /*
+         * NOMOR GAMBAR HARUS SAMA DENGAN URUTAN KAMU MENGUNGGAHNYA.
+         *
+         * Halaman menyediakan slotnya berurutan: Petinju A, Petinju B,
+         * arena, wasit, cornerman. Jadi penomoran di prompt mengikuti
+         * urutan itu juga — petinju dulu, lalu arena, baru orang lain.
+         *
+         * Dulu arena dinomori paling belakang, sesudah semua orang. Selama
+         * cuma ada dua petinju itu kebetulan benar, tapi begitu kamu ikut
+         * mengunggah wasit, "Image 3" di prompt menunjuk wasit sementara
+         * gambar ketiga yang kamu lampirkan adalah arena. Model lalu
+         * mengunci wujud wasit ke foto ruangan.
+         */
+        $adaAcuanLatar = !empty($e['environment']['acuan']);
+
+        $petinju = [];
+        $lainnya = [];
+        foreach ($e['subjects'] as $s) {
+            if (($s['role'] ?? 'fighter') === 'fighter') {
+                $petinju[] = $s;
+            } else {
+                $lainnya[] = $s;
+            }
+        }
+
+        $nomorLatar = $adaAcuanLatar ? count($petinju) + 1 : 0;
+
         $orang = [];
         $n = 1;
-        foreach ($e['subjects'] as $s) {
+        foreach (array_merge($petinju, $lainnya) as $s) {
+            if ($nomorLatar > 0 && $n === $nomorLatar) {
+                $n++;   // nomor ini milik gambar arena
+            }
             $char = $val['karakter'][$s['id']] ?? null;
-            $nama = $char['name'] ?? ('Boxer ' . strtoupper($s['id']));
+            $bawaan = ['referee' => 'The referee', 'second' => 'The corner second',
+                        'bystander' => 'Bystander ' . strtoupper($s['id'])][$s['role'] ?? 'fighter']
+                    ?? ('Boxer ' . strtoupper($s['id']));
+            $nama = $char['name'] ?? $bawaan;
             $orang[$s['id']] = [
                 'id'     => $s['id'],
                 'nomor'  => $n++,
@@ -2635,7 +2672,9 @@ TXT;
             // wasit harus sepakat; kalau tidak, promptnya menyuruh dan
             // melarang sekaligus.
             'wasit'    => self::adaPeran($e, 'referee') || !empty($e['environment']['wasit']),
-            'acuan_latar' => false,
+            'acuan_latar'  => $adaAcuanLatar,
+            'nomor_latar'  => $nomorLatar,
+            'latar_kalimat' => trim((string)($e['environment']['verbatim'] ?? '')),
             'nsfw_ada' => self::adaKetelanjangan($e),
         ];
     }
@@ -2747,13 +2786,25 @@ TXT;
         $bagian[] = 'Generate a ' . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
                   . 'an anime boxing match, ' . $r['gaya'] . '.';
 
+        // Dikumpulkan dulu lalu diurutkan menurut nomornya. Gambar arena
+        // menyelip di tengah, jadi kalau dicetak sesuai urutan subjek saja,
+        // Image 4 bisa muncul sebelum Image 3.
+        $anchor = [];
         foreach ($r['orang'] as $o) {
             $ciri = $nsfw ? $o['ciri_nsfw'] : $o['ciri'];
-            $bagian[] = 'Image ' . $o['nomor'] . ' is ' . $o['nama']
+            $anchor[(int)$o['nomor']] = 'Image ' . $o['nomor'] . ' is ' . $o['nama']
                       . ($ciri === [] ? '' : ' — ' . implode(', ', $ciri)) . '.';
         }
-        if (!empty($r['acuan_latar'])) {
-            $bagian[] = 'Image ' . (count($r['orang']) + 1) . ' is the ring and the arena.';
+        if (!empty($r['acuan_latar']) && (int)$r['nomor_latar'] > 0) {
+            $ket = $r['latar_kalimat'] !== '' ? ' — ' . rtrim($r['latar_kalimat'], '.') : '';
+            $anchor[(int)$r['nomor_latar']] = 'Image ' . (int)$r['nomor_latar'] . ' is the venue' . $ket
+                      . '. Use it for the ring, the ropes, the corner posts, the floor and the '
+                      . 'lighting; there is no fighter to take from that image.';
+        }
+
+        ksort($anchor);
+        foreach ($anchor as $baris) {
+            $bagian[] = $baris;
         }
 
         foreach ($r['shots'] as $i => $sh) {
@@ -2943,12 +2994,26 @@ TXT;
     private static function renderSeedance(array $r, bool $nsfw): string
     {
         $blok = [];
+        // Dikumpulkan bernomor lalu diurutkan, sama seperti jalur Wan:
+        // gambar arena menyelip di tengah, jadi mencetak sesuai urutan
+        // subjek saja membuat Image 4 muncul sebelum Image 3.
+        $anchor = [];
         foreach ($r['orang'] as $o) {
             $ciri = $nsfw ? $o['ciri_nsfw'] : $o['ciri'];
             $sisi = $o['side'] === 'right' ? 'RIGHT' : 'LEFT';
-            $blok[] = '@Image ' . $o['nomor'] . ' is ' . mb_strtoupper($o['nama'])
+            $anchor[(int)$o['nomor']] = '@Image ' . $o['nomor'] . ' is ' . mb_strtoupper($o['nama'])
                     . ', the boxer on the ' . $sisi . ' of frame'
                     . ($ciri === [] ? '' : ' — ' . implode(', ', $ciri)) . '.';
+        }
+        if (!empty($r['acuan_latar']) && (int)$r['nomor_latar'] > 0) {
+            $ket = ($r['latar_kalimat'] ?? '') !== '' ? ' — ' . rtrim($r['latar_kalimat'], '.') : '';
+            $anchor[(int)$r['nomor_latar']] = '@Image ' . (int)$r['nomor_latar'] . ' is THE VENUE' . $ket
+                    . '. Take the ring, ropes, corner posts, floor and lighting from it; '
+                    . 'there is no fighter in that image.';
+        }
+        ksort($anchor);
+        foreach ($anchor as $baris) {
+            $blok[] = $baris;
         }
         $blok[] = '';
 

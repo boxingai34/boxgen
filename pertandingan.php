@@ -72,6 +72,12 @@ halamanHeader('Rancang Pertandingan');
             </div>
         </div>
 
+        <p class="hint">
+            <strong>Urutan kotak ini = urutan Image di prompt.</strong> Lampirkan gambarnya ke
+            Wan atau Seedance dengan urutan yang sama: Petinju A jadi Image 1, Petinju B jadi
+            Image 2, arena jadi Image 3, lalu wasit dan cornerman. Kalau urutannya tertukar,
+            model mengunci wujud orang ke foto yang salah.
+        </p>
         <p class="hint" id="berkas-info">
             Ctrl+V menempel ke kotak yang terakhir kamu klik.
         </p>
@@ -241,5 +247,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=3"></script>
+<script src="assets/js/pertandingan.js?v=4"></script>
 <?php halamanFooter(); ?>

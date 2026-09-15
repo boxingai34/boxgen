@@ -224,6 +224,10 @@ final class Pertandingan
 
         $ekstrak = self::keEkstrak($jawaban);
 
+        // Ditandai supaya prompt video menyebut "Image N is the venue" dan
+        // nomor gambarnya disusun mengikuti urutan slot di halaman.
+        $ekstrak['environment']['acuan'] = !empty($gambar['arena']['data']);
+
         return [
             'ekstrak' => $ekstrak,
             'ringkas' => self::ringkas($ekstrak),
@@ -566,7 +570,8 @@ TXT;
         // penonton tahu ke mana arahnya jauh sebelum pukulan terakhir.
         $puncakMenang = min(2, max(1, intdiv($jumlah, 4)), max(0, $jumlah - 1));
 
-        $out = [];
+        $out     = [];
+        $sebelum = [$menang => 0, $kalah => 0];
 
         for ($i = 0; $i < $jumlah; $i++) {
             // 0.0 di awal pertandingan, 1.0 di klip terakhir
@@ -575,6 +580,18 @@ TXT;
 
             $tahapKalah  = self::tahapDi($i, $jumlah, $puncakKalah);
             $tahapMenang = self::tahapDi($i, $jumlah, $puncakMenang);
+
+            // Klip mana yang MENAIKKAN tahap kerusakan. Di klip itulah
+            // lukanya harus terlihat muncul, supaya gambar acuan yang lebih
+            // babak belur di klip berikutnya terasa sebagai akibat dan
+            // bukan karakter yang tiba-tiba berganti wajah.
+            $luka = null;
+            if ($tahapKalah > $sebelum[$kalah]) {
+                $luka = ['korban' => $kalah, 'ke' => $tahapKalah];
+            } elseif ($tahapMenang > $sebelum[$menang]) {
+                $luka = ['korban' => $menang, 'ke' => $tahapMenang];
+            }
+            $sebelum = [$menang => $tahapMenang, $kalah => $tahapKalah];
 
             if ($i === 0) {
                 $judul   = 'Bel pertama';
@@ -614,7 +631,7 @@ TXT;
                 // their stance" — benar untuk klip pertama, salah untuk
                 // klip KO — dan kalimat ringkas di atas berbahasa Indonesia
                 // sedangkan prompt video harus Inggris.
-                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip, $adegan),
+                'shots'   => self::shots($i, $jumlah, $maju, $akhir, $cara, $menang, $kalah, $nama, $perKlip, $adegan, $luka),
             ];
         }
 
@@ -640,7 +657,8 @@ TXT;
      */
     private static function shots(
         int $i, int $jumlah, float $maju, bool $akhir,
-        string $cara, string $menang, string $kalah, array $nama, int $detik, array $adegan = []
+        string $cara, string $menang, string $kalah, array $nama, int $detik,
+        array $adegan = [], ?array $luka = null
     ): array {
         $M = $nama[$menang] ?? ('Boxer ' . strtoupper($menang));
         $K = $nama[$kalah] ?? ('Boxer ' . strtoupper($kalah));
@@ -652,7 +670,7 @@ TXT;
             // harus datang sebelum akibatnya.
             $inti   = self::shotsAkhir($cara, $M, $K, $menang, $kalah, $adegan);
             $kurang = max(0, $mau - count($inti));
-            $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah);
+            $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah, $nama, $luka);
             return array_merge($depan, $inti);
         }
 
@@ -660,12 +678,12 @@ TXT;
             // Klip pembuka selalu dimulai dari bel, supaya penonton tahu
             // ini awal pertandingan dan bukan potongan tengah.
             $babak = 'awal';
-            $sisa  = self::rakit($babak, max(0, $mau - 1), $i, $M, $K, $menang, $kalah);
+            $sisa  = self::rakit($babak, max(0, $mau - 1), $i, $M, $K, $menang, $kalah, $nama, $luka);
             return array_merge([self::shotBel($M, $K, $menang)], $sisa);
         }
 
         $babak = $maju < 0.4 ? 'jajak' : ($maju < 0.7 ? 'balik' : 'tekan');
-        return self::rakit($babak, $mau, $i, $M, $K, $menang, $kalah);
+        return self::rakit($babak, $mau, $i, $M, $K, $menang, $kalah, $nama, $luka);
     }
 
     /** Shot pembuka: bel berbunyi, keduanya keluar dari sudut. */
@@ -693,7 +711,8 @@ TXT;
      */
     private static function rakit(
         string $babak, int $berapa, int $klip,
-        string $M, string $K, string $menang, string $kalah
+        string $M, string $K, string $menang, string $kalah,
+        array $nama = [], ?array $luka = null
     ): array {
         if ($berapa <= 0) {
             return [];
@@ -755,9 +774,65 @@ TXT;
                 'action'      => $kalimat,
                 'sound'       => $tek['suara'],
             ];
+
+            // Calon tempat menaruh kalimat "lukanya muncul di sini":
+            // pukulan yang mendarat pada orang yang tahap kerusakannya naik
+            // di klip ini. Yang dipakai yang TERAKHIR, supaya lukanya muncul
+            // di akhir klip dan acuan klip berikutnya langsung menyambung.
+            if ($luka !== null && $mendarat && $pelaku !== $luka['korban']) {
+                $calon   = count($out) - 1;
+                $sasaran = $tek['sasaran'] ?? 'kepala';
+            }
+        }
+
+        if (isset($calon)) {
+            $korban = $nama[$luka['korban']] ?? ($luka['korban'] === $menang ? $M : $K);
+            $out[$calon]['action'] = rtrim($out[$calon]['action'])
+                . ' ' . self::lukaBaru($sasaran, (int)$luka['ke'], $korban) . '.';
         }
 
         return $out;
+    }
+
+    /**
+     * Kalimat "lukanya muncul SEKARANG", cocok dengan pukulan yang mendarat.
+     *
+     * Ini yang menyambung antar klip. Gambar acuan klip berikutnya sudah
+     * lebih babak belur daripada klip ini, dan tanpa apa pun yang
+     * menjelaskan, lompatannya terasa tiba-tiba: satu potongan wajahnya
+     * bersih, potongan berikutnya sudah berdarah. Kalau lukanya terlihat
+     * MUNCUL di dalam adegan — kulit di tulang pipi terbuka, darah mulai
+     * mengalir — acuan yang baru jadi terasa sebagai akibat, bukan
+     * karakter yang tiba-tiba berganti.
+     *
+     * Lukanya mengikuti sasaran pukulannya. Pukulan badan tidak membuat
+     * hidung berdarah, dan uppercut ke dagu tidak membuat mata bengkak.
+     *
+     * @param int $ke tahap kerusakan yang baru dicapai (1..3)
+     */
+    private static function lukaBaru(string $sasaran, int $ke, string $korban): string
+    {
+        if ($sasaran === 'badan') {
+            $b = [
+                1 => 'The body shot leaves ' . $korban . ' breathing in short, shallow pulls, '
+                   . 'one glove dropping a few inches to cover her ribs',
+                2 => 'A red welt spreads across the ribs of ' . $korban . ' where the punches keep landing, '
+                   . 'and her elbow stays clamped to her side from here on',
+                3 => 'The body attack has done its work — ' . $korban . ' can no longer straighten up '
+                   . 'between punches, and her guard has dropped to her chest',
+            ];
+            return $b[$ke] ?? $b[1];
+        }
+
+        $k = [
+            1 => 'The punch snaps the head of ' . $korban . ' around and leaves a red mark high on her '
+               . 'cheekbone that stays there for the rest of the fight',
+            2 => 'Blood starts from the nose of ' . $korban . ' on this punch and runs down over her '
+               . 'mouth and chin; the skin over her cheekbone is split and beginning to swell',
+            3 => 'This is the punch that closes the eye of ' . $korban . ' — the swelling comes up fast, '
+               . 'blood runs from her nose and from the corner of her mouth, and her head hangs',
+        ];
+        return $k[$ke] ?? $k[1];
     }
 
     /** Reaksi singkat lawan terhadap jenis pukulan yang mendarat. */
@@ -882,6 +957,7 @@ TXT;
             'aksi'  => 'snaps out a fast lead jab, shoulder rolling up to shield the chin, the arm returning the instant it lands',
             'efek'  => 'smear',
             'suara' => 'a crisp snap of leather, a short exhale',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'jab_ganda' => [
@@ -889,6 +965,7 @@ TXT;
             'aksi'  => 'doubles the jab — one to blind, one to land — stepping in behind the second',
             'efek'  => 'smear',
             'suara' => 'two fast snaps, shoes shifting on canvas',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'cross' => [
@@ -896,6 +973,7 @@ TXT;
             'aksi'  => 'turns the rear hip over and fires a straight down the middle, back heel lifting as the shoulder drives through',
             'efek'  => 'impact',
             'suara' => 'one heavy leather crack, a grunt driven out',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'satu_dua' => [
@@ -903,6 +981,7 @@ TXT;
             'aksi'  => 'throws the one-two — jab to lift the guard, straight rear hand through the gap it leaves',
             'efek'  => 'impact',
             'suara' => 'snap-CRACK, two impacts a heartbeat apart',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
 
@@ -912,6 +991,7 @@ TXT;
             'aksi'  => 'pivots hard on the lead foot and whips a short lead hook around the guard, elbow level with the fist',
             'efek'  => 'impact',
             'suara' => 'a flat heavy smack, the guard rattling',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'hook_belakang' => [
@@ -919,6 +999,7 @@ TXT;
             'aksi'  => 'loads the rear hip and swings a rear hook in a tight arc, the whole torso turning behind it',
             'efek'  => 'impact',
             'suara' => 'a deep thud through the arms, a stifled cry',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'overhand' => [
@@ -926,6 +1007,7 @@ TXT;
             'aksi'  => 'steps off-line and loops an overhand right over the top of the guard, dropping her head as the arm comes down',
             'efek'  => 'impact',
             'suara' => 'a whistling arc then a dull crack on the temple',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'check_hook' => [
@@ -933,6 +1015,7 @@ TXT;
             'aksi'  => 'catches the charge with a check hook and pivots away on the lead foot at the same time, leaving her opponent swinging at empty canvas',
             'efek'  => 'smear',
             'suara' => 'a short slap of leather and shoes skidding on canvas',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
 
@@ -942,6 +1025,7 @@ TXT;
             'aksi'  => 'dips at the knees and drives a rear uppercut straight up through the middle of the guard into the chin',
             'efek'  => 'impact',
             'suara' => 'a sharp upward crack, teeth clicking together',
+            'sasaran' => 'kepala',
             'tag'   => 'uppercut',
         ],
         'shovel' => [
@@ -949,6 +1033,7 @@ TXT;
             'aksi'  => 'digs a shovel hook in on a forty-five degree angle, half hook and half uppercut, lifting up under the elbow',
             'efek'  => 'impact',
             'suara' => 'a compact thud driven up under the ribs',
+            'sasaran' => 'badan',
             'tag'   => 'uppercut',
         ],
 
@@ -958,6 +1043,7 @@ TXT;
             'aksi'  => 'changes level, bending at the knees rather than the waist, and buries a hook into the ribs',
             'efek'  => 'impact',
             'suara' => 'a wet heavy thump into the body, breath punched out',
+            'sasaran' => 'badan',
             'tag'   => 'stomach_punch',
         ],
         'liver' => [
@@ -970,6 +1056,7 @@ TXT;
             'aksi'  => 'drives a short left hook up under the right side of the ribcage, right into the liver',
             'efek'  => 'impact',
             'suara' => 'a dull deep thud, then a sound like the air leaving her',
+            'sasaran' => 'badan',
             'tag'   => 'stomach_punch',
         ],
         'atas_bawah' => [
@@ -977,6 +1064,7 @@ TXT;
             'aksi'  => 'goes upstairs then downstairs — a jab high to pull the hands up, then a hook to the exposed body',
             'efek'  => 'impact',
             'suara' => 'a light snap high, then a heavy thud low',
+            'sasaran' => 'badan',
             'tag'   => 'punching',
         ],
 
@@ -1014,6 +1102,7 @@ TXT;
             'aksi'  => 'pulls straight back so the punch falls short, then fires the counter into the space her opponent left open',
             'efek'  => 'impact',
             'suara' => 'air moving, then one clean counter landing',
+            'sasaran' => 'kepala',
             'tag'   => 'punching',
         ],
         'tutup' => [
@@ -1477,6 +1566,16 @@ TXT;
         } else {
             $b[] = 'No corner staff are visible.';
         }
+
+        // Kerusakan hanya boleh bertambah, tidak pernah sembuh.
+        //
+        // Tiap klip dihasilkan terpisah, jadi model tidak tahu apa yang
+        // terjadi di klip sebelumnya. Tanpa aturan ini, memar yang sudah
+        // muncul bisa hilang lagi di potongan berikutnya — dan seluruh
+        // rangkaian kartu kondisi jadi sia-sia.
+        $b[] = 'Damage only ever accumulates: any mark, swelling, cut or blood that appears '
+             . 'stays for the rest of the clip and must still be there in every later shot. '
+             . 'Nothing heals, nothing is wiped clean, and sweat and blood keep building.';
 
         return 'Scene: ' . implode(' ', $b);
     }
