@@ -933,11 +933,20 @@ function initTagInput() {
 // ==================================================================
 
 /**
- * Tombol "Buat gambarnya" di bawah keluaran.
+ * Ke mana tiap keluaran dikirim kalau mau langsung digambar.
  *
- * Hanya untuk keluaran NovelAI: yang dipanggil memang API NovelAI, dan
- * prompt Stable Diffusion punya kebiasaan bobot sendiri yang tidak
- * diartikan sama di sana.
+ * Stable Diffusion sengaja tidak ada: bobotnya ditulis (tag:1.2),
+ * sedangkan NovelAI membacanya 1.2::tag:: — dikirim apa adanya, tanda
+ * kurungnya malah jadi bagian dari tagnya.
+ */
+const TUJUAN_GAMBAR = {
+    novelai: { aksi: 'tokoh', label: 'Buat gambarnya (NovelAI)' },
+    nai5:    { aksi: 'tokoh', label: 'Buat gambarnya (NovelAI)' },
+    gemini:  { aksi: 'latar',  label: 'Buat gambarnya (OpenAI)'  },
+};
+
+/**
+ * Tombol "Buat gambarnya" di bawah keluaran.
  *
  * Isinya dibaca dari kotak DI HALAMAN saat diklik, bukan dari hasil yang
  * tersimpan — supaya prompt yang sudah kamu sunting sendiri yang dipakai,
@@ -947,14 +956,24 @@ function pasangTombolGambar(target) {
     const blok = $('#blok-gambar');
     if (!blok) return;
 
+    const tujuan = TUJUAN_GAMBAR[target];
+
     blok.innerHTML = '';
-    blok.hidden = !String(target).startsWith('nai');
-    if (blok.hidden || typeof tombolGambar !== 'function') return;
+    blok.hidden = !tujuan;
+    if (!tujuan || typeof tombolGambar !== 'function') return;
 
     blok.appendChild(tombolGambar({
-        url: 'api/gambar.php?action=tokoh',
-        alt: 'Hasil NovelAI',
+        url: 'api/gambar.php?action=' + tujuan.aksi,
+        label: tujuan.label,
+        alt: 'Hasil ' + target,
         muatan: () => {
+            // Keluaran Gemini itu satu paragraf prosa, bukan kotak per
+            // karakter — dikirim ke jalur latar yang memang menerima
+            // prompt utuh.
+            if (tujuan.aksi === 'latar') {
+                return { prompt: $('#out-prompt').value, rasio: '1:1' };
+            }
+
             const perKarakter = !$('#nai-block').hidden;
             return {
                 bagian: {
