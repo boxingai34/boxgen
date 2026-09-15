@@ -153,6 +153,27 @@ defined('AI_GAMBAR_MODEL')    || define('AI_GAMBAR_MODEL', '');
 defined('AI_GAMBAR_API_KEY')  || define('AI_GAMBAR_API_KEY', '');
 defined('AI_GAMBAR_TIMEOUT')  || define('AI_GAMBAR_TIMEOUT', 120);
 
+// Pembuat gambar TOKOH (tombol "Buat gambarnya" di tab Kartu kondisi).
+//
+// NovelAI, bukan Gemini, dan itu bukan pilihan gaya: penyaring inti
+// Google memblokir ketelanjangan dan tidak bisa dimatikan, jadi separuh
+// kartu tokoh akan ditolak. NovelAI juga kebetulan target aslinya --
+// prompt kartu tokoh kita memang sudah lahir dalam bentuk base prompt +
+// kotak karakter, persis yang diminta API-nya.
+//
+// Kuncinya "persistent API token" (diawali pst-), diambil sendiri dari
+// setelan akun di situs NovelAI. Butuh langganan aktif; di tier bawah
+// tiap gambar memakai Anlas yang habis pakai.
+//
+// Isi di config.local.php, bukan di sini:
+//   define('AI_TOKOH_MODEL',   'nai-diffusion-5-full');
+//   define('AI_TOKOH_API_KEY', 'pst-...');
+defined('AI_TOKOH_PROVIDER') || define('AI_TOKOH_PROVIDER', 'novelai');
+defined('AI_TOKOH_MODEL')    || define('AI_TOKOH_MODEL', '');
+defined('AI_TOKOH_BASE_URL') || define('AI_TOKOH_BASE_URL', 'https://image.novelai.net');
+defined('AI_TOKOH_API_KEY')  || define('AI_TOKOH_API_KEY', '');
+defined('AI_TOKOH_TIMEOUT')  || define('AI_TOKOH_TIMEOUT', 180);
+
 // Contoh isian untuk config.local.php (pilih salah satu, JANGAN di sini —
 // berkas ini ikut ke git, config.local.php tidak):
 //

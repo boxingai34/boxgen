@@ -324,7 +324,7 @@ function kotakTeks(label, isi, ket) {
  * menyimpannya sama sekali. Kalau kamu mau menyimpannya, klik kanan lalu
  * simpan sendiri; begitu halaman ini ditutup, gambarnya hilang.
  */
-function bikinLatar(prompt) {
+function bikinGambar(url, muatan, alt) {
     const bung = el('div', 'buat-latar');
     const btn  = el('button', 'btn kecil', 'Buat gambarnya');
     btn.type = 'button';
@@ -339,11 +339,11 @@ function bikinLatar(prompt) {
         pesan.classList.remove('galat');
 
         try {
-            const data = await postJson('api/gambar.php?action=latar', { prompt });
+            const data = await postJson(url, muatan);
             tampil.innerHTML = '';
             const img = el('img');
             img.src = data.gambar;
-            img.alt = 'Latar hasil Gemini';
+            img.alt = alt;
             tampil.appendChild(img);
             pesan.textContent = Math.round(data.byte / 1024) + ' KB · ' + data.model
                 + ' · tidak disimpan di server, klik kanan untuk menyimpannya sendiri.';
@@ -389,8 +389,15 @@ function renderHasil() {
         + 'di klip yang disebutkan. Inilah yang membuat memar dan lukanya punya acuan, '
         + 'bukan dikarang ulang tiap klip.'));
     (hasil.kartu || []).forEach((c) => {
-        const isi = (nsfw && c.prompt_nsfw) ? c.prompt_nsfw : c.prompt;
-        ka.appendChild(kotakTeks(c.nama, isi, c.ket + ' · dipakai di klip ' + c.klip.join(', ')));
+        const isi    = (nsfw && c.prompt_nsfw) ? c.prompt_nsfw : c.prompt;
+        const bagian = (nsfw && c.bagian_nsfw) ? c.bagian_nsfw : c.bagian;
+        const kotak  = kotakTeks(c.nama, isi, c.ket + ' · dipakai di klip ' + c.klip.join(', '));
+        // Tokoh lewat NovelAI, bukan Gemini — penyaring ketelanjangan
+        // Gemini tidak bisa dimatikan.
+        if (bagian && bagian.base) {
+            kotak.appendChild(bikinGambar('api/gambar.php?action=tokoh', { bagian }, 'Tokoh hasil NovelAI'));
+        }
+        ka.appendChild(kotak);
     });
 
     // Latar dipisah dari kartu tokoh karena dibuat di tempat yang berbeda:
@@ -406,7 +413,7 @@ function renderHasil() {
     (hasil.latar || []).forEach((c) => {
         const kotak = kotakTeks(c.nama, c.prompt,
             c.tempat + ' · dipakai di klip ' + c.klip.join(', '));
-        kotak.appendChild(bikinLatar(c.prompt));
+        kotak.appendChild(bikinGambar('api/gambar.php?action=latar', { prompt: c.prompt }, 'Latar hasil Gemini'));
         la.appendChild(kotak);
         if (c.prompt_tag) {
             la.appendChild(kotakTeks(c.nama + ' — versi tag', c.prompt_tag,

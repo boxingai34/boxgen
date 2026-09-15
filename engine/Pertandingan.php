@@ -554,6 +554,19 @@ TXT;
         ];
     }
 
+    /** Base prompt, kotak karakter, dan undesired — bentuk yang diminta API NovelAI. */
+    private static function bagianNai(array $out): array
+    {
+        return [
+            'base'       => (string)($out['base'] ?? ''),
+            'characters' => array_map(
+                static fn(array $c): array => ['prompt' => (string)($c['prompt'] ?? '')],
+                is_array($out['characters'] ?? null) ? $out['characters'] : []
+            ),
+            'undesired'  => (string)($out['undesired'] ?? ''),
+        ];
+    }
+
     /**
      * Prompt gambar arena, supaya latarnya sama di semua klip.
      *
@@ -1588,6 +1601,12 @@ TXT;
                     'klip'    => $klipnya,
                     'prompt'      => $hasil['outputs']['sfw']['flat'] ?? '',
                     'prompt_nsfw' => $hasil['outputs']['nsfw']['flat'] ?? null,
+                    // Bentuk terurai untuk tombol "Buat gambarnya" — API
+                    // NovelAI memang meminta base prompt dan kotak karakter
+                    // terpisah, jadi tidak perlu dipecah ulang dari "|".
+                    'bagian'      => self::bagianNai($hasil['outputs']['sfw'] ?? []),
+                    'bagian_nsfw' => isset($hasil['outputs']['nsfw'])
+                        ? self::bagianNai($hasil['outputs']['nsfw']) : null,
                 ];
             }
         }

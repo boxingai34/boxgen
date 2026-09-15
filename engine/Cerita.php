@@ -1086,6 +1086,13 @@ TXT;
                 'klip'    => array_values(array_unique($klipnya)),
                 'prompt'      => $hasil['outputs']['sfw']['flat'] ?? '',
                 'prompt_nsfw' => $hasil['outputs']['nsfw']['flat'] ?? null,
+                // Bentuk terurainya ikut dibawa supaya tombol "Buat
+                // gambarnya" bisa mengirimnya ke NovelAI apa adanya. Kalau
+                // cuma teks rata, kotak karakternya harus dipecah lagi dari
+                // "|" di sisi lain — satu tempat baru untuk salah.
+                'bagian'      => self::bagianNai($hasil['outputs']['sfw'] ?? []),
+                'bagian_nsfw' => isset($hasil['outputs']['nsfw'])
+                    ? self::bagianNai($hasil['outputs']['nsfw']) : null,
             ];
         }
 
@@ -1160,6 +1167,23 @@ TXT;
         }
 
         return $kartu;
+    }
+
+    /**
+     * Base prompt, kotak karakter, dan undesired — bentuk yang diminta API
+     * NovelAI. Cuma memilih kunci yang perlu, supaya yang dikirim ke
+     * browser tidak membawa seluruh isi keluaran NovelAI.
+     */
+    private static function bagianNai(array $out): array
+    {
+        return [
+            'base'       => (string)($out['base'] ?? ''),
+            'characters' => array_map(
+                static fn(array $c): array => ['prompt' => (string)($c['prompt'] ?? '')],
+                is_array($out['characters'] ?? null) ? $out['characters'] : []
+            ),
+            'undesired'  => (string)($out['undesired'] ?? ''),
+        ];
     }
 
     private static function namaKartu(array $e, string $id, string $kk, int $tahap): string

@@ -35,14 +35,20 @@ final class GambarAi
     /** Jenis berkas yang boleh diteruskan. */
     public const MIME_SAH = ['image/png', 'image/jpeg', 'image/webp'];
 
-    /** Apakah pembuat gambar sudah disetel di config.local.php. */
+    /** Apakah pembuat gambar LATAR sudah disetel di config.local.php. */
     public static function siap(): bool
     {
         return AiClient::profilDiatur('gambar');
     }
 
+    /** Apakah pembuat gambar TOKOH sudah disetel di config.local.php. */
+    public static function siapTokoh(): bool
+    {
+        return AiClient::profilDiatur('tokoh');
+    }
+
     /**
-     * Buat satu gambar dari prompt.
+     * Buat gambar LATAR dari prompt prosa.
      *
      * @return array{mime:string, data:string, model:string, byte:int}
      *         data berupa base64 mentah, BUKAN data-URI.
@@ -56,21 +62,67 @@ final class GambarAi
             throw new InvalidArgumentException('Promptnya masih kosong.');
         }
 
-        $p = AiClient::profil('gambar');
-        if ($p['api_key'] === '') {
+        $p = self::ambilProfil('gambar', 'AI_GAMBAR');
+
+        return match ($p['provider']) {
+            'gemini'  => self::lewatGemini($p, $prompt, $opsi),
+            'novelai' => self::lewatNovelAi($p, ['base' => $prompt], $opsi),
+            default   => throw new RuntimeException(
+                'Provider "' . $p['provider'] . '" belum didukung untuk membuat gambar. '
+                . 'Yang ada: gemini, novelai.'
+            ),
+        };
+    }
+
+    /**
+     * Buat gambar TOKOH dari prompt NovelAI yang sudah terstruktur.
+     *
+     * Sengaja menerima bentuk terurai, bukan satu kalimat panjang: prompt
+     * NovelAI kita memang sudah lahir terpisah antara base prompt dan
+     * kotak tiap karakter, dan API-nya pun memintanya terpisah. Menyatukan
+     * dengan "|" lalu memecahnya lagi di sini cuma menambah satu tempat
+     * baru untuk salah.
+     *
+     * @param array{base?:string, characters?:list<array{prompt?:string}>, undesired?:string} $bagian
+     *
+     * @return array{mime:string, data:string, model:string, byte:int}
+     */
+    public static function tokoh(array $bagian, array $opsi = []): array
+    {
+        if (trim((string)($bagian['base'] ?? '')) === '') {
+            throw new InvalidArgumentException('Promptnya masih kosong.');
+        }
+
+        $p = self::ambilProfil('tokoh', 'AI_TOKOH');
+
+        return match ($p['provider']) {
+            'novelai' => self::lewatNovelAi($p, $bagian, $opsi),
+            // Sengaja tidak dibiarkan lewat: penyaring inti Gemini
+            // memblokir ketelanjangan dan tidak bisa dimatikan, jadi
+            // separuh kartu tokoh akan ditolak tanpa alasan yang jelas.
+            'gemini'  => throw new RuntimeException(
+                'Gemini tidak bisa dipakai untuk tokoh — penyaring ketelanjangannya tidak '
+                . 'bisa dimatikan. Setel AI_TOKOH_PROVIDER ke novelai.'
+            ),
+            default   => throw new RuntimeException(
+                'Provider "' . $p['provider'] . '" belum didukung untuk membuat tokoh.'
+            ),
+        };
+    }
+
+    /** Profil yang sudah dipastikan punya kunci, dengan pesan yang menyebut apa yang kurang. */
+    private static function ambilProfil(string $nama, string $awalan): array
+    {
+        $p = AiClient::profil($nama);
+
+        if ($p['api_key'] === '' || trim((string)$p['model']) === '') {
             throw new RuntimeException(
-                'Pembuat gambar belum disetel. Isi AI_GAMBAR_MODEL dan '
-                . 'AI_GAMBAR_API_KEY di config.local.php.'
+                'Pembuat gambar belum disetel. Isi ' . $awalan . '_MODEL dan '
+                . $awalan . '_API_KEY di config.local.php.'
             );
         }
 
-        return match ($p['provider']) {
-            'gemini' => self::lewatGemini($p, $prompt, $opsi),
-            default  => throw new RuntimeException(
-                'Provider "' . $p['provider'] . '" belum didukung untuk membuat gambar. '
-                . 'Saat ini baru gemini.'
-            ),
-        };
+        return $p;
     }
 
     // =================================================================
@@ -154,6 +206,234 @@ final class GambarAi
         );
     }
 
+    /**
+     * Model gambar yang benar-benar bisa dipakai akunmu.
+     *
+     * Ada supaya kamu tidak perlu menebak nama model. Yang bernama mirip
+     * belum tentu tersedia: Nano Banana Pro (gemini-3-pro-image) misalnya
+     * ada di daftar tapi jatah gratisnya nol, jadi ia menolak tiap
+     * permintaan dengan "limit: 0" sampai penagihan diaktifkan.
+     *
+     * @return list<array{nama:string, keterangan:string}>
+     */
+    public static function daftarModel(): array
+    {
+        $p = self::ambilProfil('gambar', 'AI_GAMBAR');
+        if ($p['provider'] !== 'gemini') {
+            return [];
+        }
+
+        $json = self::post(
+            'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',
+            [],
+            ['x-goog-api-key: ' . $p['api_key']],
+            30,
+            'GET'
+        );
+
+        $out = [];
+        foreach (($json['models'] ?? []) as $m) {
+            $nama = str_replace('models/', '', (string)($m['name'] ?? ''));
+            $bisa = $m['supportedGenerationMethods'] ?? [];
+
+            // Yang dicari model yang BISA mengeluarkan gambar. Namanya
+            // tidak bisa jadi patokan sendirian, tapi Google belum
+            // menandai modalitas keluaran di daftar ini, jadi nama plus
+            // dukungan generateContent yang dipakai.
+            if (!in_array('generateContent', $bisa, true) || !str_contains($nama, 'image')) {
+                continue;
+            }
+
+            $out[] = ['nama' => $nama, 'keterangan' => (string)($m['displayName'] ?? '')];
+        }
+
+        sort($out);
+
+        return $out;
+    }
+
+    // =================================================================
+    // NovelAI
+    // =================================================================
+
+    /**
+     * NovelAI membalas ZIP berisi image_0.png, bukan gambar mentah.
+     *
+     * Bentuk badan permintaannya diverifikasi September 2026 untuk
+     * nai-diffusion-5-full. Dua hal yang tidak boleh dilupakan:
+     *
+     *   - v4_prompt DAN v4_negative_prompt keduanya WAJIB. Menghilangkan
+     *     salah satunya dibalas 500, bukan 400 — jadi kalau suatu hari
+     *     endpointnya tiba-tiba "error server", periksa dua kunci ini
+     *     dulu sebelum menyalahkan NovelAI.
+     *   - base prompt dan kotak karakter dikirim terpisah. Itu memang
+     *     cara model V4 ke atas menghindari bocornya ciri satu tokoh ke
+     *     tokoh lain, dan persis sebabnya prompt kita sudah terpisah
+     *     sejak awal.
+     */
+    private static function lewatNovelAi(array $p, array $bagian, array $opsi): array
+    {
+        $base   = trim((string)($bagian['base'] ?? ''));
+        $negatif = trim((string)($bagian['undesired'] ?? ($opsi['negatif'] ?? '')));
+
+        $kotak = [];
+        foreach (($bagian['characters'] ?? []) as $c) {
+            $teks = trim((string)($c['prompt'] ?? ''));
+            if ($teks !== '') {
+                $kotak[] = $teks;
+            }
+        }
+
+        // Potret untuk kartu tokoh, lanskap untuk latar. Keduanya ukuran
+        // yang tidak memakan Anlas tambahan pada langganan Opus.
+        $lebar  = (int)($opsi['lebar']  ?? 832);
+        $tinggi = (int)($opsi['tinggi'] ?? 1216);
+
+        $benih = random_int(1, 2147483646);
+
+        $caption = [
+            'base_caption'  => $base,
+            'char_captions' => array_map(
+                // use_coords false, jadi titiknya tidak dipakai — tapi
+                // tetap harus ada bentuknya.
+                static fn(string $t): array => ['char_caption' => $t, 'centers' => [['x' => 0.5, 'y' => 0.5]]],
+                $kotak
+            ),
+        ];
+
+        $body = [
+            'input'  => $base,
+            'model'  => (string)$p['model'],
+            'action' => 'generate',
+            'parameters' => [
+                'params_version'      => 4,
+                'width'               => $lebar,
+                'height'              => $tinggi,
+                'scale'               => 5,
+                'sampler'             => 'k_euler_ancestral',
+                'steps'               => 28,
+                'seed'                => $benih,
+                'extra_noise_seed'    => $benih,
+                'n_samples'           => 1,
+                'ucPreset'            => 3,
+                'qualityToggle'       => false,
+                'sm'                  => false,
+                'sm_dyn'              => false,
+                'dynamic_thresholding'=> false,
+                'controlnet_strength' => 1,
+                'legacy'              => false,
+                'add_original_image'  => false,
+                'cfg_rescale'         => 0,
+                'noise_schedule'      => 'karras',
+                'legacy_v3_extend'    => false,
+                'uncond_scale'        => 1,
+                'negative_prompt'     => $negatif,
+                'prompt'              => $base,
+                'reference_image_multiple'               => [],
+                'reference_information_extracted_multiple' => [],
+                'reference_strength_multiple'            => [],
+                'v4_prompt' => [
+                    'use_coords' => false,
+                    'use_order'  => true,
+                    'caption'    => $caption,
+                ],
+                'v4_negative_prompt' => [
+                    'use_coords' => false,
+                    'use_order'  => false,
+                    'caption'    => [
+                        'base_caption'  => $negatif,
+                        'char_captions' => [],
+                    ],
+                ],
+            ],
+        ];
+
+        $zip = self::postBiner(
+            rtrim((string)($p['base_url'] ?: 'https://image.novelai.net'), '/') . '/ai/generate-image',
+            $body,
+            ['Content-Type: application/json', 'Authorization: Bearer ' . $p['api_key']],
+            max(60, (int)$p['timeout'])
+        );
+
+        $png = self::isiZipPertama($zip);
+
+        $byte = strlen($png);
+        if ($byte > self::MAKS_BYTE) {
+            throw new RuntimeException(
+                'Gambarnya ' . round($byte / 1048576, 1) . ' MB, lebih besar dari batas '
+                . round(self::MAKS_BYTE / 1048576) . ' MB.'
+            );
+        }
+
+        return [
+            'mime'  => 'image/png',
+            'data'  => base64_encode($png),
+            'model' => (string)$p['model'],
+            'byte'  => $byte,
+        ];
+    }
+
+    /**
+     * Ambil berkas pertama dari ZIP yang masih berupa string di memori.
+     *
+     * Ditulis tangan karena ZipArchive butuh berkas NYATA di disk — dan
+     * menulis gambarnya ke disk persis hal yang tidak boleh dilakukan
+     * kelas ini. php://temp juga tidak menolong: ia tumpah ke berkas
+     * sementara begitu isinya lewat 2 MB, yang justru ukuran gambar biasa.
+     *
+     * Yang dibaca direktori pusatnya, bukan header lokal. Header lokal
+     * boleh menulis ukuran 0 kalau bit 3 flagnya menyala (ukurannya
+     * menyusul setelah data), sedangkan direktori pusat selalu benar.
+     */
+    private static function isiZipPertama(string $zip): string
+    {
+        // End of Central Directory: PK\x05\x06. Dicari mundur karena boleh
+        // ada komentar sampai 64 KB sesudahnya.
+        $eocd = strrpos($zip, "PK\x05\x06");
+        if ($eocd === false) {
+            throw new RuntimeException('NovelAI tidak membalas ZIP seperti yang diharapkan.');
+        }
+
+        // +10 jumlah entri, +12 ukuran direktori, +16 awal direktori.
+        $h = unpack('vjumlah/Vukuran/Vawal', substr($zip, $eocd + 10, 10));
+        if (!$h || $h['jumlah'] < 1) {
+            throw new RuntimeException('ZIP dari NovelAI kosong.');
+        }
+
+        $cd = $h['awal'];
+        if (substr($zip, $cd, 4) !== "PK\x01\x02") {
+            throw new RuntimeException('Direktori ZIP dari NovelAI tidak terbaca.');
+        }
+
+        $e = unpack('vmetode', substr($zip, $cd + 10, 2))
+           + unpack('Vmampat', substr($zip, $cd + 20, 4))
+           + unpack('vnama/vekstra/vkomentar', substr($zip, $cd + 28, 6))
+           + unpack('Vlokal', substr($zip, $cd + 42, 4));
+
+        // Panjang nama dan extra di header LOKAL bisa berbeda dari yang di
+        // direktori pusat, jadi dibaca ulang dari headernya sendiri.
+        $lokal = $e['lokal'];
+        if (substr($zip, $lokal, 4) !== "PK\x03\x04") {
+            throw new RuntimeException('Isi ZIP dari NovelAI tidak ditemukan.');
+        }
+        $l = unpack('vnama/vekstra', substr($zip, $lokal + 26, 4));
+
+        $mulai = $lokal + 30 + $l['nama'] + $l['ekstra'];
+        $data  = substr($zip, $mulai, $e['mampat']);
+
+        $isi = match ($e['metode']) {
+            0       => $data,                       // disimpan apa adanya
+            8       => @gzinflate($data),           // deflate
+            default => throw new RuntimeException('ZIP dari NovelAI dimampatkan dengan cara yang tidak dikenal.'),
+        };
+
+        if (!is_string($isi) || $isi === '') {
+            throw new RuntimeException('Gagal membuka ZIP dari NovelAI.');
+        }
+
+        return $isi;
+    }
+
     /** Pesan yang menyebut jalan keluarnya, bukan cuma kode penolakannya. */
     private static function pesanBlokir(string $kode): string
     {
@@ -178,21 +458,30 @@ final class GambarAi
      * di kelas ini yang bisa nyasar ke ai_cache atau ke pencatatan token
      * milik panggilan teks.
      */
-    private static function post(string $url, array $body, array $headers, int $timeout): array
-    {
+    private static function post(
+        string $url,
+        array $body,
+        array $headers,
+        int $timeout,
+        string $cara = 'POST'
+    ): array {
         if (!function_exists('curl_init')) {
             throw new RuntimeException('Ekstensi cURL tidak aktif di server ini.');
         }
 
         $ch = Http::buka($url);
         curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
+        if ($cara === 'POST') {
+            curl_setopt_array($ch, [
+                CURLOPT_POST       => true,
+                CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]);
+        }
 
         $raw    = curl_exec($ch);
         $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -224,5 +513,65 @@ final class GambarAi
         }
 
         return $json;
+    }
+
+    /**
+     * POST yang jawabannya biner (ZIP), bukan JSON.
+     *
+     * Kalau gagal, badannya justru JSON — jadi galatnya diurai di sini
+     * supaya kamu membaca kalimat NovelAI, bukan tumpahan byte.
+     */
+    private static function postBiner(string $url, array $body, array $headers, int $timeout): string
+    {
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('Ekstensi cURL tidak aktif di server ini.');
+        }
+
+        $ch = Http::buka($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+
+        $raw    = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err    = curl_error($ch);
+        curl_close($ch);
+
+        if ($raw === false) {
+            throw new RuntimeException('Gagal menghubungi NovelAI: ' . $err);
+        }
+
+        if ($status >= 400) {
+            $json = json_decode((string)$raw, true);
+            $msg  = is_array($json) ? (string)($json['message'] ?? $json['error'] ?? '') : '';
+            if ($msg === '') {
+                $msg = substr((string)$raw, 0, 300);
+            }
+
+            if ($status === 401) {
+                throw new RuntimeException(
+                    'NovelAI menolak tokennya (401). Ambil ulang persistent API token dari '
+                    . 'setelan akunmu, lalu perbarui AI_TOKOH_API_KEY.'
+                );
+            }
+            if ($status === 402) {
+                throw new RuntimeException(
+                    'Langganan NovelAI-mu tidak mencukupi (402) — generate gambar butuh '
+                    . 'langganan aktif, dan di tier bawah memakai Anlas yang habis pakai.'
+                );
+            }
+            if ($status === 429) {
+                throw new RuntimeException('NovelAI membatasi lajunya (429). Tunggu sebentar lalu ulangi.');
+            }
+
+            throw new RuntimeException("NovelAI menolak permintaan (HTTP {$status}): {$msg}");
+        }
+
+        return (string)$raw;
     }
 }
