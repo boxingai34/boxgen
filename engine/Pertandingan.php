@@ -925,7 +925,11 @@ TXT;
                 'camera_move' => $gerakKamera,
                 'actor'       => $pelaku,
                 'action'      => $kalimat,
-                'sound'       => $tek['suara'],
+                // Suaranya juga dilewatkan ganti(): beberapa teknik
+                // menyebut kata ganti di kalimat suaranya ("a sound like
+                // the air leaving {nya}"), dan tanpa ini penandanya
+                // tertulis apa adanya sampai ke prompt.
+                'sound'       => self::ganti($tek['suara'], $sexLawan),
             ];
 
             // Calon tempat menaruh kalimat "lukanya muncul di sini":

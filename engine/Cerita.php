@@ -232,6 +232,8 @@ ATURAN:
 
 7. ADEGAN dipecah berurutan mengikuti ceritanya, maksimal 20. Tiap adegan punya "detik" — berapa detik bagian itu di video. Jumlah seluruh "detik" HARUS sama dengan "durasi_detik". Bagi porsinya menurut bobot ceritanya: bagian pertandingan biasanya dapat porsi terbesar, adegan pembuka secukupnya.
 
+   SATU ADEGAN MAKSIMAL 20 DETIK. Kalau satu bagian ceritanya lebih panjang dari itu, pecah jadi beberapa adegan yang ISINYA BERBEDA — langkah demi langkah, bukan satu kalimat yang sama dibagi rata. Contoh: "mendekati yang tergeletak", "berlutut di sampingnya", "melepas pakaiannya", masing-masing adegan sendiri. Adegan 80 detik berisi satu kalimat akan dipotong mesin jadi tujuh klip yang isinya terpaksa diulang-ulang.
+
 8. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju, ISTIRAHAT ANTAR RONDE, minum, bersandar di sudut), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban" — dan isi menurut siapa yang menyerang DI ADEGAN ITU, bukan siapa yang akhirnya menang. Ronde yang dipimpin pihak yang nanti kalah harus tercatat begitu.
 
    Kalau ceritanya menyebut jeda antar ronde, istirahat, atau minum, itu adegan tersendiri — jangan dilewati dan jangan digabung ke adegan tinjunya.
@@ -1021,7 +1023,22 @@ TXT;
         $a   = $r['adegan'];
         $mau = max(1, min(6, (int)round($detik / 3)));
 
-        if (in_array($a['jenis'], ['tinju', 'penutup'], true)) {
+        // Yang menentukan ada-tidaknya pukulan di KALIMAT ceritanya, bukan
+        // label jenisnya.
+        //
+        // "penutup" artinya penyelesaian, dan penyelesaian belum tentu
+        // berisi tinju: sesudah lawannya KO, yang terjadi berikutnya bukan
+        // pertukaran pukulan lagi. Dulu label itu langsung memanggil
+        // perpustakaan teknik, jadi adegan sesudah KO tetap digambar orang
+        // saling memukul — tujuh klip berturut-turut, padahal yang satu
+        // sudah tergeletak.
+        $memukul = preg_match(
+            '/\b(punch\w*|jab\w*|hook\w*|uppercut\w*|cross\w*|straight|blow\w*|strike\w*|combo\w*|'
+            . 'hits?|lands?|slams?|smash\w*|connects?|swings?|counters?|guard|knock\w*)\b/i',
+            (string)$a['isi']
+        ) === 1;
+
+        if ($memukul && in_array($a['jenis'], ['tinju', 'penutup'], true)) {
             // Penyerang ADEGAN INI, bukan pemenang pertandingan. Ronde
             // yang dipimpin pihak yang akhirnya kalah harus tetap terlihat
             // begitu — kalau selalu dipakai pemenang akhirnya, seluruh
@@ -1053,21 +1070,20 @@ TXT;
             // generik yang sama untuk cerita apa pun. Sekarang shot
             // pertama tiap klip membawa kalimat ceritamu apa adanya;
             // sisanya baru teknik, sebagai kelanjutan, bukan pengganti.
-            if (trim($a['isi']) !== '' && $shots !== []) {
+            // HANYA di potongan pertama.
+            //
+            // Satu adegan panjang bisa pecah jadi tujuh klip, dan kalau
+            // kalimat ceritanya ditempel ke shot pertama tiap klip, ketujuh
+            // klip itu membuka dengan kalimat yang sama persis — model
+            // video membacanya sebagai perintah mengulang kejadian yang
+            // sama tujuh kali. Potongan berikutnya dilanjutkan
+            // perpustakaan teknik, yang memang sudah berbeda tiap klip.
+            if ($r['bagian'] === 1 && trim($a['isi']) !== '' && $shots !== []) {
                 $ekor = '';
 
                 // Kalimat efek sakuga dipertahankan — itu yang membuat
-                // geraknya terbaca sebagai anime — TAPI hanya kalau
-                // adegannya memang berisi pukulan. "A single white impact
-                // frame flashes on contact" di adegan clinch dan ciuman
-                // menyuruh model menggambar benturan yang tidak ada.
-                $memukul = preg_match(
-                    '/\b(punch\w*|jab\w*|hook\w*|uppercut\w*|cross\w*|straight|blow\w*|strike\w*|'
-                    . 'hits?|lands?|slams?|smash\w*|connects?|swings?|counters?)\b/i',
-                    $a['isi']
-                ) === 1;
-
-                if ($memukul && preg_match(
+                // geraknya terbaca sebagai anime.
+                if (preg_match(
                     '/(?:^|\.\s)([A-Z][^.]*(?:impact frame|smear frame|speed lines|on twos|freeze)[^.]*\.)/',
                     (string)($shots[0]['action'] ?? ''), $m
                 )) {
@@ -1129,15 +1145,26 @@ TXT;
             'fabric moving, a floorboard, nothing else',
         ];
 
+        // Kalimat ceritanya cuma di potongan PERTAMA adegan ini. Adegan
+        // yang pecah jadi beberapa klip akan membuka dengan kalimat yang
+        // sama persis kalau tidak dijaga — dan model video membacanya
+        // sebagai perintah mengulang kejadian yang sama berkali-kali.
+        // Nomor potongan juga ikut menggeser daftar $lanjut, supaya
+        // potongan kedua tidak mengulang kalimat lanjutan potongan pertama.
+        $awal = $r['bagian'] === 1;
+        $ke   = ($r['bagian'] - 1) * $mau;
+
         $out = [];
         for ($i = 0; $i < $mau; $i++) {
             [$k, $gerak] = $kam[($r['nomor'] * 2 + $i) % count($kam)];
+            $n = $ke + $i;
+
             $out[] = [
                 'camera'      => $k,
                 'camera_move' => $gerak,
                 'actor'       => self::petaSisi($a, $a['pelaku'][0] ?? null),
-                'action'      => $i === 0 ? $utama : $lanjut[($i - 1) % count($lanjut)],
-                'sound'       => $i === 0 ? $suara[0] : $suara[$i % count($suara)],
+                'action'      => ($awal && $i === 0) ? $utama : $lanjut[($n - ($awal ? 1 : 0)) % count($lanjut)],
+                'sound'       => $suara[$n % count($suara)],
             ];
         }
         return $out;
