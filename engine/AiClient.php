@@ -29,7 +29,7 @@ declare(strict_types=1);
 final class AiClient
 {
     /** Nama profil yang dikenal, selain 'default'. */
-    public const PROFIL = ['vision', 'vision2', 'polish', 'nsfw', 'nsfw2'];
+    public const PROFIL = ['vision', 'vision2', 'cerita', 'polish', 'nsfw', 'nsfw2'];
 
     /**
      * Catatan pemakaian token sepanjang satu permintaan HTTP.

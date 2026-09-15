@@ -167,6 +167,7 @@ halamanHeader('Rancang Pertandingan');
             Makin pendek tiap klip, makin banyak potongan kamera per detiknya.
         </p>
 
+        <div id="blok-hasil">
         <div class="field-row">
             <div class="field">
                 <label for="pemenang">Siapa yang menang</label>
@@ -183,6 +184,8 @@ halamanHeader('Rancang Pertandingan');
                     <?php endforeach; ?>
                 </select>
             </div>
+        </div>
+
         </div>
 
         <div class="field-row">
@@ -212,6 +215,7 @@ halamanHeader('Rancang Pertandingan');
             </div>
         </div>
 
+        <div id="blok-latar">
         <div class="field-row">
             <div class="field">
                 <label for="latar">Latar</label>
@@ -245,6 +249,7 @@ halamanHeader('Rancang Pertandingan');
             semua klip. Kalau tidak dicentang, promptnya menyebut tegas bahwa mereka
             <strong>tidak ada</strong> — tanpa itu model video sering menambahkan wasit sendiri.
         </p>
+        </div>
 
         <div class="field">
             <label for="gaya">Gaya visual <span class="tiny-note">opsional</span></label>
@@ -282,5 +287,5 @@ halamanHeader('Rancang Pertandingan');
 
 </div>
 
-<script src="assets/js/pertandingan.js?v=5"></script>
+<script src="assets/js/pertandingan.js?v=6"></script>
 <?php halamanFooter(); ?>

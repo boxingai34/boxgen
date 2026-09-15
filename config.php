@@ -116,6 +116,24 @@ defined('AI_NSFW2_BASE_URL') || define('AI_NSFW2_BASE_URL', VENICE_BASE_URL);
 defined('AI_NSFW2_API_KEY')  || define('AI_NSFW2_API_KEY', '');
 defined('AI_NSFW2_TIMEOUT')  || define('AI_NSFW2_TIMEOUT', 90);
 
+// Pembaca CERITA (halaman Rancang Pertandingan, mode dari cerita).
+//
+// Ini tugas teks murni — tidak ada gambar sama sekali — jadi profil
+// vision bukan tempatnya. Yang menentukan di sini: kepatuhan pada skema
+// JSON panjang, pengertian bahasa Indonesia, dan kecepatan.
+//
+// Bawaannya qwen3-vl-235b-a22b karena dialah yang menang waktu kelima
+// model yang terpasang diuji dengan cerita sungguhan: nilai penuh di dua
+// putaran, 22-37 detik, dan paling hemat token. Yang dipakai sebelumnya
+// (gpt-5.6-sol) juga bernilai penuh tapi butuh 61-65 detik — di atas
+// batas 60 detik proxy hosting, jadi SELALU kena 504 di percobaan
+// pertama.
+defined('AI_CERITA_PROVIDER') || define('AI_CERITA_PROVIDER', 'openai_compatible');
+defined('AI_CERITA_MODEL')    || define('AI_CERITA_MODEL', 'qwen3-vl-235b-a22b');
+defined('AI_CERITA_BASE_URL') || define('AI_CERITA_BASE_URL', VENICE_BASE_URL);
+defined('AI_CERITA_API_KEY')  || define('AI_CERITA_API_KEY', '');
+defined('AI_CERITA_TIMEOUT')  || define('AI_CERITA_TIMEOUT', 120);
+
 // Contoh isian untuk config.local.php (pilih salah satu, JANGAN di sini —
 // berkas ini ikut ke git, config.local.php tidak):
 //

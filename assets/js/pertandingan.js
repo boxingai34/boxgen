@@ -432,6 +432,16 @@ function gantiMode(nama) {
     $('#mode-gambar').hidden = nama !== 'gambar';
     $('#mode-cerita').hidden = nama !== 'cerita';
 
+    // Pilihan yang SUDAH DIBACA DARI CERITANYA disembunyikan di mode
+    // cerita: siapa menang, cara selesainya, latar, penonton, wasit,
+    // cornerman. Membiarkannya tampil bukan cuma bikin penuh — isiannya
+    // diabaikan, jadi orang mengira setelannya tidak berfungsi.
+    const dariCerita = nama === 'cerita';
+    ['#blok-hasil', '#blok-latar'].forEach((sel) => {
+        const n = $(sel);
+        if (n) n.hidden = dariCerita;
+    });
+
     // Tombol Rancang melayani dua mode, jadi syaratnya ikut berganti.
     $('#btn-rancang').disabled = nama === 'gambar' ? ekstrak === null : ekstrakCerita === null;
 }

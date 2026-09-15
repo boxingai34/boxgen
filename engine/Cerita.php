@@ -58,10 +58,15 @@ final class Cerita
     /**
      * Baca cerita bebas jadi struktur adegan.
      *
-     * Tidak ada gambar sama sekali di sini, jadi jauh lebih murah dan
-     * cepat daripada membaca referensi. Model yang dipakai tetap profil
-     * vision karena dialah yang paling patuh pada skema JSON panjang;
-     * kalau gagal, jatuh ke cadangan seperti biasa.
+     * Tidak ada gambar sama sekali di sini, jadi ini tugas TEKS, bukan
+     * vision. Profilnya sendiri (AI_CERITA_*) karena yang menentukan di
+     * sini berbeda: kepatuhan pada skema JSON panjang, pengertian bahasa
+     * Indonesia, dan kecepatan — bukan kemampuan melihat gambar.
+     *
+     * Bawaannya dipilih dari pengujian, bukan dari daftar peringkat:
+     * kelima model yang terpasang dijalankan dengan cerita sungguhan dua
+     * putaran, dan qwen3-vl menang dengan nilai penuh di keduanya, 22-37
+     * detik, dan token paling hemat.
      *
      * @return array{ekstrak:array, ringkas:string, model:string, catatan:string[]}
      */
@@ -72,7 +77,10 @@ final class Cerita
             throw new InvalidArgumentException('Ceritanya masih kosong.');
         }
 
-        $profil  = AiClient::profil('vision');
+        // Urutannya sengaja: pembaca cerita dulu, lalu model tanpa sensor
+        // (kalau ceritanya ditolak), baru model kuat sebagai jaring
+        // terakhir. Profil vision tidak ikut — tidak ada gambar di sini.
+        $profil  = AiClient::profil('cerita');
         $catatan = [];
 
         $system = self::promptSistem();
@@ -90,7 +98,7 @@ final class Cerita
         $jawaban = null;
         $galat   = null;
 
-        foreach (['vision', 'vision2', 'polish'] as $urutan => $nama) {
+        foreach (['cerita', 'nsfw', 'polish'] as $urutan => $nama) {
             $ini = $urutan === 0 ? $profil : AiClient::profil($nama);
 
             if ($urutan > 0) {
