@@ -104,6 +104,48 @@ switch ($action) {
         jsonOk($hasil + ['quota' => $kuota(), 'token' => $token()]);
         // no break
 
+    case 'simpan':
+        requirePost();
+        $in = requestBody();
+
+        $saya = (int)userId();
+        if ($saya <= 0) {
+            jsonFail('Masuk dulu supaya rancangannya bisa disimpan ke akunmu.', 401);
+        }
+
+        $ekstrak = is_array($in['ekstrak'] ?? null) ? $in['ekstrak'] : null;
+        if ($ekstrak === null || !is_array($ekstrak['adegan'] ?? null)) {
+            jsonFail('Tidak ada rancangan untuk disimpan. Baca ceritanya dulu.');
+        }
+
+        try {
+            $id = Cerita::simpan($saya, [
+                'cerita'  => (string)($in['cerita'] ?? ''),
+                'ekstrak' => $ekstrak,
+                'opsi'    => is_array($in['opsi'] ?? null) ? $in['opsi'] : [],
+                'hasil'   => is_array($in['hasil'] ?? null) ? $in['hasil'] : [],
+            ]);
+        } catch (InvalidArgumentException $e) {
+            jsonFail($e->getMessage());
+        }
+
+        jsonOk(['id' => $id, 'pesan' => 'Rancangan tersimpan. Buka lagi lewat menu Riwayat.']);
+        // no break
+
+    case 'buka':
+        $saya = (int)userId();
+        if ($saya <= 0) {
+            jsonFail('Masuk dulu untuk membuka rancangan tersimpan.', 401);
+        }
+
+        $simpan = Cerita::buka((int)($_GET['id'] ?? 0), $saya);
+        if ($simpan === null) {
+            jsonFail('Rancangan itu tidak ada, atau bukan milikmu.', 404);
+        }
+
+        jsonOk($simpan);
+        // no break
+
     default:
-        jsonFail('Aksi tidak dikenal. Pakai: baca, rancang.', 404);
+        jsonFail('Aksi tidak dikenal. Pakai: baca, rancang, simpan, buka.', 404);
 }

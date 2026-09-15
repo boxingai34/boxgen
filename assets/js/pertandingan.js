@@ -485,6 +485,7 @@ document.addEventListener('DOMContentLoaded', pasang);
 
 let mode          = 'gambar';
 let ekstrakCerita = null;
+let opsiCerita    = null;   // pilihan yang dipakai merancang, ikut disimpan
 
 function gantiMode(nama) {
     mode = nama;
@@ -502,6 +503,12 @@ function gantiMode(nama) {
     // orang mengira setelannya rusak.
     const cat = $('#catatan-cerita');
     if (cat) cat.hidden = !dariCerita;
+
+    // Tombol simpan cuma untuk mode cerita: mode gambar berangkat dari
+    // foto yang tidak ikut tersimpan, jadi rancangannya tidak bisa
+    // dibuka utuh nanti.
+    const simpan = $('#blok-simpan');
+    if (simpan) { simpan.hidden = true; }
 
     ['#blok-hasil', '#blok-latar', '#blok-durasi', '#blok-centang'].forEach((sel) => {
         const n = $(sel);
@@ -595,20 +602,23 @@ async function rancangCerita() {
     btn.textContent = 'Merancang…';
 
     try {
+        opsiCerita = {
+            target: $('#target').value,
+            detik_per_klip: 0,   // 0 = mesin yang menentukan per adegan
+            gaya: { style_id: parseInt($('#gaya').value, 10) || null, artis: '', kuat: 'sedang' },
+            wan: { rasio: $('#rasio').value },
+            seedance: { resolusi: $('#resolusi').value }
+        };
+
         const data = await postJson('api/cerita.php?action=rancang', {
             ekstrak: ekstrakCerita,
-            opsi: {
-                target: $('#target').value,
-                detik_per_klip: 0,   // 0 = mesin yang menentukan per adegan
-                gaya: { style_id: parseInt($('#gaya').value, 10) || null, artis: '', kuat: 'sedang' },
-                wan: { rasio: $('#rasio').value },
-                seedance: { resolusi: $('#resolusi').value }
-            }
+            opsi: opsiCerita
         }, { ulang: 2, lapor: (p) => { $('#rancang-note').textContent = p; } });
 
         hasil = data;
         renderHasil();
         $('#rancang-note').textContent = (data.catatan || []).join(' ');
+        $('#blok-simpan').hidden = false;
         bawaKeLayar($('#keluaran'));
     } catch (err) {
         $('#rancang-note').textContent = err.message;
@@ -618,10 +628,80 @@ async function rancangCerita() {
     }
 }
 
+/**
+ * Simpan rancangan supaya bisa dibuka lagi nanti.
+ *
+ * Yang dikirim BAHANNYA — ceritamu, hasil pembacaan, dan pilihanmu —
+ * bukan puluhan prompt jadinya. Merancang ulang dari bahan itu tidak
+ * memanggil AI sama sekali, jadi menyimpan hasilnya cuma menggandakan
+ * sesuatu yang bisa dihitung ulang kapan saja.
+ */
+async function simpanCerita() {
+    if (!ekstrakCerita) return;
+    const btn = $('#btn-simpan');
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan…';
+
+    try {
+        const data = await postJson('api/cerita.php?action=simpan', {
+            cerita:  $('#cerita').value,
+            ekstrak: ekstrakCerita,
+            opsi:    opsiCerita || {},
+            hasil:   hasil || {}
+        });
+        const n = $('#simpan-note');
+        n.textContent = data.pesan;
+        n.classList.remove('galat');
+    } catch (err) {
+        const n = $('#simpan-note');
+        n.textContent = err.message;
+        n.classList.add('galat');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Simpan rancangan';
+    }
+}
+
+/** Buka rancangan tersimpan dari ?r=<id>, lalu rancang ulang. */
+async function bukaTersimpan(id) {
+    gantiMode('cerita');
+    $('#cerita-note').textContent = 'Membuka rancangan tersimpan…';
+
+    try {
+        const res  = await fetch('api/cerita.php?action=buka&id=' + encodeURIComponent(id));
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Gagal membuka.');
+
+        $('#cerita').value = data.cerita;
+        ekstrakCerita = data.ekstrak;
+        opsiCerita    = data.opsi;
+
+        // Pilihan tampilan dikembalikan juga, supaya rancang ulangnya
+        // menghasilkan yang sama persis dengan waktu kamu menyimpannya.
+        if (data.opsi.target)            $('#target').value   = data.opsi.target;
+        if (data.opsi.wan?.rasio)        $('#rasio').value    = data.opsi.wan.rasio;
+        if (data.opsi.seedance?.resolusi) $('#resolusi').value = data.opsi.seedance.resolusi;
+        if (data.opsi.gaya?.style_id)    $('#gaya').value     = data.opsi.gaya.style_id;
+
+        $('#hasil-cerita').hidden = false;
+        $('#cerita-ringkas').textContent = data.judul;
+        renderAdegan();
+        $('#btn-rancang').disabled = false;
+        $('#cerita-note').textContent = 'Rancangan dibuka. Tekan "Rancang Pertandingan" '
+            + 'untuk menyusun ulang promptnya — gratis, tidak memanggil AI.';
+    } catch (err) {
+        $('#cerita-note').textContent = err.message;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     $$('#mode-tabs .tab').forEach((b) =>
         b.addEventListener('click', () => gantiMode(b.dataset.mode)));
     $('#btn-baca-cerita').addEventListener('click', bacaCerita);
+    $('#btn-simpan').addEventListener('click', simpanCerita);
+
+    const r = new URLSearchParams(location.search).get('r');
+    if (r) { bukaTersimpan(r); }
 
     // Tombol Rancang dibelokkan ke endpoint yang benar sesuai modenya.
     const btn = $('#btn-rancang');

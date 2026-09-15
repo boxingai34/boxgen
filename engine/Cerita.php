@@ -243,6 +243,114 @@ TXT;
     }
 
     // =================================================================
+    // Simpan dan buka lagi
+    // =================================================================
+
+    /**
+     * Simpan rancangan ke riwayat.
+     *
+     * Yang disimpan BAHANNYA, bukan hasil jadinya: cerita aslinya, hasil
+     * pembacaan, dan pilihanmu. Merancang ulang dari bahan itu tidak
+     * memanggil AI sama sekali — gratis dan instan — jadi menyimpan
+     * puluhan prompt panjang cuma menggandakan sesuatu yang bisa dihitung
+     * ulang kapan saja. Untungnya dobel: rancangan lama ikut membaik
+     * sendiri waktu mesinnya diperbaiki, bukan membeku di versi lamanya.
+     *
+     * Kolom output tetap diisi teks klipnya, tapi untuk dibaca dan dicari
+     * di halaman Riwayat — bukan sumber kebenaran.
+     *
+     * @return int id barisnya
+     */
+    public static function simpan(int $userId, array $in): int
+    {
+        $ekstrak = self::normalisasi(is_array($in['ekstrak'] ?? null) ? $in['ekstrak'] : []);
+        $opsi    = is_array($in['opsi'] ?? null) ? $in['opsi'] : [];
+        $hasil   = is_array($in['hasil'] ?? null) ? $in['hasil'] : [];
+
+        $bahan = json_encode([
+            'cerita'  => mb_substr(trim((string)($in['cerita'] ?? '')), 0, self::MAKS_CERITA),
+            'ekstrak' => $ekstrak,
+            'opsi'    => $opsi,
+        ], JSON_UNESCAPED_UNICODE);
+
+        // Kolom selection itu TEXT — 64 KB. Melebihinya tidak selalu jadi
+        // galat: MySQL di luar mode ketat memotongnya diam-diam, dan JSON
+        // yang terpotong separuh baru ketahuan rusak waktu kamu membukanya
+        // lagi berminggu-minggu kemudian. Jadi ditolak di sini, sekarang,
+        // dengan kalimat yang menyebut apa yang harus kamu lakukan.
+        if (strlen($bahan) > 60000) {
+            throw new InvalidArgumentException(
+                'Rancangan ini terlalu besar untuk disimpan (' . round(strlen($bahan) / 1024)
+                . ' KB, batasnya 60 KB). Ceritanya terlalu panjang atau tokohnya terlalu banyak — '
+                . 'pecah jadi dua rancangan.'
+            );
+        }
+
+        $teks = [];
+        foreach (($hasil['klip'] ?? []) as $k) {
+            $teks[] = 'KLIP ' . ($k['nomor'] ?? '?') . ' — ' . ($k['judul'] ?? '')
+                    . "\n" . ($k['prompt'] ?? '');
+        }
+
+        Database::run(
+            'INSERT INTO generations
+                (user_id, mode, target, title, selection, output, negative, token_estimate, used_ai, ip_hash)
+             VALUES (?,?,?,?,?,?,?,?,?,?)',
+            [
+                $userId,
+                'cerita',
+                (string)($opsi['target'] ?? 'wan'),
+                mb_substr($ekstrak['judul'] !== '' ? $ekstrak['judul'] : 'Rancangan cerita', 0, 150),
+                $bahan,
+                implode("\n\n", $teks),
+                '',
+                Optimizer::estimateTokens(implode(' ', $teks)),
+                1,
+                RateLimiter::ipHash(),
+            ]
+        );
+
+        return (int)Database::lastId();
+    }
+
+    /**
+     * Bahan rancangan tersimpan, siap dipasang kembali ke halaman.
+     *
+     * @return array{id:int, judul:string, cerita:string, ekstrak:array, opsi:array}|null
+     */
+    public static function buka(int $id, int $userId): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $baris = Database::one(
+            'SELECT id, title, selection FROM generations
+             WHERE id = ? AND user_id = ? AND mode = ?',
+            [$id, $userId, 'cerita']
+        );
+        if ($baris === null) {
+            return null;
+        }
+
+        $bahan = json_decode((string)$baris['selection'], true);
+        if (!is_array($bahan) || !is_array($bahan['ekstrak'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'id'      => (int)$baris['id'],
+            'judul'   => (string)$baris['title'],
+            'cerita'  => (string)($bahan['cerita'] ?? ''),
+            // Dinormalisasi ulang, bukan dipercaya apa adanya: rancangan
+            // lama dibuat versi mesin yang lebih tua dan bisa kehilangan
+            // kunci yang sekarang dianggap pasti ada.
+            'ekstrak' => self::normalisasi($bahan['ekstrak']),
+            'opsi'    => is_array($bahan['opsi'] ?? null) ? $bahan['opsi'] : [],
+        ];
+    }
+
+    // =================================================================
     // Normalisasi
     // =================================================================
 

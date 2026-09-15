@@ -294,11 +294,22 @@ halamanHeader('Rancang Pertandingan');
             <div id="isi-klip"></div>
             <div id="isi-kartu" hidden></div>
             <div id="isi-latar" hidden></div>
+
+            <!-- Hanya mode cerita: mode gambar berangkat dari foto yang tidak
+                 bisa ikut disimpan, jadi rancangannya tidak bisa dibuka utuh. -->
+            <div id="blok-simpan" hidden>
+                <button class="btn" id="btn-simpan" type="button">Simpan rancangan</button>
+                <p class="hint" id="simpan-note">
+                    Yang disimpan ceritamu dan hasil pembacaannya, bukan promptnya —
+                    membuka lagi berarti menyusun ulang, jadi rancangan lama ikut
+                    membaik sendiri waktu mesinnya diperbaiki.
+                </p>
+            </div>
         </div>
     </section>
 
 </div>
 
 <script src="assets/js/gambar.js?v=1"></script>
-<script src="assets/js/pertandingan.js?v=14"></script>
+<script src="assets/js/pertandingan.js?v=15"></script>
 <?php halamanFooter(); ?>
