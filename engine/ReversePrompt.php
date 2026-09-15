@@ -1557,6 +1557,13 @@ TXT;
             $prosaMentah = self::prosaCadangan($e);
         }
 
+        // Jaring pengaman, dipasang SESUDAH polish dan bukan sebagai
+        // penggantinya: modelnya sudah dilarang menulis nama dan ciri
+        // orang, tapi kalau polish dimatikan atau gagal, yang dipakai
+        // prosa mentah dari pembacaan — dan di situ nama serta warna
+        // sarung tangan pasti masih ada.
+        $prosaMentah = self::prosaTanpaOrang($prosaMentah, $e, $val);
+
         // --- versi aman ---
         $prosaAman = self::isiPenandaAman($prosaMentah, $e);
         $itemsAman = self::itemsNovelAI($e, $val, false, $opsi);
@@ -2381,6 +2388,124 @@ TXT;
         ];
     }
 
+    /**
+     * Buang ciri per-orang dari prosa Base Prompt.
+     *
+     * Base Prompt berlaku untuk SELURUH gambar; kotak karakterlah yang
+     * memiliki tiap orang. Dua hal rusak kalau ciri orang ikut ditulis di
+     * base:
+     *
+     * 1. Ciri itu bocor ke karakter lain. Itu justru alasan NovelAI V4 ke
+     *    atas memisahkan kotak karakter, dan sisi TAG di sini memang sudah
+     *    lama tidak menaruh nama karakter di base.
+     *
+     * 2. Ia jadi BASI begitu kamu menyunting. Prosa ditulis dari pembacaan
+     *    awal; waktu kamu mengganti warna sarung tangan atau menukar
+     *    karakternya, kotak karakter ikut berubah tapi prosanya tidak.
+     *    Hasilnya satu prompt yang bilang "blue-gloved" di base dan
+     *    "green gloves" di kotak — model harus menebak mana yang benar.
+     *
+     * Nama diganti jadi rujukan posisi, dan warna yang menempel pada ciri
+     * orang dibuang. Komposisi, tempat, cahaya, dan gaya dibiarkan utuh —
+     * itu memang milik base.
+     */
+    private static function prosaTanpaOrang(string $prosa, array $e, array $val): string
+    {
+        if (trim($prosa) === '') {
+            return $prosa;
+        }
+
+        // --- nama karakter -> rujukan posisi ---
+        // Dikumpulkan dulu semuanya, baru diganti. Kalau diganti satu per
+        // satu sambil jalan, kata yang dipakai bersama dua tokoh saling
+        // menimpa: "Princess" pada "Princess Peach" dan "Princess Daisy"
+        // ikut tertukar dan kalimatnya jadi kacau.
+        $calon = [];
+        foreach ($e['subjects'] as $s) {
+            $sisi  = $s['position']['side'] ?? 'center';
+            $ganti = $sisi === 'left' ? 'the left fighter'
+                   : ($sisi === 'right' ? 'the right fighter' : 'the fighter');
+
+            $nama = trim((string)($val['karakter'][$s['id']]['name'] ?? ''));
+            if ($nama === '') {
+                $nama = trim(str_replace('_', ' ', (string)($s['character'] ?? '')));
+            }
+            if ($nama === '') {
+                continue;
+            }
+
+            // Nama lengkap, plus tiap katanya sebagai panggilan pendek:
+            // "Peach" di "Princess Peach", "Yor" di "Yor Briar". Gelar
+            // yang dipakai bersama tersaring sendiri di bawah, karena
+            // diklaim lebih dari satu tokoh.
+            $calon[$nama][] = $ganti;
+            foreach (preg_split('/\s+/', $nama) ?: [] as $kata) {
+                if (mb_strlen($kata) > 2 && $kata !== $nama) {
+                    $calon[$kata][] = $ganti;
+                }
+            }
+        }
+
+        // Yang diklaim lebih dari satu tokoh dibuang: tidak ada cara tahu
+        // yang mana yang dimaksud, dan menebak lebih buruk daripada
+        // membiarkannya.
+        $peta = [];
+        foreach ($calon as $cari => $daftar) {
+            if (count(array_unique($daftar)) === 1) {
+                $peta[$cari] = $daftar[0];
+            }
+        }
+
+        // Yang panjang dulu, supaya "Princess Peach" tidak keburu
+        // tergantikan sebagian oleh "Peach".
+        uksort($peta, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+
+        foreach ($peta as $cari => $ganti) {
+            // Nama satu kata dicocokkan PERSIS huruf besar-kecilnya. Ada
+            // karakter bernama Rose atau May, dan mencocokkannya tanpa
+            // peduli huruf besar akan menelan "she rose to her feet".
+            // Nama lengkap dua kata ke atas tidak punya bahaya itu.
+            $bebasHuruf = str_contains($cari, ' ') ? 'i' : '';
+
+            $prosa = preg_replace_callback(
+                '/\b' . preg_quote($cari, '/') . '(\'s|\x{2019}s)?\b/u' . $bebasHuruf,
+                static fn(array $m): string => $ganti . ($m[1] ?? ''),
+                $prosa
+            ) ?? $prosa;
+        }
+
+        // "the left fighter, on the left," — keterangan posisi yang jadi
+        // mubazir sesudah namanya diganti rujukan posisi. Komanya ikut
+        // dibuang, kalau tidak tertinggal "the left fighter, leans".
+        $prosa = preg_replace('/\b(the (left|right) fighter),\s+on the \2,/i', '$1', $prosa) ?? $prosa;
+
+        // --- warna yang menempel pada ciri orang ---
+        // Daftarnya sempit dengan sengaja: yang dibuang cuma warna yang
+        // berada TEPAT sebelum bagian tubuh atau pakaian, bukan setiap
+        // warna di kalimat. "A colorful outdoor boxing ring" dan "bright
+        // arena floodlights" harus tetap utuh — itu milik base.
+        $warna = 'black|white|red|blue|green|yellow|pink|purple|orange|brown|grey|gray|gold|silver'
+               . '|blonde|blond|brunette|crimson|scarlet|navy|teal|violet|lavender|magenta|tan|beige';
+        $bagian = 'glove|gloves|gloved|hair|eyes|eye|trunks|shorts|top|bra|bikini|boots|hood|wraps|robe';
+
+        $prosa = preg_replace('/\b(?:' . $warna . ')[- ](?=(?:' . $bagian . ')\b)/i', '', $prosa) ?? $prosa;
+        $prosa = preg_replace('/\b(?:' . $warna . ')\s+(?=(?:' . $bagian . ')\b)/i', '', $prosa) ?? $prosa;
+
+        // Perapian: spasi ganda dan "the the" dari penggantian bertumpuk.
+        $prosa = preg_replace('/\s{2,}/', ' ', $prosa) ?? $prosa;
+        $prosa = preg_replace('/\bthe\s+the\b/i', 'the', $prosa) ?? $prosa;
+
+        // Nama diawali huruf besar, penggantinya tidak — jadi kalimat yang
+        // tadinya mulai dengan nama sekarang mulai dengan huruf kecil.
+        $prosa = preg_replace_callback(
+            '/(^|[.!?]\s+)([a-z])/u',
+            static fn(array $m): string => $m[1] . mb_strtoupper($m[2]),
+            trim($prosa)
+        ) ?? trim($prosa);
+
+        return trim($prosa);
+    }
+
     /** Kalimat cadangan kalau model vision tidak memberi prosa. */
     private static function prosaCadangan(array $e): string
     {
@@ -2441,8 +2566,9 @@ Kamu penulis prompt NovelAI Diffusion V5 untuk ilustrasi anime bertema tinju. Tu
 
 Aturan:
 - 2 sampai 4 kalimat Inggris, kalimat penuh, present tense.
-- Cara menyebut petinju: kalau "known_character" terisi, pakai nama itu ("Anya drives a red glove into..."). Kalau kosong, sebut lewat ciri yang membedakan ("the blue-haired boxer", "the boxer on the left").
-- DATA yang menang, bukan DRAF. Draf itu tulisan lama, dibuat waktu karakter atau ciri-cirinya mungkin masih berbeda. Kalau draf bilang rambut putih tapi data bilang pink, tulis pink. Kalau draf menyebut "the white-haired boxer" padahal data sudah punya known_character, ganti jadi namanya. Jangan pernah menyalin ciri fisik dari draf yang tidak ada di data.
+- JANGAN menyebut nama karakter, dan JANGAN menulis ciri fisik siapa pun — bukan warna rambut, mata, sarung tangan, atau pakaian. Sebut mereka lewat posisinya saja ("the fighter on the left", "the boxer on the right"). Ini Base Prompt, yang berlaku untuk SELURUH gambar; tiap orang punya kotak karakternya sendiri, dan ciri yang ditulis di sini justru bocor ke orang yang salah. Lagi pula kotak karakter bisa disunting sesudahnya, sedangkan prosamu tidak — ciri yang kamu tulis di sini akan jadi basi dan membantah kotaknya.
+- Yang JUSTRU harus kamu tulis: apa yang terjadi (siapa memukul siapa, dari arah mana), bentuk tubuhnya dalam ruang (condong, mundur, terpelintir), tempat, cahaya, framing kamera, dan gaya gambarnya. Itu semua milik Base Prompt.
+- DATA yang menang, bukan DRAF. Draf itu tulisan lama, dibuat waktu karakter atau ciri-cirinya mungkin masih berbeda — jangan pernah menyalin ciri fisik dari draf.
 - Urutan isi: siapa dan berapa orang → pose/aksi dan siapa memukul siapa (kalau ada) → kondisi tubuh (keringat, memar, darah) → tempat dan pencahayaan → framing kamera → gaya gambar/era.
 - Kalau "view" seorang petinju berisi away_from_viewer atau three_quarter_away, WAJIB disebut ("seen from behind over her shoulder", "her back to the viewer"). Itu penentu komposisi, bukan hiasan: tanpa itu gambarnya jadi dua orang yang sama-sama menghadap kamera dan susunannya berubah total dari referensinya.
 - Setia pada data: jangan menambah detail yang tidak ada di data, jangan menghilangkan aksi utamanya. Sisi kiri/kanan dari sudut pandang penonton.
