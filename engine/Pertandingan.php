@@ -517,6 +517,13 @@ TXT;
                     'a' => self::namaKartu('a', $b['tahap']['a']),
                     'b' => self::namaKartu('b', $b['tahap']['b']),
                 ],
+                // Urutan unggahnya, bernomor. Arena selalu sesudah petinju,
+                // jadi nomornya bukan sekadar 1-2-3 berurutan kalau ada
+                // wasit atau cornerman ikut jadi acuan.
+                'urut'    => self::urutAcuan($hasil['rencana'] ?? [], [
+                    'a' => self::namaKartu('a', $b['tahap']['a']),
+                    'b' => self::namaKartu('b', $b['tahap']['b']),
+                ]),
                 'prompt'      => self::tambahAnimasi($hasil['outputs']['sfw']['prompt'] ?? '', $latarBlok),
                 'prompt_nsfw' => isset($hasil['outputs']['nsfw']['prompt'])
                     ? self::tambahAnimasi((string)$hasil['outputs']['nsfw']['prompt'], $latarBlok) : null,
@@ -580,6 +587,35 @@ TXT;
             'nipples_visible' => $telanjang || $ada(['nipples', 'topless_female', 'breasts_out']),
             'bottomless'      => $telanjang || $ada(['bottomless', 'no_panties']),
         ];
+    }
+
+    /**
+     * Daftar gambar yang harus diunggah untuk satu klip, sesuai nomornya.
+     *
+     * @param array $rencana hasil ReversePrompt::susun()['rencana']
+     * @param array<string,string> $acuan id petinju => nama kartunya
+     *
+     * @return list<array{nomor:int, nama:string}>
+     */
+    private static function urutAcuan(array $rencana, array $acuan): array
+    {
+        $urut = [];
+
+        foreach (($rencana['orang'] ?? []) as $id => $o) {
+            $urut[(int)$o['nomor']] = [
+                'nomor' => (int)$o['nomor'],
+                'nama'  => $acuan[$id] ?? (string)($o['nama'] ?? strtoupper((string)$id)),
+            ];
+        }
+
+        $nl = (int)($rencana['nomor_latar'] ?? 0);
+        if ($nl > 0) {
+            $urut[$nl] = ['nomor' => $nl, 'nama' => 'LATAR ARENA'];
+        }
+
+        ksort($urut);
+
+        return array_values($urut);
     }
 
     /** Base prompt, kotak karakter, dan undesired — bentuk yang diminta API NovelAI. */

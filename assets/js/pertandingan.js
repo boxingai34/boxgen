@@ -337,10 +337,20 @@ function renderHasil() {
         // Mode gambar selalu punya petinju a dan b; mode cerita bisa punya
         // satu tokoh saja, atau tiga. Dulu ditulis k.acuan.a + k.acuan.b
         // dan klip satu orang jadi "... + undefined".
-        const nama = Object.values(k.acuan || {}).filter(Boolean);
-        const bag  = [`${k.mulai}-${k.selesai}s`, k.judul];
-        if (nama.length) bag.push('pakai acuan: ' + nama.join(' + '));
-        if (k.latar)     bag.push(k.latar);
+        const bag = [`${k.mulai}-${k.selesai}s`, k.judul];
+
+        // Urutan unggahnya disebut bernomor, karena nomornya BERBEDA tiap
+        // klip: klip berisi satu tokoh menaruh latarnya di Image 2, klip
+        // berisi dua tokoh di Image 3. Salah urut berarti model memakai
+        // gambar latar sebagai tokoh.
+        if (k.urut && k.urut.length) {
+            bag.push('unggah berurutan — ' + k.urut.map((u) => `Image ${u.nomor}: ${u.nama}`).join(' · '));
+        } else {
+            const nama = Object.values(k.acuan || {}).filter(Boolean);
+            if (nama.length) bag.push('pakai acuan: ' + nama.join(' + '));
+            if (k.latar)     bag.push(k.latar);
+        }
+
         kl.appendChild(kotakTeks('Klip ' + k.nomor, isi, bag.join(' · ')));
     });
 

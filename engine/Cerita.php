@@ -613,6 +613,14 @@ TXT;
                 'waktu'   => $r['adegan']['waktu'],
                 'acuan'   => $acuan,
                 'latar'   => 'LATAR ' . mb_strtoupper(self::lokasiDi($ekstrak, $r)['nama']),
+                // Urutan unggah gambarnya, sudah bernomor. Nomornya
+                // BERBEDA tiap klip — klip berisi satu tokoh menaruh
+                // latarnya di Image 2, klip berisi dua tokoh di Image 3 —
+                // jadi menebaknya sendiri hampir pasti salah. Diambil dari
+                // rencana yang dipakai menyusun promptnya, bukan dihitung
+                // ulang di sini.
+                'urut'    => self::urutAcuan($hasil['rencana'] ?? [], $acuan,
+                                             self::lokasiDi($ekstrak, $r)['nama']),
                 'prompt'      => self::tambahKonteks($hasil['outputs']['sfw']['prompt'] ?? '', $ekstrak, $r),
                 'prompt_nsfw' => isset($hasil['outputs']['nsfw']['prompt'])
                     ? self::tambahKonteks((string)$hasil['outputs']['nsfw']['prompt'], $ekstrak, $r) : null,
@@ -995,6 +1003,34 @@ TXT;
              . 'same objects in the same positions, the same surfaces, the same single light source.';
 
         return rtrim($prompt) . "\n\n" . implode(' ', $b);
+    }
+
+    /**
+     * Daftar gambar yang harus diunggah untuk satu klip, sesuai nomornya.
+     *
+     * @param array $rencana hasil ReversePrompt::susun()['rencana']
+     * @param array<string,string> $acuan id tokoh => nama kartunya
+     *
+     * @return list<array{nomor:int, nama:string}>
+     */
+    private static function urutAcuan(array $rencana, array $acuan, string $namaLatar): array
+    {
+        $urut = [];
+
+        foreach (($rencana['orang'] ?? []) as $id => $o) {
+            if (isset($acuan[$id])) {
+                $urut[(int)$o['nomor']] = ['nomor' => (int)$o['nomor'], 'nama' => $acuan[$id]];
+            }
+        }
+
+        $nl = (int)($rencana['nomor_latar'] ?? 0);
+        if ($nl > 0) {
+            $urut[$nl] = ['nomor' => $nl, 'nama' => 'LATAR ' . mb_strtoupper($namaLatar)];
+        }
+
+        ksort($urut);
+
+        return array_values($urut);
     }
 
     /** Tempat berlangsungnya satu klip, dengan bawaan kalau kuncinya hilang. */
