@@ -317,6 +317,51 @@ function kotakTeks(label, isi, ket) {
     return b;
 }
 
+/**
+ * Tombol "Buat gambarnya" plus tempat hasilnya muncul.
+ *
+ * Gambarnya datang sebagai data-URI dan berhenti di sini — server tidak
+ * menyimpannya sama sekali. Kalau kamu mau menyimpannya, klik kanan lalu
+ * simpan sendiri; begitu halaman ini ditutup, gambarnya hilang.
+ */
+function bikinLatar(prompt) {
+    const bung = el('div', 'buat-latar');
+    const btn  = el('button', 'btn kecil', 'Buat gambarnya');
+    btn.type = 'button';
+
+    const pesan = el('p', 'hint');
+    const tampil = el('div', 'hasil-latar');
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Menggambar...';
+        pesan.textContent = 'Biasanya 10-30 detik.';
+        pesan.classList.remove('galat');
+
+        try {
+            const data = await postJson('api/gambar.php?action=latar', { prompt });
+            tampil.innerHTML = '';
+            const img = el('img');
+            img.src = data.gambar;
+            img.alt = 'Latar hasil Gemini';
+            tampil.appendChild(img);
+            pesan.textContent = Math.round(data.byte / 1024) + ' KB · ' + data.model
+                + ' · tidak disimpan di server, klik kanan untuk menyimpannya sendiri.';
+        } catch (err) {
+            pesan.textContent = err.message;
+            pesan.classList.add('galat');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Buat gambarnya';
+        }
+    });
+
+    bung.appendChild(btn);
+    bung.appendChild(pesan);
+    bung.appendChild(tampil);
+    return bung;
+}
+
 function renderHasil() {
     if (!hasil) return;
     $('#keluaran').hidden = false;
@@ -359,8 +404,10 @@ function renderHasil() {
         + 'di semua klip yang menyebutnya. Baris tag di bawahnya untuk yang mau '
         + 'membuatnya di NovelAI.'));
     (hasil.latar || []).forEach((c) => {
-        la.appendChild(kotakTeks(c.nama, c.prompt,
-            c.tempat + ' · dipakai di klip ' + c.klip.join(', ')));
+        const kotak = kotakTeks(c.nama, c.prompt,
+            c.tempat + ' · dipakai di klip ' + c.klip.join(', '));
+        kotak.appendChild(bikinLatar(c.prompt));
+        la.appendChild(kotak);
         if (c.prompt_tag) {
             la.appendChild(kotakTeks(c.nama + ' — versi tag', c.prompt_tag,
                 'Kalau mau dibuat di NovelAI, bukan Gemini.'));

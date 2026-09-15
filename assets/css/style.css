@@ -1016,3 +1016,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
 .dropzone.kecil { padding: 14px 10px; font-size: 13px; }
 .dropzone.kecil p { margin: 0; }
 .strip img { max-width: 100%; border-radius: 6px; display: block; }
+
+/* ------------------------------------------------------------------
+   Tombol "Buat gambarnya" di tab Latar
+   ------------------------------------------------------------------
+   Gambarnya hidup di data-URI dan tidak pernah disimpan di server, jadi
+   tingginya dibatasi saja — ini pratinjau untuk memutuskan "pakai atau
+   ulangi", bukan galeri.
+   ------------------------------------------------------------------ */
+
+.buat-latar { padding: 0 14px 14px; }
+.buat-latar .hint { margin: 6px 0 0; }
+
+.hasil-latar:empty { display: none; }
+.hasil-latar img {
+    display: block;
+    margin-top: 10px;
+    max-width: 100%;
+    max-height: 420px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+}

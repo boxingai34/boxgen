@@ -52,7 +52,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — <?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=31">
+<link rel="stylesheet" href="assets/css/style.css?v=32">
 <script src="assets/js/tema.js?v=1"></script>
 </head>
 <body<?= $polos ? ' class="polos"' : '' ?>>

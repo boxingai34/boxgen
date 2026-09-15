@@ -134,6 +134,25 @@ defined('AI_CERITA_BASE_URL') || define('AI_CERITA_BASE_URL', VENICE_BASE_URL);
 defined('AI_CERITA_API_KEY')  || define('AI_CERITA_API_KEY', '');
 defined('AI_CERITA_TIMEOUT')  || define('AI_CERITA_TIMEOUT', 120);
 
+// Pembuat GAMBAR LATAR (tombol "Buat gambarnya" di tab Latar).
+//
+// Beda dari profil lain: yang kembali piksel, bukan teks. Karena itu
+// tidak lewat AiClient sama sekali — lihat engine/GambarAi.php, termasuk
+// alasan kenapa ia sengaja tidak menyentuh ai_cache.
+//
+// Gemini dipilih untuk ini karena latar justru bagian terlemah NovelAI
+// dan terkuat model prosa. Ini HANYA untuk latar kosong tanpa orang;
+// penyaring inti Google memblokir ketelanjangan dan tidak bisa
+// dimatikan, jadi jangan pakai profil ini untuk tokoh.
+//
+// Isi di config.local.php, bukan di sini:
+//   define('AI_GAMBAR_MODEL',   'gemini-3-pro-image');
+//   define('AI_GAMBAR_API_KEY', 'AIza...');   // kunci Google AI Studio
+defined('AI_GAMBAR_PROVIDER') || define('AI_GAMBAR_PROVIDER', 'gemini');
+defined('AI_GAMBAR_MODEL')    || define('AI_GAMBAR_MODEL', '');
+defined('AI_GAMBAR_API_KEY')  || define('AI_GAMBAR_API_KEY', '');
+defined('AI_GAMBAR_TIMEOUT')  || define('AI_GAMBAR_TIMEOUT', 120);
+
 // Contoh isian untuk config.local.php (pilih salah satu, JANGAN di sini —
 // berkas ini ikut ke git, config.local.php tidak):
 //
