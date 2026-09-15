@@ -554,6 +554,34 @@ TXT;
         ];
     }
 
+    /**
+     * Ketelanjangan disimpulkan dari tag pakaiannya.
+     *
+     * Kartu acuan dulu selalu mengirim nudity kosong, padahal tagnya sudah
+     * jelas menyebut topless_female. Akibatnya ReversePrompt mengira tidak
+     * ada yang perlu dikembalikan, versi setianya TIDAK PERNAH dibuat, dan
+     * yang tampil selalu salinan aman — yang justru memakaikan sports bra
+     * pada tokoh yang seharusnya bertelanjang dada.
+     *
+     * @param string[] $tags
+     * @return array{topless:bool, breasts_visible:bool, nipples_visible:bool, bottomless:bool}
+     */
+    public static function ketelanjangan(array $tags): array
+    {
+        $ada = static fn(array $cari): bool => array_intersect($cari, $tags) !== [];
+
+        $telanjang = $ada(['nude', 'completely_nude']);
+        $topless   = $telanjang || $ada(['topless_female', 'topless_male', 'topless',
+                                         'bare_pectorals', 'breasts_out']);
+
+        return [
+            'topless'         => $topless,
+            'breasts_visible' => $topless,
+            'nipples_visible' => $telanjang || $ada(['nipples', 'topless_female', 'breasts_out']),
+            'bottomless'      => $telanjang || $ada(['bottomless', 'no_panties']),
+        ];
+    }
+
     /** Base prompt, kotak karakter, dan undesired — bentuk yang diminta API NovelAI. */
     private static function bagianNai(array $out): array
     {
@@ -1581,8 +1609,26 @@ TXT;
                 ])];
                 $satu['interaction'] = ['striker' => null, 'receiver' => null,
                                         'contact' => 'none', 'target' => null, 'description' => ''];
+
+                // Latarnya dibuang. $satu menyalin seluruh ekstrak, jadi
+                // ring, penonton, dan cahaya arena ikut terbawa ke lembar
+                // yang seharusnya cuma soal tokohnya. Ruangan di belakang
+                // merebut perhatian model dari wajah, luka, dan pakaian —
+                // padahal itu satu-satunya alasan kartu ini dibuat.
+                // danbooru_tags global ikut dikosongkan karena di situlah
+                // boxing_ring dan crowd biasanya menumpang; ciri tokohnya
+                // sendiri aman, tersimpan di tags milik subjeknya.
+                $satu['environment'] = ['venue' => '', 'ring' => false, 'ropes' => false,
+                                        'crowd' => 'none', 'verbatim' => '',
+                                        'tags' => ['simple_background', 'white_background']];
+                $satu['lighting']      = ['summary' => 'even, shadowless studio light', 'tags' => []];
+                $satu['camera']        = ['tags' => [], 'effects' => []];
+                $satu['danbooru_tags'] = [];
+
                 $satu['prose'] = 'A full-body reference of the boxer, standing in a fighting stance, '
-                               . self::ganti($data['prosa'], $s['sex']) . '.';
+                               . self::ganti($data['prosa'], $s['sex']) . '. '
+                               . 'Plain white background, no ring and no crowd — this is a character '
+                               . 'sheet, so every detail of the face, the body and the gear has to read clearly.';
 
                 $hasil = ReversePrompt::susun($satu, 'nai5', [
                     'polish'  => false,

@@ -2023,8 +2023,20 @@ TXT;
                 }
             }
         }
+        // Daftar "lainnya" dulu masuk tanpa disaring, dan itu membocorkan
+        // topless_female ke SALINAN AMAN — yang di saat bersamaan sudah
+        // memasang sports_bra sebagai penutup. Hasilnya satu prompt yang
+        // membantah dirinya sendiri: bertelanjang dada sekaligus memakai
+        // bra. Penutupnya yang menang di versi aman, tag telanjangnya di
+        // versi setia.
         foreach ($a['other'] as $bag) {
             foreach (self::validasiTag([$bag])[0] as $t) {
+                if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                    continue;
+                }
+                if ($topless && $nsfw && in_array($t, self::PENUTUP_ATAS, true)) {
+                    continue;
+                }
                 $out[] = [$t, 1.0];
             }
         }
@@ -2084,7 +2096,18 @@ TXT;
             if ($pos === false) {
                 continue;
             }
-            $hasil[] = $tag;
+            // "no shoes" jangan sampai jadi tag shoes. Pencocokannya cuma
+            // substring, jadi kata pengingkar tepat sebelumnya harus
+            // diperiksa sendiri — kalau tidak, kalimat yang menyebut apa
+            // yang TIDAK dipakai justru menambahkan barangnya ke prompt.
+            // Satu kata sisipan diizinkan supaya "no black shoes" ikut
+            // tertangkap.
+            $ingkar = preg_match('/\b(no|not|without|never|nothing|sans|none)(\s+\w+)?\s+$/',
+                substr($teks, 0, $pos + 1)) === 1;
+
+            if (!$ingkar) {
+                $hasil[] = $tag;
+            }
             // dicoret supaya "gym shirt" tidak dihitung lagi sebagai "shirt"
             $teks = substr_replace($teks, ' ', $pos, strlen($kata) - 1);
         }

@@ -225,6 +225,10 @@ ATURAN:
 
 6. KOSTUM ITU BAGIAN TERPENTING. Satu tokoh bisa berganti wujud beberapa kali dalam satu cerita — menunggu dengan baju tidur, lalu melepas baju, lalu bertinju. Tiap wujud yang berbeda jadi satu entri di "kostum" dengan "kunci" pendek, dan tiap adegan menyebut kostum mana yang dipakai lewat "kostum". Ini yang menentukan berapa gambar acuan yang harus dibuat, jadi jangan digabung: kalau di cerita dia melepas bajunya, itu DUA kostum, bukan satu.
 
+   "verbatim" dan "tags" HARUS sepakat. Kalau tagnya topless_female, kalimatnya tidak boleh menyebut atasan apa pun — bukan "in a sports bra", bukan "wearing a top". Tulis apa yang MASIH dipakai saja, jangan menambahkan penutup yang tidak ada di ceritanya, dan jangan memperhalus. Kalau ceritanya bilang dia bertelanjang dada dan cuma memakai dalaman, itulah yang ditulis.
+
+   Sebaliknya, jangan menulis apa yang TIDAK dipakai ("no shoes", "without gloves"). Sebutkan hanya yang dipakai; yang tidak disebut otomatis dianggap tidak ada.
+
 7. ADEGAN dipecah berurutan mengikuti ceritanya, maksimal 20. Tiap adegan punya "detik" — berapa detik bagian itu di video. Jumlah seluruh "detik" HARUS sama dengan "durasi_detik". Bagi porsinya menurut bobot ceritanya: bagian pertandingan biasanya dapat porsi terbesar, adegan pembuka secukupnya.
 
 8. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban".
@@ -1040,7 +1044,7 @@ TXT;
                     'eyes'       => $c['eyes'],
                     'body'       => $c['body'],
                     'attire'     => ['verbatim' => $baju['verbatim'], 'other' => $baju['tags']],
-                    'nudity'     => [],
+                    'nudity'     => Pertandingan::ketelanjangan($baju['tags']),
                     'condition'  => [
                         'sweat'   => min(3, $tahap + ($tahap > 0 ? 1 : 0)),
                         'fatigue' => $tahap,
@@ -1058,14 +1062,21 @@ TXT;
                 ]],
                 'interaction' => ['striker' => null, 'receiver' => null, 'contact' => 'none',
                                   'target' => null, 'description' => ''],
-                'environment' => ['venue' => $e['latar']['tempat'], 'ring' => (bool)$e['latar']['ring'],
-                                  'crowd' => 'none', 'tags' => $e['latar']['tags'], 'verbatim' => ''],
-                'lighting'      => ['summary' => $e['waktu']['keterangan'], 'tags' => []],
+                // Kartu acuan itu SOAL TOKOHNYA, bukan soal tempatnya.
+                // Latarnya sengaja dikosongkan: ruangan di belakang cuma
+                // merebut perhatian model dari wajah, luka, dan pakaian —
+                // padahal itu satu-satunya alasan kartu ini dibuat. Tempat
+                // sudah punya kartunya sendiri.
+                'environment' => ['venue' => '', 'ring' => false, 'crowd' => 'none',
+                                  'tags' => ['simple_background', 'white_background'], 'verbatim' => ''],
+                'lighting'      => ['summary' => 'even, shadowless studio light', 'tags' => []],
                 'camera'        => ['tags' => [], 'effects' => []],
                 'danbooru_tags' => [],
                 'prose'         => 'A full-body reference of ' . $c['nama'] . ', standing facing the viewer, '
                                  . ($baju['verbatim'] !== '' ? rtrim($baju['verbatim'], '.') . ', ' : '')
-                                 . Pertandingan::ganti($rusak['prosa'], $c['sex']) . '.',
+                                 . Pertandingan::ganti($rusak['prosa'], $c['sex']) . '. '
+                                 . 'Plain white background, no scenery and no props — this is a character '
+                                 . 'sheet, so every detail of the face, the body and the clothing has to read clearly.',
             ];
 
             $hasil = ReversePrompt::susun($satu, 'nai5', [
