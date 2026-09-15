@@ -148,8 +148,14 @@ defined('AI_CERITA_TIMEOUT')  || define('AI_CERITA_TIMEOUT', 120);
 // Isi di config.local.php, bukan di sini:
 //   define('AI_GAMBAR_MODEL',   'gemini-3-pro-image');
 //   define('AI_GAMBAR_API_KEY', 'AIza...');   // kunci Google AI Studio
+// AI_GAMBAR_BASE_URL sengaja didefinisikan walau kosong: kalau tidak,
+// profil() mewarisi AI_BASE_URL milik profil teks, dan permintaan gambar
+// diam-diam nyasar ke penyedia teks begitu alamat itu suatu hari diisi.
+// Isi hanya kalau kamu lewat perantara yang MENIRU bentuk API Gemini,
+// lengkap dengan versinya, misalnya https://contoh.com/v1beta
 defined('AI_GAMBAR_PROVIDER') || define('AI_GAMBAR_PROVIDER', 'gemini');
 defined('AI_GAMBAR_MODEL')    || define('AI_GAMBAR_MODEL', '');
+defined('AI_GAMBAR_BASE_URL') || define('AI_GAMBAR_BASE_URL', '');
 defined('AI_GAMBAR_API_KEY')  || define('AI_GAMBAR_API_KEY', '');
 defined('AI_GAMBAR_TIMEOUT')  || define('AI_GAMBAR_TIMEOUT', 120);
 

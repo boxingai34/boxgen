@@ -130,6 +130,24 @@ final class GambarAi
     // =================================================================
 
     /**
+     * Alamat pangkal Gemini — Google langsung, atau perantara.
+     *
+     * Dulu dipaku ke googleapis.com. Dibuka supaya perantara yang meniru
+     * bentuk API Gemini (gateway sendiri, reseller, proxy) cukup diarahkan
+     * lewat AI_GAMBAR_BASE_URL tanpa menyentuh kode.
+     *
+     * Yang TIDAK bisa ditolong ini: perantara yang bentuk API-nya berbeda
+     * (OpenAI-compatible, atau bikinan sendiri). Itu butuh jalur provider
+     * baru, bukan sekadar alamat lain.
+     */
+    private static function pangkalGemini(array $p): string
+    {
+        $base = rtrim(trim((string)($p['base_url'] ?? '')), '/');
+
+        return $base !== '' ? $base : 'https://generativelanguage.googleapis.com/v1beta';
+    }
+
+    /**
      * Gemini memakai endpoint generateContent yang sama dengan teks;
      * bedanya responseModalities minta IMAGE, dan jawabannya kembali
      * sebagai inline_data, bukan text.
@@ -137,7 +155,8 @@ final class GambarAi
     private static function lewatGemini(array $p, string $prompt, array $opsi): array
     {
         $url = sprintf(
-            'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
+            '%s/models/%s:generateContent',
+            self::pangkalGemini($p),
             rawurlencode((string)$p['model'])
         );
 
@@ -224,7 +243,7 @@ final class GambarAi
         }
 
         $json = self::post(
-            'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',
+            self::pangkalGemini($p) . '/models?pageSize=200',
             [],
             ['x-goog-api-key: ' . $p['api_key']],
             30,
