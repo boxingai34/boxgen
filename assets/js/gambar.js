@@ -55,11 +55,36 @@
      * @param {string} [o.alt]    teks alternatif gambarnya
      * @param {string} [o.label]  tulisan di tombol
      */
+    /**
+     * Pilihan bentuk gambar.
+     *
+     * Rasio, bukan piksel: tiap penyedia punya daftar ukurannya sendiri
+     * yang boleh dipakai, dan server yang memetakan rasio ini ke ukuran
+     * terdekat yang mereka terima. Mengirim piksel dari sini berarti
+     * halaman harus ikut tahu daftar itu dan ikut basi waktu berubah.
+     */
+    var BENTUK = [
+        { nilai: '3:4',  label: 'Potret'  },
+        { nilai: '16:9', label: 'Lanskap' },
+        { nilai: '1:1',  label: 'Persegi' },
+    ];
+
     window.tombolGambar = function (o) {
         var bung  = buat('div', 'buat-latar');
         var label = o.label || 'Buat gambarnya';
         var btn   = buat('button', 'btn kecil', label);
         btn.type = 'button';
+
+        // Bawaannya mengikuti isinya: tokoh itu berdiri, latar itu ruangan.
+        var pilih = document.createElement('select');
+        pilih.className = 'bentuk-gambar';
+        BENTUK.forEach(function (b) {
+            var opt = document.createElement('option');
+            opt.value = b.nilai;
+            opt.textContent = b.label;
+            if (b.nilai === (o.bentuk || '3:4')) { opt.selected = true; }
+            pilih.appendChild(opt);
+        });
 
         var pesan  = buat('p', 'hint');
         var tampil = buat('div', 'hasil-latar');
@@ -71,7 +96,9 @@
             pesan.classList.remove('galat');
 
             try {
-                var data = await kirim(o.url, o.muatan());
+                var muatan = o.muatan();
+                muatan.rasio = pilih.value;
+                var data = await kirim(o.url, muatan);
                 tampil.innerHTML = '';
                 var img = buat('img');
                 img.src = data.gambar;
@@ -88,7 +115,11 @@
             }
         });
 
-        bung.appendChild(btn);
+        var baris = buat('div', 'baris-gambar');
+        baris.appendChild(btn);
+        baris.appendChild(pilih);
+
+        bung.appendChild(baris);
         bung.appendChild(pesan);
         bung.appendChild(tampil);
         return bung;

@@ -184,6 +184,7 @@ final class Cerita
       ]
     }
   ],
+  "tanda_ronde": "short English phrase for the sound that marks the start and end of a round, e.g. 'a ringside bell' or 'a phone alarm'. Empty string if the story says there is none",
   "pemenang": "a",
   "cara": "ko|tko|keputusan|menyerah",
   "akhir": "one or two English sentences describing exactly how it ends",
@@ -231,9 +232,13 @@ ATURAN:
 
 7. ADEGAN dipecah berurutan mengikuti ceritanya, maksimal 20. Tiap adegan punya "detik" — berapa detik bagian itu di video. Jumlah seluruh "detik" HARUS sama dengan "durasi_detik". Bagi porsinya menurut bobot ceritanya: bagian pertandingan biasanya dapat porsi terbesar, adegan pembuka secukupnya.
 
-8. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban".
+8. JENIS ADEGAN. "cerita" untuk adegan biasa (menunggu, mengetuk pintu, bicara, melepas baju, ISTIRAHAT ANTAR RONDE, minum, bersandar di sudut), "tinju" untuk pertukaran pukulan, "transisi" untuk lompatan waktu, "penutup" untuk penyelesaiannya. Untuk adegan "tinju", isi "penyerang" dan "korban" — dan isi menurut siapa yang menyerang DI ADEGAN ITU, bukan siapa yang akhirnya menang. Ronde yang dipimpin pihak yang nanti kalah harus tercatat begitu.
+
+   Kalau ceritanya menyebut jeda antar ronde, istirahat, atau minum, itu adegan tersendiri — jangan dilewati dan jangan digabung ke adegan tinjunya.
 
 9. "isi" ditulis sebagai APA YANG TERLIHAT DI LAYAR, bukan ringkasan cerita. Bukan "Yor marah kepada Loid" melainkan "Yor yanks the door open and drags Loid inside by the collar, jaw set". Jangan menulis dialog; video tidak bisa menampilkan suara percakapan dengan baik.
+
+   "isi" INILAH yang jadi isi videonya, jadi kejadian khusus yang kamu baca di cerita harus benar-benar ada di situ. Clinch, ciuman, seseorang kehilangan konsentrasi, terpojok di sudut, kombinasi ke perut, jatuh KO, apa yang terjadi sesudahnya — tulis masing-masing di adegannya sendiri dengan kata-kata yang spesifik. Jangan pernah menggantinya dengan kalimat tinju umum seperti "they exchange punches": pukulan generik bisa dibuat mesin sendiri, yang tidak bisa ditebak mesin justru kejadian khususmu.
 
 10. PEMENANG dan CARA diambil dari ceritanya. Kalau yang kalah dijatuhkan lalu diduduki, itu "ko".
 
@@ -556,6 +561,11 @@ TXT;
             'cast'     => $cast,
             'pemenang' => $pemenang,
             'cara'     => $cara,
+            // Bel bukan bawaan. Pertandingan di gudang rumah ditandai
+            // alarm ponsel, dan menyebut bel di situ menyuruh model
+            // mengarang ring resmi lengkap dengan pengurusnya.
+            'tanda_ronde' => array_key_exists('tanda_ronde', $j)
+                ? $teks($j['tanda_ronde'], 80) : 'the bell',
             'akhir'    => $teks($j['akhir'] ?? '', 400),
             'adegan'   => $adegan,
         ];
@@ -966,6 +976,7 @@ TXT;
                 'crowd'    => 'none',
                 'tags'     => $lok['tags'],
                 'verbatim' => $lok['verbatim'],
+                'tanda_ronde' => (string)($e['tanda_ronde'] ?? 'the bell'),
                 // Tiap tempat punya kartu latarnya sendiri, dan kamu memang
                 // diminta membuat gambarnya. Tanpa jangkar ini prompt tidak
                 // pernah menyuruh model memakainya, jadi ruangannya digambar
@@ -1011,17 +1022,62 @@ TXT;
         $mau = max(1, min(6, (int)round($detik / 3)));
 
         if (in_array($a['jenis'], ['tinju', 'penutup'], true)) {
-            $M = $e['cast'][$pemenang]['nama'] ?? 'Boxer A';
-            $K = $e['cast'][$kalah]['nama'] ?? 'Boxer B';
-            $sisiM = self::petaSisi($a, $pemenang) ?? 'a';
-            $sisiK = self::petaSisi($a, $kalah) ?? 'b';
+            // Penyerang ADEGAN INI, bukan pemenang pertandingan. Ronde
+            // yang dipimpin pihak yang akhirnya kalah harus tetap terlihat
+            // begitu — kalau selalu dipakai pemenang akhirnya, seluruh
+            // pertandingan jadi satu arah dari menit pertama.
+            $srg = isset($e['cast'][$a['penyerang'] ?? '']) ? $a['penyerang'] : $pemenang;
+            $kbn = isset($e['cast'][$a['korban'] ?? ''])    ? $a['korban']    : $kalah;
+            if ($srg === $kbn) {
+                $kbn = $srg === $pemenang ? $kalah : $pemenang;
+            }
+
+            $M = $e['cast'][$srg]['nama'] ?? 'Boxer A';
+            $K = $e['cast'][$kbn]['nama'] ?? 'Boxer B';
+            $sisiM = self::petaSisi($a, $srg) ?? 'a';
+            $sisiK = self::petaSisi($a, $kbn) ?? 'b';
 
             $babak = $a['jenis'] === 'penutup' ? 'tekan' : 'balik';
             $jk = [];
             foreach ($a['pelaku'] as $i => $id) {
                 $jk[['a','b','c','d','e','f'][$i] ?? 'a'] = $e['cast'][$id]['sex'] ?? 'female';
             }
-            return Pertandingan::shotsBabak($babak, $mau, $r['nomor'], $M, $K, $sisiM, $sisiK, $jk);
+            $shots = Pertandingan::shotsBabak($babak, $mau, $r['nomor'], $M, $K, $sisiM, $sisiK, $jk);
+
+            // CERITAMU yang memimpin, perpustakaan teknik yang mengisi.
+            //
+            // Dulu isi adegan dibuang seluruhnya di sini dan diganti
+            // teknik tinju acak. Akibatnya kejadian yang justru menentukan
+            // — clinch, ciuman, KO, apa pun yang kamu tulis — tidak pernah
+            // sampai ke prompt, dan yang keluar cuma pertukaran pukulan
+            // generik yang sama untuk cerita apa pun. Sekarang shot
+            // pertama tiap klip membawa kalimat ceritamu apa adanya;
+            // sisanya baru teknik, sebagai kelanjutan, bukan pengganti.
+            if (trim($a['isi']) !== '' && $shots !== []) {
+                $ekor = '';
+
+                // Kalimat efek sakuga dipertahankan — itu yang membuat
+                // geraknya terbaca sebagai anime — TAPI hanya kalau
+                // adegannya memang berisi pukulan. "A single white impact
+                // frame flashes on contact" di adegan clinch dan ciuman
+                // menyuruh model menggambar benturan yang tidak ada.
+                $memukul = preg_match(
+                    '/\b(punch\w*|jab\w*|hook\w*|uppercut\w*|cross\w*|straight|blow\w*|strike\w*|'
+                    . 'hits?|lands?|slams?|smash\w*|connects?|swings?|counters?)\b/i',
+                    $a['isi']
+                ) === 1;
+
+                if ($memukul && preg_match(
+                    '/(?:^|\.\s)([A-Z][^.]*(?:impact frame|smear frame|speed lines|on twos|freeze)[^.]*\.)/',
+                    (string)($shots[0]['action'] ?? ''), $m
+                )) {
+                    $ekor = ' ' . trim($m[1]);
+                }
+
+                $shots[0]['action'] = rtrim(trim($a['isi']), '.') . '.' . $ekor;
+            }
+
+            return $shots;
         }
 
         // ---- adegan biasa ----
@@ -1038,7 +1094,11 @@ TXT;
         foreach ($a['pelaku'] as $id) {
             $nama[] = $e['cast'][$id]['nama'] ?? strtoupper($id);
         }
-        $siapa = implode(' and ', $nama);
+        $siapa  = implode(' and ', $nama);
+        // "Yor and Loid stays" -- kata kerjanya harus ikut jumlah
+        // pelakunya, bukan selalu tunggal.
+        $jamak  = count($nama) > 1;
+        $kk     = static fn(string $tunggal, string $jamakKata): string => $jamak ? $jamakKata : $tunggal;
 
         // Shot lanjutan, masing-masing menyorot hal YANG BERBEDA.
         //
@@ -1051,14 +1111,14 @@ TXT;
         // kejadian baru yang tidak ada di ceritamu.
         $utama = rtrim($a['isi'], '.') . '.';
         $lanjut = [
-            $siapa . ' stays with the moment: the breath, the set of the jaw, the eyes moving '
+            $siapa . ' ' . $kk('stays', 'stay') . ' with the moment: the breath, the set of the jaw, the eyes moving '
                 . 'before anything else does.',
             'Hold on the smallest detail in the action — a hand, the grip on something, the way '
                 . 'the weight shifts from one foot to the other.',
-            'Cut to what ' . $siapa . ' is looking at, held just long enough to read it.',
+            'Cut to what ' . $siapa . ' ' . $kk('is', 'are') . ' looking at, held just long enough to read it.',
             'The room around ' . $siapa . ' — the light, the empty space, how little else is '
                 . 'moving in it.',
-            $siapa . ' shifts position slightly and settles again, the feeling of the scene '
+            $siapa . ' ' . $kk('shifts', 'shift') . ' position slightly and ' . $kk('settles', 'settle') . ' again, the feeling of the scene '
                 . 'unchanged but the framing new.',
         ];
 

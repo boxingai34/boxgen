@@ -400,10 +400,10 @@ final class GambarAi
             }
         }
 
-        // Potret untuk kartu tokoh, lanskap untuk latar. Keduanya ukuran
-        // yang tidak memakan Anlas tambahan pada langganan Opus.
-        $lebar  = (int)($opsi['lebar']  ?? 832);
-        $tinggi = (int)($opsi['tinggi'] ?? 1216);
+        // Tiga ukuran yang tidak memakan Anlas tambahan pada langganan
+        // Opus. Melebihi ini tetap jalan tapi mulai ditagih, jadi rasio
+        // apa pun dipetakan ke salah satu dari ketiganya.
+        [$lebar, $tinggi] = self::ukuranNovelAi((string)($opsi['rasio'] ?? ''));
 
         $benih = random_int(1, 2147483646);
 
@@ -487,6 +487,24 @@ final class GambarAi
             'model' => (string)$p['model'],
             'byte'  => $byte,
         ];
+    }
+
+    /**
+     * Rasio -> ukuran NovelAI, dibulatkan ke bentuk terdekat.
+     *
+     * @return array{0:int, 1:int}
+     */
+    private static function ukuranNovelAi(string $rasio): array
+    {
+        [$w, $t] = array_pad(array_map('intval', explode(':', $rasio, 2)), 2, 0);
+
+        if ($w <= 0 || $t <= 0) {
+            return [832, 1216];   // potret, bawaan kartu tokoh
+        }
+        if ($w > $t) { return [1216, 832]; }
+        if ($t > $w) { return [832, 1216]; }
+
+        return [1024, 1024];
     }
 
     /**

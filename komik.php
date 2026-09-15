@@ -144,6 +144,6 @@ halamanHeader('Dari Komik');
 
 </div>
 
-<script src="assets/js/gambar.js?v=1"></script>
+<script src="assets/js/gambar.js?v=2"></script>
 <script src="assets/js/komik.js?v=3"></script>
 <?php halamanFooter(); ?>

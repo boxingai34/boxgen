@@ -720,6 +720,13 @@ TXT;
             // Ada gambar acuan arenanya? Menentukan apakah prompt menyebut
             // "Image N is the venue" dan bagaimana nomor gambar disusun.
             'acuan' => !empty($env['acuan']),
+            // Suara penanda ronde. Kuncinya boleh ADA tapi kosong — itu
+            // artinya memang tidak ada penandanya, beda dari tidak disebut
+            // sama sekali yang berarti pakai bawaan. Karena itu
+            // array_key_exists, bukan ?? — dan karena itu juga bukan
+            // $teks(...) polos yang menyamakan keduanya jadi ''.
+            'tanda_ronde' => array_key_exists('tanda_ronde', $env)
+                ? $teks($env['tanda_ronde'], 80) : 'the bell',
             'verbatim' => $teks($env['verbatim'] ?? '', 400),
             'props' => array_values(array_filter(array_map('strval', is_array($env['props'] ?? null) ? $env['props'] : []))),
             'tags'  => $tagList($env['tags'] ?? []),
@@ -2848,6 +2855,11 @@ TXT;
             // Ring atau bukan menentukan kalimat jangkarnya: "pakai untuk
             // ring, tali, dan tiang sudut" salah total untuk ruang tamu.
             'latar_ring'   => !empty($e['environment']['ring']),
+            // Apa yang menandai mulai dan berakhirnya ronde. Tidak
+            // semua pertandingan punya bel; yang di gudang rumah
+            // ditandai alarm ponsel.
+            'tanda_ronde'  => array_key_exists('tanda_ronde', $e['environment'])
+                ? trim((string)$e['environment']['tanda_ronde']) : 'the bell',
             'nsfw_ada' => self::adaKetelanjangan($e),
         ];
     }
@@ -2993,7 +3005,7 @@ TXT;
         }
 
         $bagian[] = self::batasanWan($r);
-        $bagian[] = self::blokAudio((bool)$r['bertinju']);
+        $bagian[] = self::blokAudio((bool)$r['bertinju'], (string)($r['tanda_ronde'] ?? 'the bell'));
 
         return implode("\n\n", array_filter($bagian));
     }
@@ -3015,15 +3027,21 @@ TXT;
      * apa pun": larangan yang cuma menyebut musik LATAR bisa dibaca
      * sebagai izin untuk musik yang tidak di latar.
      */
-    private static function blokAudio(bool $bertinju = true): string
+    private static function blokAudio(bool $bertinju = true, string $tandaRonde = 'the bell'): string
     {
         // Daftar suaranya harus milik adegan itu. Menyebut sarung tangan,
         // tali ring, dan bel di adegan menunggu di sofa bukan cuma janggal —
         // model video membaca deskripsi suara sebagai petunjuk isi gambar,
         // jadi menyebut ring sama saja meminta ring digambar di ruang tamu.
+        //
+        // Belnya pun tidak selalu ada. Pertandingan di gudang rumah ditandai
+        // alarm ponsel, dan menyebut bel di situ menyuruh model mengarang
+        // ring resmi lengkap dengan pengurusnya.
+        $tanda = trim($tandaRonde) !== '' ? rtrim(trim($tandaRonde), '.') . ', ' : '';
+
         $isi = $bertinju
             ? 'Gloves hitting flesh and guard, feet on canvas, breathing and grunts, '
-              . 'ropes creaking, the bell, and whatever room tone the venue has.'
+              . 'ropes creaking, ' . $tanda . 'and whatever room tone the venue has.'
             : 'Footsteps, clothing, doors and furniture, breathing, and the room tone '
               . 'of the place itself.';
 

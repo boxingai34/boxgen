@@ -1051,3 +1051,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     line-height: 1.45;
     color: var(--muted);
 }
+
+/* Tombol gambar + pilihan bentuknya, sebaris. */
+.baris-gambar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.baris-gambar select.bentuk-gambar {
+    width: auto;
+    padding: 4px 10px;
+    font-size: 12.5px;
+}

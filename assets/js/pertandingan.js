@@ -393,7 +393,7 @@ function renderHasil() {
     (hasil.latar || []).forEach((c) => {
         const kotak = kotakTeks(c.nama, c.prompt,
             c.tempat + ' · dipakai di klip ' + c.klip.join(', '));
-        kotak.appendChild(tombolGambar({ url: 'api/gambar.php?action=latar', muatan: () => ({ prompt: c.prompt, rasio: ($('#rasio') || {}).value || '16:9' }), alt: 'Latar' }));
+        kotak.appendChild(tombolGambar({ url: 'api/gambar.php?action=latar', muatan: () => ({ prompt: c.prompt, rasio: ($('#rasio') || {}).value || '16:9' }), alt: 'Latar', bentuk: '16:9' }));
         la.appendChild(kotak);
         if (c.prompt_tag) {
             la.appendChild(kotakTeks(c.nama + ' — versi tag', c.prompt_tag,

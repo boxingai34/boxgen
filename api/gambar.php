@@ -57,8 +57,7 @@ switch ($action) {
         }
 
         try {
-            // Potret: kartu tokoh itu acuan seluruh badan berdiri.
-            $g = GambarAi::tokoh($bagian, ['lebar' => 832, 'tinggi' => 1216]);
+            $g = GambarAi::tokoh($bagian, ['rasio' => (string)($in['rasio'] ?? '3:4')]);
         } catch (InvalidArgumentException $e) {
             jsonFail($e->getMessage());
         } catch (RuntimeException $e) {
