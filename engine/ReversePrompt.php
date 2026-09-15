@@ -2965,12 +2965,37 @@ TXT;
         return implode(', ', $bag);
     }
 
+    /**
+     * Buang bagian gaya yang cuma berlaku untuk adegan tinju.
+     *
+     * Gaya bawaan menyebut "glossy highlights on the gloves". Di adegan
+     * yang tidak ada tinjunya sama sekali, kalimat itu menyuruh model
+     * memunculkan sarung tangan di tempat yang tidak seharusnya — dan
+     * karena gaya adalah kalimat PERTAMA promptnya, bobotnya paling besar.
+     */
+    private static function gayaAdegan(string $gaya, bool $bertinju): string
+    {
+        if ($bertinju || $gaya === '') {
+            return $gaya;
+        }
+
+        $sisa = array_filter(
+            array_map('trim', explode(',', $gaya)),
+            static fn(string $bagian): bool => stripos($bagian, 'glove') === false
+        );
+
+        return $sisa === [] ? $gaya : implode(', ', $sisa);
+    }
+
     private static function renderWan(array $r, bool $nsfw): string
     {
         $bagian = [];
-        $bagian[] = 'Generate a ' . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
+        // "a 8-second" salah; 8, 11, dan 18 minta "an".
+        $awalan = preg_match('/^(8|11|18)$/', (string)$r['durasi']) === 1 ? 'an ' : 'a ';
+
+        $bagian[] = 'Generate ' . $awalan . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
                   . ($r['bertinju'] ? 'an anime boxing match' : 'a scene from an anime')
-                  . ', ' . $r['gaya'] . '.';
+                  . ', ' . self::gayaAdegan((string)$r['gaya'], (bool)$r['bertinju']) . '.';
 
         // Dikumpulkan dulu lalu diurutkan menurut nomornya. Gambar arena
         // menyelip di tengah, jadi kalau dicetak sesuai urutan subjek saja,

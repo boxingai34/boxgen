@@ -641,7 +641,7 @@ TXT;
         $panjangKlip = [];
         if ($otomatis) {
             foreach ($ekstrak['adegan'] as $i => $a) {
-                $maks = in_array($a['jenis'], ['tinju', 'penutup'], true) ? 12 : 20;
+                $maks = self::adaPukulan($a) ? 12 : 20;
                 $n    = max(1, (int)ceil($a['detik'] / $maks));
                 $jatah[$i]       = $n;
                 $panjangKlip[$i] = max(3, min(Pertandingan::MAKS_DETIK_KLIP, (int)round($a['detik'] / $n)));
@@ -651,7 +651,7 @@ TXT;
         }
         $totalTinju = 0;
         foreach ($ekstrak['adegan'] as $i => $a) {
-            if (in_array($a['jenis'], ['tinju', 'penutup'], true)) {
+            if (self::adaPukulan($a)) {
                 $totalTinju += $jatah[$i];
             }
         }
@@ -664,7 +664,7 @@ TXT;
                 if ($urutKlip >= self::MAKS_KLIP) {
                     break 2;
                 }
-                $bertinju = in_array($a['jenis'], ['tinju', 'penutup'], true);
+                $bertinju = self::adaPukulan($a);
                 if ($bertinju) {
                     $sudahTinju++;
                 }
@@ -948,7 +948,7 @@ TXT;
                 'stance'     => 'unclear',
                 'view'       => 'unclear',
                 'pose'       => ['summary' => ''],
-                'action'     => ['type' => in_array($a['jenis'], ['tinju', 'penutup'], true)
+                'action'     => ['type' => self::adaPukulan($a)
                     ? ($a['penyerang'] === $id ? 'cross' : 'block') : 'idle'],
                 'position'   => ['side' => $n === 0 ? 'left' : ($n === 1 ? 'right' : 'center')],
                 'tags'       => Pertandingan::saringGender(
@@ -957,7 +957,7 @@ TXT;
             $n++;
         }
 
-        $bertinju = in_array($a['jenis'], ['tinju', 'penutup'], true);
+        $bertinju = self::adaPukulan($a);
 
         return [
             'kind'  => 'video',
@@ -1018,27 +1018,41 @@ TXT;
      * melepas baju tidak butuh impact frame dan smear, butuh ruang dan
      * wajah.
      */
+    /**
+     * Adegan ini benar-benar berisi pukulan?
+     *
+     * Yang menentukan KALIMAT ceritanya, bukan label jenisnya. "penutup"
+     * artinya penyelesaian, dan penyelesaian belum tentu berisi tinju:
+     * sesudah lawannya KO, yang terjadi berikutnya bukan pertukaran
+     * pukulan lagi.
+     *
+     * Dipakai bersama SENGAJA. Jawabannya menentukan bukan cuma shotnya,
+     * tapi juga blok audio, baris arah layar, tempo potongan, dan kata
+     * "boxers" di baris penutup. Waktu ketiganya memutuskan sendiri-
+     * sendiri, hasilnya satu prompt yang shotnya adegan intim tapi
+     * audionya sarung tangan beradu, arah layarnya memaksa keduanya
+     * berjauhan di kiri dan kanan, dan temponya menyuruh memotong tiap
+     * dua detik.
+     */
+    private static function adaPukulan(array $a): bool
+    {
+        if (!in_array($a['jenis'] ?? '', ['tinju', 'penutup'], true)) {
+            return false;
+        }
+
+        return preg_match(
+            '/\b(punch\w*|jab\w*|hook\w*|uppercut\w*|cross\w*|straight|blow\w*|strike\w*|combo\w*|'
+            . 'hits?|lands?|slams?|smash\w*|connects?|swings?|counters?|guard|knock\w*)\b/i',
+            (string)($a['isi'] ?? '')
+        ) === 1;
+    }
+
     private static function shotsAdegan(array $e, array $r, int $detik, string $pemenang, string $kalah): array
     {
         $a   = $r['adegan'];
         $mau = max(1, min(6, (int)round($detik / 3)));
 
-        // Yang menentukan ada-tidaknya pukulan di KALIMAT ceritanya, bukan
-        // label jenisnya.
-        //
-        // "penutup" artinya penyelesaian, dan penyelesaian belum tentu
-        // berisi tinju: sesudah lawannya KO, yang terjadi berikutnya bukan
-        // pertukaran pukulan lagi. Dulu label itu langsung memanggil
-        // perpustakaan teknik, jadi adegan sesudah KO tetap digambar orang
-        // saling memukul — tujuh klip berturut-turut, padahal yang satu
-        // sudah tergeletak.
-        $memukul = preg_match(
-            '/\b(punch\w*|jab\w*|hook\w*|uppercut\w*|cross\w*|straight|blow\w*|strike\w*|combo\w*|'
-            . 'hits?|lands?|slams?|smash\w*|connects?|swings?|counters?|guard|knock\w*)\b/i',
-            (string)$a['isi']
-        ) === 1;
-
-        if ($memukul && in_array($a['jenis'], ['tinju', 'penutup'], true)) {
+        if (self::adaPukulan($a)) {
             // Penyerang ADEGAN INI, bukan pemenang pertandingan. Ronde
             // yang dipimpin pihak yang akhirnya kalah harus tetap terlihat
             // begitu — kalau selalu dipakai pemenang akhirnya, seluruh
