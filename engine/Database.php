@@ -51,6 +51,58 @@ final class Database
     {
         self::$pdo = null;
     }
+
+    /**
+     * Jawaban query baca yang diambil lewat ingat(), selama permintaan ini.
+     *
+     * @var array<string, mixed>
+     */
+    private static array $ingatan = [];
+
+    /**
+     * Seperti one(), all(), value(), atau column() — tapi jawabannya diingat
+     * selama permintaan ini, jadi pertanyaan yang sama persis tidak dikirim
+     * ke server dua kali.
+     *
+     * KENAPA INI ADA
+     * Merancang satu cerita tiga menit mengirim 2.938 query padahal cuma 125
+     * yang berbeda: TagResolver::find() menanyakan tag yang sama untuk setiap
+     * klip, PromptBuilder memuat modul negatif yang sama untuk setiap prompt.
+     * Di XAMPP itu dua detik. Di hosting yang databasenya ada di mesin lain,
+     * setiap query menempuh jaringan — ribuan perjalanan pulang-pergi itulah
+     * yang membuat merancang melewati batas 60 detik nginx.
+     *
+     * KAPAN BOLEH DIPAKAI
+     * Hanya untuk data rujukan yang tidak berubah selama satu permintaan:
+     * tag, alias, modul, karakter. JANGAN untuk sesuatu yang memang sengaja
+     * ditunggu berubah, misalnya memeriksa ulang ai_cache sambil menunggu
+     * permintaan lain selesai — jawaban pertamanya akan diulang terus.
+     *
+     * Aman terhadap tulisan dari permintaan ini sendiri: run() mengosongkan
+     * ingatan setiap kali query yang dijalankan bukan query baca, jadi baris
+     * yang baru dibuat (CharacterResolver::ensure, TagResolver::getOrCreate,
+     * tools/sync_danbooru.php) langsung terbaca. Jumlahnya dibatasi supaya
+     * skrip panjang di tools/ tidak menimbun memori.
+     *
+     * @param 'one'|'all'|'value'|'column' $cara
+     */
+    public static function ingat(string $cara, string $sql, array $params = [])
+    {
+        $kunci = $cara . "\0" . $sql . "\0" . serialize($params);
+        if (array_key_exists($kunci, self::$ingatan)) {
+            return self::$ingatan[$kunci];
+        }
+        if (count(self::$ingatan) >= 5000) {
+            self::$ingatan = [];
+        }
+
+        return self::$ingatan[$kunci] = match ($cara) {
+            'one'    => self::one($sql, $params),
+            'all'    => self::all($sql, $params),
+            'value'  => self::value($sql, $params),
+            'column' => self::column($sql, $params),
+        };
+    }
     /**
      * Jalankan query, kembalikan statement-nya.
      *
@@ -82,6 +134,13 @@ final class Database
      */
     public static function run(string $sql, array $params = []): PDOStatement
     {
+        // Tulisan apa pun membuat jawaban yang disimpan ingat() tidak bisa
+        // dipercaya lagi — termasuk baris yang baru saja dibuat permintaan
+        // ini sendiri. Query yang tidak jelas jenisnya dianggap menulis.
+        if (self::$ingatan !== [] && !preg_match('/^\s*(SELECT|SHOW|EXPLAIN|DESCRIBE|\()/i', $sql)) {
+            self::$ingatan = [];
+        }
+
         try {
             $stmt = self::conn()->prepare($sql);
         } catch (PDOException $e) {

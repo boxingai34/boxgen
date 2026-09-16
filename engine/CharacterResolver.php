@@ -229,7 +229,7 @@ final class CharacterResolver
     {
         $booruTag = TagResolver::canonical($booruTag);
 
-        $tag = Database::one(
+        $tag = Database::ingat('one',
             'SELECT * FROM tags WHERE name = ? AND category = 4 LIMIT 1',
             [$booruTag]
         );
@@ -237,7 +237,7 @@ final class CharacterResolver
             return null;
         }
 
-        $char = Database::one('SELECT * FROM characters WHERE booru_tag = ?', [$booruTag]);
+        $char = Database::ingat('one', 'SELECT * FROM characters WHERE booru_tag = ?', [$booruTag]);
 
         if ($char === null) {
             $seriesTag = self::seriesTagDariNama($booruTag);

@@ -975,7 +975,7 @@ TXT;
             if ($k === null) {
                 return [];
             }
-            return Database::column(
+            return Database::ingat('column',
                 "SELECT t.name FROM character_tags ct JOIN tags t ON t.id = ct.tag_id
                  WHERE ct.character_id = ? AND ct.role = 'appearance' AND t.name LIKE '%\_hair'",
                 [(int)$k['id']]
@@ -1073,7 +1073,7 @@ TXT;
         // jumlah gambar adalah penanda "yang dimaksud orang" yang jauh
         // lebih baik daripada kemiripan huruf.
         if ($inti !== '' && mb_strlen($inti) >= 3) {
-            $rows = Database::all(
+            $rows = Database::ingat('all',
                 'SELECT name FROM tags WHERE category = 4 AND name LIKE ? ORDER BY post_count DESC LIMIT 12',
                 ['%' . str_replace(['%', '_'], ['\%', '\_'], $inti) . '%']
             );
@@ -1148,7 +1148,7 @@ TXT;
         }
         $seri = null;
         if ($char['series_id'] !== null) {
-            $seri = Database::one('SELECT name, booru_tag FROM series WHERE id = ?', [(int)$char['series_id']]);
+            $seri = Database::ingat('one', 'SELECT name, booru_tag FROM series WHERE id = ?', [(int)$char['series_id']]);
         }
         return [
             'id'         => (int)$char['id'],
@@ -1738,11 +1738,11 @@ TXT;
             if (isset($dilarang[$name])) {
                 return;
             }
-            $id = Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]);
+            $id = Database::ingat('value', 'SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]);
             $items[] = ['tag_id' => (int)($id ?? 0), 'name' => $name, 'weight' => $w, 'block' => $block, 'from' => $from];
             $dipakai[$block . '|' . $name] = true;
         };
-        $adaTag = static fn(string $name): bool => Database::value('SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]) !== null;
+        $adaTag = static fn(string $name): bool => Database::ingat('value', 'SELECT id FROM tags WHERE name = ? LIMIT 1', [$name]) !== null;
 
         // count
         // Danbooru menghitung laki-laki dan perempuan terpisah, dan berhenti
@@ -1770,7 +1770,7 @@ TXT;
 
         // quality: modul nai5 kalau ada
         $kualitas = ['masterpiece', 'best_quality'];
-        $idQ = Database::value("SELECT id FROM modules WHERE type = 'quality' AND slug = 'nai5' AND is_active = 1");
+        $idQ = Database::ingat('value', "SELECT id FROM modules WHERE type = 'quality' AND slug = 'nai5' AND is_active = 1");
         if ($idQ !== null) {
             $mod = PromptBuilder::loadModule((int)$idQ, true, 'quality');
             if ($mod !== null && ($mod['tags'] ?? []) !== []) {
@@ -3235,7 +3235,7 @@ TXT;
                  . 'shifting weight, resetting stance and breathing the whole time';
         }
 
-        $id = Database::value("SELECT id FROM modules WHERE type = 'video_tempo' AND slug = 'cepat' AND is_active = 1");
+        $id = Database::ingat('value', "SELECT id FROM modules WHERE type = 'video_tempo' AND slug = 'cepat' AND is_active = 1");
         return $id === null ? 'Cut fast and often, every cut landing on a movement rather than between them'
                             : SeedanceBuilder::kalimatModul((int)$id, 'video_tempo', true);
     }

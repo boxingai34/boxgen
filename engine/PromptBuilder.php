@@ -970,7 +970,7 @@ final class PromptBuilder
 
     public static function loadModule(int $id, bool $allowNsfw = false, ?string $expectedType = null): ?array
     {
-        $module = Database::one('SELECT * FROM modules WHERE id = ? AND is_active = 1', [$id]);
+        $module = Database::ingat('one', 'SELECT * FROM modules WHERE id = ? AND is_active = 1', [$id]);
 
         if ($module === null) {
             return null;
@@ -985,7 +985,7 @@ final class PromptBuilder
 
         $nsfwFilter = $allowNsfw ? '' : ' AND t.is_nsfw = 0';
 
-        $module['tags'] = Database::all(
+        $module['tags'] = Database::ingat('all',
             "SELECT mt.weight, mt.role, t.id AS tag_id, t.name, t.post_count
              FROM module_tags mt
              JOIN tags t ON t.id = mt.tag_id
@@ -1011,14 +1011,14 @@ final class PromptBuilder
             $params[] = (int)$negativeId;
         }
 
-        $ids = Database::column($sql . ' ORDER BY m.sort_order', $params);
+        $ids = Database::ingat('column', $sql . ' ORDER BY m.sort_order', $params);
         if ($ids === []) {
             return [];
         }
 
         $ph = Database::placeholders($ids);
 
-        $rows = Database::all(
+        $rows = Database::ingat('all',
             "SELECT DISTINCT t.id AS tag_id, t.name
              FROM module_tags mt
              JOIN modules m ON m.id = mt.module_id

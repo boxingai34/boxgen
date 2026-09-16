@@ -51,12 +51,12 @@ final class TagResolver
             return null;
         }
 
-        $row = Database::one('SELECT * FROM tags WHERE name = ? LIMIT 1', [$name]);
+        $row = Database::ingat('one', 'SELECT * FROM tags WHERE name = ? LIMIT 1', [$name]);
         if ($row) {
             return $row;
         }
 
-        $row = Database::one(
+        $row = Database::ingat('one',
             'SELECT t.* FROM tag_aliases a JOIN tags t ON t.id = a.tag_id
              WHERE a.alias_name = ? LIMIT 1',
             [$name]
@@ -67,7 +67,7 @@ final class TagResolver
 
         // Cocokkan dengan label Bahasa Indonesia (spasi, bukan underscore)
         $human = str_replace('_', ' ', $name);
-        $row = Database::one(
+        $row = Database::ingat('one',
             'SELECT * FROM tags WHERE label_id = ? LIMIT 1',
             [$human]
         );
@@ -82,7 +82,7 @@ final class TagResolver
             : str_replace('_', '-', $name);
 
         if ($swapped !== $name) {
-            return Database::one('SELECT * FROM tags WHERE name = ? LIMIT 1', [$swapped]);
+            return Database::ingat('one', 'SELECT * FROM tags WHERE name = ? LIMIT 1', [$swapped]);
         }
 
         return null;
