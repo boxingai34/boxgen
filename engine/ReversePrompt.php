@@ -3217,6 +3217,19 @@ TXT;
         $b[] = 'Throughout the whole clip: strictly lock every character to their '
              . 'reference image — hair colour, eye colour, glove colour and outfit '
              . 'must not change at any point.';
+
+        // Tinju itu tangan saja, dan itu TIDAK jelas dengan sendirinya bagi
+        // model video. Diberi adegan dua orang bersarung tangan saling
+        // menyerang, ia menarik dari seluruh yang pernah dilihatnya — dan
+        // sebagian besar video "dua orang bertarung" berisi tendangan.
+        // Kamera yang menyorot kaki ("a low shot on the feet and canvas")
+        // makin mendorong ke sana, karena model mencari gerakan kaki untuk
+        // mengisi bingkainya.
+        if ($r['bertinju']) {
+            $b[] = 'This is boxing: they strike with gloved hands only. No kicks, no knees, '
+                 . 'no elbows, no throws and no grappling at any point — the feet are only '
+                 . 'ever used for footwork.';
+        }
         if (count($r['orang']) === 2 && $r['bertinju']) {
             $kiri = null;
             $kanan = null;
@@ -3386,6 +3399,10 @@ TXT;
         $b[] = 'Only the two boxers read clearly; the referee and the crowd stay as soft '
              . 'background bokeh. Every movement keeps weight, balance and follow-through, '
              . 'and stays physically possible.';
+        // Sama seperti jalur Wan: tinju itu tangan saja, dan model video
+        // tidak menganggapnya jelas dengan sendirinya.
+        $b[] = 'This is boxing: they strike with gloved hands only. No kicks, no knees, no '
+             . 'elbows, no throws and no grappling — the feet are only ever used for footwork.';
         $b[] = 'Keep the silhouette readable in every key pose even at speed, with directional motion blur on the fastest limb, and let each cut land on a movement rather than between them.';
         $laju = self::kalimatTempo($r);
         if ($laju !== '') {

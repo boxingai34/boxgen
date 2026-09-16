@@ -1128,7 +1128,11 @@ TXT;
         ['a tracking shot along the ropes',                                           'tracking'],
         ['a profile two-shot, both fighters rim-lit against the ring lights',         'static'],
         ['a snap zoom onto the gloves at chest height',                               'whip_pan'],
-        ['a low shot on the feet and canvas, boots pivoting in the foreground',       'pan'],
+        // "boots" dulu ditulis mati di sini, padahal petinjunya sering
+        // bertelanjang kaki — dan kamera yang menyorot kaki sambil
+        // menyebut sepatu yang tidak ada membuat model mengarang
+        // gerakan kaki untuk mengisinya.
+        ['a low shot on the feet and canvas, feet pivoting in the foreground', 'pan'],
         ['a Dutch-angled medium shot, the horizon tilted hard',                       'handheld'],
         ['a shot from outside the ropes, the ropes crossing the frame',               'handheld'],
         ['a tight close-up held on the eyes',                                         'push_in'],
