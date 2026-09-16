@@ -550,6 +550,37 @@ let mode          = 'gambar';
 let ekstrakCerita = null;
 let opsiCerita    = null;   // pilihan yang dipakai merancang, ikut disimpan
 
+/**
+ * Pilihan video — target, rasio, resolusi, gaya — dan tempat asalnya.
+ *
+ * Di mode cerita, tombol Baca Cerita langsung merancang sesudah membaca,
+ * jadi pilihan itu harus sudah ditentukan SEBELUM tombolnya ditekan: ia
+ * dipindah ke atas tombol itu. Di mode gambar ia kembali ke tempatnya,
+ * karena di sana merancang tetap langkah terpisah sesudah petinjunya
+ * diperiksa.
+ *
+ * Elemennya DIPINDAH, bukan digandakan. Id-nya tetap satu, jadi semua yang
+ * membaca $('#target').value tidak perlu tahu mode mana yang sedang aktif,
+ * dan pilihan yang sudah diubah ikut terbawa waktu mode berganti.
+ */
+const pilihanVideo = [];
+
+function pindahkanPilihan(keCerita) {
+    if (pilihanVideo.length === 0) {
+        // Dicatat sekali, selagi semuanya masih di tempat asalnya.
+        [$('#target').closest('.field-row'), $('#gaya').closest('.field')].forEach((node) => {
+            pilihanVideo.push({ node, induk: node.parentNode, sesudah: node.nextSibling });
+        });
+    }
+    pilihanVideo.forEach(({ node, induk, sesudah }) => {
+        if (keCerita) {
+            $('#opsi-cerita').appendChild(node);
+        } else {
+            induk.insertBefore(node, sesudah);
+        }
+    });
+}
+
 function gantiMode(nama) {
     mode = nama;
     $$('#mode-tabs .tab').forEach((b) => b.classList.toggle('aktif', b.dataset.mode === nama));
@@ -561,6 +592,7 @@ function gantiMode(nama) {
     // cornerman. Membiarkannya tampil bukan cuma bikin penuh — isiannya
     // diabaikan, jadi orang mengira setelannya tidak berfungsi.
     const dariCerita = nama === 'cerita';
+    pindahkanPilihan(dariCerita);
     // Panjang video dan panjang klip juga: keduanya ditentukan ceritanya
     // dan mesin. Memajang dropdown yang isinya diabaikan cuma membuat
     // orang mengira setelannya rusak.
@@ -583,17 +615,19 @@ function gantiMode(nama) {
 }
 
 async function bacaCerita() {
-    const btn = $('#btn-baca-cerita');
+    const btn  = $('#btn-baca-cerita');
+    const note = $('#cerita-note');
     btn.disabled = true;
     btn.textContent = 'Membaca…';
 
+    let infoBaca = null;
     try {
         const data = await postJson('api/cerita.php?action=baca', {
             cerita: $('#cerita').value.trim(),
             detik_total: 0
         }, {
             ulang: 6,
-            lapor: (p) => { $('#cerita-note').textContent = p; }
+            lapor: (p) => { note.textContent = p; }
         });
 
         ekstrakCerita = data.ekstrak;
@@ -606,17 +640,30 @@ async function bacaCerita() {
         pilihOpsiDurasi(data.ekstrak.durasi_detik);
         renderAdegan();
 
-        $('#cerita-note').textContent = [
+        infoBaca = [
             teksQuota(data.quota), teksToken(data.token), (data.catatan || []).join(' ')
         ].filter(Boolean).join(' · ');
-
-        bawaKeLayar($('#hasil-cerita'));
     } catch (err) {
-        $('#cerita-note').textContent = err.message;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Baca Cerita';
+        note.textContent = err.message;
     }
+
+    // Langsung dirancang. Pilihan videonya sudah ditentukan di atas tombol
+    // ini, jadi tidak ada lagi yang perlu diputuskan di antara membaca dan
+    // merancang — tombol kedua cuma menambah langkah. Merancang tidak
+    // memanggil AI, jadi langkah ini tidak menambah token.
+    //
+    // Tombol Rancang di bawah tetap ada untuk merancang ulang sesudah
+    // pilihannya diganti, tanpa membaca ceritanya lagi.
+    if (infoBaca !== null) {
+        btn.textContent = 'Merancang…';
+        note.textContent = 'Ceritanya terbaca. Merancang promptnya…';
+        if (await rancangCerita(note)) {
+            note.textContent = [infoBaca, 'Promptnya sudah jadi di bawah.'].filter(Boolean).join(' · ');
+        }
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Baca Cerita';
 }
 
 /** Pilih durasi terdekat yang tersedia, atau tambahkan pilihannya. */
@@ -657,12 +704,25 @@ function renderAdegan() {
     });
 }
 
-/** Rancang untuk mode cerita — endpoint dan bentuk jawabannya berbeda. */
-async function rancangCerita() {
-    if (!ekstrakCerita) return;
+/**
+ * Rancang untuk mode cerita — endpoint dan bentuk jawabannya berbeda.
+ *
+ * @param {HTMLElement} [catatanLain] catatan kedua yang ikut diberi kabar.
+ *        Dipakai waktu dirancang langsung dari tombol Baca Cerita, supaya
+ *        kabar dan galatnya muncul di dekat tombol yang ditekan, bukan jauh
+ *        di bawah.
+ * @returns {Promise<boolean>} true kalau promptnya jadi
+ */
+async function rancangCerita(catatanLain) {
+    if (!ekstrakCerita) return false;
     const btn = $('#btn-rancang');
     btn.disabled = true;
     btn.textContent = 'Merancang…';
+
+    const kabar = (teks) => {
+        $('#rancang-note').textContent = teks;
+        if (catatanLain) catatanLain.textContent = teks;
+    };
 
     try {
         opsiCerita = {
@@ -676,15 +736,17 @@ async function rancangCerita() {
         const data = await postJson('api/cerita.php?action=rancang', {
             ekstrak: ekstrakCerita,
             opsi: opsiCerita
-        }, { ulang: 6, lapor: (p) => { $('#rancang-note').textContent = p; } });
+        }, { ulang: 6, lapor: kabar });
 
         hasil = data;
         renderHasil();
         $('#rancang-note').textContent = (data.catatan || []).join(' ');
         $('#blok-simpan').hidden = false;
         bawaKeLayar($('#keluaran'));
+        return true;
     } catch (err) {
-        $('#rancang-note').textContent = err.message;
+        kabar(err.message);
+        return false;
     } finally {
         btn.disabled = false;
         btn.textContent = 'Rancang Pertandingan';

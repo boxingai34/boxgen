@@ -43,6 +43,11 @@ halamanHeader('Rancang Pertandingan');
                     tengah cerita, sebutkan; tiap wujud jadi satu gambar acuan sendiri.
                 </p>
             </div>
+            <!-- Pilihan video (target, rasio, resolusi, gaya) dipindah ke sini oleh
+                 pertandingan.js selama mode cerita aktif: tombol di bawahnya membaca
+                 lalu langsung merancang, jadi pilihannya harus ditentukan dulu. -->
+            <div id="opsi-cerita"></div>
+
             <div class="actions">
                 <button id="btn-baca-cerita" class="btn primary" type="button">Baca Cerita</button>
             </div>
@@ -312,5 +317,5 @@ halamanHeader('Rancang Pertandingan');
 </div>
 
 <script src="assets/js/gambar.js?v=2"></script>
-<script src="assets/js/pertandingan.js?v=19"></script>
+<script src="assets/js/pertandingan.js?v=20"></script>
 <?php halamanFooter(); ?>
