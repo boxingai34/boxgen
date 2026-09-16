@@ -1363,8 +1363,8 @@ TXT;
                 'prose'         => 'A full-body reference of ' . $c['nama'] . ', standing facing the viewer, '
                                  . ($baju['verbatim'] !== '' ? rtrim($baju['verbatim'], '.') . ', ' : '')
                                  . Pertandingan::ganti($rusak['prosa'], $c['sex']) . '. '
-                                 . 'Plain white background, no scenery and no props — this is a character '
-                                 . 'sheet, so every detail of the face, the body and the clothing has to read clearly.',
+                                 . 'This is a character sheet — every detail of the face, the body and the '
+                                 . 'clothing has to read clearly.',
             ];
 
             $hasil = ReversePrompt::susun($satu, 'nai5', [

@@ -2315,6 +2315,77 @@ TXT;
      * Rakit items jadi keluaran NovelAI lewat Exporter yang sudah ada.
      * Mengembalikan ['base','characters','undesired','flat','v45'].
      */
+    /**
+     * Buang tag yang isinya sudah dikatakan prosanya.
+     *
+     * Base Prompt V5 itu prosa DITAMBAH ekor tag, dan keduanya dibangun
+     * dari sumber yang sama — jadi "black boxing gloves" di kalimatnya
+     * muncul lagi sebagai "boxing gloves, black gloves" di ekornya.
+     * Bukan cuma boros: menyebut satu hal dua kali membuatnya berbobot
+     * ganda tanpa kamu memintanya, dan kalau kedua penyebutan sedikit
+     * berbeda, model harus menebak yang mana yang benar.
+     *
+     * Yang dibuang HANYA yang benar-benar sudah tertulis. Tag yang membawa
+     * keterangan baru tetap tinggal: prosa yang bilang "bikini top and
+     * bottom" tidak menyebutkan warnanya, jadi "green bikini" bukan
+     * ulangan — itu satu-satunya tempat warnanya disebut.
+     *
+     * @param list<array{name?:string}> $wajib
+     * @return list<array>
+     */
+    private static function buangUlangan(array $wajib, string $prosa): array
+    {
+        $kata = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($prosa)) ?? '')) ?: [];
+        if ($kata === []) {
+            return $wajib;
+        }
+
+        $posisi = [];
+        foreach ($kata as $i => $w) {
+            $posisi[$w][] = $i;
+        }
+
+        $sudahAda = static function (string $tag) use ($posisi): bool {
+            $bagian = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($tag)) ?? '')) ?: [];
+            if ($bagian === [] || $bagian[0] === '') {
+                return false;
+            }
+            foreach ($bagian as $b) {
+                if (!isset($posisi[$b])) {
+                    return false;
+                }
+            }
+
+            // Semua katanya ada — tapi harus BERURUTAN dan berdekatan,
+            // supaya "black gloves" cocok dengan "black boxing gloves"
+            // sementara "red corner" tidak cocok dengan "a red bulb over
+            // the corner posts".
+            $jendela = count($bagian) + 2;
+            foreach ($posisi[$bagian[0]] as $mulai) {
+                $ke = $mulai;
+                $ok = true;
+                foreach (array_slice($bagian, 1) as $b) {
+                    $maju = null;
+                    foreach ($posisi[$b] as $p) {
+                        if ($p > $ke && $p - $mulai < $jendela) { $maju = $p; break; }
+                    }
+                    if ($maju === null) { $ok = false; break; }
+                    $ke = $maju;
+                }
+                if ($ok) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        return array_values(array_filter(
+            $wajib,
+            static fn(array $it): bool => !$sudahAda((string)($it['name'] ?? ''))
+        ));
+    }
+
     private static function bangunNovelAI(array $items, array $sel, array $e, string $prosa): array
     {
         $duo = ($sel['mode'] ?? 'single') === 'duo';
@@ -2358,7 +2429,7 @@ TXT;
                 $wajib = array_merge($wajib, $blocks[$blok] ?? []);
             }
         }
-        $ekor = Exporter::format($wajib, 'nai5');
+        $ekor = Exporter::format(self::buangUlangan($wajib, $prosa), 'nai5');
         $base5 = trim($prosa) === '' ? $ekor : trim($prosa) . ($ekor === '' ? '' : ' ' . $ekor);
 
         $v5 = Exporter::formatNovelAI($built, $sel, $base5);
@@ -2423,12 +2494,20 @@ TXT;
         }
 
         // --- nama karakter -> rujukan posisi ---
+        // Hanya kalau orangnya lebih dari satu. Seluruh alasan aturan ini
+        // adalah ciri satu tokoh bocor ke tokoh lain — dan di kartu acuan
+        // yang cuma berisi satu orang, tidak ada tokoh lain untuk
+        // dibocori. Menghapus namanya di situ malah merugikan: "A
+        // full-body reference of the fighter" jelas lebih lemah daripada
+        // menyebut namanya.
+        $banyakOrang = count($e['subjects']) >= 2;
+
         // Dikumpulkan dulu semuanya, baru diganti. Kalau diganti satu per
         // satu sambil jalan, kata yang dipakai bersama dua tokoh saling
         // menimpa: "Princess" pada "Princess Peach" dan "Princess Daisy"
         // ikut tertukar dan kalimatnya jadi kacau.
         $calon = [];
-        foreach ($e['subjects'] as $s) {
+        foreach ($banyakOrang ? $e['subjects'] : [] as $s) {
             $sisi  = $s['position']['side'] ?? 'center';
             $ganti = $sisi === 'left' ? 'the left fighter'
                    : ($sisi === 'right' ? 'the right fighter' : 'the fighter');

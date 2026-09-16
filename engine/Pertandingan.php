@@ -1667,8 +1667,8 @@ TXT;
 
                 $satu['prose'] = 'A full-body reference of the boxer, standing in a fighting stance, '
                                . self::ganti($data['prosa'], $s['sex']) . '. '
-                               . 'Plain white background, no ring and no crowd — this is a character '
-                               . 'sheet, so every detail of the face, the body and the gear has to read clearly.';
+                               . 'This is a character sheet — every detail of the face, the body and the '
+                               . 'gear has to read clearly.';
 
                 $hasil = ReversePrompt::susun($satu, 'nai5', [
                     'polish'  => false,
