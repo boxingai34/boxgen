@@ -111,6 +111,23 @@ if (!Auth::isLoggedIn()) {
     exit;
 }
 
+/*
+ * Lepaskan kunci sesi begitu tahu siapa yang meminta.
+ *
+ * Sesi PHP berbasis berkas MENGUNCI berkasnya sampai permintaan selesai.
+ * Endpoint di sini cuma membaca sesi, tapi tanpa baris ini kuncinya tetap
+ * ditahan sepanjang permintaan — termasuk dua-tiga menit menunggu AI.
+ * Semua permintaan lain dari browser yang sama antre di session_start(),
+ * termasuk ulangan yang dikirim halaman sesudah nginx memutus: ulangan itu
+ * tidak pernah sampai ke cache, ikut diputus nginx di detik ke-60, dan yang
+ * terlihat cuma "menunggu 90 detik" tanpa akhir.
+ *
+ * $_SESSION tetap bisa dibaca sesudah ini, dan Auth::user() sudah memeriksa
+ * akunnya di atas. Yang tidak lagi tersimpan cuma tulisan baru ke sesi —
+ * dan tidak ada endpoint api/ yang menulis sesi.
+ */
+session_write_close();
+
 /** Id pemilik sesi ini. Dipakai untuk menandai riwayat. */
 function userId(): int
 {
@@ -124,7 +141,7 @@ function jsonOk(array $data = []): void
     if (APP_DEBUG && $GLOBALS['__peringatan'] !== []) {
         $data['peringatan_php'] = $GLOBALS['__peringatan'];
     }
-    echo json_encode(['ok' => true] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo catatJawaban((string)json_encode(['ok' => true] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     exit;
 }
 
@@ -150,8 +167,22 @@ function jsonFail(string $message, int $status = 400, array $extra = []): void
     if (APP_DEBUG && $GLOBALS['__peringatan'] !== []) {
         $extra['peringatan_php'] = $GLOBALS['__peringatan'];
     }
-    echo json_encode(['ok' => false, 'error' => $message] + $extra, JSON_UNESCAPED_UNICODE);
+    echo catatJawaban((string)json_encode(['ok' => false, 'error' => $message] + $extra, JSON_UNESCAPED_UNICODE));
     exit;
+}
+
+/**
+ * Catat jawaban yang sedang dikirim, lalu kembalikan badannya.
+ *
+ * Setiap jalan keluar di file ini mencetak JSON lalu langsung exit, jadi
+ * inilah satu-satunya tempat jawaban akhir sebuah permintaan masih bisa
+ * dibaca — sekaliJalan() menyimpannya untuk ulangan dari halaman.
+ */
+function catatJawaban(string $badan): string
+{
+    $status = http_response_code();
+    $GLOBALS['__jawaban'] = [is_int($status) ? $status : 200, $badan];
+    return $badan;
 }
 
 /** Baca body permintaan, baik JSON maupun form biasa. */
@@ -176,6 +207,121 @@ function requirePost(): void
     }
 }
 
+/**
+ * Kerjakan satu kiriman berat SEKALI, lalu simpan jawaban akhirnya.
+ *
+ * Halaman mengulang kirimannya tiap kali nginx memutus di detik ke-60
+ * (postJson di assets/js). Dulu ulangan itu mengulang SELURUH pekerjaan,
+ * dengan anggapan langkah yang sudah selesai tinggal diambil dari
+ * ai_cache. Anggapan itu bolong di satu tempat: yang GAGAL tidak pernah
+ * masuk cache — timeout, HTTP 5xx, jawaban kosong. Rantai pembaca yang
+ * profil pertamanya timeout 120 detik jadi tidak akan pernah selesai di
+ * bawah 60 detik, berapa kali pun diulang, dan jawaban akhirnya — berhasil
+ * ataupun pesan galatnya — tidak pernah sampai ke layar.
+ *
+ * Sekarang satu kiriman punya satu jawaban akhir:
+ *  - Kiriman baru menandai dirinya sedang jalan, bekerja seperti biasa,
+ *    lalu jawabannya disimpan apa adanya, termasuk status HTTP-nya.
+ *  - Ulangan (header X-Ulang >= 1) langsung memutar jawaban itu kalau
+ *    sudah ada.
+ *  - Kiriman yang sama yang datang selagi yang pertama masih jalan
+ *    menunggu di sini, bukan memulai panggilan AI kedua. Belum selesai
+ *    juga sebelum batas nginx, dijawab 202 dan halaman bertanya lagi.
+ *
+ * Kiriman baru sengaja TIDAK memutar jawaban lama: menekan tombolnya lagi
+ * berarti minta dikerjakan lagi. Langkah yang dulu berhasil tetap diambil
+ * dari ai_cache, jadi tidak ada token yang terbuang.
+ *
+ * Disimpan di ai_cache (provider 'jalan' dan 'hasil') supaya hosting tidak
+ * perlu tabel baru. Kuncinya menyertakan id akun, jadi jawaban satu akun
+ * tidak pernah terbaca akun lain.
+ */
+function sekaliJalan(string $aksi): void
+{
+    $dasar      = $aksi . '|' . userId() . '|' . hash('sha256', (string)file_get_contents('php://input'));
+    $kunciJalan = hash('sha256', 'jalan|' . $dasar);
+    $kunciHasil = hash('sha256', 'hasil|' . $dasar);
+    $ulangan    = (int)($_SERVER['HTTP_X_ULANG'] ?? 0) > 0;
+
+    $hasil = static function () use ($kunciHasil): ?array {
+        $baris = Database::one(
+            'SELECT response FROM ai_cache WHERE cache_key = ? AND created_at >= NOW() - INTERVAL 30 MINUTE',
+            [$kunciHasil]
+        );
+        $isi = $baris !== null ? json_decode((string)$baris['response'], true) : null;
+        return is_array($isi) && isset($isi['status'], $isi['badan']) ? $isi : null;
+    };
+
+    // Sepuluh menit melampaui rantai terpanjang yang mungkin: tiga profil,
+    // masing-masing timeout ditambah kelonggaran. Tanda yang lebih tua dari
+    // itu milik pekerjaan yang dimatikan di tengah jalan.
+    $sedangJalan = static function () use ($kunciJalan): bool {
+        return Database::one(
+            'SELECT 1 FROM ai_cache WHERE cache_key = ? AND created_at >= NOW() - INTERVAL 10 MINUTE',
+            [$kunciJalan]
+        ) !== null;
+    };
+
+    $putar = static function (array $isi): void {
+        bersihkanKeluaran();
+        http_response_code((int)$isi['status']);
+        echo (string)$isi['badan'];
+        exit;
+    };
+
+    if ($ulangan && ($ada = $hasil()) !== null) {
+        $putar($ada);
+    }
+
+    $menunggu = false;
+    if ($sedangJalan()) {
+        // 40 detik: di bawah batas nginx, dengan sisa waktu untuk menjawab.
+        $menunggu = true;
+        $sampai   = time() + 40;
+        do {
+            sleep(2);
+            if (($ada = $hasil()) !== null) {
+                $putar($ada);
+            }
+        } while (time() < $sampai && $sedangJalan());
+
+        if ($sedangJalan()) {
+            jsonFail(
+                'Masih dikerjakan di server. Tekan tombolnya lagi beberapa menit lagi — '
+                . 'hasilnya akan langsung diambil, bukan dikerjakan ulang.',
+                202,
+                ['sedang' => true]
+            );
+        }
+    }
+
+    // Pekerjaan yang ditunggu bisa selesai tepat di sela dua pemeriksaan.
+    if (($ulangan || $menunggu) && ($ada = $hasil()) !== null) {
+        $putar($ada);
+    }
+
+    Database::run('DELETE FROM ai_cache WHERE cache_key IN (?, ?)', [$kunciJalan, $kunciHasil]);
+    Database::run("INSERT INTO ai_cache (cache_key, provider, response) VALUES (?, 'jalan', '')", [$kunciJalan]);
+    Database::run("DELETE FROM ai_cache WHERE provider IN ('jalan', 'hasil') AND created_at < NOW() - INTERVAL 1 DAY");
+
+    register_shutdown_function(static function () use ($kunciJalan, $kunciHasil): void {
+        try {
+            $j = $GLOBALS['__jawaban'] ?? null;
+            if (is_array($j)) {
+                Database::run(
+                    "INSERT INTO ai_cache (cache_key, provider, response) VALUES (?, 'hasil', ?)
+                     ON DUPLICATE KEY UPDATE response = VALUES(response), created_at = CURRENT_TIMESTAMP",
+                    [$kunciHasil, (string)json_encode(['status' => $j[0], 'badan' => $j[1]], JSON_UNESCAPED_UNICODE)]
+                );
+            }
+            Database::run('DELETE FROM ai_cache WHERE cache_key = ?', [$kunciJalan]);
+        } catch (Throwable $e) {
+            // Menyimpan jawaban itu tambahan. Kalau database menolak,
+            // jawaban untuk permintaan ini sendiri sudah terkirim.
+        }
+    });
+}
+
 // Tangkap error tak terduga agar tetap keluar sebagai JSON, bukan halaman error HTML.
 set_exception_handler(static function (Throwable $e): void {
     // Dicatat dengan kode pendek yang ikut dikirim ke halaman.
@@ -188,7 +334,7 @@ set_exception_handler(static function (Throwable $e): void {
 
     bersihkanKeluaran();
     http_response_code(500);
-    echo json_encode([
+    echo catatJawaban((string)json_encode([
         'ok'    => false,
         'error' => APP_DEBUG
             ? $e->getMessage()
@@ -196,7 +342,7 @@ set_exception_handler(static function (Throwable $e): void {
               . ' — barisnya ada di logs/api-error.log.',
         'kode'  => $kode,
         'where' => APP_DEBUG ? basename($e->getFile()) . ':' . $e->getLine() : null,
-    ], JSON_UNESCAPED_UNICODE);
+    ], JSON_UNESCAPED_UNICODE));
 });
 
 /**
@@ -259,11 +405,11 @@ register_shutdown_function(static function (): void {
         http_response_code(500);
         header('Content-Type: application/json; charset=utf-8');
     }
-    echo json_encode([
+    echo catatJawaban((string)json_encode([
         'ok'    => false,
         'error' => APP_DEBUG
             ? 'Error fatal: ' . $e['message']
             : 'Terjadi kesalahan berat di server. Kode: ' . $kode . ' — barisnya ada di logs/api-error.log.',
         'where' => APP_DEBUG ? basename((string)$e['file']) . ':' . (int)$e['line'] : null,
-    ], JSON_UNESCAPED_UNICODE);
+    ], JSON_UNESCAPED_UNICODE));
 });

@@ -55,6 +55,7 @@ switch ($action) {
 
     case 'baca':
         requirePost();
+        sekaliJalan('pertandingan.baca');
         $in = requestBody();
 
         $a     = $ambilGambar($in['a'] ?? null);
@@ -98,6 +99,7 @@ switch ($action) {
 
     case 'rancang':
         requirePost();
+        sekaliJalan('pertandingan.rancang');
         $in = requestBody();
 
         $ekstrak = $in['ekstrak'] ?? null;

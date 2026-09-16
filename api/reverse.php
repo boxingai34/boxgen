@@ -111,6 +111,7 @@ switch ($action) {
 
     case 'baca':
         requirePost();
+        sekaliJalan('reverse.baca');
         $in = requestBody();
 
         if (!AiClient::siapProfil('vision')) {
@@ -182,6 +183,7 @@ switch ($action) {
 
     case 'susun':
         requirePost();
+        sekaliJalan('reverse.susun');
         $in = requestBody();
 
         $ekstrak = $in['ekstrak'] ?? null;

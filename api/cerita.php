@@ -25,6 +25,7 @@ switch ($action) {
 
     case 'baca':
         requirePost();
+        sekaliJalan('cerita.baca');
         $in = requestBody();
 
         $cerita = trim((string)($in['cerita'] ?? ''));
@@ -64,6 +65,7 @@ switch ($action) {
 
     case 'rancang':
         requirePost();
+        sekaliJalan('cerita.rancang');
         $in = requestBody();
 
         $ekstrak = $in['ekstrak'] ?? null;

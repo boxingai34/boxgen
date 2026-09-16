@@ -91,7 +91,10 @@ async function postJson(url, payload, pilihan) {
         try {
             res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // Nomor percobaan. Server memakainya untuk membedakan kiriman
+                // baru dari ulangan yang cuma mengambil jawaban yang sudah
+                // jadi — lihat sekaliJalan() di api/_bootstrap.php.
+                headers: { 'Content-Type': 'application/json', 'X-Ulang': String(ke) },
                 body: JSON.stringify(payload)
             });
         } catch (e) {
@@ -99,13 +102,18 @@ async function postJson(url, payload, pilihan) {
             putus = e;
         }
 
+        // 202: kiriman yang sama masih dikerjakan permintaan sebelumnya, dan
+        // server sengaja tidak memulai pekerjaan kedua. Tunggu, tanya lagi.
+        const masihJalan    = res !== null && res.status === 202;
         const proxyMenyerah = res !== null && [502, 503, 504].includes(res.status);
-        if (!proxyMenyerah && putus === null) break;
+        if (!masihJalan && !proxyMenyerah && putus === null) break;
         if (ke >= maksUlang) break;
 
         const detik = Math.round(jeda[Math.min(ke, jeda.length - 1)] / 1000);
-        lapor((proxyMenyerah ? `Proxy hosting memutus (HTTP ${res.status}). ` : 'Sambungan terputus. ')
-            + `Pembacaannya tetap jalan di server — menunggu ${detik} detik lalu mengambil hasilnya…`);
+        const sebab = masihJalan ? 'Masih dikerjakan di server'
+                    : proxyMenyerah ? `Proxy hosting memutus (HTTP ${res.status}). Pembacaannya tetap jalan di server`
+                    : 'Sambungan terputus. Pembacaannya tetap jalan di server';
+        lapor(`${sebab} — menunggu ${detik} detik lalu mengambil hasilnya…`);
         await jedaMs(jeda[Math.min(ke, jeda.length - 1)]);
     }
 
