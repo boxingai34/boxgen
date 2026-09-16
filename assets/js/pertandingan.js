@@ -70,7 +70,18 @@ const jedaMs = (ms) => new Promise((r) => setTimeout(r, ms));
 async function postJson(url, payload, pilihan) {
     const maksUlang = (pilihan && pilihan.ulang) || 0;
     const lapor     = (pilihan && pilihan.lapor) || (() => {});
-    const jeda      = [20000, 30000, 45000, 60000];
+
+    // Tangga jeda yang melebar; angka terakhir dipakai berulang selama
+    // jatah ulangan belum habis. Melebar, bukan dirapatkan, karena
+    // bertanya kepagian justru MEMULAI panggilan AI kedua untuk kiriman
+    // yang sama: yang pertama masih jalan, cache-nya belum terisi, jadi
+    // yang datang duluan cuma menambah ongkos tanpa mempercepat apa pun.
+    //
+    // Dengan tangga ini dan ulang: 6, kesabarannya sekitar 14 menit.
+    // Merancang dari cerita memanggil model beberapa kali berurutan —
+    // dan kalau yang pertama menolak, rantai cadangannya jalan sesudah
+    // itu — jadi jendela lama itu memang kepakai.
+    const jeda      = [30000, 45000, 60000, 90000, 120000];
 
     let res = null;
     let putus = null;
@@ -189,7 +200,7 @@ async function baca() {
             wasit: gambar.wasit, cornerman: gambar.cornerman,
             hint: $('#hint').value.trim().slice(0, MAKS_HINT)
         }, {
-            ulang: 4,
+            ulang: 6,
             lapor: (p) => { $('#baca-note').textContent = p; }
         });
 
@@ -279,7 +290,7 @@ async function rancang() {
                 wan: { rasio: $('#rasio').value },
                 seedance: { resolusi: $('#resolusi').value }
             }
-        }, { ulang: 2, lapor: (p) => { $('#rancang-note').textContent = p; } });
+        }, { ulang: 6, lapor: (p) => { $('#rancang-note').textContent = p; } });
 
         hasil = data;
         renderHasil();
@@ -573,7 +584,7 @@ async function bacaCerita() {
             cerita: $('#cerita').value.trim(),
             detik_total: 0
         }, {
-            ulang: 3,
+            ulang: 6,
             lapor: (p) => { $('#cerita-note').textContent = p; }
         });
 
@@ -657,7 +668,7 @@ async function rancangCerita() {
         const data = await postJson('api/cerita.php?action=rancang', {
             ekstrak: ekstrakCerita,
             opsi: opsiCerita
-        }, { ulang: 2, lapor: (p) => { $('#rancang-note').textContent = p; } });
+        }, { ulang: 6, lapor: (p) => { $('#rancang-note').textContent = p; } });
 
         hasil = data;
         renderHasil();

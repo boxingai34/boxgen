@@ -77,7 +77,17 @@ const jedaMs = (ms) => new Promise((r) => setTimeout(r, ms));
 async function postJson(url, payload, pilihan) {
     const maksUlang = (pilihan && pilihan.ulang) || 0;
     const lapor     = (pilihan && pilihan.lapor) || (() => {});
-    const jeda      = [20000, 30000, 45000, 60000];
+
+    // Tangga jeda yang melebar; angka terakhir dipakai berulang selama
+    // jatah ulangan belum habis. Melebar, bukan dirapatkan, karena
+    // bertanya kepagian justru MEMULAI panggilan AI kedua untuk kiriman
+    // yang sama: yang pertama masih jalan, cache-nya belum terisi, jadi
+    // yang datang duluan cuma menambah ongkos tanpa mempercepat apa pun.
+    //
+    // Dengan tangga ini dan ulang: 6, kesabarannya sekitar 14 menit —
+    // cukup untuk pembacaan yang rantai cadangannya ikut jalan, yang
+    // sebelumnya selalu berhenti sebagai halaman 504 milik nginx.
+    const jeda      = [30000, 45000, 60000, 90000, 120000];
 
     let res = null;
     let putus = null;
@@ -815,7 +825,7 @@ async function baca() {
             // Membaca gambar itu bagian paling lama, dan proxy hosting
             // memutus jauh sebelum selesai. Hasilnya tetap tersimpan di
             // server, jadi tinggal diambil lagi.
-            ulang: 4,
+            ulang: 6,
             lapor: (pesan) => { $('#baca-note').textContent = pesan; }
         });
 
@@ -1446,7 +1456,7 @@ async function susun() {
             target,
             opsi: kumpulOpsi()
         }, {
-            ulang: 3,
+            ulang: 6,
             lapor: (pesan) => { $('#susun-note').textContent = pesan; }
         });
 
