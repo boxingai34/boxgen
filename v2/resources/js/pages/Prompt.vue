@@ -3,6 +3,7 @@ import Kartu from '@/components/box/Kartu.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
 import PanelPetinju from '@/components/box/PanelPetinju.vue';
 import Tombol from '@/components/box/Tombol.vue';
+import TombolGambar from '@/components/box/TombolGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim } from '@/lib/kirim';
 import { Head } from '@inertiajs/vue3';
@@ -24,6 +25,7 @@ const props = defineProps<{
     semesta: Array<{ nama: string; jumlah: number }>;
     jumlah: { tag: number; karakter: number };
     aiSiap: boolean;
+    gambar: { latar: boolean; tokoh: boolean };
 }>();
 
 const isianKelas =
@@ -237,6 +239,45 @@ function acak() {
 
 const keluaran = computed(() => hasil.value?.keluaran?.[target.value] ?? null);
 const nai = computed(() => hasil.value?.keluaran?.[target.value]?.structured ?? null);
+
+/**
+ * Ke mana keluaran ini dikirim kalau mau langsung digambar.
+ *
+ * Stable Diffusion sengaja tidak punya tombol: bobotnya ditulis (tag:1.2)
+ * sedangkan NovelAI membacanya 1.2::tag:: — dikirim apa adanya, tanda
+ * kurungnya malah ikut jadi bagian dari tagnya.
+ */
+const tujuanGambar = computed(() => {
+    if (!keluaran.value) return null;
+    if (target.value === 'novelai' || target.value === 'nai5') {
+        return props.gambar.tokoh
+            ? { alamat: route('gambar.tokoh'), label: 'Buat gambarnya (NovelAI)', bentuk: '3:4' as const }
+            : null;
+    }
+    if (target.value === 'gemini') {
+        return props.gambar.latar
+            ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: '1:1' as const }
+            : null;
+    }
+
+    return null;
+});
+
+/** Isinya dibaca saat diklik, jadi selalu yang sedang tampil. */
+function muatanGambar(): Record<string, unknown> {
+    if (target.value === 'gemini') {
+        return { prompt: keluaran.value?.prompt || '' };
+    }
+
+    // NovelAI: pakai kotak terpisah kalau ada, kalau tidak prompt datarnya.
+    return {
+        bagian: {
+            base: nai.value?.base || keluaran.value?.prompt || '',
+            characters: (nai.value?.characters || []).map((c: any) => ({ prompt: c.prompt || '' })),
+            undesired: keluaran.value?.negative || '',
+        },
+    };
+}
 
 const TARGET = [
     ['sd', 'Stable Diffusion'],
@@ -499,6 +540,16 @@ const TARGET = [
                         </template>
 
                         <KotakTeks v-if="keluaran?.negative" judul="Negative prompt" :teks="keluaran.negative" :baris="3" />
+
+                        <TombolGambar
+                            v-if="tujuanGambar"
+                            :key="target"
+                            :alamat="tujuanGambar.alamat"
+                            :label="tujuanGambar.label"
+                            :bentuk="tujuanGambar.bentuk"
+                            :alt="'Hasil ' + target"
+                            :muatan="muatanGambar"
+                        />
 
                         <div v-if="hasil.catatan?.length" class="space-y-1 text-[11px] text-muted-foreground">
                             <p v-for="(c, i) in hasil.catatan" :key="i">{{ c }}</p>

@@ -39,6 +39,7 @@ class PromptController extends Controller
             'semesta'  => $this->semesta(),
             'jumlah'   => $this->jumlah(),
             'aiSiap'   => AiClient::isConfigured(),
+            'gambar'   => GambarController::status(),
         ]);
     }
 

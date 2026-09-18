@@ -169,6 +169,7 @@ storage/app/landing.json  Isi halaman depan (tidak ikut git; ada cadangan .bak1�
 | Halaman depan | Landing page publik BoxinGenerated + CMS |
 | Prompt Generator | Mode 1 & 2 petinju, lengkap dengan isi otomatis AI, warna per bagian, tag bebas, dan empat format keluaran |
 | Dari Gambar/Video | Unggah/seret/tempel/URL → dibaca model vision → kolomnya dibetulkan → prompt NovelAI |
+| Buat gambarnya | Prompt yang baru jadi langsung digambar (NovelAI untuk tokoh, Gemini/OpenAI untuk latar) |
 | Dasbor | Angka ringkas + pintasan + riwayat terbaru |
 | Rancang Pertandingan (dari cerita) | Alur penuh: baca → susun → salin → simpan → buka lagi |
 | Riwayat | Cari, lihat isi, hapus |
@@ -182,6 +183,19 @@ Begitu juga mode Video (Seedance), Storyboard, Halaman Komik, dan Video Wan 3.0
 — tombolnya disembunyikan di Prompt Generator lama karena jarang dipakai, tapi
 mesinnya utuh. Halaman **Alat lain** menautkan semuanya, jadi tidak ada yang
 hilang. Alamat aplikasi lama diatur lewat `LEGACY_URL` di `.env`.
+
+**"Buat gambarnya"** ada di bawah keluaran NovelAI di kedua halaman. Gambarnya
+tidak pernah menyentuh disk dan tidak masuk database: lahir di memori, dikirim
+sebagai **biner** (bukan data-URI di dalam JSON — base64 menggembungkan 1 MB
+jadi hampir 1,5 MB), lalu berhenti di browser sebagai blob. Keterangannya
+(model, ukuran, sisa jatah) menumpang di header `X-Gambar-*`.
+
+> **Catatan `artisan serve`:** satu gambar bisa 20–40 detik dan 1 MB lebih.
+> Dev-server bawaan PHP melayani satu permintaan pada satu waktu, jadi permintaan
+> sepanjang itu kadang terputus di tengah jalan — halaman akan bilang
+> sambungannya putus dan menyuruh coba lagi. Lewat Apache/nginx (XAMPP maupun
+> hosting) tidak terjadi; diuji dengan curl ke dev-server yang sama: 3 dari 3
+> berhasil, termasuk yang 22 detik.
 
 **Prompt Generator dan Dari Gambar/Video memanggil mesin yang sama** dengan
 halaman lamanya (PromptBuilder, Exporter, ReversePrompt, CharacterResolver),

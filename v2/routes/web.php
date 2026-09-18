@@ -3,6 +3,7 @@
 use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
@@ -44,6 +45,10 @@ Route::prefix('generator')->group(function () {
         Route::post('reverse/ambil', [ReverseController::class, 'ambilUrl'])->name('reverse.ambil');
         Route::post('reverse/baca', [ReverseController::class, 'baca'])->name('reverse.baca');
         Route::post('reverse/susun', [ReverseController::class, 'susun'])->name('reverse.susun');
+
+        // ---- Buat gambarnya (prompt langsung digambar) ----
+        Route::post('gambar/tokoh', [GambarController::class, 'tokoh'])->name('gambar.tokoh');
+        Route::post('gambar/latar', [GambarController::class, 'latar'])->name('gambar.latar');
 
         // ---- Rancang Pertandingan (dari cerita) ----
         Route::get('rancang', [CeritaController::class, 'halaman'])->name('rancang');

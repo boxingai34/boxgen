@@ -46,6 +46,7 @@ class ReverseController extends Controller
                 'artis' => ReversePrompt::MAKS_ARTIS,
             ],
             'kuat'   => array_map(static fn (array $k): string => $k['label'], ReversePrompt::KUAT),
+            'gambar' => GambarController::status(),
         ]);
     }
 

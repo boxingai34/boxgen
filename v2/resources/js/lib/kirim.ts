@@ -151,3 +151,48 @@ export async function salin(teks: string): Promise<boolean> {
         }
     }
 }
+
+/**
+ * Minta sesuatu yang bukan JSON — gambar, misalnya.
+ *
+ * Gambar tidak dikirim sebagai data-URI di dalam JSON: base64 menggembungkan
+ * satu megabyte jadi hampir satu setengah, dan badan sebesar itu sempat
+ * diputus di tengah jalan. Yang datang biner apa adanya, keterangannya
+ * (model, ukuran, sisa jatah) menumpang di header. Galat tetap JSON, jadi
+ * pesannya tetap terbaca seperti biasa.
+ */
+export async function kirimGambar(alamat: string, isi: unknown): Promise<{ url: string; model: string; byte: number; kuota: string }> {
+    const jawab = await fetch(alamat, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'image/*, application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': tokenXsrf(),
+        },
+        body: JSON.stringify(isi),
+    });
+
+    const tipe = jawab.headers.get('content-type') || '';
+
+    if (!jawab.ok || !tipe.startsWith('image/')) {
+        let pesan = `Gagal (HTTP ${jawab.status}).`;
+        try {
+            const data = await jawab.json();
+            pesan = data?.error || data?.message || pesan;
+        } catch {
+            /* bukan JSON juga — pakai pesan bawaan di atas */
+        }
+        throw new GalatKirim(pesan, jawab.status);
+    }
+
+    const gumpal = await jawab.blob();
+
+    return {
+        url: URL.createObjectURL(gumpal),
+        model: jawab.headers.get('X-Gambar-Model') || '',
+        byte: Number(jawab.headers.get('X-Gambar-Byte') || gumpal.size),
+        kuota: jawab.headers.get('X-Gambar-Kuota') || '',
+    };
+}

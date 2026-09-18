@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
+import TombolGambar from '@/components/box/TombolGambar.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim } from '@/lib/kirim';
@@ -25,6 +26,7 @@ const props = defineProps<{
     gaya: Array<{ id: number; nama: string; kategori: string; nsfw: boolean; ket: string }>;
     maks: { frame: number; byte: number; hint: number; artis: number };
     kuat: Record<string, string>;
+    gambar: { latar: boolean; tokoh: boolean };
 }>();
 
 const isianKelas =
@@ -774,6 +776,24 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <p class="text-[11px] leading-relaxed text-muted-foreground">
                                 Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
+
+                            <!-- Atau langsung digambar di sini: bentuk keluaran di atas
+                                 (base + kotak karakter + undesired) memang persis yang
+                                 diminta API NovelAI, jadi tidak ada yang dirakit ulang. -->
+                            <TombolGambar
+                                v-if="gambar.tokoh"
+                                :alamat="route('gambar.tokoh')"
+                                label="Buat gambarnya (NovelAI)"
+                                alt="Hasil NovelAI"
+                                bentuk="3:4"
+                                :muatan="() => ({
+                                    bagian: {
+                                        base: keluaran.base || '',
+                                        characters: (keluaran.characters || []).map((c: any) => ({ prompt: c.prompt || '' })),
+                                        undesired: keluaran.undesired || '',
+                                    },
+                                })"
+                            />
                         </template>
 
                         <details v-if="hasil.tahap" class="rounded-xl border border-border/70 p-3">
