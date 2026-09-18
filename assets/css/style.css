@@ -3,19 +3,38 @@
    Sengaja CSS biasa (tanpa framework) supaya gampang kamu ubah sendiri.
    ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------
+   Warna diambil dari tema halaman depan + CMS (v2/resources/css/app.css)
+   supaya dua aplikasi ini tidak terasa seperti dua situs berbeda:
+   lampu sorot ungu, tali sudut magenta, latar biru-hitam.
+
+   Nama variabelnya sengaja tidak diubah — seluruh berkas ini sudah
+   memakainya, jadi cukup nilainya yang digeser.
+   ------------------------------------------------------------------ */
 :root {
-    --bg:        #0f1116;
-    --panel:     #171a21;
-    --panel-2:   #1e222b;
-    --line:      #2a2f3a;
-    --text:      #e6e8ee;
-    --muted:     #949bab;
-    --accent:    #6ea8fe;
-    --accent-2:  #3d7ef0;
-    --ok:        #4ade80;
-    --warn:      #fbbf24;
-    --err:       #f87171;
-    --radius:    10px;
+    --bg:        hsl(244 32% 7%);
+    --panel:     hsl(245 28% 11%);
+    --panel-2:   hsl(245 22% 16%);
+    --line:      hsl(245 20% 20%);
+    --text:      hsl(250 30% 94%);
+    --muted:     hsl(248 15% 65%);
+    --accent:    hsl(255 90% 72%);
+    --accent-2:  hsl(255 70% 56%);
+    --ok:        hsl(150 65% 55%);
+    --warn:      hsl(32 96% 62%);
+    --err:       hsl(355 85% 62%);
+
+    /* Warna khas arena — dipakai untuk sorot, aksen, dan gradien tombol */
+    --sorot:     hsl(255 90% 72%);
+    --sudut:     hsl(336 100% 64%);
+    --kanvas:    hsl(32 96% 62%);
+    --gradasi:   linear-gradient(100deg, hsl(255 70% 56%), hsl(336 85% 46%));
+
+    --radius:    0.85rem;
+    --radius-kecil: 0.6rem;
+
+    --bayang:      0 1px 2px hsl(0 0% 0% / .3), 0 12px 32px -16px hsl(0 0% 0% / .6);
+    --bayang-naik: 0 2px 4px hsl(0 0% 0% / .3), 0 18px 44px -18px hsl(0 0% 0% / .7);
 }
 
 * { box-sizing: border-box; }
@@ -24,10 +43,27 @@ body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeSpeed;
 }
 
-.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+/* Penggeser ikut temanya, bukan abu-abu bawaan Windows — sama seperti
+   di halaman depan. */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted) 50%, transparent);
+    background-clip: content-box;
+}
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
 
 /* Tautan tidak pernah diberi warna, jadi memakai biru tua bawaan
    browser — hampir tidak terbaca di atas latar segelap ini, dan
@@ -36,15 +72,58 @@ a { color: var(--accent); }
 a:visited { color: var(--accent); }
 a:hover { color: color-mix(in srgb, var(--accent) 72%, var(--text)); }
 
-/* ---------- header ---------- */
+/* ---------- header ----------
+   Menempel di puncak layar seperti bilah atas halaman depan. Tidak
+   memakai backdrop-filter: blur menyiksa GPU lemah, sementara latar
+   pekat 96% memberi hasil yang sama terbacanya. */
 .topbar {
-    border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, var(--panel), var(--bg));
-    padding: 22px 0 18px;
-    margin-bottom: 24px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    padding: 12px 0;
+    margin-bottom: 28px;
 }
-.topbar h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .2px; }
+
+/* Sepercik cahaya ungu-magenta di belakang bilah atas — gradien diam,
+   tanpa animasi dan tanpa filter. */
+.topbar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(60% 180% at 12% 0%, color-mix(in srgb, var(--sorot) 16%, transparent), transparent 70%),
+        radial-gradient(50% 160% at 88% 0%, color-mix(in srgb, var(--sudut) 12%, transparent), transparent 72%);
+}
+.topbar > * { position: relative; }
+
+.topbar h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+}
 .topbar .sub { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* Cap kanji di sebelah nama aplikasi, sama seperti di halaman depan. */
+.merek { display: flex; align-items: center; gap: 12px; }
+.hanko {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.1rem;
+    height: 2.1rem;
+    border: 2px solid var(--sudut);
+    border-radius: .4rem;
+    color: var(--sudut);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    transform: rotate(-7deg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sudut) 25%, transparent);
+}
 
 /* ---------- layout ---------- */
 .grid {
@@ -59,16 +138,34 @@ a:hover { color: color-mix(in srgb, var(--accent) 72%, var(--text)); }
 
 .panel {
     background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: 1rem;
+    padding: 20px;
+    box-shadow: var(--bayang);
 }
+
+/* Judul panel duduk di atas garis tali ring — pemisah tipis yang
+   warnanya berjalan dari magenta ke ungu, persis seperti .tali di
+   halaman depan. */
 .panel h2 {
-    margin: 0 0 16px;
-    font-size: 15px;
+    position: relative;
+    margin: 0 0 18px;
+    padding-bottom: 12px;
+    font-size: 12px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: .8px;
+    letter-spacing: 1px;
     color: var(--muted);
+}
+.panel h2::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+        color-mix(in srgb, var(--sudut) 50%, transparent),
+        color-mix(in srgb, var(--sorot) 50%, transparent),
+        transparent);
 }
 
 /* ---------- form ---------- */
@@ -96,12 +193,28 @@ input[type="url"],
 input[type="number"],
 textarea {
     width: 100%;
-    padding: 9px 11px;
-    background: var(--panel-2);
+    padding: 10px 13px;
+    background: color-mix(in srgb, var(--panel-2) 70%, transparent);
     color: var(--text);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     font: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+select:hover:not(:disabled),
+input:hover:not(:disabled),
+textarea:hover:not(:disabled) { border-color: color-mix(in srgb, var(--sorot) 45%, var(--line)); }
+
+/* Panah bawaan pada <select> di tema gelap nyaris tak terlihat; diganti
+   segitiga sendiri yang ikut warna teks. */
+select {
+    appearance: none;
+    padding-right: 34px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                      linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 17px) calc(50% + 1px), calc(100% - 12px) calc(50% + 1px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
 }
 /* Isian yang diisi otomatis browser dipaksa berlatar kuning/putih, dan
    itu menembus warna apa pun yang kita pasang. Satu-satunya cara
@@ -119,7 +232,11 @@ input:-webkit-autofill:focus {
 
 select:focus, input:focus, textarea:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--sorot);
+    /* background-color, bukan background: shorthand-nya akan menghapus
+       segitiga <select> yang digambar lewat background-image. */
+    background-color: var(--panel-2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sorot) 22%, transparent);
 }
 textarea { resize: vertical; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
 
@@ -132,6 +249,22 @@ textarea { resize: vertical; font-family: ui-monospace, "Cascadia Code", Consola
     font-size: 14px;
 }
 .check input { width: auto; }
+
+/* Kotak centang dan tombol radio bawaan Windows tampil putih terang di
+   tema gelap. accent-color mewarnai keduanya tanpa perlu menggambar
+   ulang kotaknya sendiri — dan tetap ikut tema terang. */
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--sorot);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+    outline: 2px solid var(--sorot);
+    outline-offset: 2px;
+}
 
 .hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 code {
@@ -146,27 +279,50 @@ code {
 .btn {
     padding: 9px 16px;
     border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--panel-2);
+    border-radius: var(--radius-kecil);
+    background: color-mix(in srgb, var(--panel-2) 80%, transparent);
     color: var(--text);
     font: inherit;
+    font-size: 14px;
     cursor: pointer;
-    transition: border-color .15s, background .15s;
+    transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .2s ease;
 }
-.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--sorot) 55%, var(--line));
+    background: var(--panel-2);
+}
+.btn:active:not(:disabled) { transform: scale(.975); }
+.btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--sorot) 25%, transparent);
+}
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-.btn.primary { background: var(--accent-2); border-color: var(--accent-2); font-weight: 600; }
-.btn.primary:hover { background: color-mix(in srgb, var(--accent-2) 80%, var(--text)); }
+/* Tombol utama memakai gradien yang sama dengan tombol ajakan di
+   halaman depan: ungu lampu sorot ke magenta tali sudut. */
+.btn.primary {
+    background: var(--gradasi);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--sorot) 70%, transparent);
+}
+.btn.primary:hover:not(:disabled) {
+    background: var(--gradasi);
+    border-color: transparent;
+    filter: saturate(1.15) brightness(1.08);
+    box-shadow: 0 12px 26px -10px color-mix(in srgb, var(--sudut) 60%, transparent);
+}
 
 /* Tombol utama yang belum boleh ditekan. Opacity saja tidak cukup:
    di tema terang, teks putih di atas biru yang dipudarkan jadi nyaris
    tak terbaca. Jadi warnanya diturunkan sendiri, bukan dipudarkan. */
 .btn.primary:disabled {
     opacity: 1;
-    background: color-mix(in srgb, var(--accent-2) 30%, var(--panel-2));
+    background: color-mix(in srgb, var(--accent-2) 26%, var(--panel-2));
     border-color: transparent;
     color: var(--muted);
+    box-shadow: none;
 }
 .btn.tiny { padding: 3px 10px; font-size: 12px; }
 /* Tombol samar: dipakai untuk aksi pendamping, bukan aksi utama.
@@ -177,12 +333,15 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .actions { display: flex; gap: 10px; margin-top: 4px; }
 
 /* ---------- AI box ---------- */
+/* Kotak "tulis bebas, biar AI yang memilih" — sedikit disorot supaya
+   terbaca sebagai jalan pintas, bukan satu isian biasa di antara
+   puluhan isian lain. */
 .ai-box {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 18px;
+    background: color-mix(in srgb, var(--sorot) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sorot) 28%, transparent);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 20px;
 }
 .ai-box.disabled { opacity: .7; }
 .ai-row { display: flex; gap: 8px; }
@@ -190,11 +349,11 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ---------- preset & berbagi ---------- */
 .preset-box {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 18px;
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-top: 20px;
 }
 .preset-box h3 { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
 .preset-box label { display: block; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
@@ -216,7 +375,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     gap: 8px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 0.45rem;
     padding: 6px 8px;
 }
 .preset-item .nama {
@@ -235,8 +394,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     display: flex;
     align-items: center;
     gap: 12px;
-    background: rgba(110, 168, 254, .1);
-    border: 1px solid var(--accent-2);
+    background: color-mix(in srgb, var(--sorot) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sorot) 45%, transparent);
     border-radius: var(--radius);
     padding: 10px 14px;
     margin-bottom: 18px;
@@ -254,7 +413,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     padding: 0 2px;
 }
 .preset-banner button:hover { color: var(--text); }
-.preset-banner.gagal { background: rgba(248, 113, 113, .1); border-color: var(--err); }
+.preset-banner.gagal {
+    background: color-mix(in srgb, var(--err) 10%, transparent);
+    border-color: color-mix(in srgb, var(--err) 55%, transparent);
+}
 
 /* ---------- tag input ---------- */
 .tag-input-wrap { position: relative; }
@@ -263,12 +425,13 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     position: absolute;
     top: 100%; left: 0; right: 0;
     z-index: 20;
-    background: var(--panel-2);
+    background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 8px;
-    margin-top: 4px;
+    border-radius: var(--radius-kecil);
+    margin-top: 6px;
     max-height: 240px;
-    overflow-y: auto;
+    overflow: hidden auto;
+    box-shadow: var(--bayang-naik);
     display: none;
 }
 .suggest.open { display: block; }
@@ -282,7 +445,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     border-bottom: 1px solid var(--line);
 }
 .suggest-item:last-child { border-bottom: none; }
-.suggest-item:hover, .suggest-item.active { background: color-mix(in srgb, var(--panel-2) 80%, var(--line)); }
+.suggest-item:hover, .suggest-item.active {
+    background: color-mix(in srgb, var(--sorot) 14%, transparent);
+    color: var(--text);
+}
 .suggest-item .count { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .suggest-item .count.unverified { color: var(--warn); }
 
@@ -291,8 +457,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--sorot) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sorot) 35%, transparent);
+    color: var(--text);
     border-radius: 999px;
     padding: 3px 6px 3px 11px;
     font-size: 13px;
@@ -313,23 +480,32 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .empty {
     color: var(--muted);
     text-align: center;
-    padding: 40px 20px;
-    border: 1px dashed var(--line);
-    border-radius: 8px;
+    padding: 48px 24px;
+    border: 1px dashed color-mix(in srgb, var(--line) 90%, transparent);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--panel-2) 35%, transparent);
+    font-size: 14px;
 }
 
-.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
 .tab {
-    padding: 6px 13px;
-    background: var(--panel-2);
+    padding: 6px 14px;
+    background: color-mix(in srgb, var(--panel-2) 70%, transparent);
     border: 1px solid var(--line);
     border-radius: 999px;
     color: var(--muted);
     font: inherit;
     font-size: 13px;
     cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
-.tab.active { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+.tab:hover:not(.active) { color: var(--text); border-color: color-mix(in srgb, var(--sorot) 45%, var(--line)); }
+.tab.active {
+    background: var(--gradasi);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+}
 
 .out-block { margin-bottom: 14px; }
 .out-head {
@@ -344,10 +520,10 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .pill {
     display: inline-block;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
     border-radius: 999px;
-    padding: 2px 10px;
+    padding: 3px 11px;
     font-size: 12px;
     color: var(--muted);
 }
@@ -356,23 +532,25 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 /* ---------- catatan & peringatan ---------- */
 .alert {
     padding: 14px 16px;
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
     margin-bottom: 20px;
     font-size: 14px;
 }
-.alert.error { border-color: var(--err); background: rgba(248,113,113,.08); }
-.alert.warn  { border-color: var(--warn); background: rgba(251,191,36,.08); }
+.alert.error { border-color: color-mix(in srgb, var(--err) 60%, transparent); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.alert.warn  { border-color: color-mix(in srgb, var(--warn) 60%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.alert.ok    { border-color: color-mix(in srgb, var(--ok) 60%, transparent);  background: color-mix(in srgb, var(--ok) 10%, transparent); }
 .alert hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 .alert a { color: var(--accent); }
 
 .note {
     font-size: 13px;
-    padding: 8px 11px;
-    border-radius: 6px;
+    padding: 9px 12px;
+    border-radius: var(--radius-kecil);
     margin-bottom: 8px;
     border-left: 3px solid var(--line);
-    background: var(--panel-2);
+    background: color-mix(in srgb, var(--panel-2) 65%, transparent);
 }
 .note.warn { border-left-color: var(--warn); }
 .note.info { border-left-color: var(--accent); }
@@ -405,31 +583,59 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
    Tambahan versi 2: mode 2 petinju, pemilih karakter, advanced outfit
    ================================================================== */
 
-.modebar { display: flex; gap: 8px; margin-bottom: 18px; }
+/* Pemilih mode (1 Petinju / 2 Petinju / Video …) — deretan pil yang
+   membungkus di layar sempit, bukan menggulung ke samping. */
+.modebar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .modebtn {
-    padding: 8px 20px;
+    padding: 9px 20px;
     background: var(--panel);
-    border: 1px solid var(--line);
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
     border-radius: 999px;
     color: var(--muted);
     font: inherit;
+    font-size: 14px;
     cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, transform .15s ease;
 }
-.modebtn.active { background: var(--accent-2); border-color: var(--accent-2); color: #fff; font-weight: 600; }
+.modebtn:hover:not(.active) {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--sorot) 50%, var(--line));
+}
+.modebtn:active { transform: scale(.97); }
+.modebtn.active {
+    background: var(--gradasi);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--sorot) 80%, transparent);
+}
 
+/* Satu petinju = satu kartu di dalam panel. Batas kirinya diberi warna
+   sudut ring supaya dua petinju gampang dibedakan sekilas. */
 .person {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 14px;
-    background: rgba(255,255,255,.015);
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    background: color-mix(in srgb, var(--panel-2) 40%, transparent);
 }
 .person h3 {
-    margin: 0 0 12px;
-    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: .8px;
-    color: var(--accent);
+    letter-spacing: 1px;
+    color: var(--sorot);
+}
+.person h3::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    border-radius: 99px;
+    background: var(--gradasi);
 }
 .person[hidden] { display: none; }
 
@@ -440,9 +646,9 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .badge {
     display: inline-block;
     margin-left: 7px;
-    padding: 0 6px;
+    padding: 1px 7px;
     border-radius: 999px;
-    background: var(--accent-2);
+    background: var(--gradasi);
     color: #fff;
     font-size: 10px;
     font-style: normal;
@@ -451,17 +657,35 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 
 .advanced {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+    border-radius: var(--radius-kecil);
+    padding: 11px 13px;
     margin-bottom: 14px;
-    background: var(--panel-2);
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    transition: border-color .15s ease;
 }
-.advanced summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-.advanced[open] summary { margin-bottom: 10px; color: var(--text); }
+.advanced:hover { border-color: color-mix(in srgb, var(--sorot) 35%, var(--line)); }
+.advanced summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    list-style: none;
+}
+.advanced summary::-webkit-details-marker { display: none; }
+/* Segitiga sendiri yang berputar waktu dibuka — penanda bawaan browser
+   bentuknya beda-beda dan warnanya tidak ikut tema. */
+.advanced summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 7px;
+    color: var(--sorot);
+    transition: transform .18s ease;
+}
+.advanced[open] summary::before { transform: rotate(90deg); }
+.advanced[open] summary { margin-bottom: 12px; color: var(--text); }
 
 /* slot yang isinya datang dari tema, bukan dipilih sendiri */
-select.from-theme { border-color: rgba(110,168,254,.45); }
+select.from-theme { border-color: color-mix(in srgb, var(--sorot) 50%, transparent); }
 
 .sep { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 
@@ -483,7 +707,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     border-radius: 50%;
     margin-right: 6px;
     vertical-align: middle;
-    border: 1px solid rgba(255,255,255,.25);
+    border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
 }
 
 /* ---------- pratinjau gambar ---------- */
@@ -495,14 +719,14 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     padding: 8px;
     background: var(--panel-2);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
 }
 .preview[hidden] { display: none; }
 .preview img {
     width: 72px;
     height: 72px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: 0.45rem;
     background: var(--panel-2);
     flex-shrink: 0;
 }
@@ -517,7 +741,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     width: 44px;
     height: 44px;
     margin-top: 21px;
-    border-radius: 6px;
+    border-radius: 0.45rem;
     background: var(--panel-2);
     border: 1px solid var(--line);
     overflow: hidden;
@@ -539,7 +763,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     padding: 8px 11px;
     background: var(--panel-2);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
 }
 .arah[hidden] { display: none; }
 .arah-label { font-size: 12px; color: var(--muted); }
@@ -559,7 +783,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 /* ---------- storyboard ---------- */
 .ronde {
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     margin-bottom: 10px;
     background: var(--panel-2);
 }
@@ -627,7 +851,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     gap: 16px;
     flex-wrap: wrap;
 }
-.topbar-kiri { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.topbar-kiri { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 .topbar-kanan {
     margin-left: auto;
     display: flex;
@@ -640,16 +864,25 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 .topbar-kanan a:hover { text-decoration: underline; }
 .topbar-kanan .keluar { color: var(--muted); }
 
-.menu-utama { display: flex; gap: 4px; }
+.menu-utama { display: flex; gap: 2px; flex-wrap: wrap; }
 .menu-utama a {
     color: var(--muted);
     text-decoration: none;
     font-size: 14px;
-    padding: 5px 12px;
-    border-radius: 999px;
+    padding: 7px 13px;
+    border-radius: var(--radius-kecil);
+    transition: color .15s ease, background .15s ease;
 }
-.menu-utama a:hover { color: var(--text); background: var(--panel-2); }
-.menu-utama a.on { color: var(--text); background: var(--panel-2); }
+.menu-utama a:hover { color: var(--text); background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
+
+/* Halaman yang sedang dibuka ditandai latar ungu tipis + tulisan
+   terang — bukan kotak abu-abu yang bentuknya sama dengan hover. */
+.menu-utama a.on {
+    color: var(--text);
+    background: color-mix(in srgb, var(--sorot) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sorot) 32%, transparent);
+    font-weight: 600;
+}
 
 /* ---------- kartu masuk / daftar ---------- */
 .kartu-auth {
@@ -687,7 +920,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 .riwayat-item .gambar {
     width: 96px;
     height: 96px;
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     border: 1px solid var(--line);
     background: var(--panel-2);
     overflow: hidden;
@@ -707,7 +940,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
 .riwayat-prompt {
     background: var(--bg);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 0.45rem;
     padding: 8px 10px;
     font-size: 12px;
     line-height: 1.5;
@@ -777,7 +1010,7 @@ select.from-theme { border-color: rgba(110,168,254,.45); }
     transition: border-color .15s, background .15s;
 }
 .zona-unggah:hover { border-color: var(--accent); }
-.zona-unggah.aktif { border-color: var(--accent); background: rgba(110,168,254,.08); }
+.zona-unggah.aktif { border-color: var(--accent); background: color-mix(in srgb, var(--sorot) 10%, transparent); }
 .zona-unggah p { margin: 0; }
 .zona-unggah .zona-teks { font-size: 14px; }
 .zona-unggah .hint { margin: 4px 0 12px; }
@@ -790,7 +1023,7 @@ input[type="file"] {
     background: var(--panel);
     color: var(--muted);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     font: inherit;
     font-size: 13px;
     cursor: pointer;
@@ -804,7 +1037,7 @@ input[type="file"]::file-selector-button {
     background: var(--panel-2);
     color: var(--text);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 0.45rem;
     cursor: pointer;
 }
 input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
@@ -820,7 +1053,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     width: 96px;
     height: 64px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: 0.45rem;
     border: 1px solid var(--line);
     background: var(--panel-2);
 }
@@ -845,17 +1078,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     font-size: 14px;
     background: var(--panel-2);
     border-left: 3px solid var(--accent);
-    border-radius: 6px;
+    border-radius: 0.45rem;
 }
 .ringkas[hidden] { display: none; }
 
 /* kartu per subjek — kerabat dekat .person di Prompt Generator */
 .subjek {
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     padding: 14px;
     margin-bottom: 14px;
-    background: rgba(255,255,255,.015);
+    background: color-mix(in srgb, var(--panel-2) 40%, transparent);
 }
 .subjek h3 {
     margin: 0 0 8px;
@@ -908,17 +1141,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
    ================================================================== */
 
 :root[data-theme="light"] {
-    --bg:        #f5f6f8;
-    --panel:     #ffffff;
-    --panel-2:   #eef1f5;
-    --line:      #d7dce4;
-    --text:      #1b1f27;
-    --muted:     #5d6675;
-    --accent:    #2563eb;
-    --accent-2:  #1d4ed8;
-    --ok:        #15803d;
-    --warn:      #b45309;
-    --err:       #b91c1c;
+    --bg:        hsl(250 30% 97%);
+    --panel:     hsl(0 0% 100%);
+    --panel-2:   hsl(250 25% 95%);
+    --line:      hsl(250 20% 88%);
+    --text:      hsl(245 30% 12%);
+    --muted:     hsl(245 12% 45%);
+    --accent:    hsl(255 70% 52%);
+    --accent-2:  hsl(255 70% 52%);
+    --ok:        hsl(150 60% 30%);
+    --warn:      hsl(28 95% 36%);
+    --err:       hsl(355 75% 45%);
+
+    --sorot:     hsl(255 70% 52%);
+    --sudut:     hsl(336 85% 42%);
+    --kanvas:    hsl(28 95% 36%);
+
+    --bayang:      0 1px 2px hsl(245 40% 10% / .04), 0 8px 24px -12px hsl(245 40% 10% / .12);
+    --bayang-naik: 0 2px 6px hsl(245 40% 10% / .07), 0 16px 36px -14px hsl(245 40% 10% / .2);
 }
 
 /* ==================================================================
@@ -932,8 +1172,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
    ================================================================== */
 
 .kotak-prompt {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
     border-radius: var(--radius);
     margin: 12px 0;
     overflow: hidden;
@@ -944,9 +1184,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 14px;
+    padding: 11px 14px;
     background: color-mix(in srgb, var(--panel-2) 70%, var(--line));
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
 }
 
 .kotak-kepala strong { font-size: 14px; }
@@ -1001,21 +1241,26 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
 }
 
 .sakelar {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 5px 12px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+    border-radius: var(--radius-kecil);
+    padding: 6px 12px;
     font-size: 13px;
     cursor: pointer;
     line-height: 1.4;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
-.sakelar:hover { border-color: var(--accent); color: var(--accent); }
+.sakelar:hover {
+    border-color: color-mix(in srgb, var(--sorot) 55%, var(--line));
+    color: var(--text);
+    background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+}
 
 /* Dropzone kecil untuk slot gambar berjajar. */
 .dropzone.kecil { padding: 14px 10px; font-size: 13px; }
 .dropzone.kecil p { margin: 0; }
-.strip img { max-width: 100%; border-radius: 6px; display: block; }
+.strip img { max-width: 100%; border-radius: 0.45rem; display: block; }
 
 /* ------------------------------------------------------------------
    Tombol "Buat gambarnya" di tab Latar
@@ -1034,7 +1279,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     margin-top: 10px;
     max-width: 100%;
     max-height: 420px;
-    border-radius: 8px;
+    border-radius: var(--radius-kecil);
     border: 1px solid var(--line);
 }
 
@@ -1058,4 +1303,39 @@ input[type="range"] { width: 100%; accent-color: var(--accent-2); margin: 4px 0;
     width: auto;
     padding: 4px 10px;
     font-size: 12.5px;
+}
+
+/* ==================================================================
+   Reverse prompt: kolom ciri yang bisa disunting
+   ------------------------------------------------------------------
+   Chip di kartu subjek sekarang punya tombol buang, dan di bawahnya ada
+   satu baris untuk menambah tag sendiri. Jaraknya dipisahkan dari kolom
+   di atasnya supaya tidak terbaca sebagai bagian dari baris "Memar/Darah".
+   ================================================================== */
+
+.ciri-box { margin-top: 14px; margin-bottom: 0; }
+.ciri-box .chips { margin-bottom: 10px; }
+.ciri-box .preset-row input { font-size: 13px; }
+
+/* Catatan penggantian karakter: kuning, karena isinya konsekuensi —
+   ada ciri dari gambar yang sengaja dibuang. */
+.s-ciri-note[hidden] { display: none; }
+.s-ciri-note {
+    margin: 8px 0 0;
+    padding: 8px 11px;
+    border-left: 3px solid var(--warn);
+    border-radius: var(--radius-kecil);
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+    color: var(--text);
+}
+
+/* Keterangan "gaya bacaan diganti jadi X". */
+#gaya-ganti-note[hidden] { display: none; }
+#gaya-ganti-note {
+    margin: 8px 0 0;
+    padding: 8px 11px;
+    border-left: 3px solid var(--sorot);
+    border-radius: var(--radius-kecil);
+    background: color-mix(in srgb, var(--sorot) 10%, transparent);
+    color: var(--text);
 }

@@ -86,7 +86,7 @@ function adminHeader(string $judul, string $aktif = ''): void
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — Admin</title>
-<link rel="stylesheet" href="../assets/css/style.css?v=19">
+<link rel="stylesheet" href="../assets/css/style.css?v=38">
 <link rel="stylesheet" href="assets/admin.css?v=5">
 </head>
 <body class="admin">

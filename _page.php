@@ -52,7 +52,7 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($judul) ?> — <?= e(APP_NAME) ?></title>
-<link rel="stylesheet" href="assets/css/style.css?v=35">
+<link rel="stylesheet" href="assets/css/style.css?v=38">
 <script src="assets/js/tema.js?v=1"></script>
 </head>
 <body<?= $polos ? ' class="polos"' : '' ?>>
@@ -60,7 +60,11 @@ function halamanHeader(string $judul, string $aktif = '', bool $polos = false): 
 <header class="topbar">
     <div class="wrap topbar-baris">
         <div class="topbar-kiri">
-            <h1><?= e(APP_NAME) ?></h1>
+            <?php /* Cap kanji + nama aplikasi, sama seperti bilah atas halaman depan. */ ?>
+            <span class="merek">
+                <span class="hanko" aria-hidden="true">拳</span>
+                <h1><?= e(APP_NAME) ?></h1>
+            </span>
             <?php if (!$polos): ?>
                 <nav class="menu-utama">
                     <?php foreach ($menu as $file => $label): ?>

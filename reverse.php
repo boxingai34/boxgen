@@ -118,14 +118,16 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
         <div class="field" style="margin-top:14px">
             <label>Target prompt</label>
+            <!-- Target video (Wan 3.0 / Seedance 2.5) sengaja tidak ditawarkan di
+                 sini: halaman ini dipakai untuk menyusun prompt gambar. Mesinnya
+                 masih ada di api/reverse.php, tinggal ditambah tombolnya lagi
+                 kalau suatu saat diperlukan. -->
             <div class="modebar modebar-target" id="target-bar">
                 <button type="button" class="modebtn active" data-target="nai5">NovelAI V5</button>
-                <button type="button" class="modebtn" data-target="wan">Video Wan 3.0</button>
-                <button type="button" class="modebtn" data-target="seedance25">Video Seedance 2.5</button>
             </div>
             <p class="hint">
-                Gambar boleh ke target mana pun. Video juga — kalau targetnya NovelAI,
-                yang dipakai frame pertamanya.
+                Gambar maupun video dibaca ke prompt NovelAI — untuk video, yang
+                dipakai frame pertamanya.
             </p>
         </div>
 
@@ -159,60 +161,6 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 
         <hr class="sep">
 
-        <!-- ============ GAYA VISUAL ============ -->
-        <div class="field">
-            <label for="gaya-gambar">Gaya visual <span class="tiny-note">opsional</span></label>
-
-            <select id="gaya-gambar" class="only-target-gambar">
-                <option value="">— ikut referensi —</option>
-                <?= $opsiGaya($gayaGambar) ?>
-            </select>
-
-            <select id="gaya-video" class="only-target-video" hidden>
-                <option value="">— ikut referensi —</option>
-                <?= $opsiGaya($gayaVideo) ?>
-            </select>
-
-            <p class="hint">
-                Biarkan kosong kalau mau meniru gaya referensinya. Pilih salah satu
-                kalau kamu ingin wujudnya beda: gaya pilihanmu menggantikan gaya
-                bacaan, tidak dicampur, supaya keduanya tidak saling berkelahi.
-            </p>
-        </div>
-
-        <div class="field">
-            <label for="artis">
-                Tag artis
-                <span class="tiny-note">opsional, pisahkan dengan koma</span>
-            </label>
-            <div class="tag-input-wrap">
-                <input type="text" id="artis" autocomplete="off" maxlength="500"
-                       placeholder="ketik nama artis, misal: dairi">
-                <div class="suggest" id="artis-suggest"></div>
-            </div>
-            <p class="hint">
-                Tuas paling ampuh untuk memberi watak: satu nama artis mengubah garis,
-                warna, dan proporsi sekaligus. Hanya nama yang ada di kamus Danbooru yang
-                dipakai — sisanya dibuang dan dilaporkan. Untuk video, tag ini masuk ke
-                prompt lembar acuannya.
-            </p>
-        </div>
-
-        <div class="field">
-            <label for="gaya-kuat">Kekuatan gaya</label>
-            <select id="gaya-kuat">
-                <option value="ikut">Ikut apa adanya</option>
-                <option value="sedang" selected>Sedang</option>
-                <option value="kuat">Kuat</option>
-            </select>
-            <p class="hint">
-                Seberapa keras gaya dan artis ditekankan dibanding tag isi. "Sedang"
-                menulis <code>1.15::gaya::</code>, "Kuat" menulis <code>1.30::gaya::</code>.
-            </p>
-        </div>
-
-        <hr class="sep">
-
         <div class="field">
             <label for="hint">Catatan untuk pembaca <span class="tiny-note">opsional, maks 400 huruf</span></label>
             <textarea id="hint" rows="2" maxlength="400"
@@ -223,22 +171,29 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
             </p>
         </div>
 
-        <label class="check">
-            <input type="checkbox" id="opsi-nsfw" checked>
-            Versi setia (NSFW)
-        </label>
-        <label class="check">
-            <input type="checkbox" id="opsi-haluskan">
-            Haluskan kata untuk penyaring
-        </label>
-        <label class="check">
-            <input type="checkbox" id="opsi-polish" checked>
-            Poles dengan model kuat
-        </label>
-        <label class="check">
-            <input type="checkbox" id="opsi-fewshot" checked>
-            Sertakan contoh emas
-        </label>
+        <!-- Empat pilihan ini selalu menyala dan tidak lagi ditawarkan.
+             Kotaknya tetap ada di halaman (cuma disembunyikan) supaya
+             reverse.js membacanya seperti biasa lewat kumpulOpsi(), dan
+             supaya prompt tersimpan di Riwayat masih bisa dipasang ulang. -->
+        <div class="opsi-tetap" hidden aria-hidden="true">
+            <label class="check">
+                <input type="checkbox" id="opsi-nsfw" checked>
+                Versi setia (NSFW)
+            </label>
+            <label class="check">
+                <input type="checkbox" id="opsi-haluskan" checked>
+                Haluskan kata untuk penyaring
+            </label>
+            <label class="check">
+                <input type="checkbox" id="opsi-polish" checked>
+                Poles dengan model kuat
+            </label>
+            <label class="check">
+                <input type="checkbox" id="opsi-fewshot" checked>
+                Sertakan contoh emas
+            </label>
+        </div>
+
         <label class="check">
             <input type="checkbox" id="opsi-dewasa" checked>
             Petinju dewasa (mature female/male)
@@ -255,8 +210,7 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
             <br>
             <strong>Versi dewasa</strong> memasang <code>aged_up</code>, khusus untuk
             karakter yang aslinya memang anak-anak. Tanpa itu, tag karakternya sendiri
-            akan menarik wujud aslinya kembali. Keduanya hanya berlaku untuk NovelAI —
-            Wan dan Seedance tidak mengerti kosakata Danbooru.
+            akan menarik wujud aslinya kembali.
         </p>
         <p class="hint" id="opsi-note"></p>
 
@@ -311,6 +265,68 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
                 <label>Latar, cahaya, kamera</label>
                 <p class="ringkas-subjek" id="adegan-teks"></p>
                 <div class="chips" id="chip-adegan"></div>
+            </div>
+
+            <hr class="sep">
+
+            <!-- ============ GAYA VISUAL ============
+                 Ditaruh SESUDAH pembacaan, bukan sebelumnya. Gaya pilihanmu
+                 memang menggantikan gaya yang terbaca dari gambar, jadi
+                 tempatnya memang di sini: kamu lihat dulu gaya apa yang
+                 terbaca, baru memutuskan mau menggantinya atau tidak. Boleh
+                 diubah berkali-kali tanpa membaca ulang gambarnya. -->
+            <div class="field">
+                <label for="gaya-gambar">Gaya visual <span class="tiny-note">menggantikan gaya bacaan</span></label>
+
+                <select id="gaya-gambar" class="only-target-gambar">
+                    <option value="">— ikut referensi —</option>
+                    <?= $opsiGaya($gayaGambar) ?>
+                </select>
+
+                <select id="gaya-video" class="only-target-video" hidden>
+                    <option value="">— ikut referensi —</option>
+                    <?= $opsiGaya($gayaVideo) ?>
+                </select>
+
+                <p class="hint" id="gaya-ganti-note"></p>
+                <p class="hint">
+                    Biarkan kosong kalau mau meniru gaya referensinya. Pilih salah satu
+                    kalau kamu ingin wujudnya beda: gaya pilihanmu menggantikan gaya
+                    bacaan — tag medium dari gambar (anime coloring, realistic, 3d, dan
+                    seterusnya) dibuang, tidak dicampur, supaya keduanya tidak saling
+                    berkelahi.
+                </p>
+            </div>
+
+            <div class="field">
+                <label for="artis">
+                    Tag artis
+                    <span class="tiny-note">opsional, pisahkan dengan koma</span>
+                </label>
+                <div class="tag-input-wrap">
+                    <input type="text" id="artis" autocomplete="off" maxlength="500"
+                           placeholder="ketik nama artis, misal: dairi">
+                    <div class="suggest" id="artis-suggest"></div>
+                </div>
+                <p class="hint">
+                    Tuas paling ampuh untuk memberi watak: satu nama artis mengubah garis,
+                    warna, dan proporsi sekaligus. Hanya nama yang ada di kamus Danbooru yang
+                    dipakai — sisanya dibuang dan dilaporkan.
+                </p>
+            </div>
+
+            <div class="field">
+                <label for="gaya-kuat">Kekuatan gaya</label>
+                <select id="gaya-kuat">
+                    <option value="ikut" selected>Ikut apa adanya</option>
+                    <option value="sedang">Sedang</option>
+                    <option value="kuat">Kuat</option>
+                </select>
+                <p class="hint">
+                    Seberapa keras gaya dan artis ditekankan dibanding tag isi.
+                    "Ikut apa adanya" menulis tagnya polos, "Sedang" menulis
+                    <code>1.15::gaya::</code>, "Kuat" menulis <code>1.30::gaya::</code>.
+                </p>
             </div>
 
             <details class="advanced" id="raw-box">
@@ -382,5 +398,5 @@ halamanHeader('Dari Gambar/Video', 'reverse.php');
 </div>
 
 <script src="assets/js/gambar.js?v=2"></script>
-<script src="assets/js/reverse.js?v=17"></script>
+<script src="assets/js/reverse.js?v=18"></script>
 <?php halamanFooter(); ?>

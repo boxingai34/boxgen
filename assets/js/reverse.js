@@ -794,7 +794,20 @@ function initUnggah() {
 // Target
 // ==================================================================
 
+/**
+ * Target yang benar-benar ditawarkan halaman ini.
+ *
+ * Tombol Wan dan Seedance sudah dilepas dari reverse.php, tapi pilihan
+ * lama masih tersimpan di localStorage dan di Riwayat. Tanpa penjaga ini,
+ * halaman terbuka dalam mode video yang tombolnya tidak ada — semua kolom
+ * khusus video muncul dan tidak ada cara kembali.
+ */
+function targetTersedia(t) {
+    return !!t && !!$('#target-bar .modebtn[data-target="' + t + '"]');
+}
+
 function setTarget(t) {
+    if (!targetTersedia(t)) t = 'nai5';
     target = t;
     $$('#target-bar .modebtn').forEach((b) => b.classList.toggle('active', b.dataset.target === t));
 
@@ -1145,8 +1158,14 @@ function kartuSubjek(s, i) {
     const h = el('h3', null, (PERAN_LABEL[s.role] || 'Petinju') + ' ' + id.toUpperCase());
     kartu.appendChild(h);
 
-    const ringkas = ringkasSubjek(s);
-    if (ringkas) kartu.appendChild(el('p', 'ringkas-subjek', ringkas));
+    // Selalu dipasang (walau kosong) supaya bisa disegarkan di tempat
+    // setiap kali kolomnya diubah, bukan cuma waktu kartunya dibuat.
+    const pRingkas = el('p', 'ringkas-subjek', ringkasSubjek(s));
+    pRingkas.hidden = !pRingkas.textContent;
+    kartu.appendChild(pRingkas);
+
+    // Catatan penggantian karakter, diisi terapkanKolom().
+    kartu.appendChild(el('p', 'hint s-ciri-note'));
 
     const row1 = el('div', 'field-row');
     // Peran menentukan siapa yang boleh dapat tag pukulan. Pendamping yang
@@ -1234,15 +1253,112 @@ function kartuSubjek(s, i) {
         (kon.blood || []).join(', '), 'misal: nose, mouth'));
     kartu.appendChild(row6);
 
-    const tags = unik([].concat(s.hair || [], s.eyes || [], s.body || [], s.tags || []));
-    if (tags.length) {
-        const chips = el('div', 'chips');
-        tags.forEach((t) => chips.appendChild(el('span', 'chip', String(t).replace(/_/g, ' '))));
-        kartu.appendChild(chips);
-    }
+    // Ciri & tag dari gambar. Dulu cuma dipajang; sekarang bisa dibuang
+    // satu per satu dan ditambah sendiri, karena inilah isi yang paling
+    // sering salah — rambut milik orang yang lama, atau "muscular_female"
+    // yang ditempel pembaca ke semua petinju.
+    const ciri = el('div', 'field ciri-box');
+    ciri.appendChild(el('label', null, 'Ciri & tag dari gambar'));
+    ciri.appendChild(el('div', 'chips s-chips'));
+
+    const tambahWrap = el('div', 'preset-row');
+    const inpTag = document.createElement('input');
+    inpTag.type = 'text';
+    inpTag.className = 's-tag-baru';
+    inpTag.autocomplete = 'off';
+    inpTag.placeholder = 'tambah tag, misal: blonde_hair';
+    const btnTag = document.createElement('button');
+    btnTag.type = 'button';
+    btnTag.className = 'btn kecil';
+    btnTag.textContent = 'Tambah';
+
+    const tambah = () => {
+        if (tambahTagSubjek(s, inpTag.value)) {
+            inpTag.value = '';
+            renderChipSubjek(kartu, s);
+            segarkanRingkas(kartu, s);
+            simpanRaw();
+        }
+    };
+    btnTag.addEventListener('click', tambah);
+    inpTag.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); tambah(); }
+    });
+
+    tambahWrap.appendChild(inpTag);
+    tambahWrap.appendChild(btnTag);
+    ciri.appendChild(tambahWrap);
+    kartu.appendChild(ciri);
+    renderChipSubjek(kartu, s);
 
     $$('select', kartu).forEach((sel) => sel.addEventListener('change', terapkanKolom));
     return kartu;
+}
+
+/** Kolom yang isinya tag mentah hasil pembacaan. */
+const KOLOM_CIRI = ['hair', 'eyes', 'body', 'tags'];
+
+function buangTagSubjek(s, tag) {
+    KOLOM_CIRI.forEach((k) => {
+        if (Array.isArray(s[k])) {
+            s[k] = s[k].filter((x) => String(x) !== tag);
+        }
+    });
+}
+
+function tambahTagSubjek(s, teks) {
+    const t = String(teks || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (!t) return false;
+    if (KOLOM_CIRI.some((k) => (s[k] || []).some((x) => String(x) === t))) return false;
+    s.tags = Array.isArray(s.tags) ? s.tags : [];
+    s.tags.push(t);
+    return true;
+}
+
+/** Gambar ulang deretan chip satu kartu, lengkap dengan tombol buangnya. */
+function renderChipSubjek(kartu, s) {
+    const box = $('.s-chips', kartu);
+    if (!box) return;
+
+    box.innerHTML = '';
+    const tags = unik([].concat(s.hair || [], s.eyes || [], s.body || [], s.tags || []));
+    if (!tags.length) {
+        box.appendChild(el('span', 'hint', 'Tidak ada ciri yang terbaca. Tambahkan sendiri kalau perlu.'));
+        return;
+    }
+
+    tags.forEach((t) => {
+        const tag = String(t);
+        const chip = el('span', 'chip', tag.replace(/_/g, ' '));
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.textContent = '×';
+        x.title = 'Buang tag ini dari prompt';
+        x.addEventListener('click', () => {
+            buangTagSubjek(s, tag);
+            renderChipSubjek(kartu, s);
+            segarkanRingkas(kartu, s);
+            simpanRaw();
+        });
+        chip.appendChild(x);
+        box.appendChild(chip);
+    });
+}
+
+/** Baris ringkasan di kepala kartu, disegarkan setiap kali isinya berubah. */
+function segarkanRingkas(kartu, s) {
+    const p = $('.ringkas-subjek', kartu);
+    if (!p) return;
+    const teks = ringkasSubjek(s);
+    p.textContent = teks;
+    p.hidden = !teks;
+}
+
+/** JSON mentah ikut isi kolom, kecuali kamu sedang menyuntingnya sendiri. */
+function simpanRaw() {
+    if (!rawDisunting && ekstrak) {
+        $('#raw-json').value = JSON.stringify(ekstrak, null, 2);
+    }
 }
 
 function renderSubjek() {
@@ -1307,6 +1423,37 @@ function renderAdegan() {
     box.innerHTML = '';
     unik([].concat(env.tags || [], cahaya.tags || [], cam.tags || [], cam.effects || []))
         .forEach((t) => box.appendChild(el('span', 'chip', String(t).replace(/_/g, ' '))));
+
+    catatanGaya();
+}
+
+/**
+ * Keterangan di bawah "Gaya visual": gaya apa yang terbaca dari gambar,
+ * dan gaya apa yang akan menggantikannya.
+ *
+ * Penggantian itu sendiri dikerjakan server saat Susun Prompt — tag medium
+ * dari bacaan (anime_coloring, realistic, 3d, …) dibuang dan kalimat
+ * gayanya ditimpa sebelum tahap polish. Yang kurang selama ini cuma satu:
+ * tidak ada yang memberi tahu bahwa itu memang terjadi.
+ */
+function catatanGaya() {
+    const box = $('#gaya-ganti-note');
+    if (!box) return;
+
+    const sel = target === 'nai5' ? $('#gaya-gambar') : $('#gaya-video');
+    const g = (ekstrak && ekstrak.style) || {};
+    const bacaan = [g.medium, g.render, g.era].filter(Boolean).join(' — ');
+
+    if (!sel || !sel.value) {
+        box.innerHTML = bacaan
+            ? 'Sekarang ikut gaya bacaan: <strong>' + esc(bacaan) + '</strong>.'
+            : '';
+    } else {
+        const nama = sel.options[sel.selectedIndex].textContent.replace(/\s*•\s*$/, '').trim();
+        box.innerHTML = (bacaan ? 'Gaya bacaan <strong>' + esc(bacaan) + '</strong> akan diganti' : 'Gaya akan dipakai')
+            + ' jadi <strong>' + esc(nama) + '</strong> — tag medium dari gambar ikut dibuang.';
+    }
+    box.hidden = !box.innerHTML;
 }
 
 /** Salin nilai kolom yang bisa disunting kembali ke objek ekstrak. */
@@ -1335,10 +1482,50 @@ function terapkanKolom() {
         // Penanda ini menyuruh server membuangnya dan mengambil ciri milik
         // karakter yang baru.
         //
-        // Hanya kalau sebelumnya MEMANG ada yang dikenali. Kalau kotaknya
-        // tadinya kosong, ciri yang terbaca itu berasal dari gambarnya
-        // sendiri, bukan dari karakter yang salah — itu tidak boleh dibuang.
-        s.character_diubah = Boolean(c && inputChar.dataset.awal && c !== inputChar.dataset.awal);
+        // Berlaku juga waktu kotaknya tadinya KOSONG.
+        //
+        // Dulu tidak: alasannya, ciri yang terbaca berasal dari gambarnya
+        // sendiri jadi sayang dibuang. Tapi begitu kamu menyebutkan nama
+        // karakter, yang kamu minta adalah wujud karakter itu — dan
+        // "purple hair" dari gambar justru berkelahi dengan rambut asli
+        // si karakter. Yang kamu ketik menang.
+        s.character_diubah = Boolean(c && c !== inputChar.dataset.awal);
+
+        // Ciri identitas dibuang di halaman ini juga, bukan cuma di server,
+        // supaya kamu LIHAT perubahannya sebelum menekan Susun Prompt.
+        // Aslinya disimpan dulu: kalau nama karakternya dikembalikan
+        // seperti semula, cirinya ikut kembali.
+        if (!s.ciri_asal) {
+            s.ciri_asal = {
+                hair: (s.hair || []).slice(),
+                eyes: (s.eyes || []).slice(),
+                body: (s.body || []).slice()
+            };
+        }
+
+        const catatanCiri = $('.s-ciri-note', kartu);
+        if (s.character_diubah && s.ciri_dibuang !== c) {
+            s.hair = [];
+            s.eyes = [];
+            // Ukuran dada itu identitas karakter, bukan bentuk badan petinju.
+            s.body = s.ciri_asal.body.filter((t) => !String(t).endsWith('_breasts'));
+            s.ciri_dibuang = c;
+            renderChipSubjek(kartu, s);
+        } else if (!s.character_diubah && s.ciri_dibuang) {
+            s.hair = s.ciri_asal.hair.slice();
+            s.eyes = s.ciri_asal.eyes.slice();
+            s.body = s.ciri_asal.body.slice();
+            delete s.ciri_dibuang;
+            renderChipSubjek(kartu, s);
+        }
+        if (catatanCiri) {
+            catatanCiri.textContent = s.ciri_dibuang
+                ? 'Karakter kamu ganti jadi "' + c.replace(/_/g, ' ') + '", jadi rambut, mata, dan '
+                  + 'ukuran dada dari gambar dibuang. Ciri asli karakter ini diambil dari kamus '
+                  + 'saat Susun Prompt ditekan.'
+                : '';
+            catatanCiri.hidden = !catatanCiri.textContent;
+        }
 
         s.stance = $('.s-stance', kartu).value;
         s.action = (s.action && typeof s.action === 'object') ? s.action : {};
@@ -1362,6 +1549,11 @@ function terapkanKolom() {
         s.condition.fatigue = parseInt($('.s-fatigue', kartu).value, 10) || 0;
         s.condition.bruises = pisah($('.s-bruise', kartu).value);
         s.condition.blood = pisah($('.s-blood', kartu).value);
+
+        // Ringkasan di kepala kartu ikut isi terbarunya. Tanpa ini, kolom
+        // sudah berubah tapi barisnya masih menyebut pakaian yang lama —
+        // dan itu yang bikin perubahan terasa "tidak masuk".
+        segarkanRingkas(kartu, s);
     });
 
     ekstrak.scene = $('#adegan').value;
@@ -1473,10 +1665,20 @@ async function susun() {
         if (rawDisunting) {
             ekstrak = kirim;
             rawDisunting = false;
-            renderSubjek();
-            renderAdegan();
             $('#btn-raw-reset').hidden = true;
         }
+
+        // Kolom disegarkan dengan ekstrak yang BENAR-BENAR diproses server:
+        // karakter yang kamu ganti sudah dicocokkan ke kamus, ciri barunya
+        // sudah masuk, tag karangan sudah dibuang. Jadi yang tampil di
+        // halaman selalu sama dengan yang menghasilkan prompt di sebelah —
+        // bukan potret sebelum diproses.
+        if (data.ekstrak && typeof data.ekstrak === 'object') {
+            ekstrak = data.ekstrak;
+        }
+        renderSubjek();
+        renderAdegan();
+        simpanRaw();
 
         hasil = data;
         versi = 'sfw';
@@ -1829,7 +2031,7 @@ async function muat(id) {
         const data = await getJson('api/reverse.php?action=muat&id=' + encodeURIComponent(id));
         const r = data.riwayat || {};
 
-        if (r.target && TARGET_LABEL[r.target]) setTarget(r.target);
+        if (targetTersedia(r.target)) setTarget(r.target);
         pasangOpsi(data.opsi);
 
         const kapan = r.created_at ? ` (${r.created_at})` : '';
@@ -1865,12 +2067,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     $$('#target-bar .modebtn').forEach((b) => b.addEventListener('click', () => setTarget(b.dataset.target)));
-    const tSimpan = bacaLokal(KUNCI_TARGET);
-    setTarget(tSimpan && TARGET_LABEL[tSimpan] ? tSimpan : 'nai5');
+    setTarget(bacaLokal(KUNCI_TARGET) || 'nai5');
 
     $('#btn-baca').addEventListener('click', baca);
     $('#btn-susun').addEventListener('click', susun);
     $('#striker').addEventListener('change', terapkanKolom);
+    ['#gaya-gambar', '#gaya-video'].forEach((sel) => $(sel).addEventListener('change', catatanGaya));
 
     // JSON mentah: begitu disentuh, dia yang berkuasa sampai dibatalkan.
     $('#raw-json').addEventListener('input', () => {

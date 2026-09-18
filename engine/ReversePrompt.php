@@ -1351,6 +1351,12 @@ TXT;
         $hasil['tahap']   = $tahap;
         $hasil['notes']['unknown_tags'] = $val['tag_ditolak'];
         $hasil['karakter'] = $val['karakter'];
+        // Ekstrak SESUDAH dinormalkan dan divalidasi — ini yang benar-benar
+        // dipakai menyusun prompt di atas. Halaman memakainya untuk
+        // menyegarkan kolom "Hasil pembacaan", supaya yang terlihat di
+        // layar sama persis dengan yang diproses: karakter yang diganti
+        // sudah membawa ciri barunya, tag karangan sudah hilang.
+        $hasil['ekstrak'] = $ekstrak;
 
         return $hasil;
     }
@@ -1542,7 +1548,7 @@ TXT;
     // -----------------------------------------------------------------
 
     private static function susunNovelAI(
-        array $e, array $val, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
+        array &$e, array $val, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
         array &$catatan, array &$tahap
     ): array {
         $duo = count($e['subjects']) >= 2;
@@ -1750,6 +1756,31 @@ TXT;
 
         $dilarang = self::tagDilarang();
 
+        // GAYA PILIHANMU MENANG, LEWAT JALUR MANA PUN.
+        //
+        // Tag medium hasil pembacaan ("anime_coloring", "realistic", "3d",
+        // "film_grain") bisa masuk dari empat tempat: daftar tag global,
+        // tag yang ditempelkan ke orangnya, tag latar, dan efek kamera.
+        // Dulu cuma jalur pertama yang disaring, jadi gaya bacaan tetap
+        // bocor dan berkelahi dengan gaya yang kamu pilih — inilah bentrok
+        // yang terlihat sebagai "gayanya tidak berubah".
+        //
+        // Yang dikecualikan tentu tag milik modul gayanya sendiri: "1990s
+        // (style)" dan "film grain" memang isi dari gaya "Anime era 90-an".
+        $gayaPilihan = self::modulGaya($opsi, 'style');
+        if ($gayaPilihan !== null) {
+            $miliknya = array_flip(array_map(
+                static fn(string $t): string => TagResolver::normalize($t),
+                $gayaPilihan['tags']
+            ));
+            foreach (self::TAG_MEDIUM as $t) {
+                $n = TagResolver::normalize($t);
+                if (!isset($miliknya[$n])) {
+                    $dilarang[$n] = true;
+                }
+            }
+        }
+
         $tambah = static function (string $name, string $block, string $from, float $w = 1.0) use (&$items, &$dipakai, $dilarang): void {
             $name = TagResolver::normalize($name);
             if ($name === '' || isset($dipakai[$block . '|' . $name])) {
@@ -1884,6 +1915,15 @@ TXT;
             }
             foreach ($s['tags'] as $t) {
                 if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
+                    continue;
+                }
+                // Saringan yang sama dengan daftar tag global di bawah.
+                // Pembaca kerap menempelkan tag medium ("anime_coloring",
+                // "realistic", "3d") ke orangnya, bukan ke adegan — dan
+                // lewat jalur ini tag itu lolos walau kamu sudah memilih
+                // gaya sendiri, lalu berkelahi dengan gaya pilihanmu di
+                // gambar yang sama.
+                if ($gaya !== null && in_array($t, self::TAG_MEDIUM, true)) {
                     continue;
                 }
                 if (self::penampilan($t)) {
@@ -2762,7 +2802,7 @@ TXT;
     // -----------------------------------------------------------------
 
     private static function susunVideo(
-        array $e, array $val, string $target, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
+        array &$e, array $val, string $target, array $opsi, bool $nsfw, bool $poles, bool $fewshot,
         array &$catatan, array &$tahap
     ): array {
         $rencana = self::rencanaVideo($e, $val, $target, $opsi);
