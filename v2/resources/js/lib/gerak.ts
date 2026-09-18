@@ -106,6 +106,102 @@ export const reveal: Directive<HTMLElement, number | undefined> = {
 };
 
 // ---------------------------------------------------------------------
+// v-kata — reveal per kata
+// ---------------------------------------------------------------------
+
+/**
+ * v-kata — tiap kata naik dari balik mask-nya, satu per satu.
+ *
+ * Teks elemennya dipecah jadi <span class="kata-wadah"><span class="kata">
+ * per kata, dengan jeda bertambah 45 ms per kata (nilainya bisa diganti:
+ * v-kata="30"). Elemen yang sama diamati observer bersama v-reveal, jadi
+ * kelas .is-in yang memicunya. Hanya untuk teks polos — judul dan
+ * kalimat pendek — bukan untuk HTML bersarang.
+ */
+export const kata: Directive<HTMLElement, number | undefined> = {
+    mounted(el, binding) {
+        const teks = el.textContent ?? '';
+        const jeda = binding.value ?? 45;
+        const potongan = teks.split(/(\s+)/);
+
+        el.textContent = '';
+        let n = 0;
+        for (const p of potongan) {
+            if (p === '') continue;
+            if (/^\s+$/.test(p)) {
+                el.appendChild(document.createTextNode(' '));
+                continue;
+            }
+            const wadah = document.createElement('span');
+            wadah.className = 'kata-wadah';
+            const kataEl = document.createElement('span');
+            kataEl.className = 'kata';
+            kataEl.textContent = p;
+            kataEl.style.setProperty('--d', `${n * jeda}ms`);
+            wadah.appendChild(kataEl);
+            el.appendChild(wadah);
+            n++;
+        }
+
+        if (document.documentElement.dataset.hemat === '1') {
+            el.classList.add('is-in');
+            return;
+        }
+        ambilPengamat().observe(el);
+    },
+    unmounted(el) {
+        pengamat?.unobserve(el);
+    },
+};
+
+// ---------------------------------------------------------------------
+// v-magnet — tombol yang menarik kursor
+// ---------------------------------------------------------------------
+
+/**
+ * v-magnet — elemen bergeser sedikit mengikuti kursor di dekatnya.
+ *
+ * Kelas .magnet di CSS yang menggerakkannya; JS di sini cuma mengisi
+ * --mx/--my. Mati di layar sentuh (tidak ada kursor) dan di mode hemat.
+ */
+export const magnet: Directive<HTMLElement, number | undefined> = {
+    mounted(el, binding) {
+        el.classList.add('magnet');
+        if (document.documentElement.dataset.hemat === '1') return;
+        if (window.matchMedia('(hover: none)').matches) return;
+
+        const kekuatan = binding.value ?? 0.28;
+        let rafId = 0;
+
+        const gerak = (e: MouseEvent) => {
+            const r = el.getBoundingClientRect();
+            const dx = (e.clientX - (r.left + r.width / 2)) * kekuatan;
+            const dy = (e.clientY - (r.top + r.height / 2)) * kekuatan;
+            if (rafId) return;
+            rafId = requestAnimationFrame(() => {
+                el.style.setProperty('--mx', `${dx.toFixed(1)}px`);
+                el.style.setProperty('--my', `${dy.toFixed(1)}px`);
+                rafId = 0;
+            });
+        };
+        const lepas = () => {
+            el.style.setProperty('--mx', '0px');
+            el.style.setProperty('--my', '0px');
+        };
+
+        el.addEventListener('mousemove', gerak, { passive: true });
+        el.addEventListener('mouseleave', lepas);
+        (el as any).__magnetLepas = () => {
+            el.removeEventListener('mousemove', gerak);
+            el.removeEventListener('mouseleave', lepas);
+        };
+    },
+    unmounted(el) {
+        (el as any).__magnetLepas?.();
+    },
+};
+
+// ---------------------------------------------------------------------
 // Angka merambat naik
 // ---------------------------------------------------------------------
 

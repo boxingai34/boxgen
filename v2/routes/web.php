@@ -1,43 +1,59 @@
 <?php
 
 use App\Http\Controllers\CeritaController;
+use App\Http\Controllers\CmsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LandingController;
 use App\Http\Controllers\RiwayatController;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 /*
- * Halaman depan: etalase untuk yang belum masuk, dasbor untuk yang sudah.
+ * Dua dunia di satu domain.
+ *
+ *   /            halaman depan publik — memperkenalkan BoxinGenerated
+ *   /generator   alat prompt, tertutup, untuk pemilik dan teman dekatnya
+ *
+ * Nama rutenya sengaja TIDAK diberi awalan (tetap "dashboard", "login",
+ * "riwayat") supaya seluruh halaman Vue yang sudah ada tidak perlu
+ * disentuh: route('dashboard') sekarang menghasilkan /generator, dan
+ * pengalihan bawaan Laravel untuk yang belum masuk (route('login')) ikut
+ * pindah ke /generator/login dengan sendirinya.
  */
-Route::get('/', function () {
-    return Auth::check()
-        ? redirect()->route('dashboard')
-        : Inertia::render('Welcome');
-})->name('home');
 
-Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+Route::get('/', [LandingController::class, 'show'])->name('home');
 
-    // ---- Rancang Pertandingan (dari cerita) ----
-    Route::get('rancang', [CeritaController::class, 'halaman'])->name('rancang');
-    Route::post('rancang/baca', [CeritaController::class, 'baca'])->name('rancang.baca');
-    Route::post('rancang/susun', [CeritaController::class, 'susun'])->name('rancang.susun');
-    Route::post('rancang/simpan', [CeritaController::class, 'simpan'])->name('rancang.simpan');
-    Route::get('rancang/buka/{id}', [CeritaController::class, 'buka'])->whereNumber('id')->name('rancang.buka');
+Route::prefix('generator')->group(function () {
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-    // ---- Riwayat ----
-    Route::get('riwayat', [RiwayatController::class, 'index'])->name('riwayat');
-    Route::get('riwayat/{id}', [RiwayatController::class, 'show'])->whereNumber('id')->name('riwayat.show');
-    Route::delete('riwayat/{id}', [RiwayatController::class, 'destroy'])->whereNumber('id')->name('riwayat.hapus');
+        // ---- Rancang Pertandingan (dari cerita) ----
+        Route::get('rancang', [CeritaController::class, 'halaman'])->name('rancang');
+        Route::post('rancang/baca', [CeritaController::class, 'baca'])->name('rancang.baca');
+        Route::post('rancang/susun', [CeritaController::class, 'susun'])->name('rancang.susun');
+        Route::post('rancang/simpan', [CeritaController::class, 'simpan'])->name('rancang.simpan');
+        Route::get('rancang/buka/{id}', [CeritaController::class, 'buka'])->whereNumber('id')->name('rancang.buka');
 
-    // ---- Alat yang belum pindah ----
-    // Jujur saja daripada memberi halaman kosong: daftarnya ada di sini,
-    // tombolnya membuka versi lama yang masih berjalan penuh.
-    Route::get('alat-lama', fn () => Inertia::render('AlatLama', [
-        'basisLama' => config('app.legacy_url'),
-    ]))->name('alat-lama');
+        // ---- Riwayat ----
+        Route::get('riwayat', [RiwayatController::class, 'index'])->name('riwayat');
+        Route::get('riwayat/{id}', [RiwayatController::class, 'show'])->whereNumber('id')->name('riwayat.show');
+        Route::delete('riwayat/{id}', [RiwayatController::class, 'destroy'])->whereNumber('id')->name('riwayat.hapus');
+
+        // ---- Alat yang belum pindah ----
+        Route::get('alat-lama', fn () => Inertia::render('AlatLama', [
+            'basisLama' => config('app.legacy_url'),
+        ]))->name('alat-lama');
+
+        // ---- CMS halaman depan (admin) ----
+        Route::middleware('admin')->prefix('cms')->group(function () {
+            Route::get('/', [CmsController::class, 'edit'])->name('cms');
+            Route::post('/', [CmsController::class, 'update'])->name('cms.simpan');
+            Route::post('unggah', [CmsController::class, 'unggah'])->name('cms.unggah');
+            Route::delete('unggah', [CmsController::class, 'hapusUnggahan'])->name('cms.unggah.hapus');
+            Route::get('youtube', [CmsController::class, 'youtube'])->name('cms.youtube');
+        });
+    });
+
+    require __DIR__.'/settings.php';
+    require __DIR__.'/auth.php';
 });
-
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';

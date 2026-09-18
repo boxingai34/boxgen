@@ -3,12 +3,30 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#0d0c16">
-        <meta name="description" content="Perancang prompt video tinju anime: dari cerita jadi papan cerita, klip demi klip.">
+        <meta name="theme-color" content="#0d0c16" media="(prefers-color-scheme: dark)">
+        <meta name="theme-color" content="#f7f6fb" media="(prefers-color-scheme: light)">
+        {{--
+            Meta SEO ditulis di server hanya untuk halaman yang memberi $seo
+            (halaman depan) — perayap dan pratinjau tautan (Discord, X, FB)
+            tidak menjalankan JavaScript, jadi <Head> di Vue saja tidak cukup.
+            Atribut inertia="..." membuat Inertia menggantinya, bukan menggandakan.
+        --}}
+        @isset($seo)
+            <meta name="description" content="{{ $seo['description'] }}" inertia="description">
+            <meta property="og:type" content="website" inertia="og:type">
+            <meta property="og:title" content="{{ $seo['title'] }}" inertia="og:title">
+            <meta property="og:description" content="{{ $seo['description'] }}" inertia="og:description">
+            <meta property="og:image" content="{{ $seo['og_image'] }}" inertia="og:image">
+            <meta property="og:url" content="{{ $seo['url'] }}" inertia="og:url">
+            <meta name="twitter:card" content="summary_large_image" inertia="twitter:card">
+            <link rel="canonical" href="{{ $seo['url'] }}">
+            {{-- Gambar hero adalah LCP; mulai diunduh sebelum JavaScript jalan. --}}
+            <link rel="preload" as="image" href="{{ $hero }}" fetchpriority="high">
+        @endisset
 
         <title inertia>{{ config('app.name', 'BoxinGenerated') }}</title>
 
-        <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" href="/img/favicon.png" type="image/png" sizes="64x64">
 
         {{--
             Tema dan mode hemat dipasang SEBELUM halaman digambar.
@@ -39,11 +57,25 @@
             })();
         </script>
 
-        @routes
+        {{-- Halaman depan cuma butuh beberapa rute; daftar rute privat tidak perlu ikut. --}}
+        @routes(isset($seo) ? 'publik' : null)
         @vite(['resources/js/app.ts'])
         @inertiaHead
     </head>
     <body class="min-h-screen bg-background font-sans text-foreground antialiased">
         @inertia
+        @isset($publik)
+            <noscript>
+                <div style="max-width:40rem;margin:4rem auto;padding:0 1.25rem;font:16px/1.6 system-ui,sans-serif">
+                    <h1>{{ $publik['nama'] }}</h1>
+                    <p>{{ $publik['kalimat'] }}</p>
+                    <ul>
+                        @foreach ($publik['tautan'] as $t)
+                            <li><a href="{{ $t['url'] }}" rel="noopener">{{ $t['label'] }}</a></li>
+                        @endforeach
+                    </ul>
+                </div>
+            </noscript>
+        @endisset
     </body>
 </html>

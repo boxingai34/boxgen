@@ -47,9 +47,9 @@
         --ring: 255 85% 66%;
 
         /* Warna khas arena, dipakai untuk sorot dan aksen */
-        --sorot: 255 85% 66%;      /* lampu ungu */
-        --sudut: 336 100% 60%;     /* tali sudut magenta */
-        --kanvas: 30 95% 58%;      /* pantulan lampu di kanvas */
+        --sorot: 255 70% 52%;      /* lampu ungu — cukup gelap untuk teks di latar terang */
+        --sudut: 336 85% 42%;      /* tali sudut magenta */
+        --kanvas: 28 95% 36%;      /* pantulan lampu di kanvas */
 
         --radius: 0.85rem;
 
@@ -167,7 +167,6 @@
             opacity 0.55s cubic-bezier(0.22, 0.68, 0.3, 1),
             transform 0.55s cubic-bezier(0.22, 0.68, 0.3, 1);
         transition-delay: var(--d, 0ms);
-        will-change: opacity, transform;
     }
 
     .reveal-kiri {
@@ -252,7 +251,7 @@
             transform: translate3d(-2%, -1%, 0) scale(1);
         }
         to {
-            transform: translate3d(2%, 2%, 0) scale(1.06);
+            transform: translate3d(2%, 2%, 0);
         }
     }
 
@@ -391,5 +390,226 @@ html[data-hemat='1'] * {
 
     html {
         scroll-behavior: auto;
+    }
+}
+
+/* =====================================================================
+   HALAMAN DEPAN — motif Jepang & tinju, dan gerak tambahan
+   =====================================================================
+   Aturan yang sama: transform dan opacity saja. Yang tampak seperti
+   "efek mahal" di sini semuanya gradien statis atau clip-path.
+   ===================================================================== */
+
+@layer components {
+    /* teks tegak, seperti punggung tankōbon */
+    .tegak {
+        writing-mode: vertical-rl;
+        text-orientation: upright;
+        letter-spacing: 0.32em;
+    }
+
+    /* stempel hanko: kotak merah miring dengan huruf di dalamnya */
+    .hanko {
+        display: inline-grid;
+        place-items: center;
+        min-width: 3.25rem;
+        height: 3.25rem;
+        padding: 0 0.45rem;
+        border: 2px solid hsl(var(--sudut));
+        border-radius: 0.4rem;
+        color: hsl(var(--sudut));
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: 0.06em;
+        transform: rotate(-7deg);
+        box-shadow: inset 0 0 0 1px hsl(var(--sudut) / 0.25);
+    }
+
+    /* lingkaran hinomaru: gradien radial, bukan blur */
+    .hinomaru {
+        position: absolute;
+        border-radius: 9999px;
+        background: radial-gradient(circle, hsl(var(--sudut) / 0.38) 0%, hsl(var(--sudut) / 0.12) 45%, transparent 70%);
+        pointer-events: none;
+    }
+
+    /* pemisah tali ring: tiga tali, tiga warna */
+    .tali-ring {
+        height: 18px;
+        background:
+            linear-gradient(hsl(var(--sudut) / 0.55), hsl(var(--sudut) / 0.55)) 0 2px / 100% 2px no-repeat,
+            linear-gradient(hsl(var(--sorot) / 0.55), hsl(var(--sorot) / 0.55)) 0 8px / 100% 2px no-repeat,
+            linear-gradient(hsl(var(--foreground) / 0.25), hsl(var(--foreground) / 0.25)) 0 14px / 100% 2px no-repeat;
+    }
+
+    /* --- reveal per kata: tiap kata naik dari balik "mask"-nya --- */
+    .kata-wadah {
+        display: inline-block;
+        overflow: hidden;
+        vertical-align: bottom;
+        padding-bottom: 0.08em;
+        margin-bottom: -0.08em;
+    }
+
+    .kata {
+        display: inline-block;
+        opacity: 0;
+        transform: translate3d(0, 108%, 0);
+        transition:
+            transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+            opacity 0.45s ease;
+        transition-delay: var(--d, 0ms);
+    }
+
+    .is-in .kata {
+        opacity: 1;
+        transform: none;
+        will-change: auto;
+    }
+
+    /* --- tombol magnetik: JS cuma mengisi --mx/--my --- */
+    .magnet {
+        transform: translate3d(var(--mx, 0px), var(--my, 0px), 0);
+        transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+
+    /* --- garis progres gulir: CSS murni, tanpa JS --- */
+    .maju-gulir {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 60;
+        height: 2px;
+        transform-origin: 0 50%;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, hsl(var(--sorot)), hsl(var(--sudut)));
+        animation: maju-gulir linear both;
+        animation-timeline: scroll(root);
+        pointer-events: none;
+    }
+
+    @keyframes maju-gulir {
+        to {
+            transform: scaleX(1);
+        }
+    }
+
+    @supports not (animation-timeline: scroll()) {
+        .maju-gulir {
+            display: none;
+        }
+    }
+
+    /* --- jalur geser mendatar dengan snap --- */
+    .geser-x {
+        display: flex;
+        gap: 1rem;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.5rem;
+    }
+
+    .geser-x::-webkit-scrollbar {
+        display: none;
+    }
+
+    .geser-x > * {
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+    }
+
+    /* --- bingkai gambar dengan sudut terpotong (clip-path, gratis) --- */
+    .potong-sudut {
+        clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+    }
+
+    /* --- garis bawah yang "digambar" saat muncul --- */
+    .garis-tumbuh {
+        position: relative;
+    }
+
+    .garis-tumbuh::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: -0.15em;
+        height: 2px;
+        width: 100%;
+        background: linear-gradient(90deg, hsl(var(--sudut)), hsl(var(--sorot)));
+        transform: scaleX(0);
+        transform-origin: 0 50%;
+        transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.25s;
+    }
+
+    .is-in.garis-tumbuh::after,
+    .is-in .garis-tumbuh::after {
+        transform: scaleX(1);
+    }
+}
+
+html[data-hemat='1'] .kata {
+    opacity: 1;
+    transform: none;
+    transition: none;
+}
+
+html[data-hemat='1'] .magnet {
+    transform: none;
+    transition: none;
+}
+
+html[data-hemat='1'] .maju-gulir {
+    display: none;
+}
+
+html[data-hemat='1'] .garis-tumbuh::after {
+    transform: scaleX(1);
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kata {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    .maju-gulir {
+        display: none;
+    }
+
+    .garis-tumbuh::after {
+        transform: scaleX(1);
+        transition: none;
+    }
+}
+
+/* Huruf Jepang memakai font serif sistem: Yu Mincho di Windows, Hiragino
+   di Apple, Noto di Android/Linux. Tidak ada font yang diunduh. */
+.jp {
+    font-family: 'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'Noto Serif CJK JP', 'Noto Serif JP', 'Source Han Serif', 'MS Mincho', serif;
+}
+
+/* Tombol gradasi: warna dipilih supaya teks putih tetap ≥ 4.5:1 di kedua tema. */
+.gradasi-tombol {
+    background-image: linear-gradient(90deg, hsl(255 70% 56%), hsl(336 85% 46%));
+}
+
+/* Mode hemat / gerak dikurangi: semua transisi dan animasi utilitas
+   (hover scale, translate, spin) ikut mati, bukan hanya yang bernama. */
+html[data-hemat='1'] *,
+html[data-hemat='1'] *::before,
+html[data-hemat='1'] *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
     }
 }

@@ -42,7 +42,7 @@ class HandleInertiaRequests extends Middleware
                     'admin'    => $user->isAdmin(),
                 ],
             ],
-            'lama'  => config('app.legacy_url'),
+            'lama'  => $user === null ? null : config('app.legacy_url'),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
             ],

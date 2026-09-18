@@ -6,7 +6,7 @@ import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { initializeTheme } from './composables/useAppearance';
-import { mulaiGerak, reveal } from './lib/gerak';
+import { kata, magnet, mulaiGerak, reveal } from './lib/gerak';
 
 declare module 'vite/client' {
     interface ImportMetaEnv {
@@ -23,7 +23,7 @@ declare module 'vite/client' {
 const namaApp = import.meta.env.VITE_APP_NAME || 'BoxinGenerated';
 
 createInertiaApp({
-    title: (title) => (title ? `${title} — ${namaApp}` : namaApp),
+    title: (title) => (!title || title.includes(namaApp) ? title || namaApp : `${title} — ${namaApp}`),
 
     // import.meta.glob memecah tiap halaman jadi berkasnya sendiri, jadi
     // membuka Dasbor tidak ikut mengunduh Rancang dan Riwayat.
@@ -34,6 +34,8 @@ createInertiaApp({
             .use(plugin)
             .use(ZiggyVue)
             .directive('reveal', reveal)
+            .directive('kata', kata)
+            .directive('magnet', magnet)
             .mount(el);
     },
 

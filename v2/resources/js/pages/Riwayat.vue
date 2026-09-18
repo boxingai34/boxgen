@@ -46,7 +46,7 @@ async function lihat(id: number) {
     memuat.value = true;
     galat.value = '';
     try {
-        const jawab = await kirim<any>(`/riwayat/${id}`, undefined, 'GET');
+        const jawab = await kirim<any>(route('riwayat.show', id), undefined, 'GET');
         terpilih.value = jawab.item;
     } catch (e) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal membuka.';
@@ -58,7 +58,7 @@ async function lihat(id: number) {
 async function hapus(id: number) {
     if (!window.confirm('Hapus riwayat ini? Tidak bisa dikembalikan.')) return;
     try {
-        await kirim(`/riwayat/${id}`, undefined, 'DELETE');
+        await kirim(route('riwayat.hapus', id), undefined, 'DELETE');
         if (terpilih.value?.id === id) terpilih.value = null;
         router.reload({ only: ['daftar'] });
     } catch (e) {

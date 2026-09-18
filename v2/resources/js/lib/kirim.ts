@@ -94,6 +94,42 @@ export async function kirimUlang<T = any>(
     throw new GalatKirim('Gagal menghubungi server.', 0);
 }
 
+/** Unggah satu berkas (multipart), dengan token CSRF yang sama. */
+export async function unggahBerkas<T = any>(alamat: string, nama: string, berkas: File, lapor?: (persen: number) => void): Promise<T> {
+    return new Promise((selesai, gagal) => {
+        const xhr = new XMLHttpRequest();
+        const data = new FormData();
+        data.append(nama, berkas);
+
+        xhr.open('POST', alamat);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-XSRF-TOKEN', tokenXsrf());
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable && lapor) lapor(Math.round((e.loaded / e.total) * 100));
+        };
+
+        xhr.onload = () => {
+            let j: any = null;
+            try {
+                j = JSON.parse(xhr.responseText);
+            } catch {
+                gagal(new GalatKirim('Server membalas bukan JSON.', xhr.status));
+                return;
+            }
+            if (xhr.status >= 200 && xhr.status < 300 && j?.ok !== false) {
+                selesai(j as T);
+            } else {
+                const pesanValidasi = j?.errors ? (Object.values(j.errors)[0] as string[])?.[0] : null;
+                gagal(new GalatKirim(j?.error || pesanValidasi || j?.message || `Gagal (HTTP ${xhr.status}).`, xhr.status));
+            }
+        };
+        xhr.onerror = () => gagal(new GalatKirim('Sambungan terputus saat mengunggah.', 0));
+        xhr.send(data);
+    });
+}
+
 /** Salin ke papan klip, dengan cadangan untuk browser yang menolak. */
 export async function salin(teks: string): Promise<boolean> {
     try {

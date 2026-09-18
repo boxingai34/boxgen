@@ -7,7 +7,8 @@
 Options -Indexes
 
 # File rahasia tidak boleh diakses lewat browser sama sekali
-<FilesMatch "^(config\.local\.php|config\.local\.example\.php)$">
+# (termasuk .env milik Laravel di v2/ dan variannya)
+<FilesMatch "^(config\.local\.php|config\.local\.example\.php|\.env(\..*)?)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -18,7 +19,8 @@ Options -Indexes
 </FilesMatch>
 
 # Dokumentasi, SQL, dan file cadangan jangan bisa diunduh orang
-<FilesMatch "\.(md|sql|log|bak|ini|json)$">
+# (cadangan bernomor seperti landing.json.bak3 ikut tertangkap)
+<FilesMatch "\.(md|sql|log|bak[0-9]*|ini|json|lock)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
@@ -27,6 +29,47 @@ Options -Indexes
         Deny from all
     </IfModule>
 </FilesMatch>
+
+# ---------------------------------------------------------------------
+# Dua aplikasi di satu domain.
+#
+#   /               halaman depan publik   -> v2/public (Laravel)
+#   /generator/...  alat prompt baru       -> v2/public (Laravel)
+#   /index.php, /reverse.php, /admin/ ...  aplikasi lama, tetap di sini
+#
+# Pola di RewriteRule dicocokkan RELATIF terhadap folder berkas ini, jadi
+# aturannya sama saja di akar domain maupun di sub-folder. Laravel di
+# v2/public membaca REQUEST_URI apa adanya, jadi aturan ini hanya benar
+# kalau folder ini dipasang sebagai AKAR domain (fbxgenerate.com/) —
+# persis seperti di hosting. Di komputer sendiri pakai `php artisan
+# serve` (lihat v2/README.md).
+#
+# Kalau folder v2 belum ada (klon lama yang belum di-pull), semua aturan
+# dilewati dan aplikasi lama bekerja seperti sebelumnya.
+# ---------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Isi v2 selain public/ (storage, vendor, .env, sesi) tidak boleh
+    # diminta langsung; dan v2/public/ hanya lewat penerusan di bawah,
+    # bukan lewat alamat /v2/public/... (REDIRECT_STATUS terisi waktu
+    # permintaan datang dari RewriteRule internal).
+    RewriteRule ^v2/(?!public/) - [F,L]
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
+    RewriteRule ^v2/public/ - [F,L]
+
+    RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
+    RewriteRule ^(build|img|uploads)/(.+)$ v2/public/$1/$2 [L]
+
+    RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
+    RewriteRule ^favicon\.ico$ v2/public/favicon.ico [L]
+
+    RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
+    RewriteRule ^$ v2/public/index.php [L]
+
+    RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
+    RewriteRule ^generator(/.*)?$ v2/public/index.php [L]
+</IfModule>
 
 # Sembunyikan versi PHP di header
 <IfModule mod_headers.c>

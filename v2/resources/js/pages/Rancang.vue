@@ -84,7 +84,7 @@ async function bacaLaluRancang() {
 
     try {
         const baca = await kirimUlang<any>(
-            '/rancang/baca',
+            route('rancang.baca'),
             { cerita: cerita.value, detik_total: 0 },
             { lapor: (t) => (kabarSambungan.value = t) },
         );
@@ -105,7 +105,7 @@ async function bacaLaluRancang() {
 async function susun() {
     if (!ekstrak.value) return;
 
-    const jawab = await kirim<any>('/rancang/susun', {
+    const jawab = await kirim<any>(route('rancang.susun'), {
         ekstrak: ekstrak.value,
         target: target.value,
         rasio: rasio.value,
@@ -134,7 +134,7 @@ async function simpan() {
     if (!ekstrak.value) return;
     pesanSimpan.value = '';
     try {
-        const jawab = await kirim<any>('/rancang/simpan', {
+        const jawab = await kirim<any>(route('rancang.simpan'), {
             cerita: cerita.value,
             ekstrak: ekstrak.value,
             opsi: { target: target.value, rasio: rasio.value, gaya_id: gayaId.value },
@@ -150,7 +150,7 @@ async function buka(id: number) {
     galat.value = '';
     tahap.value = 'menyusun';
     try {
-        const jawab = await kirim<any>(`/rancang/buka/${id}`, undefined, 'GET');
+        const jawab = await kirim<any>(route('rancang.buka', id), undefined, 'GET');
         cerita.value = jawab.cerita ?? '';
         ekstrak.value = jawab.ekstrak;
         if (jawab.opsi?.target) target.value = jawab.opsi.target;
