@@ -1,0 +1,395 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   TEMA — arena tinju malam hari
+   =====================================================================
+
+   Tata letaknya mengikuti pola Vuexy: sidebar tetap, kartu bersudut
+   besar, bayangan lembut, warna utama ungu. Warnanya digeser ke arena
+   tinju: ungu sorot lampu, magenta sudut ring, dan latar biru-hitam
+   yang gelapnya cukup supaya gambar anime jadi yang paling terang di
+   layar.
+
+   Semua warna disimpan sebagai tiga angka HSL tanpa pembungkus, karena
+   itu bentuk yang dipakai komponen bawaan (hsl(var(--primary)) dan
+   hsl(var(--primary) / 0.4) untuk versi transparannya).
+   ===================================================================== */
+
+@layer base {
+    :root {
+        --background: 250 30% 97%;
+        --foreground: 245 30% 12%;
+
+        --card: 0 0% 100%;
+        --card-foreground: 245 30% 12%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 245 30% 12%;
+
+        --primary: 255 85% 66%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 250 25% 94%;
+        --secondary-foreground: 245 30% 20%;
+
+        --muted: 250 25% 95%;
+        --muted-foreground: 245 12% 45%;
+
+        --accent: 250 30% 94%;
+        --accent-foreground: 245 30% 20%;
+
+        --destructive: 355 85% 58%;
+        --destructive-foreground: 0 0% 100%;
+
+        --border: 250 20% 88%;
+        --input: 250 20% 88%;
+        --ring: 255 85% 66%;
+
+        /* Warna khas arena, dipakai untuk sorot dan aksen */
+        --sorot: 255 85% 66%;      /* lampu ungu */
+        --sudut: 336 100% 60%;     /* tali sudut magenta */
+        --kanvas: 30 95% 58%;      /* pantulan lampu di kanvas */
+
+        --radius: 0.85rem;
+
+        --sidebar-background: 0 0% 100%;
+        --sidebar-foreground: 245 20% 30%;
+        --sidebar-primary: 255 85% 66%;
+        --sidebar-primary-foreground: 0 0% 100%;
+        --sidebar-accent: 250 30% 95%;
+        --sidebar-accent-foreground: 245 30% 20%;
+        --sidebar-border: 250 20% 90%;
+        --sidebar-ring: 255 85% 66%;
+    }
+
+    .dark {
+        --background: 244 32% 7%;
+        --foreground: 250 30% 94%;
+
+        --card: 245 28% 11%;
+        --card-foreground: 250 30% 94%;
+        --popover: 245 30% 10%;
+        --popover-foreground: 250 30% 94%;
+
+        --primary: 255 90% 72%;
+        --primary-foreground: 245 40% 10%;
+
+        --secondary: 245 22% 17%;
+        --secondary-foreground: 250 30% 92%;
+
+        --muted: 245 22% 16%;
+        --muted-foreground: 248 15% 65%;
+
+        --accent: 245 25% 18%;
+        --accent-foreground: 250 30% 94%;
+
+        --destructive: 355 85% 62%;
+        --destructive-foreground: 0 0% 100%;
+
+        --border: 245 20% 20%;
+        --input: 245 20% 22%;
+        --ring: 255 90% 72%;
+
+        --sorot: 255 90% 72%;
+        --sudut: 336 100% 64%;
+        --kanvas: 32 96% 62%;
+
+        --sidebar-background: 245 30% 9%;
+        --sidebar-foreground: 248 20% 72%;
+        --sidebar-primary: 255 90% 72%;
+        --sidebar-primary-foreground: 245 40% 10%;
+        --sidebar-accent: 245 25% 15%;
+        --sidebar-accent-foreground: 250 30% 94%;
+        --sidebar-border: 245 20% 18%;
+        --sidebar-ring: 255 90% 72%;
+    }
+
+    * {
+        @apply border-border;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+        text-rendering: optimizeSpeed;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Penggeser yang ikut temanya, bukan abu-abu bawaan Windows. */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--border)) transparent;
+    }
+
+    *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background: hsl(var(--border));
+        border-radius: 99px;
+        border: 3px solid transparent;
+        background-clip: content-box;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.5);
+        background-clip: content-box;
+    }
+}
+
+/* =====================================================================
+   GERAK
+   =====================================================================
+
+   Aturannya satu: yang bergerak hanya transform dan opacity. Keduanya
+   dikerjakan penyusun (compositor) tanpa menghitung ulang tata letak,
+   jadi tetap 60fps di laptop kentang — sementara animasi yang menggeser
+   width, top, atau box-shadow membuat browser menghitung ulang seluruh
+   halaman tiap frame.
+
+   MODE HEMAT (data-hemat="1" di <html>) mematikan semuanya sekaligus.
+   Dinyalakan sendiri kalau perangkatnya lemah — lihat usePerf.ts — atau
+   kalau sistem memang meminta gerak dikurangi.
+   ===================================================================== */
+
+@layer components {
+    /* --- muncul saat masuk layar --- */
+    .reveal {
+        opacity: 0;
+        transform: translate3d(0, 18px, 0);
+        transition:
+            opacity 0.55s cubic-bezier(0.22, 0.68, 0.3, 1),
+            transform 0.55s cubic-bezier(0.22, 0.68, 0.3, 1);
+        transition-delay: var(--d, 0ms);
+        will-change: opacity, transform;
+    }
+
+    .reveal-kiri {
+        transform: translate3d(-22px, 0, 0);
+    }
+
+    .reveal-skala {
+        transform: scale(0.96);
+    }
+
+    .reveal.is-in {
+        opacity: 1;
+        transform: none;
+        will-change: auto;
+    }
+
+    /* --- kartu --- */
+    .kartu {
+        @apply rounded-2xl border border-border/70 bg-card text-card-foreground;
+        box-shadow: 0 1px 2px hsl(245 40% 10% / 0.04), 0 8px 24px -12px hsl(245 40% 10% / 0.12);
+    }
+
+    .dark .kartu {
+        box-shadow: 0 1px 2px hsl(0 0% 0% / 0.3), 0 12px 32px -16px hsl(0 0% 0% / 0.6);
+    }
+
+    .kartu-angkat {
+        transition:
+            transform 0.35s cubic-bezier(0.22, 0.68, 0.3, 1),
+            border-color 0.35s ease;
+    }
+
+    .kartu-angkat:hover {
+        transform: translate3d(0, -4px, 0);
+        border-color: hsl(var(--sorot) / 0.5);
+    }
+
+    /* --- tombol utama dengan sorot --- */
+    .tombol-sorot {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        transition: transform 0.2s cubic-bezier(0.22, 0.68, 0.3, 1);
+    }
+
+    .tombol-sorot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(120deg, hsl(var(--sorot)), hsl(var(--sudut)));
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .tombol-sorot:hover::after {
+        opacity: 1;
+    }
+
+    .tombol-sorot:active {
+        transform: scale(0.97);
+    }
+
+    /* --- cahaya latar: satu gambar gradien, tanpa blur --- *
+     * backdrop-filter dan filter: blur() menyiksa GPU lemah. Efek
+     * "aurora" yang sama didapat dari radial-gradient yang memang sudah
+     * lembut, lalu digeser pelan-pelan dengan transform.                */
+    .aurora {
+        position: absolute;
+        inset: -20%;
+        z-index: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(38% 42% at 18% 26%, hsl(var(--sorot) / 0.28), transparent 70%),
+            radial-gradient(34% 38% at 82% 20%, hsl(var(--sudut) / 0.22), transparent 72%),
+            radial-gradient(44% 46% at 60% 88%, hsl(var(--kanvas) / 0.14), transparent 72%);
+        animation: aurora-geser 26s ease-in-out infinite alternate;
+    }
+
+    @keyframes aurora-geser {
+        from {
+            transform: translate3d(-2%, -1%, 0) scale(1);
+        }
+        to {
+            transform: translate3d(2%, 2%, 0) scale(1.06);
+        }
+    }
+
+    /* --- garis lari (ticker) --- */
+    .berjalan {
+        display: flex;
+        width: max-content;
+        animation: berjalan-kiri var(--lama, 38s) linear infinite;
+    }
+
+    @keyframes berjalan-kiri {
+        from {
+            transform: translate3d(0, 0, 0);
+        }
+        to {
+            transform: translate3d(-50%, 0, 0);
+        }
+    }
+
+    /* --- kilau pada judul besar --- */
+    .teks-sorot {
+        background: linear-gradient(100deg, hsl(var(--foreground)) 30%, hsl(var(--sorot)) 50%, hsl(var(--sudut)) 62%, hsl(var(--foreground)) 82%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        animation: sapu 7s ease-in-out infinite;
+    }
+
+    @keyframes sapu {
+        0%,
+        100% {
+            background-position: 120% 0;
+        }
+        50% {
+            background-position: -20% 0;
+        }
+    }
+
+    /* --- denyut pelan untuk penanda "sedang jalan" --- */
+    .denyut {
+        animation: denyut 1.8s ease-in-out infinite;
+    }
+
+    @keyframes denyut {
+        0%,
+        100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.55;
+            transform: scale(0.94);
+        }
+    }
+
+    /* --- rangka muat (skeleton) --- */
+    .rangka {
+        background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.12) 37%, hsl(var(--muted)) 63%);
+        background-size: 400% 100%;
+        animation: rangka-jalan 1.4s ease infinite;
+    }
+
+    @keyframes rangka-jalan {
+        from {
+            background-position: 100% 0;
+        }
+        to {
+            background-position: -100% 0;
+        }
+    }
+
+    /* --- garis tali ring sebagai pemisah --- */
+    .tali {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, hsl(var(--sudut) / 0.5), hsl(var(--sorot) / 0.5), transparent);
+    }
+}
+
+/* =====================================================================
+   MODE HEMAT — satu saklar untuk semua
+   =====================================================================
+   Yang dimatikan: animasi berulang (aurora, ticker, kilau, rangka) dan
+   transisi yang tidak membawa arti. Yang DIPERTAHANKAN: keadaan akhirnya,
+   supaya isi halaman tetap terlihat utuh — bukan halaman kosong karena
+   .reveal tidak pernah dapat kelas .is-in.
+   ===================================================================== */
+
+html[data-hemat='1'] .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+}
+
+html[data-hemat='1'] .aurora,
+html[data-hemat='1'] .berjalan,
+html[data-hemat='1'] .teks-sorot,
+html[data-hemat='1'] .denyut,
+html[data-hemat='1'] .rangka {
+    animation: none !important;
+}
+
+html[data-hemat='1'] .teks-sorot {
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: hsl(var(--foreground));
+}
+
+html[data-hemat='1'] .aurora {
+    opacity: 0.55;
+}
+
+html[data-hemat='1'] .kartu-angkat:hover {
+    transform: none;
+}
+
+html[data-hemat='1'] * {
+    scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    .aurora,
+    .berjalan,
+    .teks-sorot,
+    .denyut,
+    .rangka {
+        animation: none !important;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+}

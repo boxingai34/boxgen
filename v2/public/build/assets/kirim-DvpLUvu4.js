@@ -1,0 +1,11 @@
+import{c as u}from"./boxes-DFekT2Ny.js";/**
+ * @license lucide-vue-next v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const g=u("CheckIcon",[["path",{d:"M20 6 9 17l-5-5",key:"1gmf2c"}]]);/**
+ * @license lucide-vue-next v0.468.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const k=u("CopyIcon",[["rect",{width:"14",height:"14",x:"8",y:"8",rx:"2",ry:"2",key:"17jyea"}],["path",{d:"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",key:"zix9uf"}]]);function h(){const a=document.cookie.split("; ").find(e=>e.startsWith("XSRF-TOKEN="));return a?decodeURIComponent(a.slice(11)):""}class c extends Error{constructor(e,n){super(e),this.status=n,this.name="GalatKirim"}}async function d(a,e,n="POST"){var o;const s=await fetch(a,{method:n,credentials:"same-origin",headers:{"Content-Type":"application/json",Accept:"application/json","X-Requested-With":"XMLHttpRequest","X-XSRF-TOKEN":h()},body:e===void 0?void 0:JSON.stringify(e)});let t=null;try{t=await s.json()}catch{throw new c("Server membalas bukan JSON. Coba muat ulang halaman.",s.status)}if(!s.ok||(t==null?void 0:t.ok)===!1){const r=t!=null&&t.errors?(o=Object.values(t.errors)[0])==null?void 0:o[0]:null;throw new c((t==null?void 0:t.error)||r||(t==null?void 0:t.message)||`Gagal (HTTP ${s.status}).`,s.status)}return t}async function f(a,e,n={}){var o;const s=n.ulang??4,t=[15e3,25e3,4e4,6e4];for(let r=0;r<=s;r++)try{return await d(a,e)}catch(i){if(!(!(i instanceof c)||[0,502,503,504].includes(i.status))||r===s)throw i;const l=Math.round(t[Math.min(r,t.length-1)]/1e3);(o=n.lapor)==null||o.call(n,`Sambungan terputus, tapi pekerjaannya tetap jalan di server — mengambil hasilnya ${l} detik lagi…`),await new Promise(m=>setTimeout(m,t[Math.min(r,t.length-1)]))}throw new c("Gagal menghubungi server.",0)}async function w(a){try{return await navigator.clipboard.writeText(a),!0}catch{try{const e=document.createElement("textarea");e.value=a,e.style.position="fixed",e.style.opacity="0",document.body.appendChild(e),e.select();const n=document.execCommand("copy");return document.body.removeChild(e),n}catch{return!1}}}export{g as C,c as G,k as a,d as b,f as k,w as s};
