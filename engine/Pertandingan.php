@@ -817,7 +817,13 @@ TXT;
         if ($akhir) {
             // Babak penutup urutannya tidak boleh diacak — pukulan penentu
             // harus datang sebelum akibatnya.
-            $inti   = self::shotsAkhir($cara, $M, $K, $menang, $kalah, $adegan);
+            // Beberapa kalimat penutup memakai penanda kata ganti, dan tanpa
+            // ganti() di sini "{dia} drops out of frame" sampai ke prompt
+            // apa adanya.
+            $inti   = array_map(
+                static fn(array $sh): array => ['action' => self::ganti($sh['action'], $jk[$kalah] ?? 'female')] + $sh,
+                self::shotsAkhir($cara, $M, $K, $menang, $kalah, $adegan)
+            );
             $kurang = max(0, $mau - count($inti));
             $depan  = self::rakit('tekan', $kurang, $i, $M, $K, $menang, $kalah, $nama, $luka, $jk);
             return array_merge($depan, $inti);
@@ -994,7 +1000,7 @@ TXT;
     }
 
     /** Reaksi singkat lawan terhadap jenis pukulan yang mendarat. */
-    private static function reaksi(string $kunci, string $tag): string
+    public static function reaksi(string $kunci, string $tag): string
     {
         // Liver shot punya reaksi yang khas dan itu justru bagian paling
         // menarik untuk dianimasikan: rasa sakitnya langsung, tapi tekanan
@@ -1038,7 +1044,7 @@ TXT;
         return self::rakit($babak, $berapa, $klip, $M, $K, $menang, $kalah, [], null, $jk);
     }
 
-    private const GERAK = [
+    public const GERAK = [
         'impact'    => 'A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and sweat droplets spray off in an arc',
         'smear'     => 'The fastest part of the swing draws out into a smear frame, the glove leaving a painted trail behind it',
         'twos'      => 'The movement holds on twos while they circle, then snaps into full framerate for the punch itself',
@@ -1180,7 +1186,7 @@ TXT;
      *
      * @see https://boxingwiki.org/techniques/punches
      */
-    private const TEKNIK = [
+    public const TEKNIK = [
         // ---------- pukulan lurus ----------
         'jab' => [
             'nama'  => 'Jab',

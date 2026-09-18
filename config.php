@@ -132,7 +132,14 @@ defined('AI_CERITA_PROVIDER') || define('AI_CERITA_PROVIDER', 'openai_compatible
 defined('AI_CERITA_MODEL')    || define('AI_CERITA_MODEL', 'qwen3-vl-235b-a22b');
 defined('AI_CERITA_BASE_URL') || define('AI_CERITA_BASE_URL', VENICE_BASE_URL);
 defined('AI_CERITA_API_KEY')  || define('AI_CERITA_API_KEY', '');
-defined('AI_CERITA_TIMEOUT')  || define('AI_CERITA_TIMEOUT', 120);
+// 240, bukan 120. Membaca cerita sekarang dua panggilan, dan jawaban
+// masing-masing tiga ribuan token — langkah tiap shot untuk video tiga
+// setengah menit. Kecepatan Venice naik-turun antara 50 dan 100 token per
+// detik, jadi di jam sibuk satu jawaban bisa lewat dua menit. Dengan 120,
+// qwen diputus di tengah jalan dan pembacaannya jatuh ke model cadangan
+// yang jauh lebih lemah. Batas 60 detik hosting tidak terpengaruh:
+// halaman memang sudah menunggu dan mengambil hasilnya belakangan.
+defined('AI_CERITA_TIMEOUT')  || define('AI_CERITA_TIMEOUT', 240);
 
 // Pembuat GAMBAR LATAR (tombol "Buat gambarnya" di tab Latar).
 //

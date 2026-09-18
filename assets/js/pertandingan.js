@@ -699,7 +699,12 @@ function renderAdegan() {
             return nama(id) + (kk ? ' (' + kk.nama + ')' : '');
         }).join(' + ');
         baris.appendChild(kiri);
-        baris.appendChild(el('span', null, a.detik + 's · ' + isi));
+        // Banyaknya langkah = banyaknya shot yang ditulis dari ceritamu.
+        // Kalau tahap langkahnya gagal, angka ini yang pertama terlihat
+        // janggal, jauh sebelum kamu membaca promptnya satu per satu.
+        const langkah = (a.langkah && a.langkah.length) || (a.kejadian && a.kejadian.length) || 0;
+        baris.appendChild(el('span', null, a.detik + 's · '
+            + (langkah ? langkah + ' langkah · ' : '') + isi));
         box.appendChild(baris);
     });
 }

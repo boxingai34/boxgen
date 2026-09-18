@@ -621,6 +621,13 @@ TXT;
                 'id'                   => $sisi[$i],
                 'sex'                  => $sex,
                 'sex_evidence'         => $teks($s['sex_evidence'] ?? '', 200),
+                // Tiga kunci dari mode cerita, yang tahu nama dan bentuk
+                // badan tokohnya dari tulisanmu, bukan dari gambar. Harus
+                // disebut di sini: normalisasi membangun ulang subjek dari
+                // nol, dan kunci yang tidak disebut hilang diam-diam.
+                'nama'                 => $teks($s['nama'] ?? '', 60),
+                'fisik'                => $teks($s['fisik'] ?? '', 120),
+                'karakter_ketat'       => !empty($s['karakter_ketat']),
                 'character'            => $char,
                 'character_confidence' => $skor($s['character_confidence'] ?? 0),
                 // Ditandai halaman waktu kamu mengganti sendiri nama
@@ -792,7 +799,11 @@ TXT;
                     'camera'      => $teks($sh['camera'] ?? '', 160),
                     'camera_move' => TagResolver::normalize((string)($sh['camera_move'] ?? 'static')) ?: 'static',
                     'actor'       => $sisiSah($sh['actor'] ?? null),
-                    'action'      => $teks($sh['action'] ?? '', 500),
+                    // 1200, bukan 500. Kalimat shot yang dirakit — pukulan,
+                    // reaksi, efek animasi, dan luka yang muncul — mudah lewat
+                    // 500 huruf, dan dipotong di sini hasilnya "her elbow
+                    // stays clamped to her s." sampai ke prompt.
+                    'action'      => $teks($sh['action'] ?? '', 1200),
                     'sound'       => $teks($sh['sound'] ?? '', 200),
                 ];
             }
@@ -824,7 +835,7 @@ TXT;
 
         foreach ($ekstrak['subjects'] as $i => $s) {
             $sisi = $s['id'];
-            $row  = self::cariKarakter($s['character'], $s['series']);
+            $row  = self::cariKarakter($s['character'], $s['series'], !empty($s['karakter_ketat']));
 
             if ($row !== null) {
                 $karakter[$sisi] = $row;
@@ -1034,9 +1045,16 @@ TXT;
      * kamus (kategori 4) → pencarian nama (persis/awalan). Tebakan yang
      * tidak ketemu tidak pernah dibuatkan baris baru.
      *
+     * $ketat: hanya tag persis, tanpa pencarian longgar. Dipakai mode
+     * cerita, yang tag karakternya ditulis ceritamu atau pembaca yang
+     * yakin — bukan tebakan dari gambar. Pencarian longgar di sana justru
+     * berbahaya: "eve_(shuumatsu_no_valkyrie)" yang belum ada di kamus
+     * dicocokkan ke "maria_cadenzavna_eve", tokoh dari seri lain, dan
+     * kartu acuannya menggambar orang yang salah.
+     *
      * @return ?array ['tag','name','series','id']
      */
-    private static function cariKarakter(?string $tebakan, ?string $seri): ?array
+    private static function cariKarakter(?string $tebakan, ?string $seri, bool $ketat = false): ?array
     {
         if ($tebakan === null || $tebakan === '') {
             return null;
@@ -1049,7 +1067,7 @@ TXT;
         if ($seri !== null && $seri !== '' && !str_contains($tag, '(')) {
             $kandidat[] = $tag . '_(' . TagResolver::normalize($seri) . ')';
         }
-        if ($inti !== $tag) {
+        if ($inti !== $tag && !$ketat) {
             $kandidat[] = $inti;
         }
 
@@ -1061,6 +1079,10 @@ TXT;
             if ($row !== null && (int)$row['category'] === 4) {
                 return self::rowKarakter($row['name']);
             }
+        }
+
+        if ($ketat) {
+            return null;
         }
 
         // BAGIAN YANG PALING SERING MENYELAMATKAN TEBAKAN MODEL.
@@ -2335,55 +2357,75 @@ TXT;
      */
     private static function buangUlangan(array $wajib, string $prosa): array
     {
-        $kata = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($prosa)) ?? '')) ?: [];
-        if ($kata === []) {
+        $posisi = self::posisiKata($prosa);
+        if ($posisi === []) {
             return $wajib;
         }
 
-        $posisi = [];
-        foreach ($kata as $i => $w) {
-            $posisi[$w][] = $i;
-        }
-
-        $sudahAda = static function (string $tag) use ($posisi): bool {
-            $bagian = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($tag)) ?? '')) ?: [];
-            if ($bagian === [] || $bagian[0] === '') {
-                return false;
-            }
-            foreach ($bagian as $b) {
-                if (!isset($posisi[$b])) {
-                    return false;
-                }
-            }
-
-            // Semua katanya ada — tapi harus BERURUTAN dan berdekatan,
-            // supaya "black gloves" cocok dengan "black boxing gloves"
-            // sementara "red corner" tidak cocok dengan "a red bulb over
-            // the corner posts".
-            $jendela = count($bagian) + 2;
-            foreach ($posisi[$bagian[0]] as $mulai) {
-                $ke = $mulai;
-                $ok = true;
-                foreach (array_slice($bagian, 1) as $b) {
-                    $maju = null;
-                    foreach ($posisi[$b] as $p) {
-                        if ($p > $ke && $p - $mulai < $jendela) { $maju = $p; break; }
-                    }
-                    if ($maju === null) { $ok = false; break; }
-                    $ke = $maju;
-                }
-                if ($ok) {
-                    return true;
-                }
-            }
-
-            return false;
-        };
-
         return array_values(array_filter(
             $wajib,
-            static fn(array $it): bool => !$sudahAda((string)($it['name'] ?? ''))
+            static fn(array $it): bool => !self::tertulisDi((string)($it['name'] ?? ''), $posisi)
         ));
+    }
+
+    /**
+     * Letak tiap kata dalam sebuah kalimat, untuk tertulisDi().
+     *
+     * @return array<string, int[]>
+     */
+    private static function posisiKata(string $kalimat): array
+    {
+        $kata = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($kalimat)) ?? '')) ?: [];
+
+        $posisi = [];
+        foreach ($kata as $i => $w) {
+            if ($w !== '') {
+                $posisi[$w][] = $i;
+            }
+        }
+
+        return $posisi;
+    }
+
+    /**
+     * Apakah isi sebuah tag sudah tertulis di kalimat yang posisinya diberikan?
+     *
+     * Semua katanya harus ada, BERURUTAN dan berdekatan, supaya "black
+     * gloves" cocok dengan "black boxing gloves" sementara "red corner"
+     * tidak cocok dengan "a red bulb over the corner posts".
+     *
+     * @param array<string, int[]> $posisi hasil posisiKata()
+     */
+    private static function tertulisDi(string $tag, array $posisi): bool
+    {
+        $bagian = preg_split('/\s+/', trim(preg_replace('/[^a-z0-9]+/', ' ', mb_strtolower($tag)) ?? '')) ?: [];
+        if ($bagian === [] || $bagian[0] === '') {
+            return false;
+        }
+        foreach ($bagian as $b) {
+            if (!isset($posisi[$b])) {
+                return false;
+            }
+        }
+
+        $jendela = count($bagian) + 2;
+        foreach ($posisi[$bagian[0]] as $mulai) {
+            $ke = $mulai;
+            $ok = true;
+            foreach (array_slice($bagian, 1) as $b) {
+                $maju = null;
+                foreach ($posisi[$b] as $p) {
+                    if ($p > $ke && $p - $mulai < $jendela) { $maju = $p; break; }
+                }
+                if ($maju === null) { $ok = false; break; }
+                $ke = $maju;
+            }
+            if ($ok) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function bangunNovelAI(array $items, array $sel, array $e, string $prosa): array
@@ -2828,7 +2870,10 @@ TXT;
             $bawaan = ['referee' => 'The referee', 'second' => 'The corner second',
                         'bystander' => 'Bystander ' . strtoupper($s['id'])][$s['role'] ?? 'fighter']
                     ?? ('Boxer ' . strtoupper($s['id']));
-            $nama = $char['name'] ?? $bawaan;
+            // Nama yang ditulis ceritamu menang atas nama dari database:
+            // kalimat shotnya memakai nama itu, dan jangkar "Image N is"
+            // harus menyebut nama yang sama supaya keduanya tersambung.
+            $nama = ($s['nama'] ?? '') !== '' ? $s['nama'] : ($char['name'] ?? $bawaan);
             $orang[$s['id']] = [
                 'id'     => $s['id'],
                 'nomor'  => $n++,
@@ -2939,8 +2984,61 @@ TXT;
             // ditandai alarm ponsel.
             'tanda_ronde'  => array_key_exists('tanda_ronde', $e['environment'])
                 ? trim((string)$e['environment']['tanda_ronde']) : 'the bell',
+            // Apakah shot klip INI memang membunyikan tanda rondenya. Blok
+            // audio dulu menyebut "a gong strike" di setiap klip, dan model
+            // memperlakukan daftar suara itu sebagai daftar yang harus
+            // terdengar — gong berbunyi di tengah-tengah hujan pukulan.
+            'tanda_dipakai' => self::tandaDipakai($shots, array_key_exists('tanda_ronde', $e['environment'])
+                ? (string)$e['environment']['tanda_ronde'] : 'the bell'),
+            // Ada clinch, dorongan, atau kuncian di shotnya? Kalau ada,
+            // larangan "no grappling" harus memberi tempat untuknya —
+            // kalau tidak, prompt yang sama menyuruh dan melarang clinch.
+            'pegang'   => self::adaPegangan($shots),
             'nsfw_ada' => self::adaKetelanjangan($e),
         ];
+    }
+
+    /** Apakah salah satu shot menyebut bunyi tanda rondenya? */
+    private static function tandaDipakai(array $shots, string $tanda): bool
+    {
+        // Kata umum yang juga muncul di kalimat pukulan tidak dihitung:
+        // "strike" ada di "a gong strike" dan juga di "every strike".
+        $umum = ['strike', 'strikes', 'sound', 'sounds', 'ringing', 'ring', 'rings', 'ringside', 'loud', 'single',
+                 'final', 'sharp', 'distant', 'the'];
+        $kata = array_filter(
+            preg_split('/[^a-z]+/', strtolower($tanda)) ?: [],
+            static fn(string $k): bool => strlen($k) >= 4 && !in_array($k, $umum, true)
+        );
+        if ($kata === []) {
+            return false;
+        }
+
+        foreach ($shots as $sh) {
+            $teks = strtolower((string)($sh['action'] ?? '') . ' ' . (string)($sh['sound'] ?? ''));
+            foreach ($kata as $k) {
+                if (preg_match('/\b' . preg_quote($k, '/') . '\b/', $teks) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** Apakah ada yang memegang, mendorong, atau mengunci di shot-shot ini? */
+    private static function adaPegangan(array $shots): bool
+    {
+        foreach ($shots as $sh) {
+            if (preg_match(
+                '/\b(clinch\w*|grab\w*|grip\w*|pins?|pinned|pinning|shov\w*|ties? up the arms|'
+                . 'hooks? (?:her|his|their) arms|drap\w*|trapp\w*)\b/i',
+                (string)($sh['action'] ?? '')
+            ) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Daftar ciri stabil untuk baris jangkar "Image N is NAME — ciri." (maks 9). */
@@ -2971,7 +3069,19 @@ TXT;
         if ($a['footwear'] !== '' && !preg_match('/^(none|barefoot)/', $a['footwear'])) {
             $lain[] = $a['footwear'];
         }
+
+        // Tag pakaian yang isinya sudah tertulis di kalimat pakaiannya tidak
+        // diulang, dan sisanya ditulis sebagai kata biasa. Dulu jangkarnya
+        // berbunyi "green bikini top and bottom, black boots, black boxing
+        // gloves, bikini, green_bikini, black_boots, boxing_gloves" — tiap
+        // benda disebut dua kali, separuhnya dengan garis bawah yang bukan
+        // bahasa siapa pun kecuali Danbooru.
+        $sudahAda = ($a['verbatim'] ?? '') !== '' ? self::posisiKata((string)$a['verbatim']) : [];
         foreach ($a['other'] as $x) {
+            $x = str_replace('_', ' ', $x);
+            if ($sudahAda !== [] && self::tertulisDi($x, $sudahAda)) {
+                continue;
+            }
             $lain[] = $x;
         }
         foreach ($s['body'] as $t) {
@@ -2980,7 +3090,13 @@ TXT;
             }
         }
 
-        $ciri = array_merge($rambut, $mata, $sarung !== '' ? [$sarung] : [], array_slice($lain, 0, 5));
+        // Bentuk badan yang disebut ceritamu ("slender, soft build") ditaruh
+        // sesudah rambut dan mata, sebelum pakaian — itu ciri tubuh, bukan
+        // pakaian, dan tanpa kalimat ini petinju digambar berotot.
+        $fisik = trim((string)($s['fisik'] ?? ''));
+
+        $ciri = array_merge($rambut, $mata, $fisik !== '' ? [$fisik] : [],
+                            $sarung !== '' ? [$sarung] : [], array_slice($lain, 0, 5));
 
         // Daftar larangan berlaku di sini juga. Lembar acuan petinju dibuat
         // di NovelAI, jadi kalau mouth guard buruk di sana, menyebutnya di
@@ -3109,9 +3225,20 @@ TXT;
         }
 
         $bagian[] = self::batasanWan($r);
-        $bagian[] = self::blokAudio((bool)$r['bertinju'], (string)($r['tanda_ronde'] ?? 'the bell'));
+        $bagian[] = self::blokAudio(
+            (bool)$r['bertinju'],
+            !empty($r['tanda_dipakai']) ? (string)($r['tanda_ronde'] ?? 'the bell') : '',
+            !empty($r['latar_ring']),
+            self::adaPenonton($r)
+        );
 
         return implode("\n\n", array_filter($bagian));
+    }
+
+    /** Apakah rencana ini punya penonton? Satu tempat untuk semua yang menanyakannya. */
+    private static function adaPenonton(array $r): bool
+    {
+        return !in_array((string)($r['penonton'] ?? 'packed'), ['none', 'kosong', ''], true);
     }
 
     /**
@@ -3131,26 +3258,39 @@ TXT;
      * apa pun": larangan yang cuma menyebut musik LATAR bisa dibaca
      * sebagai izin untuk musik yang tidak di latar.
      */
-    private static function blokAudio(bool $bertinju = true, string $tandaRonde = 'the bell'): string
-    {
+    private static function blokAudio(
+        bool $bertinju = true, string $tandaRonde = 'the bell', bool $ring = true, bool $penonton = false
+    ): string {
         // Daftar suaranya harus milik adegan itu. Menyebut sarung tangan,
         // tali ring, dan bel di adegan menunggu di sofa bukan cuma janggal —
         // model video membaca deskripsi suara sebagai petunjuk isi gambar,
         // jadi menyebut ring sama saja meminta ring digambar di ruang tamu.
+        // Sebaliknya juga: "doors and furniture" di istirahat antar ronde
+        // di tengah colosseum.
         //
         // Belnya pun tidak selalu ada. Pertandingan di gudang rumah ditandai
         // alarm ponsel, dan menyebut bel di situ menyuruh model mengarang
-        // ring resmi lengkap dengan pengurusnya.
+        // ring resmi lengkap dengan pengurusnya. Yang memanggil hanya
+        // mengisinya kalau klip itu memang membunyikannya.
+        //
+        // Penonton yang ADA ikut terdengar. Tribun penuh yang diam total
+        // sama anehnya dengan penonton yang dikarang di ring kosong.
         $tanda = trim($tandaRonde) !== '' ? rtrim(trim($tandaRonde), '.') . ', ' : '';
 
-        $isi = $bertinju
-            ? 'Gloves hitting flesh and guard, feet on canvas, breathing and grunts, '
-              . 'ropes creaking, ' . $tanda . 'and whatever room tone the venue has.'
-            : 'Footsteps, clothing, doors and furniture, breathing, and the room tone '
-              . 'of the place itself.';
+        if ($bertinju) {
+            $isi = 'Gloves hitting flesh and guard, feet on canvas, breathing and grunts, '
+                 . 'ropes creaking, ' . $tanda . ($penonton ? 'the crowd reacting, ' : '')
+                 . 'and whatever room tone the venue has.';
+        } elseif ($ring) {
+            $isi = 'Breathing, gloves brushing the ropes, feet shifting on canvas, ' . $tanda
+                 . ($penonton ? 'the crowd murmuring, ' : '') . 'and the room tone of the venue itself.';
+        } else {
+            $isi = 'Footsteps, clothing, doors and furniture, breathing, and the room tone '
+                 . 'of the place itself.';
+        }
 
         return 'Audio: diegetic sound only — everything heard must be something happening '
-             . 'inside the room. ' . $isi . ' '
+             . 'in the scene itself. ' . $isi . ' '
              . 'ABSOLUTELY NO MUSIC OF ANY KIND at any point: no score, no soundtrack, no theme, '
              . 'no drums, no strings, no synth, no hum or drone standing in for music, and no '
              . 'music fading in under the action at the end. If in doubt, leave the track silent '
@@ -3177,7 +3317,9 @@ TXT;
             'pull_out'    => 'the camera pulls out slowly',
             'pan'         => 'the camera pans to follow the movement',
             'tracking'    => 'the camera tracks alongside the fighters',
-            'orbit'       => 'the camera orbits around the fighters',
+            // Mengorbit penuh memindahkan petinju kiri ke kanan layar, padahal
+            // baris batasannya mengunci keduanya di sisi masing-masing.
+            'orbit'       => 'the camera arcs slowly around the fighters without crossing to their far side',
             'handheld'    => 'handheld camera with slight shake',
             'whip_pan'    => 'a whip pan into the action',
             'slow_motion' => 'the impact plays in slow motion',
@@ -3226,9 +3368,18 @@ TXT;
         // makin mendorong ke sana, karena model mencari gerakan kaki untuk
         // mengisi bingkainya.
         if ($r['bertinju']) {
-            $b[] = 'This is boxing: they strike with gloved hands only. No kicks, no knees, '
-                 . 'no elbows, no throws and no grappling at any point — the feet are only '
-                 . 'ever used for footwork.';
+            // Clinch dan lengan yang dikunci di tali memang bagian dari
+            // ceritanya. "No grappling at any point" di klip yang shotnya
+            // berisi clinch membuat prompt menyuruh dan melarang hal yang
+            // sama, jadi larangannya memberi tempat untuk pegangan yang
+            // memang tertulis — dan tetap melarang bantingan.
+            $b[] = !empty($r['pegang'])
+                ? 'This is boxing: every strike is thrown with a gloved hand. No kicks, no knees, no elbows, '
+                  . 'no throws and no takedowns — the only holding is the clinch or grip described in the shots, '
+                  . 'and the feet are only ever used for footwork.'
+                : 'This is boxing: they strike with gloved hands only. No kicks, no knees, '
+                  . 'no elbows, no throws and no grappling at any point — the feet are only '
+                  . 'ever used for footwork.';
         }
         if (count($r['orang']) === 2 && $r['bertinju']) {
             $kiri = null;
@@ -3255,7 +3406,7 @@ TXT;
         // menyebut sesuatu sebagai latar tetap saja menyebutnya ada. Lalu
         // beberapa baris kemudian ada kalimat lain yang bilang tidak ada
         // siapa-siapa, dan promptnya menyangkal dirinya sendiri.
-        $adaPenonton = !in_array((string)($r['penonton'] ?? 'packed'), ['none', 'kosong', ''], true);
+        $adaPenonton = self::adaPenonton($r);
         $adaWasit    = !empty($r['wasit']);
 
         $latar = [];
@@ -3327,9 +3478,21 @@ TXT;
                  . 'shifting weight, resetting stance and breathing the whole time';
         }
 
-        $id = Database::ingat('value', "SELECT id FROM modules WHERE type = 'video_tempo' AND slug = 'cepat' AND is_active = 1");
-        return $id === null ? 'Cut fast and often, every cut landing on a movement rather than between them'
-                            : SeedanceBuilder::kalimatModul((int)$id, 'video_tempo', true);
+        // Shot sekitar tiga detik tidak boleh disebut "under two seconds".
+        // Modul "cepat" dulu dipakai untuk semua yang di bawah 3,5 detik, jadi
+        // klip 11 detik berisi empat shot [0-3s][3-6s][6-9s][9-11s] sekaligus
+        // disuruh memotong di bawah dua detik — dua angka yang saling
+        // membantah, dan model mengikuti yang tertulis di daftar shot.
+        $slug = $rata >= 2.25 ? 'sedang' : 'cepat';
+        $id   = Database::ingat('value',
+            "SELECT id FROM modules WHERE type = 'video_tempo' AND slug = ? AND is_active = 1", [$slug]);
+        if ($id !== null) {
+            return SeedanceBuilder::kalimatModul((int)$id, 'video_tempo', true);
+        }
+
+        return $slug === 'sedang'
+            ? 'Keep a steady cutting rhythm, around three seconds a shot, every cut landing on a movement'
+            : 'Cut fast and often, every cut landing on a movement rather than between them';
     }
 
     private static function renderSeedance(array $r, bool $nsfw): string
@@ -3362,9 +3525,14 @@ TXT;
         $blok[] = '';
 
         $nama = implode(' and ', array_map(static fn(array $o) => mb_strtoupper($o['nama']), $r['orang']));
-        $blok[] = 'A ' . $r['durasi'] . '-second anime boxing match: ' . $nama
-                . (count($r['orang']) > 1 ? ' trade ' : ' works ') . $r['tempat']
-                . ', ' . $r['gaya'] . ', shot like a live boxing broadcast.';
+        // Adegan yang bukan pertandingan — istirahat antar ronde, penutup
+        // sesudah KO — tidak boleh dibuka dengan "boxing match ... trade".
+        $blok[] = !empty($r['bertinju'])
+            ? 'A ' . $r['durasi'] . '-second anime boxing match: ' . $nama
+              . (count($r['orang']) > 1 ? ' trade ' : ' works ') . $r['tempat']
+              . ', ' . $r['gaya'] . ', shot like a live boxing broadcast.'
+            : 'A ' . $r['durasi'] . '-second anime scene: ' . $nama . ' ' . $r['tempat']
+              . ', ' . self::gayaAdegan((string)$r['gaya'], false) . '.';
         $blok[] = '';
 
         foreach ($r['shots'] as $i => $sh) {
@@ -3394,15 +3562,33 @@ TXT;
 
         $b = [];
         $b[] = 'Throughout: lock every fighter strictly to their reference image — hair '
-             . 'colour, eye colour, glove colour and trunks never change. Keep the screen '
+             . 'colour, eye colour, glove colour and outfit never change. Keep the screen '
              . 'direction fixed so neither fighter swaps side of frame.';
-        $b[] = 'Only the two boxers read clearly; the referee and the crowd stay as soft '
-             . 'background bokeh. Every movement keeps weight, balance and follow-through, '
-             . 'and stays physically possible.';
+        // Wasit dan penonton disebut hanya kalau memang ada — sama seperti
+        // jalur Wan. Kalimat ini dulu paten, jadi ring tanpa wasit tetap
+        // disuruh menggambar wasit sebagai latar.
+        $latar = [];
+        if (!empty($r['wasit'])) {
+            $latar[] = 'the referee';
+        }
+        if (self::adaPenonton($r)) {
+            $latar[] = 'the crowd';
+        }
+        $b[] = ($latar === []
+                ? (count($r['orang']) === 1 ? 'Only the one person named above is in shot. '
+                                            : 'Only the ' . count($r['orang']) . ' people named above are in shot. ')
+                : 'Only the people named above read clearly; ' . implode(' and ', $latar)
+                  . (count($latar) === 1 ? ' stays' : ' stay') . ' as soft background bokeh. ')
+             . 'Every movement keeps weight, balance and follow-through, and stays physically possible.';
         // Sama seperti jalur Wan: tinju itu tangan saja, dan model video
         // tidak menganggapnya jelas dengan sendirinya.
-        $b[] = 'This is boxing: they strike with gloved hands only. No kicks, no knees, no '
-             . 'elbows, no throws and no grappling — the feet are only ever used for footwork.';
+        if (!empty($r['bertinju'])) {
+            $b[] = !empty($r['pegang'])
+                ? 'This is boxing: every strike is thrown with a gloved hand. No kicks, no knees, no elbows, no '
+                  . 'throws and no takedowns — the only holding is the clinch or grip described in the shots.'
+                : 'This is boxing: they strike with gloved hands only. No kicks, no knees, no '
+                  . 'elbows, no throws and no grappling — the feet are only ever used for footwork.';
+        }
         $b[] = 'Keep the silhouette readable in every key pose even at speed, with directional motion blur on the fastest limb, and let each cut land on a movement rather than between them.';
         $laju = self::kalimatTempo($r);
         if ($laju !== '') {
