@@ -63,6 +63,69 @@ class YoutubeTerbaru
     }
 
     /**
+     * Jumlah subscriber dan total tayangan kanal.
+     *
+     * Umpan Atom tidak memuatnya, jadi diambil dari halaman "about" kanal
+     * — dengan hl=en&gl=US, karena tanpa itu YouTube menjawab dalam bahasa
+     * tempat servernya berada ("2,07 rb subscriber"). Disimpan enam jam:
+     * angkanya tidak berubah tiap menit, dan halaman depan tidak boleh
+     * menunggu YouTube.
+     *
+     * @return array{subscribers?:string,views?:string}
+     */
+    public static function statistik(string $channelId): array
+    {
+        $channelId = trim($channelId);
+        if (! preg_match('/^UC[\w-]{20,}$/', $channelId)) {
+            return [];
+        }
+
+        $kunci = 'youtube-angka:' . $channelId;
+
+        $hasil = Cache::get($kunci);
+        if (is_array($hasil)) {
+            return $hasil;
+        }
+
+        try {
+            $html = self::klien()
+                ->timeout(8)
+                ->retry(2, 200, throw: false)
+                ->get('https://www.youtube.com/channel/' . $channelId . '/about', ['hl' => 'en', 'gl' => 'US'])
+                ->throw()
+                ->body();
+
+            $angka = [];
+            if (preg_match('/"subscriberCountText":"([^"]+)"/', $html, $m)) {
+                $angka['subscribers'] = self::angkaSaja($m[1]);
+            }
+            if (preg_match('/"viewCountText":"([^"]+)"/', $html, $m)) {
+                $angka['views'] = self::angkaSaja($m[1]);
+            }
+            if ($angka === []) {
+                throw new \RuntimeException('Angka kanal tidak ketemu');
+            }
+
+            Cache::put($kunci, $angka, now()->addHours(6));
+            Cache::forever($kunci . ':terakhir', $angka);
+
+            return $angka;
+        } catch (Throwable) {
+            $terakhir = Cache::get($kunci . ':terakhir');
+            $terakhir = is_array($terakhir) ? $terakhir : [];
+            Cache::put($kunci, $terakhir, now()->addMinutes(30));
+
+            return $terakhir;
+        }
+    }
+
+    /** "2.07K subscribers" -> "2.07K"; "470,476 views" -> "470,476". */
+    private static function angkaSaja(string $teks): string
+    {
+        return preg_match('/^([\d.,]+\s?[KMB]?)/u', trim($teks), $m) ? trim($m[1]) : trim($teks);
+    }
+
+    /**
      * Cari id kanal (UC...) dari alamat @handle.
      *
      * Halaman kanal menyimpan id-nya di beberapa tempat; yang paling

@@ -199,27 +199,28 @@ class LandingContent
             ],
 
             'hero' => [
-                'eyebrow'     => 'Vol. 01 · 第一巻 — Female Boxing AI Animation',
+                'eyebrow'     => 'Female Boxing AI Animation',
                 'title'       => 'Turn your waifu to be a boxer.',
                 'subtitle'    => "Ever wondered what your favorite anime waifu would look like if she stepped out of her slice-of-life show and straight into the boxing ring? You're in the right place.",
                 'primary'     => ['label' => 'Support on Patreon', 'url' => $patreon],
-                'secondary'   => ['label' => 'Watch the latest bout', 'url' => '#bouts'],
+                'secondary'   => ['label' => 'Watch the latest bout', 'url' => $youtube, 'auto_latest' => true],
                 'pill'        => 'New bout every week',
-                'image'       => '/img/tokoh/kafka.webp',
-                'image_alt'   => 'Kafka, gloves laced, waiting for the bell',
-                'caption'     => 'Fig. 01 — Kafka, at the weigh-in.',
+                'badge'       => 'Red corner',
                 'jp_vertical' => '女子ボクシング',
-                'hanko'       => '拳',
-                'stats'       => [
-                    ['value' => 'Weekly', 'label' => 'new bouts on YouTube'],
-                    ['value' => '1–2 mo', 'label' => 'early access on Patreon'],
-                    ['value' => '6', 'label' => 'places to follow'],
+                // Kartu potret di sampul bisa digulir: paling banyak sepuluh
+                // gambar, urutannya urutan daftar ini.
+                'images' => [
+                    ['src' => '/img/tokoh/kafka.webp',  'alt' => 'Kafka, gloves laced, waiting for the bell', 'caption' => 'Kafka, at the weigh-in.'],
+                    ['src' => '/img/tokoh/bocchi.webp', 'alt' => 'Bocchi in the ring, red gloves on',          'caption' => 'Bocchi, first time in the ring.'],
+                    ['src' => '/img/tokoh/lucy.webp',   'alt' => 'Lucy, gloves on, at the weigh-in',           'caption' => 'Lucy, gloves on.'],
+                    ['src' => '/img/tokoh/evelyn.webp', 'alt' => 'Evelyn at the weigh-in',                     'caption' => 'Evelyn, before the bell.'],
+                    ['src' => '/img/tokoh/nijika.webp', 'alt' => 'Nijika ringside',                            'caption' => 'Nijika, in her corner.'],
                 ],
             ],
 
             'marquee' => [
                 'Turn your waifu to be a boxer!', '女子ボクシング', 'A new bout every week', 'ボクシング',
-                "Let's talk with our fist!", 'ノックアウト', 'Female Boxing AI Animation', '毎週更新',
+                "Let's talk with our fist!", 'ノックアウト', 'Female Boxing AI Animation',
             ],
 
             'about' => [
@@ -235,17 +236,30 @@ class LandingContent
                 ],
             ],
 
+            // 'auto' menyambungkan kartu ke angka hidup (lihat AngkaHidup);
+            // kalau dikosongkan, yang tampil angka yang diketik di CMS.
             'stats' => [
                 'eyebrow'   => 'Tale of the tape',
                 'heading'   => 'The record so far.',
-                'note'      => 'Figures as of September 2026. Counted by hand, updated by hand.',
-                'secondary' => '2.07K subscribers · 24 videos on YouTube · 2,471 followers · 390 posts on X',
+                'note'      => 'YouTube and Patreon figures update themselves — last checked {hari_ini}.',
+                'secondary' => '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X',
                 'items'     => [
-                    ['value' => '466', 'suffix' => 'K', 'label' => 'YouTube views',      'jp' => '再生'],
-                    ['value' => '570', 'suffix' => '',  'label' => 'Patrons',            'jp' => '支援者'],
-                    ['value' => '471', 'suffix' => '',  'label' => 'Patreon posts',      'jp' => '投稿'],
-                    ['value' => '571', 'suffix' => '',  'label' => 'DeviantArt pieces',  'jp' => '作品'],
+                    ['value' => '470,476', 'suffix' => '', 'label' => 'YouTube views',     'auto' => 'views'],
+                    ['value' => '570',     'suffix' => '', 'label' => 'Patrons',           'auto' => 'patrons'],
+                    ['value' => '471',     'suffix' => '', 'label' => 'Patreon posts',     'auto' => 'posts'],
+                    ['value' => '571',     'suffix' => '', 'label' => 'DeviantArt pieces', 'auto' => ''],
                 ],
+            ],
+
+            // Dipakai kalau angka hidupnya sedang tidak terbaca (YouTube atau
+            // Patreon mati, atau saklar otomatisnya dimatikan), supaya kalimat
+            // berpenanda seperti "{subs} subscribers" tidak pernah bolong.
+            'angka_cadangan' => [
+                'subs'    => '2.07K',
+                'views'   => '470,476',
+                'patrons' => '570',
+                'paid'    => '247',
+                'posts'   => '471',
             ],
 
             'rounds' => [
@@ -253,9 +267,9 @@ class LandingContent
                 'heading' => 'Three rounds, every week.',
                 'body'    => 'Every release follows the same three beats.',
                 'items'   => [
-                    ['tag' => 'R1', 'jp' => '計量', 'title' => 'Weigh-in',      'body' => 'Two characters are matched, gloved up and weighed in.'],
-                    ['tag' => 'R2', 'jp' => '試合', 'title' => 'Rounds',        'body' => 'The fight itself is built with advanced AI generation — from the opening bell to the final flurry.'],
-                    ['tag' => 'R3', 'jp' => '公開', 'title' => 'Patrons first', 'body' => 'The finished bout goes to patrons 1–2 months before YouTube — and some fights are made for patrons only.'],
+                    ['tag' => 'R1', 'title' => 'Weigh-in',      'body' => 'Two characters are matched, gloved up and weighed in.'],
+                    ['tag' => 'R2', 'title' => 'Rounds',        'body' => 'The fight itself is built with advanced AI generation — from the opening bell to the final flurry.'],
+                    ['tag' => 'R3', 'title' => 'Patrons first', 'body' => 'The finished bout goes to patrons 1–2 months before YouTube — and some fights are made for patrons only.'],
                 ],
                 'kit' => ['gloves', 'wraps', 'mouthguard', 'headguard', 'bra'],
             ],
@@ -265,11 +279,12 @@ class LandingContent
                 'heading'     => 'Latest bouts.',
                 'body'        => 'The most recent fights from the channel. Only thumbnails load until you press play — no YouTube player until then.',
                 'cta'         => 'See all bouts on YouTube',
-                'meta'        => '2.07K subscribers · 466K views',
+                'meta'        => '{subs} subscribers · {views} views',
                 'handle'      => '@BoxinGenerated',
                 'url'         => $youtube,
                 'channel_id'  => 'UCK0eKIuvxD8UWu0QGaFNxsg',
                 'auto_latest' => true,
+                'auto_stats'  => true,
                 'max'         => 6,
                 'featured'    => [],
             ],
@@ -278,11 +293,12 @@ class LandingContent
                 'eyebrow'   => 'Support',
                 'heading'   => 'Ringside seats.',
                 'body'      => 'Patreon is where you support BoxinGenerated — and where every bout lands first. Patrons watch upcoming YouTube fights up to two months early and get exclusive animated videos that are never posted anywhere public.',
+                'stamp'     => 'Patrons only',
                 'benefits'  => [
-                    ['text' => 'Upcoming YouTube bouts, 1–2 months before they go public.', 'jp' => '先行公開'],
-                    ['text' => 'Exclusive animated videos — made for patrons only and never shared publicly.', 'jp' => '限定'],
-                    ['text' => 'Request art: 2 full fight scenes every month on the $20 tier.', 'jp' => 'リクエスト'],
-                    ['text' => 'A corner of 570 patrons — 247 paid members, 471 posts in the archive.', 'jp' => '応援'],
+                    'Upcoming YouTube bouts, 1–2 months before they go public.',
+                    'Exclusive animated videos — made for patrons only and never shared publicly.',
+                    'Request art: 2 full fight scenes every month on the $20 tier.',
+                    'A corner of {patrons} patrons — {paid} paid members, {posts} posts in the archive.',
                 ],
                 // Tier persis seperti di Patreon (September 2026). Tier request
                 // sedang penuh (slot 0) dan tier NSFW tidak cocok untuk halaman
@@ -296,12 +312,20 @@ class LandingContent
                     ['name' => 'Animation + NSFW art',         'price' => '$10', 'benefit' => 'Early access plus every NSFW artwork the moment it drops',   'highlight' => false, 'show' => false],
                     ['name' => 'NSFW art',                     'price' => '$3',  'benefit' => 'All NSFW artworks, scenes and special updates',              'highlight' => false, 'show' => false],
                 ],
-                'recent'        => ['Hinata vs Orihime — Full Fight', 'Aki vs Asuka — Full Fight', 'Yor vs Fiona — Full Fight', 'Faye vs Revy — Full Fight'],
-                'trust'         => '570 patrons · 247 paid members · 471 posts',
-                'url'           => $patreon,
-                'cta'           => 'Become a patron',
-                'secondary_cta' => 'See all tiers on Patreon',
-                'note'          => 'Prices as listed on Patreon. Cancel anytime.',
+                // Pos terbaru bisa diambil sendiri dari Patreon. Judulnya
+                // ditulis untuk patron, jadi yang mengandung kata di
+                // 'recent_filter' dilewati sebelum tampil di halaman umum.
+                'campaign_id'    => '13286771',
+                'auto_stats'     => true,
+                'recent_auto'    => true,
+                'recent_max'     => 4,
+                'recent_filter'  => ['nsfw', 'chest', 'squeez', 'nude', 'naked', 'topless', 'boob', 'breast'],
+                'recent'         => ['Hinata vs Orihime — Full Fight', 'Aki vs Asuka — Full Fight', 'Yor vs Fiona — Full Fight', 'Faye vs Revy — Full Fight'],
+                'trust'          => '{patrons} patrons · {paid} paid members · {posts} posts',
+                'url'            => $patreon,
+                'cta'            => 'Become a patron',
+                'secondary_cta'  => 'See all tiers on Patreon',
+                'note'           => 'Prices as listed on Patreon. Cancel anytime.',
             ],
 
             'gallery_text' => [
@@ -309,6 +333,18 @@ class LandingContent
                 'heading' => 'Weigh-in portraits.',
                 'body'    => 'Stills straight from the studio — portraits and fight posters. More on Instagram, and the full archive — 571 pieces and counting — on DeviantArt.',
                 'cta'     => 'Follow on Instagram',
+            ],
+
+            // Galeri otomatis dari DeviantArt. Mati bawaan: DeviantArt menandai
+            // hampir seluruh unggahan terbaru sebagai "adult", dan yang seperti
+            // itu tidak pantas muncul sendiri di halaman umum. Kalau dinyalakan,
+            // yang ditandai adult tetap dilewati sampai 'ikut_dewasa' dicentang.
+            'gallery_feed' => [
+                'on'          => false,
+                'username'    => 'boxingenerated',
+                'max'         => 6,
+                'ikut_dewasa' => false,
+                'skip'        => [],
             ],
 
             // Empat potret dan dua poster yang layak untuk halaman umum. Poster
@@ -348,8 +384,8 @@ class LandingContent
             ],
 
             'socials' => [
-                ['key' => 'patreon',    'label' => 'Patreon',    'handle' => 'BoxinGenerated',  'url' => $patreon,                                        'highlight' => true,  'description' => 'Early access and exclusive bouts', 'meta' => '570 patrons · 471 posts'],
-                ['key' => 'youtube',    'label' => 'YouTube',    'handle' => '@BoxinGenerated', 'url' => $youtube,                                        'highlight' => false, 'description' => 'Full fights, every week',          'meta' => '2.07K subscribers · 24 videos'],
+                ['key' => 'patreon',    'label' => 'Patreon',    'handle' => 'BoxinGenerated',  'url' => $patreon,                                        'highlight' => true,  'description' => 'Early access and exclusive bouts', 'meta' => '{patrons} patrons · {posts} posts'],
+                ['key' => 'youtube',    'label' => 'YouTube',    'handle' => '@BoxinGenerated', 'url' => $youtube,                                        'highlight' => false, 'description' => 'Full fights, every week',          'meta' => '{subs} subscribers'],
                 ['key' => 'instagram',  'label' => 'Instagram',  'handle' => '@boxingenerated', 'url' => 'https://www.instagram.com/boxingenerated/',     'highlight' => false, 'description' => 'Portraits, posters and previews',  'meta' => ''],
                 ['key' => 'x',          'label' => 'X',          'handle' => '@boxingenerated', 'url' => 'https://x.com/boxingenerated',                  'highlight' => false, 'description' => 'Announcements and clips',          'meta' => '2,471 followers · 390 posts'],
                 ['key' => 'pixiv',      'label' => 'Pixiv',      'handle' => 'BoxinGenerated',  'url' => 'https://www.pixiv.net/en/users/111982750',       'highlight' => false, 'description' => 'Illustrations',                    'meta' => ''],
@@ -372,7 +408,7 @@ class LandingContent
 
             'footer' => [
                 'line'      => 'AI-generated anime female boxing. Original bouts, every week.',
-                'note'      => 'Characters belong to their respective creators. Fights are original, fan-made and AI-generated. Figures on this page as of September 2026.',
+                'note'      => 'Characters belong to their respective creators. Fights are original, fan-made and AI-generated. Hand-counted figures as of {hari_ini}.',
                 'copyright' => '© 2026 BoxinGenerated',
             ],
         ];

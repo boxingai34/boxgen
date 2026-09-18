@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
-
 defineProps<{
     nama: string;
     jp: string;
     line: string;
     note: string;
     socials: Array<{ key: string; label: string; url: string; handle: string }>;
-    masuk: boolean;
 }>();
 </script>
 
@@ -40,11 +37,8 @@ defineProps<{
                 </nav>
             </div>
 
-            <div class="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-6 text-[11px] text-muted-foreground">
-                <p class="max-w-2xl">{{ note }}</p>
-                <Link :href="masuk ? route('dashboard') : route('login')" class="transition-colors hover:text-foreground">
-                    {{ masuk ? 'Studio' : 'Studio login' }}
-                </Link>
+            <div class="mt-10 border-t border-border/60 pt-6 text-[11px] text-muted-foreground">
+                <p class="max-w-3xl">{{ note }}</p>
             </div>
         </div>
     </footer>

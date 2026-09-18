@@ -56,6 +56,9 @@ tanpa disetel apa pun, dan tombol "Simpan" pertama membuat berkasnya.
 - Gambar diunggah ke `public/uploads/landing/` (tidak ikut git). Kalau PHP
   punya GD, gambar dikecilkan ke ≤1600 px dan disimpan WebP; kalau tidak,
   disimpan apa adanya.
+- **Kartu potret di sampul bisa digulir**: sampai sepuluh gambar, digeser
+  dengan roda tetikus (waktu kursor di atasnya), seret, tombol panah, atau
+  titik di bawahnya. Begitu mentok, halaman kembali menggulir seperti biasa.
 - **Video YouTube terbaru** diambil dari umpan Atom kanal
   (`youtube.com/feeds/videos.xml?channel_id=UC…`), tanpa kunci API, disimpan
   cache 1 jam. Kalau YouTube rewel, dipakai daftar terakhir yang berhasil.
@@ -70,6 +73,49 @@ tanpa disetel apa pun, dan tombol "Simpan" pertama membuat berkasnya.
   dan sematan Instagram mati bawaan (bisa dinyalakan di CMS).
 - Video YouTube disematkan sebagai *facade*: cuma thumbnail sampai diklik, baru
   iframe `youtube-nocookie.com` dimuat.
+- Semua tautan ke luar dibuka di tab baru.
+
+### Yang mengisi dirinya sendiri
+
+| Apa | Dari mana | Disimpan |
+| --- | --- | --- |
+| Daftar video terbaru | umpan Atom kanal YouTube | 1 jam |
+| Subscriber & total tayangan | halaman "about" kanal (`hl=en`) | 6 jam |
+| Pos Patreon terbaru | `patreon.com/api/posts` (publik) | 1 jam |
+| Jumlah patron / patron berbayar / pos | `patreon.com/api/campaigns/{id}` | 6 jam |
+| Galeri | umpan RSS galeri DeviantArt | 1 jam |
+
+Tiap sumber punya salinan terakhir yang berhasil, jadi sumber yang sedang
+mati tidak pernah mengosongkan bagian halaman.
+
+**Penanda angka.** Di teks mana pun di CMS boleh ditulis `{subs}`, `{views}`,
+`{patrons}`, `{paid}`, `{posts}`, atau `{hari_ini}`; halaman depan
+menggantinya dengan angka terbaru. Kalau sumbernya tidak terbaca, dipakai
+"angka cadangan" yang diketik di CMS, jadi kalimatnya tidak pernah bolong.
+Kartu di "tale of the tape" juga bisa disambungkan langsung ke salah satu
+angka itu lewat kolom pilihan di CMS.
+
+**Galeri DeviantArt.** Umpannya bekerja (judul, tautan, gambar kecil, dan
+penanda *adult* milik DeviantArt), tapi saklarnya **mati bawaan**: waktu
+diperiksa, seluruh karya terbaru di galeri ditandai *adult* oleh DeviantArt
+sendiri. Selama "ikutkan yang adult" tidak dicentang, umpan itu tidak
+menghasilkan apa-apa dan halaman depan memakai daftar gambar dari CMS.
+Instagram tidak punya jalan serupa — profilnya *restricted*, tidak ada umpan
+publik sama sekali.
+
+**Menyegarkan lebih awal.** Halaman depan memperbarui dirinya sendiri waktu
+cache-nya kedaluwarsa; supaya yang menunggu adalah server dan bukan
+pengunjung, jadwalkan:
+
+```bash
+php artisan landing:segarkan
+```
+
+Di Linux, satu baris crontab tiap 30 menit sudah cukup; atau pasang
+`php artisan schedule:run` tiap menit dan biarkan jadwal di
+`routes/console.php` yang mengatur. Di Windows pakai Task Scheduler dengan
+aksi `C:\xampp2\php\php.exe …\v2\artisan landing:segarkan`.
+Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 - Yang dikirim ke halaman publik sudah disaring (`LandingController::untukPublik`):
   tier yang disembunyikan, id kanal, dan isi seksi yang dimatikan tidak ikut
   ke HTML. Meta SEO/Open Graph ditulis di server (`app.blade.php`) supaya
@@ -96,11 +142,15 @@ mengganti awalan cukup di `routes/web.php`.
 app/Http/Controllers/     LandingController (halaman depan), CmsController, CeritaController (rancang),
                           RiwayatController, DashboardController, AkunController
 app/Http/Middleware/      HanyaAdmin — alias 'admin' (bootstrap/app.php)
-app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + cache)
+app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + angka kanal),
+                          PatreonTerbaru (pos + jumlah patron), DeviantartTerbaru (umpan galeri),
+                          AngkaHidup (penanda {subs} dll)
+app/Console/Commands/     SegarkanLanding — perintah landing:segarkan
 app/Providers/            EngineServiceProvider — jembatan ke ../engine
 resources/js/pages/       Landing, Cms/Landing, Dashboard, Rancang, Riwayat, Akun, AlatLama, auth/*
-resources/js/components/landing/  KepalaPublik, KakiPublik, Rel (rel kanji di tepi), IkonTinju (ikon SVG
-                          perlengkapan), VideoLite (facade YouTube), LinimasaX, SematInstagram
+resources/js/components/landing/  KepalaPublik, KakiPublik, Rel (label seksi di tepi), KartuGeser (kartu
+                          potret yang bisa digulir), IkonTinju (ikon SVG perlengkapan),
+                          VideoLite (facade YouTube), LinimasaX, SematInstagram
 resources/js/components/cms/      Isian, Gambar (unggah/pilih), DaftarTeks, KendaliBaris
 resources/js/components/box/      SisiNav, BilahAtas, Kartu, Tombol
 resources/js/lib/         gerak.ts (v-reveal, v-kata, v-magnet, hitungNaik, mode hemat), kirim.ts (fetch + CSRF + unggah)

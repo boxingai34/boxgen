@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import IkonTinju from '@/components/landing/IkonTinju.vue';
 import KakiPublik from '@/components/landing/KakiPublik.vue';
+import KartuGeser from '@/components/landing/KartuGeser.vue';
 import KepalaPublik from '@/components/landing/KepalaPublik.vue';
 import LinimasaX from '@/components/landing/LinimasaX.vue';
 import Rel from '@/components/landing/Rel.vue';
@@ -92,7 +93,6 @@ function formatAngka(n: number, asli: string): string {
 
 // ------------------------------------------------------ kartu pertandingan
 const panggung = ref(0);
-const jpUrut = ['第一試合', '第二試合', '第三試合', '第四試合', '第五試合', '第六試合', '第七試合', '第八試合'];
 
 // ------------------------------------------------------------ pembantu
 // Menu mengikuti seksi yang dinyalakan di CMS — seksi yang mati tidak
@@ -116,7 +116,6 @@ const patreon = computed(() => (props.isi.socials as any[]).find((s) => s.key ==
 const sosialLain = computed(() => (props.isi.socials as any[]).filter((s) => !s.highlight));
 const sosialSorot = computed(() => (props.isi.socials as any[]).filter((s) => s.highlight));
 const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps', mouthguard: 'Mouthguard', headguard: 'Headguard', bra: 'Sports bra' };
-const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', instagram: '写', x: '声', pixiv: '絵', deviantart: '画' };
 </script>
 
 <template>
@@ -164,13 +163,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                 :key="i"
                                 class="baris-judul block"
                             >
-                                <span class="baris block" :class="i % 2 === 0 ? 'dari-kiri' : 'dari-kanan'">
-                                    <template v-if="i === judulBaris.length - 1">
-                                        {{ b }}
-                                        <span class="stempel hanko jp relative -top-2 ml-2 align-middle text-xl sm:text-2xl" aria-hidden="true">{{ isi.hero.hanko }}</span>
-                                    </template>
-                                    <template v-else>{{ b }}</template>
-                                </span>
+                                <span class="baris block" :class="i % 2 === 0 ? 'dari-kiri' : 'dari-kanan'">{{ b }}</span>
                             </span>
                         </h1>
 
@@ -207,36 +200,12 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                             </a>
                         </div>
 
-                        <dl class="lunak mt-10 grid max-w-md grid-cols-3 gap-4 border-t border-border/60 pt-6">
-                            <div v-for="s in isi.hero.stats" :key="s.label">
-                                <dt class="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{{ s.label }}</dt>
-                                <dd class="mt-1 text-xl font-semibold tabular-nums tracking-tight sm:text-2xl">{{ s.value }}</dd>
-                            </div>
-                        </dl>
                     </div>
 
-                    <!-- Plat / potret -->
-                    <figure class="relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
-                        <span class="tegak jp absolute -left-8 top-6 hidden text-xs text-muted-foreground/70 lg:block" aria-hidden="true">{{ isi.hero.jp_vertical }}</span>
-
-                        <div class="plat relative overflow-hidden rounded-3xl border border-border/70 bg-card">
-                            <img
-                                :src="isi.hero.image"
-                                :alt="isi.hero.image_alt"
-                                width="520"
-                                height="760"
-                                fetchpriority="high"
-                                decoding="async"
-                                class="aspect-[13/19] w-full object-cover object-top"
-                            />
-                            <!-- sudut ring -->
-                            <span v-for="n in 4" :key="n" class="absolute h-1.5 w-1.5 bg-[hsl(var(--sudut))]" :class="[n % 2 ? 'left-2.5' : 'right-2.5', n < 3 ? 'top-2.5' : 'bottom-2.5']" aria-hidden="true" />
-                            <span class="absolute left-4 top-4 rounded-md border border-[hsl(var(--sudut)/0.5)] bg-background/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sudut))]">Red corner</span>
-                            <!-- tali ring melintasi bawah plat -->
-                            <div class="tali-ring absolute inset-x-0 bottom-6 opacity-80" aria-hidden="true" />
-                        </div>
-                        <figcaption class="lunak mt-3 text-xs text-muted-foreground">{{ isi.hero.caption }}</figcaption>
-                    </figure>
+                    <!-- Kartu potret yang bisa digulir -->
+                    <div class="plat-bungkus relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
+                        <KartuGeser :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" />
+                    </div>
                 </div>
             </section>
 
@@ -254,16 +223,16 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 01 · CERITA ============================ -->
             <section v-if="isi.sections.about" id="story" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="01" jp="物語" en="Story" />
+                <Rel nomor="01" en="Story" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="grid gap-10 lg:grid-cols-12 lg:gap-8">
                         <div class="lg:col-span-5">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                01 — {{ isi.about.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">物語</span>
+                                01 — {{ isi.about.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{{ isi.about.heading }}</h2>
-                            <p v-reveal="160" class="jp mt-6 text-lg leading-relaxed text-muted-foreground">
-                                <span class="text-[hsl(var(--kanvas))]">「</span>{{ isi.about.quote }}<span class="text-[hsl(var(--kanvas))]">」</span>
+                            <p v-reveal="160" class="mt-6 text-lg leading-relaxed text-muted-foreground">
+                                <span class="text-[hsl(var(--kanvas))]">“</span>{{ isi.about.quote }}<span class="text-[hsl(var(--kanvas))]">”</span>
                             </p>
                         </div>
 
@@ -290,13 +259,13 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 02 · TALE OF THE TAPE ============================ -->
             <section v-if="isi.sections.stats" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="02" jp="記録" en="Record" />
+                <Rel nomor="02" en="Record" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="tali-ring" aria-hidden="true" />
                     <div ref="tape" class="mx-auto grid max-w-6xl gap-8 px-5 py-14 lg:grid-cols-12 lg:py-16">
                         <div class="lg:col-span-4">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                02 — {{ isi.stats.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">記録</span>
+                                02 — {{ isi.stats.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.stats.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-xs text-muted-foreground">{{ isi.stats.note }}</p>
@@ -308,7 +277,6 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                     {{ a.bulat ? formatAngka(a.hitung.nilai.value, a.value) : a.value }}<span class="text-[hsl(var(--kanvas))]">{{ a.suffix }}</span>
                                 </p>
                                 <p class="mt-2 text-xs text-muted-foreground">{{ a.label }}</p>
-                                <p class="jp mt-1 text-[11px] tracking-[0.2em] text-[hsl(var(--sudut))]">{{ a.jp }}</p>
                             </div>
                         </div>
 
@@ -320,12 +288,12 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 03 · KARTU PERTANDINGAN ============================ -->
             <section v-if="isi.sections.youtube" id="bouts" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="03" jp="対戦表" en="Card" />
+                <Rel nomor="03" en="Card" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                03 — {{ isi.youtube.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">対戦表</span>
+                                03 — {{ isi.youtube.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.youtube.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.youtube.body }}</p>
@@ -342,7 +310,6 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                             <VideoLite :key="video[panggung].id" :id="video[panggung].id" :judul="video[panggung].judul" :tanggal="video[panggung].tanggal" />
                             <p class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                                 <span class="text-[hsl(var(--sudut))]">{{ panggung === 0 ? 'Main event' : `Bout ${dua(panggung + 1)}` }}</span>
-                                <span class="jp normal-case tracking-[0.3em]">{{ panggung === 0 ? 'メインイベント' : jpUrut[panggung] }}</span>
                                 <span class="ml-auto normal-case tracking-normal">{{ isi.youtube.meta }}</span>
                             </p>
                         </div>
@@ -359,7 +326,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                     <img :src="v.thumb" :alt="''" width="96" height="54" loading="lazy" decoding="async" class="h-[54px] w-24 shrink-0 rounded-lg object-cover" />
                                     <span class="min-w-0 flex-1">
                                         <span class="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground group-hover:text-[hsl(var(--sudut))]">
-                                            {{ i === 0 ? 'Main event' : `Bout ${dua(i + 1)}` }} <span class="jp ml-1.5 normal-case tracking-[0.2em]">{{ i === 0 ? 'メインイベント' : jpUrut[i] }}</span>
+                                            {{ i === 0 ? 'Main event' : `Bout ${dua(i + 1)}` }}
                                         </span>
                                         <span class="block truncate text-sm font-medium transition-transform duration-300 group-hover:translate-x-1">{{ v.judul || 'Watch on YouTube' }}</span>
                                     </span>
@@ -377,7 +344,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 04 · PATREON ============================ -->
             <section v-if="isi.sections.patreon" id="patreon" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="04" jp="支援" en="Support" />
+                <Rel nomor="04" en="Support" />
                 <div class="relative w-full overflow-hidden border-y border-[hsl(var(--sudut)/0.35)] bg-card/40">
                     <!-- Hiasan 111 KB dengan opasitas 10 % — tidak diunduh di mode hemat. -->
                     <img v-if="!hemat" src="/img/arena-biru.webp" alt="" width="1600" height="900" loading="lazy" decoding="async" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-10" />
@@ -387,7 +354,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                     <div class="relative mx-auto grid max-w-6xl gap-10 px-5 py-20 lg:grid-cols-12 lg:gap-12 lg:py-28">
                         <div class="min-w-0 lg:col-span-6">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                04 — {{ isi.patreon.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">支援</span>
+                                04 — {{ isi.patreon.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">{{ isi.patreon.heading }}</h2>
                             <p v-reveal="120" class="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">{{ isi.patreon.body }}</p>
@@ -397,10 +364,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                     <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[hsl(var(--sudut)/0.4)] bg-[hsl(var(--sudut)/0.1)] text-[hsl(var(--sudut))]">
                                         <IkonTinju jenis="gloves" :ukuran="15" />
                                     </span>
-                                    <span class="text-sm leading-relaxed sm:text-[15px]">
-                                        {{ b.text }}
-                                        <span v-if="b.jp" class="jp ml-2 text-xs tracking-[0.2em] text-[hsl(var(--sudut))]">{{ b.jp }}</span>
-                                    </span>
+                                    <span class="text-sm leading-relaxed sm:text-[15px]">{{ b }}</span>
                                 </li>
                             </ol>
 
@@ -425,7 +389,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                         <!-- Tiket / tier -->
                         <div class="min-w-0 lg:col-span-6">
                             <div v-reveal="200" class="reveal-skala relative">
-                                <span class="hanko jp absolute -right-2 -top-4 z-10 text-base" aria-hidden="true">限定</span>
+                                <span v-if="isi.patreon.stamp" class="hanko absolute -right-3 -top-4 z-10 text-[10px] font-semibold uppercase tracking-[0.12em]" aria-hidden="true">{{ isi.patreon.stamp }}</span>
 
                                 <div v-if="tierUtama" class="potong-sudut relative overflow-hidden rounded-2xl border-2 border-[hsl(var(--sudut)/0.6)] bg-card p-6">
                                     <span v-for="n in 4" :key="n" class="absolute h-1.5 w-1.5 bg-[hsl(var(--sudut))]" :class="[n % 2 ? 'left-2' : 'right-2', n < 3 ? 'top-2' : 'bottom-2']" aria-hidden="true" />
@@ -466,12 +430,12 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 05 · GALERI ============================ -->
             <section v-if="isi.sections.gallery" id="gallery" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="05" jp="画廊" en="Gallery" />
+                <Rel nomor="05" en="Gallery" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                05 — {{ isi.gallery_text.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">画廊</span>
+                                05 — {{ isi.gallery_text.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.gallery_text.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.gallery_text.body }}</p>
@@ -509,10 +473,10 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                 class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04]"
                             />
                             <span class="absolute left-2.5 top-2.5 rounded-md bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]">
-                                <span class="jp mr-1 normal-case tracking-[0.2em] text-[hsl(var(--sudut))]">{{ g.kind === 'bout' ? '試合' : '選手' }}</span>{{ g.kind === 'bout' ? 'Bout' : 'Fighter' }}
+                                {{ g.kind === 'bout' ? 'Bout' : 'Fighter' }}
                             </span>
                             <figcaption class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent px-3 pb-2.5 pt-8 text-xs">
-                                <span class="jp text-[hsl(var(--kanvas))]">図{{ dua(i + 1) }}</span> — {{ g.caption }}
+                                <span class="text-[hsl(var(--kanvas))]">Fig. {{ dua(i + 1) }}</span> — {{ g.caption }}
                             </figcaption>
                         </component>
                     </div>
@@ -528,11 +492,11 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 06 · TIGA RONDE ============================ -->
             <section v-if="isi.sections.rounds" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="06" jp="工程" en="Process" />
+                <Rel nomor="06" en="Process" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                            06 — {{ isi.rounds.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">工程</span>
+                            06 — {{ isi.rounds.eyebrow }}
                         </p>
                         <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.rounds.heading }}</h2>
                         <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.rounds.body }}</p>
@@ -541,10 +505,9 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                             <div class="tali-ring absolute inset-x-0 top-7 hidden lg:block" aria-hidden="true" />
                             <ol class="relative grid gap-4 lg:grid-cols-3 lg:gap-6">
                                 <li v-for="(r, i) in isi.rounds.items" :key="r.tag" v-reveal="i * 120" class="kartu kartu-angkat relative overflow-hidden p-6">
-                                    <span class="jp pointer-events-none absolute -bottom-4 -right-2 text-[6rem] font-semibold leading-none text-foreground/[0.05]" aria-hidden="true">{{ r.jp }}</span>
+                                    <span class="pointer-events-none absolute -bottom-6 -right-1 text-[7rem] font-semibold leading-none tracking-tighter text-foreground/[0.05]" aria-hidden="true">{{ r.tag }}</span>
                                     <div class="flex items-center justify-between">
                                         <span class="grid h-12 w-12 place-items-center rounded-xl bg-[hsl(var(--kanvas))] text-lg font-semibold text-background">{{ r.tag }}</span>
-                                        <span class="jp text-xs tracking-[0.3em] text-[hsl(var(--sudut))]">{{ r.jp }}</span>
                                     </div>
                                     <h3 class="mt-5 text-lg font-semibold tracking-tight">{{ r.title }}</h3>
                                     <p class="mt-2 text-sm leading-relaxed text-muted-foreground">{{ r.body }}</p>
@@ -564,15 +527,15 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 07 · SUDUT RING (X) ============================ -->
             <section v-if="isi.sections.x" id="feed" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="07" jp="近況" en="Feed" />
+                <Rel nomor="07" en="Feed" />
                 <div class="mx-auto grid w-full max-w-6xl gap-10 px-5 py-20 lg:grid-cols-12 lg:gap-12 lg:py-28">
                     <div class="lg:col-span-5">
                         <p v-reveal class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
                             <IkonTinju jenis="mic" :ukuran="16" />
-                            07 — {{ isi.x.eyebrow }} <span class="jp ml-1 normal-case tracking-[0.3em] lg:hidden">近況</span>
+                            07 — {{ isi.x.eyebrow }}
                         </p>
                         <h2 v-reveal="60" class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                            <span class="jp text-[hsl(var(--sudut))]">「</span>{{ isi.x.heading }}<span class="jp text-[hsl(var(--sudut))]">」</span>
+                            <span class="text-[hsl(var(--sudut))]">“</span>{{ isi.x.heading }}<span class="text-[hsl(var(--sudut))]">”</span>
                         </h2>
                         <p v-reveal="120" class="mt-4 text-[15px] leading-relaxed text-muted-foreground">{{ isi.x.body }}</p>
                         <p v-reveal="160" class="mt-2 text-xs text-muted-foreground">{{ isi.x.meta }}</p>
@@ -593,11 +556,11 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
 
             <!-- ============================ 08 · TAUTAN ============================ -->
             <section v-if="isi.sections.socials" id="links" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="08" jp="リンク" en="Links" />
+                <Rel nomor="08" en="Links" />
                 <div class="w-full border-t border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                            08 — {{ isi.socials_text.eyebrow }} <span class="jp ml-2 normal-case tracking-[0.3em] lg:hidden">リンク</span>
+                            08 — {{ isi.socials_text.eyebrow }}
                         </p>
                         <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.socials_text.heading }}</h2>
                         <p v-reveal="120" class="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">{{ isi.socials_text.body }}</p>
@@ -620,7 +583,6 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                     <span class="flex flex-wrap items-baseline gap-x-3">
                                         <span class="text-2xl font-semibold tracking-tight">{{ s.label }}</span>
                                         <span class="text-sm text-muted-foreground">{{ s.handle }}</span>
-                                        <span class="jp text-xs tracking-[0.2em] text-[hsl(var(--sudut))]">{{ kanjiSosial[s.key] ?? '' }}</span>
                                     </span>
                                     <span class="mt-1 block text-sm text-muted-foreground">{{ s.description }}<span v-if="s.meta"> · {{ s.meta }}</span></span>
                                 </span>
@@ -641,7 +603,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
                                     class="kartu kartu-angkat group flex flex-col gap-3 p-5"
                                 >
                                     <span class="flex items-start justify-between">
-                                        <span class="jp text-lg leading-none text-[hsl(var(--sudut))]">{{ kanjiSosial[s.key] ?? '·' }}</span>
+                                        <IkonTinju jenis="gloves" :ukuran="18" class="text-[hsl(var(--sudut))]" />
                                         <ArrowUpRight class="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                                     </span>
                                     <span>
@@ -658,7 +620,7 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
             </section>
         </main>
 
-        <KakiPublik :nama="isi.brand.name" :jp="isi.brand.jp" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" :masuk="masuk" />
+        <KakiPublik :nama="isi.brand.name" :jp="isi.brand.jp" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" />
     </div>
 </template>
 
@@ -691,14 +653,6 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
     transition-delay: 90ms;
 }
 
-.bel .stempel {
-    opacity: 0;
-    transform: scale(1.7) rotate(-14deg);
-    transition:
-        transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2) 620ms,
-        opacity 0.12s ease 620ms;
-}
-
 .bel .tali-hero {
     transform: scaleX(0);
     transition: transform 0.6s cubic-bezier(0.22, 0.68, 0.3, 1) 520ms;
@@ -712,8 +666,8 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
         transform 0.5s cubic-bezier(0.22, 0.68, 0.3, 1) 380ms;
 }
 
-.bel .plat {
-    clip-path: inset(0 0 100% 0 round 1.5rem);
+.bel .plat-bungkus {
+    clip-path: inset(0 0 100% 0);
     transition: clip-path 0.9s cubic-bezier(0.22, 0.68, 0.3, 1) 300ms;
 }
 
@@ -723,49 +677,35 @@ const kanjiSosial: Record<string, string> = { patreon: '支', youtube: '映', in
     transform: none;
 }
 
-.bel.bel-mulai .stempel {
-    opacity: 1;
-    transform: scale(1) rotate(-7deg);
-}
-
 .bel.bel-mulai .tali-hero {
     transform: scaleX(1);
 }
 
-.bel.bel-mulai .plat {
-    clip-path: inset(0 0 0 0 round 1.5rem);
+.bel.bel-mulai .plat-bungkus {
+    clip-path: inset(0 0 0 0);
 }
 
 /* Mode hemat dan pengurangan gerak: langsung jadi, tanpa transisi. */
 html[data-hemat='1'] .bel .baris,
 html[data-hemat='1'] .bel .lunak,
-html[data-hemat='1'] .bel .stempel,
 html[data-hemat='1'] .bel .tali-hero,
-html[data-hemat='1'] .bel .plat {
+html[data-hemat='1'] .bel .plat-bungkus {
     transition: none;
     opacity: 1;
     transform: none;
     clip-path: none;
 }
 
-html[data-hemat='1'] .bel .stempel {
-    transform: rotate(-7deg);
-}
-
 @media (prefers-reduced-motion: reduce) {
     .bel .baris,
     .bel .lunak,
-    .bel .stempel,
     .bel .tali-hero,
-    .bel .plat {
+    .bel .plat-bungkus {
         transition: none;
         opacity: 1;
         transform: none;
         clip-path: none;
     }
 
-    .bel .stempel {
-        transform: rotate(-7deg);
-    }
 }
 </style>

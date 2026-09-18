@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DeviantartTerbaru;
 use App\Services\LandingContent;
+use App\Services\PatreonTerbaru;
 use App\Services\YoutubeTerbaru;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -150,6 +152,63 @@ class CmsController extends Controller
         $video = YoutubeTerbaru::ambil($id, 12);
 
         return response()->json(['ok' => true, 'channel_id' => $id, 'video' => $video]);
+    }
+
+    /**
+     * Periksa kampanye Patreon: cari id-nya, lalu tunjukkan pos yang akan
+     * tampil setelah kata saring dipakai — supaya tidak ada kejutan di
+     * halaman umum.
+     */
+    public function patreon(Request $request): JsonResponse
+    {
+        $alamat = trim((string) $request->query('alamat', ''));
+        $id = PatreonTerbaru::cariCampaignId($alamat);
+
+        if ($id === null) {
+            return response()->json(['ok' => false, 'error' => 'Id kampanyenya tidak ketemu. Tempel alamat halaman Patreon-mu, atau id angkanya langsung.'], 422);
+        }
+
+        Cache::forget('patreon-pos:' . $id);
+        Cache::forget('patreon-kampanye:' . $id);
+
+        $saring = array_filter(array_map('trim', explode(',', (string) $request->query('saring', ''))));
+
+        return response()->json([
+            'ok'          => true,
+            'campaign_id' => $id,
+            'kampanye'    => PatreonTerbaru::kampanye($id),
+            // Keduanya diambil sebanyak mungkin supaya selisihnya benar-benar
+            // menunjukkan berapa judul yang tersaring, bukan terpotong batas.
+            'pos'         => PatreonTerbaru::pos($id, 50, $saring),
+            'semua'       => PatreonTerbaru::pos($id, 50),
+        ]);
+    }
+
+    /**
+     * Periksa galeri DeviantArt: berapa karya terbaru yang terbaca, dan
+     * berapa di antaranya yang ditandai "adult" oleh DeviantArt sendiri.
+     */
+    public function deviantart(Request $request): JsonResponse
+    {
+        $nama = trim((string) $request->query('nama', ''));
+        if (! preg_match('/^[\w-]{2,40}$/', $nama)) {
+            return response()->json(['ok' => false, 'error' => 'Nama penggunanya tidak sah.'], 422);
+        }
+
+        Cache::forget('deviantart-terbaru:' . strtolower($nama));
+        $semua = DeviantartTerbaru::ambil($nama, 24, true);
+        $aman = DeviantartTerbaru::ambil($nama, 24, false);
+
+        if ($semua === []) {
+            return response()->json(['ok' => false, 'error' => 'Umpannya tidak terbaca. Pastikan nama penggunanya benar dan galerinya publik.'], 422);
+        }
+
+        return response()->json([
+            'ok'     => true,
+            'jumlah' => count($semua),
+            'dewasa' => count($semua) - count($aman),
+            'karya'  => $semua,
+        ]);
     }
 
     /** @return list<array{nama:string,src:string,kb:int}> */

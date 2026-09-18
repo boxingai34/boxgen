@@ -51,6 +51,8 @@ Route::prefix('generator')->group(function () {
             Route::post('unggah', [CmsController::class, 'unggah'])->name('cms.unggah');
             Route::delete('unggah', [CmsController::class, 'hapusUnggahan'])->name('cms.unggah.hapus');
             Route::get('youtube', [CmsController::class, 'youtube'])->name('cms.youtube');
+            Route::get('patreon', [CmsController::class, 'patreon'])->name('cms.patreon');
+            Route::get('deviantart', [CmsController::class, 'deviantart'])->name('cms.deviantart');
         });
     });
 
