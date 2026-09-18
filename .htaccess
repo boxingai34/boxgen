@@ -51,18 +51,30 @@ Options -Indexes
     RewriteEngine On
 
     # Isi v2 selain public/ (storage, vendor, .env, sesi) tidak boleh
-    # diminta langsung; dan v2/public/ hanya lewat penerusan di bawah,
-    # bukan lewat alamat /v2/public/... (REDIRECT_STATUS terisi waktu
-    # permintaan datang dari RewriteRule internal).
+    # diminta langsung.
     RewriteRule ^v2/(?!public/) - [F,L]
-    RewriteCond %{ENV:REDIRECT_STATUS} ^$
-    RewriteRule ^v2/public/ - [F,L]
+
+    # Alamat /v2/public/... tidak boleh diketik langsung: isinya
+    # halaman yang sama di alamat kedua. Dulu yang dibaca
+    # REDIRECT_STATUS, tapi di hosting nilainya ternyata tidak selalu
+    # kosong dan penjagaan ini diam saja. Yang dibaca sekarang baris
+    # permintaan aslinya — baris itu tetap seperti yang diketik
+    # pengunjung walau aturan di bawah meneruskannya ke v2/public.
+    RewriteCond %{THE_REQUEST} \s/+v2/public[/?\s] [NC]
+    RewriteRule ^ - [F,L]
 
     RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
     RewriteRule ^(build|img|uploads)/(.+)$ v2/public/$1/$2 [L]
 
+    # Berkas yang diminta browser dari akar domain. Ikonnya PNG —
+    # favicon.ico tidak pernah dibuat, jadi aturan lama berakhir 404 di
+    # tiap tab. robots.txt dan site.webmanifest ikut di sini karena
+    # keduanya juga tinggal di v2/public tapi dipanggil dari akar.
     RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
-    RewriteRule ^favicon\.ico$ v2/public/favicon.ico [L]
+    RewriteRule ^favicon\.ico$ v2/public/img/favicon.png [L]
+
+    RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
+    RewriteRule ^(robots\.txt|site\.webmanifest)$ v2/public/$1 [L]
 
     RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
     RewriteRule ^$ v2/public/index.php [L]

@@ -32,4 +32,8 @@ desktop.ini
 # Daftar sertifikat khusus komputer ini (lihat CA_BUNDLE di config.php).
 # Isinya root lokal seperti antivirus atau jaringan kantor — bukan urusan proyek.
 cacert.local.pem
-logs/
+
+# Catatan aplikasi lama, di akar repo saja. Tanpa garis miring di
+# depan, pola ini ikut menelan v2/storage/logs/ — dan foldernya jadi
+# tidak ikut waktu repo ini diklon ke hosting.
+/logs/

@@ -248,9 +248,19 @@ Nama domainnya bebas (fbxgenerate.com sekarang, boxingenerated.com nanti) —
 cukup ganti `APP_URL`.
 
 1. `npm run build` lalu commit `public/build`.
-2. Di server: `composer install --no-dev --optimize-autoloader` di folder `v2`.
-3. Salin `.env` (APP_KEY, APP_URL=`https://domain.com`, DB_*, LEGACY_URL),
-   `APP_DEBUG=false`.
+2. Di server, masuk ke folder `v2`, lalu
+   `composer install --no-dev --optimize-autoloader`. Folder `vendor/` memang
+   tidak ikut ke git; tanpa langkah ini `public/index.php` berhenti sebelum
+   Laravel sempat menyala. Sejak sekarang ia menjawab 503 dengan sebabnya,
+   bukan 500 berbadan kosong.
+3. Salin `.env.example` jadi `.env`, lalu isi `APP_KEY`
+   (`php artisan key:generate`), `APP_URL=https://domain.com`, `DB_*` (database
+   yang sama dengan aplikasi lama), `LEGACY_URL`, dan `APP_DEBUG=false`.
+
+   **Jangan jalankan `php artisan migrate` di server.** Tabel `users` itu milik
+   aplikasi lama dan dipakai berdua; migrasi bawaan Laravel akan mencoba
+   membuatnya lagi. Sesi, cache, dan antrean sengaja memakai berkas dan `sync`,
+   jadi memang tidak ada tabel yang perlu dibuat.
 4. Pilih salah satu cara mengarahkan domain:
    - **Document root = `v2/public`** (paling bersih). Semua rute jalan langsung.
    - **Document root = akar repo** (kalau aplikasi lama harus tetap di domain
@@ -266,6 +276,21 @@ cukup ganti `APP_URL`.
 5. Pastikan `storage/`, `bootstrap/cache/`, dan `public/uploads/` bisa ditulis.
 6. `php artisan config:cache && php artisan route:cache`.
 7. Buka `/generator/cms`, masuk sebagai admin, periksa isi, simpan.
+
+Sesudahnya, empat perintah ini yang memberi tahu apakah semuanya sudah di
+tempatnya (ganti domainnya):
+
+```
+curl -o /dev/null -w "%{http_code}\n" https://domain.com/            # 200
+curl -o /dev/null -w "%{http_code}\n" https://domain.com/generator   # 200
+curl -o /dev/null -w "%{http_code}\n" https://domain.com/v2/.env     # 403
+curl -o /dev/null -w "%{http_code}\n" https://domain.com/favicon.ico # 200
+```
+
+`500` berbadan kosong di dua yang pertama artinya PHP mati sebelum Laravel
+sempat bicara — hampir selalu `vendor/` belum dipasang, `.env` belum ada, atau
+`storage/` tidak bisa ditulis. Kalau Laravel sudah menyala, sebabnya tertulis
+di `v2/storage/logs/laravel.log`.
 
 `../config.local.php` (kunci API dan setelan database) tetap dipakai dari
 aplikasi lama, jadi tidak perlu disalin ulang.
