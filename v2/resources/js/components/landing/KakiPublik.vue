@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import Merek from '@/components/landing/Merek.vue';
+
 defineProps<{
-    nama: string;
-    jp: string;
+    merek: { name: string; jp?: string; logo_dark?: string; logo_light?: string };
     line: string;
     note: string;
     socials: Array<{ key: string; label: string; url: string; handle: string }>;
@@ -15,13 +16,8 @@ defineProps<{
         <div class="mx-auto max-w-6xl px-5 py-12">
             <div class="grid gap-8 md:grid-cols-[1.2fr_1fr]">
                 <div>
-                    <p class="flex items-center gap-3">
-                        <span class="hanko text-[11px]" aria-hidden="true">拳</span>
-                        <span class="leading-tight">
-                            <span class="block text-lg font-semibold tracking-tight">{{ nama }}</span>
-                            <span class="block text-[11px] tracking-[0.22em] text-muted-foreground">{{ jp }}</span>
-                        </span>
-                    </p>
+                    <Merek :merek="merek" tinggi="h-9" />
+                    <p v-if="merek.jp" class="jp mt-2 text-[11px] tracking-[0.22em] text-muted-foreground">{{ merek.jp }}</p>
                     <p class="mt-4 max-w-md text-sm text-muted-foreground">{{ line }}</p>
                 </div>
 

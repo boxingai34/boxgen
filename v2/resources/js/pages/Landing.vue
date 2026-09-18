@@ -142,7 +142,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
         <div class="maju-gulir" aria-hidden="true" />
 
-        <KepalaPublik :nama="isi.brand.name" :jp="isi.brand.jp" :tautan="tautanNav" :cta="isi.hero.primary" :masuk="masuk" />
+        <KepalaPublik :merek="isi.brand" :tautan="tautanNav" :cta="isi.hero.primary" :masuk="masuk" />
 
         <main id="content" tabindex="-1" class="outline-none">
             <!-- ============================ SAMPUL / HERO ============================ -->
@@ -223,12 +223,12 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 01 · CERITA ============================ -->
             <section v-if="isi.sections.about" id="story" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="01" en="Story" />
+                <Rel en="Story" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="grid gap-10 lg:grid-cols-12 lg:gap-8">
                         <div class="lg:col-span-5">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                01 — {{ isi.about.eyebrow }}
+                                {{ isi.about.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{{ isi.about.heading }}</h2>
                             <p v-reveal="160" class="mt-6 text-lg leading-relaxed text-muted-foreground">
@@ -259,13 +259,13 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 02 · TALE OF THE TAPE ============================ -->
             <section v-if="isi.sections.stats" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="02" en="Record" />
+                <Rel en="Record" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="tali-ring" aria-hidden="true" />
                     <div ref="tape" class="mx-auto grid max-w-6xl gap-8 px-5 py-14 lg:grid-cols-12 lg:py-16">
                         <div class="lg:col-span-4">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                02 — {{ isi.stats.eyebrow }}
+                                {{ isi.stats.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.stats.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-xs text-muted-foreground">{{ isi.stats.note }}</p>
@@ -288,12 +288,12 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 03 · KARTU PERTANDINGAN ============================ -->
             <section v-if="isi.sections.youtube" id="bouts" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="03" en="Card" />
+                <Rel en="Card" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                03 — {{ isi.youtube.eyebrow }}
+                                {{ isi.youtube.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.youtube.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.youtube.body }}</p>
@@ -344,7 +344,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 04 · PATREON ============================ -->
             <section v-if="isi.sections.patreon" id="patreon" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="04" en="Support" />
+                <Rel en="Support" />
                 <div class="relative w-full overflow-hidden border-y border-[hsl(var(--sudut)/0.35)] bg-card/40">
                     <!-- Hiasan 111 KB dengan opasitas 10 % — tidak diunduh di mode hemat. -->
                     <img v-if="!hemat" src="/img/arena-biru.webp" alt="" width="1600" height="900" loading="lazy" decoding="async" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-10" />
@@ -354,7 +354,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
                     <div class="relative mx-auto grid max-w-6xl gap-10 px-5 py-20 lg:grid-cols-12 lg:gap-12 lg:py-28">
                         <div class="min-w-0 lg:col-span-6">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                04 — {{ isi.patreon.eyebrow }}
+                                {{ isi.patreon.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">{{ isi.patreon.heading }}</h2>
                             <p v-reveal="120" class="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">{{ isi.patreon.body }}</p>
@@ -430,12 +430,12 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 05 · GALERI ============================ -->
             <section v-if="isi.sections.gallery" id="gallery" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="05" en="Gallery" />
+                <Rel en="Gallery" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
                             <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                                05 — {{ isi.gallery_text.eyebrow }}
+                                {{ isi.gallery_text.eyebrow }}
                             </p>
                             <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.gallery_text.heading }}</h2>
                             <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.gallery_text.body }}</p>
@@ -492,11 +492,11 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 06 · TIGA RONDE ============================ -->
             <section v-if="isi.sections.rounds" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="06" en="Process" />
+                <Rel en="Process" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                            06 — {{ isi.rounds.eyebrow }}
+                            {{ isi.rounds.eyebrow }}
                         </p>
                         <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.rounds.heading }}</h2>
                         <p v-reveal="120" class="mt-3 text-sm text-muted-foreground sm:text-base">{{ isi.rounds.body }}</p>
@@ -527,12 +527,12 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 07 · SUDUT RING (X) ============================ -->
             <section v-if="isi.sections.x" id="feed" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="07" en="Feed" />
+                <Rel en="Feed" />
                 <div class="mx-auto grid w-full max-w-6xl gap-10 px-5 py-20 lg:grid-cols-12 lg:gap-12 lg:py-28">
                     <div class="lg:col-span-5">
                         <p v-reveal class="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
                             <IkonTinju jenis="mic" :ukuran="16" />
-                            07 — {{ isi.x.eyebrow }}
+                            {{ isi.x.eyebrow }}
                         </p>
                         <h2 v-reveal="60" class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
                             <span class="text-[hsl(var(--sudut))]">“</span>{{ isi.x.heading }}<span class="text-[hsl(var(--sudut))]">”</span>
@@ -556,11 +556,11 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
             <!-- ============================ 08 · TAUTAN ============================ -->
             <section v-if="isi.sections.socials" id="links" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel nomor="08" en="Links" />
+                <Rel en="Links" />
                 <div class="w-full border-t border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                            08 — {{ isi.socials_text.eyebrow }}
+                            {{ isi.socials_text.eyebrow }}
                         </p>
                         <h2 v-kata class="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{{ isi.socials_text.heading }}</h2>
                         <p v-reveal="120" class="mt-3 max-w-2xl text-sm text-muted-foreground sm:text-base">{{ isi.socials_text.body }}</p>
@@ -620,7 +620,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
             </section>
         </main>
 
-        <KakiPublik :nama="isi.brand.name" :jp="isi.brand.jp" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" />
+        <KakiPublik :merek="isi.brand" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" />
     </div>
 </template>
 

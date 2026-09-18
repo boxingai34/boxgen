@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import Merek from '@/components/landing/Merek.vue';
 import { Link } from '@inertiajs/vue3';
-import { Boxes } from 'lucide-vue-next';
+
 
 defineProps<{ judul: string; ket?: string }>();
 </script>
@@ -21,11 +22,8 @@ defineProps<{ judul: string; ket?: string }>();
             <div class="aurora" />
 
             <div class="relative flex h-full flex-col justify-between p-10">
-                <Link href="/" class="flex items-center gap-3">
-                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))]">
-                        <Boxes class="h-5 w-5 text-white" />
-                    </span>
-                    <span class="text-[15px] font-semibold tracking-tight">BoxinGenerated</span>
+                <Link href="/" class="inline-flex">
+                    <Merek :merek="{ name: 'BoxinGenerated', logo_dark: '/img/logo-gelap.webp', logo_light: '/img/logo-terang.webp' }" tinggi="h-8" />
                 </Link>
 
                 <div class="max-w-md">
@@ -45,11 +43,8 @@ defineProps<{ judul: string; ket?: string }>();
             <div class="aurora opacity-60 lg:hidden" />
 
             <div class="relative w-full max-w-sm">
-                <Link href="/" class="mb-8 flex items-center gap-3 lg:hidden">
-                    <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))]">
-                        <Boxes class="h-4 w-4 text-white" />
-                    </span>
-                    <span class="text-sm font-semibold tracking-tight">BoxinGenerated</span>
+                <Link href="/" class="mb-8 inline-flex lg:hidden">
+                    <Merek :merek="{ name: 'BoxinGenerated', logo_dark: '/img/logo-gelap.webp', logo_light: '/img/logo-terang.webp' }" tinggi="h-7" />
                 </Link>
 
                 <h1 class="text-2xl font-semibold tracking-tight">{{ judul }}</h1>

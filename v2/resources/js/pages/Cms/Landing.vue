@@ -273,6 +273,11 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             <Isian v-model="isi.brand.kicker" label="Kalimat pendek" />
                             <Isian v-model="isi.brand.tagline" label="Tagline" />
                         </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <Gambar v-model="isi.brand.logo_dark" label="Logo — tema gelap" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                            <Gambar v-model="isi.brand.logo_light" label="Logo — tema terang" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                        </div>
+                        <p class="text-[11px] text-muted-foreground">Kosongkan keduanya kalau mau kembali ke nama + cap kanji.</p>
                         <DaftarTeks v-model="isi.marquee" label="Teks berjalan (ticker)" ket="boleh campur Jepang; yang Jepang otomatis diberi huruf serif" placeholder="A new bout every week" />
                     </div>
                 </Kartu>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link } from '@inertiajs/vue3';
 import { Gauge, Menu, Moon, Sun, X } from 'lucide-vue-next';
@@ -12,8 +13,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
  * panel penuh yang dibuka tombol, bukan menu yang bersembunyi di hover.
  */
 const props = defineProps<{
-    nama: string;
-    jp: string;
+    merek: { name: string; jp?: string; logo_dark?: string; logo_light?: string };
     tautan: Array<{ label: string; href: string }>;
     cta: { label: string; url: string };
     masuk: boolean;
@@ -57,12 +57,8 @@ onBeforeUnmount(() => {
         :class="digulir || menuTerbuka ? 'border-b border-border/60 bg-background/95' : 'border-b border-transparent bg-transparent'"
     >
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5">
-            <a href="#top" class="flex items-center gap-3" aria-label="BoxinGenerated — top">
-                <span class="hanko !h-9 !min-w-9 text-[11px]" aria-hidden="true">拳</span>
-                <span class="leading-tight">
-                    <span class="block text-[15px] font-semibold tracking-tight">{{ nama }}</span>
-                    <span class="jp hidden text-[10px] tracking-[0.22em] text-muted-foreground sm:block">{{ jp }}</span>
-                </span>
+            <a href="#top" class="flex items-center" :aria-label="`${merek.name} — top`">
+                <Merek :merek="merek" tinggi="h-7 sm:h-8" />
             </a>
 
             <nav class="hidden items-center gap-1 md:flex" aria-label="Sections">

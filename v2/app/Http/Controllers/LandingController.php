@@ -138,6 +138,13 @@ class LandingController extends Controller
             (bool) $umpan['ikut_dewasa'],
         );
 
+        // Penjaga kedua. Layanannya sudah menyaring, tapi ini satu-satunya
+        // tempat di mana kesalahan berarti karya bertanda dewasa terpampang
+        // di halaman umum — jadi disaring sekali lagi di sini.
+        if (empty($umpan['ikut_dewasa'])) {
+            $karya = array_filter($karya, fn ($k) => empty($k['dewasa']));
+        }
+
         $lewati = array_flip($umpan['skip']);
         $keluar = [];
         foreach ($karya as $k) {

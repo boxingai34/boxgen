@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import Merek from '@/components/landing/Merek.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Boxes, Clapperboard, Globe, History, LayoutDashboard, PenLine, Wrench } from 'lucide-vue-next';
+import { Clapperboard, Globe, History, LayoutDashboard, PenLine, Wrench } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 defineProps<{ terbuka: boolean }>();
@@ -54,14 +55,9 @@ function aktif(rute: string, persis: boolean): boolean {
         :class="terbuka ? 'translate-x-0' : '-translate-x-full'"
     >
         <!-- Merek -->
-        <Link :href="route('dashboard')" class="flex items-center gap-3 px-5 py-5">
-            <span class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))] shadow-lg shadow-[hsl(var(--sorot)/0.35)]">
-                <Boxes class="h-5 w-5 text-white" />
-            </span>
-            <span class="leading-tight">
-                <span class="block text-[15px] font-semibold tracking-tight">BoxinGenerated</span>
-                <span class="block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Prompt Studio</span>
-            </span>
+        <Link :href="route('dashboard')" class="block px-5 py-5">
+            <Merek :merek="{ name: 'BoxinGenerated', logo_dark: '/img/logo-gelap.webp', logo_light: '/img/logo-terang.webp' }" tinggi="h-8" />
+            <span class="mt-1.5 block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Prompt Studio</span>
         </Link>
 
         <nav class="mt-2 flex-1 space-y-1 overflow-y-auto px-3 pb-4">

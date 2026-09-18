@@ -119,7 +119,10 @@ class LandingContent
             } elseif (is_array($contoh)) {
                 $keluar[$kunci] = self::rapikan(is_array($nilai) ? $nilai : [], $contoh);
             } elseif (is_bool($contoh)) {
-                $keluar[$kunci] = (bool) $nilai;
+                // Kunci yang memang tidak dikirim memakai bawaannya. Tanpa
+                // ini, berkas lama yang belum mengenal sebuah saklar akan
+                // mematikannya diam-diam waktu disimpan ulang.
+                $keluar[$kunci] = array_key_exists($kunci, $masuk) ? (bool) $nilai : $contoh;
             } elseif (is_int($contoh)) {
                 $keluar[$kunci] = is_numeric($nilai) ? (int) $nilai : $contoh;
             } else {
@@ -132,11 +135,17 @@ class LandingContent
 
     private static function rapikanDaftar(array $daftar, $contoh): array
     {
+        // Anggota pertama bawaan cuma dipakai sebagai BENTUK, bukan isi:
+        // kalau isinya ikut jadi cadangan, anggota lain yang kekurangan satu
+        // kunci akan meminjam isi anggota pertama — misalnya baris Pixiv
+        // tiba-tiba memakai angka milik Patreon.
+        $bentuk = is_array($contoh) ? self::kosongkan($contoh) : $contoh;
+
         $keluar = [];
         foreach (array_slice(array_values($daftar), 0, 60) as $anggota) {
             if (is_array($contoh)) {
                 if (is_array($anggota)) {
-                    $keluar[] = self::rapikan($anggota, $contoh);
+                    $keluar[] = self::rapikan($anggota, $bentuk);
                 }
             } elseif (is_scalar($anggota)) {
                 $t = self::rapikanTeks('item', $anggota, '');
@@ -147,6 +156,21 @@ class LandingContent
         }
 
         return $keluar;
+    }
+
+    /** Bentuknya ikut contoh, isinya dikosongkan. */
+    private static function kosongkan(array $contoh): array
+    {
+        foreach ($contoh as $kunci => $nilai) {
+            $contoh[$kunci] = match (true) {
+                is_array($nilai) => array_is_list($nilai) ? [] : self::kosongkan($nilai),
+                is_bool($nilai)  => false,
+                is_int($nilai)   => 0,
+                default          => '',
+            };
+        }
+
+        return $contoh;
     }
 
     private static function rapikanTeks(string $kunci, $nilai, string $contoh): string
@@ -191,11 +215,16 @@ class LandingContent
                 'og_image'    => '/img/duel/bocchi-yui.webp',
             ],
 
+            // Dua berkas logo: yang gelap dipakai tema gelap, yang terang
+            // dipakai tema terang. Kalau keduanya dikosongkan, yang tampil
+            // nama dan cap kanji.
             'brand' => [
-                'name'    => 'BoxinGenerated',
-                'jp'      => 'ボクシンジェネレイテッド',
-                'kicker'  => 'Female Boxing AI Animation',
-                'tagline' => 'Turn your waifu to be a boxer!',
+                'name'       => 'BoxinGenerated',
+                'jp'         => 'ボクシンジェネレイテッド',
+                'kicker'     => 'Female Boxing AI Animation',
+                'tagline'    => 'Turn your waifu to be a boxer!',
+                'logo_dark'  => '/img/logo-gelap.webp',
+                'logo_light' => '/img/logo-terang.webp',
             ],
 
             'hero' => [

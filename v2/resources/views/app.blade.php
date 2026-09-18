@@ -26,7 +26,12 @@
 
         <title inertia>{{ config('app.name', 'BoxinGenerated') }}</title>
 
+        {{-- Favicon latarnya tembus supaya terbaca di bilah tab terang maupun
+             gelap; ikon aplikasi (taskbar, layar utama ponsel) latarnya diisi
+             karena sistem operasi memotongnya jadi bentuk sendiri. --}}
         <link rel="icon" href="/img/favicon.png" type="image/png" sizes="64x64">
+        <link rel="apple-touch-icon" href="/img/ikon-180.png" sizes="180x180">
+        <link rel="manifest" href="/site.webmanifest">
 
         {{--
             Tema dan mode hemat dipasang SEBELUM halaman digambar.
