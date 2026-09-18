@@ -128,6 +128,8 @@ Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 | --- | --- |
 | `/` | Halaman depan publik |
 | `/generator` | Dasbor (diminta masuk) |
+| `/generator/prompt` | Prompt Generator — prompt gambar dari pilihan |
+| `/generator/reverse` | Dari Gambar/Video — referensi jadi prompt |
 | `/generator/rancang`, `/generator/riwayat`, `/generator/akun`, `/generator/alat-lama` | Generator |
 | `/generator/login`, `/generator/register`, `/generator/logout` | Masuk / daftar |
 | `/generator/cms` | CMS halaman depan (admin) |
@@ -165,6 +167,8 @@ storage/app/landing.json  Isi halaman depan (tidak ikut git; ada cadangan .bak1�
 | Halaman | Keterangan |
 | --- | --- |
 | Halaman depan | Landing page publik BoxinGenerated + CMS |
+| Prompt Generator | Mode 1 & 2 petinju, lengkap dengan isi otomatis AI, warna per bagian, tag bebas, dan empat format keluaran |
+| Dari Gambar/Video | Unggah/seret/tempel/URL → dibaca model vision → kolomnya dibetulkan → prompt NovelAI |
 | Dasbor | Angka ringkas + pintasan + riwayat terbaru |
 | Rancang Pertandingan (dari cerita) | Alur penuh: baca → susun → salin → simpan → buka lagi |
 | Riwayat | Cari, lihat isi, hapus |
@@ -173,9 +177,17 @@ storage/app/landing.json  Isi halaman depan (tidak ikut git; ada cadangan .bak1�
 
 ## Yang belum pindah
 
-Prompt Generator, Dari Gambar/Video, Dari Komik, Rancang dari gambar acuan, dan
-Admin masih di aplikasi lama. Halaman **Alat lain** menautkannya, jadi tidak ada
-yang hilang. Alamat aplikasi lama diatur lewat `LEGACY_URL` di `.env`.
+Dari Komik, Rancang dari gambar acuan, dan Admin masih di aplikasi lama.
+Begitu juga mode Video (Seedance), Storyboard, Halaman Komik, dan Video Wan 3.0
+— tombolnya disembunyikan di Prompt Generator lama karena jarang dipakai, tapi
+mesinnya utuh. Halaman **Alat lain** menautkan semuanya, jadi tidak ada yang
+hilang. Alamat aplikasi lama diatur lewat `LEGACY_URL` di `.env`.
+
+**Prompt Generator dan Dari Gambar/Video memanggil mesin yang sama** dengan
+halaman lamanya (PromptBuilder, Exporter, ReversePrompt, CharacterResolver),
+lewat `PromptController` dan `ReverseController` — bukan lewat `api/*.php`.
+Jadi satu perubahan di engine langsung terasa di kedua tampilan, dan riwayatnya
+tetap satu tabel `generations` yang sama.
 
 ## Keputusan yang perlu diingat
 

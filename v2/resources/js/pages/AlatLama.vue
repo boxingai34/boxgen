@@ -7,17 +7,13 @@ import { ExternalLink, Image, Images, LayoutGrid, Shield, Sparkles } from 'lucid
 const props = defineProps<{ basisLama: string }>();
 
 const alat = [
+    // Prompt Generator dan Dari Gambar/Video sudah punya halamannya sendiri
+    // di tampilan baru; yang tertinggal di sini cuma mode yang belum pindah.
     {
-        judul: 'Prompt Generator',
-        isi: 'Susun prompt gambar dari kamus tag: karakter, pakaian, pose, kondisi, kamera, cahaya. Lengkap dengan preset dan versi NovelAI.',
+        judul: 'Mode video, storyboard & komik',
+        isi: 'Video Seedance, Storyboard, Halaman Komik, dan Video Wan 3.0 masih di Prompt Generator lama. Tombolnya disembunyikan di sana, tapi mesinnya jalan — buka lewat tautan ini kalau perlu.',
         berkas: 'index.php',
         ikon: LayoutGrid,
-    },
-    {
-        judul: 'Dari Gambar / Video',
-        isi: 'Unggah gambar atau video, mesin membacanya jadi prompt — termasuk prompt video Wan dan Seedance.',
-        berkas: 'reverse.php',
-        ikon: Image,
     },
     {
         judul: 'Dari Komik',
@@ -43,7 +39,7 @@ const alat = [
 <template>
     <Head title="Alat lain" />
 
-    <AppLayout judul="Alat lain" anak="Masih berjalan di aplikasi lama, dan tetap memakai database yang sama.">
+    <AppLayout judul="Alat lain" anak="Yang belum pindah ke tampilan baru. Semuanya tetap memakai database yang sama.">
         <div v-reveal class="kartu mb-6 flex flex-wrap items-center justify-between gap-4 p-5">
             <p class="max-w-xl text-sm leading-relaxed text-muted-foreground">
                 Tampilan baru ini dimulai dari alat yang paling sering dipakai. Sisanya belum dipindah — dan daripada

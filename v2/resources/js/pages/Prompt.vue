@@ -1,0 +1,529 @@
+<script setup lang="ts">
+import Kartu from '@/components/box/Kartu.vue';
+import KotakTeks from '@/components/box/KotakTeks.vue';
+import PanelPetinju from '@/components/box/PanelPetinju.vue';
+import Tombol from '@/components/box/Tombol.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { GalatKirim, kirim } from '@/lib/kirim';
+import { Head } from '@inertiajs/vue3';
+import { Dices, LoaderCircle, Sparkles, Wand2, X } from 'lucide-vue-next';
+import { computed, reactive, ref, watch } from 'vue';
+
+/**
+ * Prompt Generator: prompt gambar dari pilihan, bukan dari cerita.
+ *
+ * Dua mode — satu petinju dan dua petinju. Mode video, storyboard, dan
+ * komik tetap ada mesinnya di aplikasi lama tapi tidak ditawarkan di sini.
+ *
+ * Yang menyusun tetap engine/PromptBuilder.php; halaman ini cuma
+ * mengumpulkan pilihan dan menggambar hasilnya.
+ */
+const props = defineProps<{
+    modul: Record<string, any[]>;
+    warna: any;
+    semesta: Array<{ nama: string; jumlah: number }>;
+    jumlah: { tag: number; karakter: number };
+    aiSiap: boolean;
+}>();
+
+const isianKelas =
+    'w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[hsl(var(--sorot))] disabled:opacity-50';
+
+// -------------------------------------------------------------- keadaan
+const mode = ref<'single' | 'duo'>('single');
+
+function orangBaru() {
+    const o: any = { character: '', gender: '', mature: false, outfit_id: '', condition_id: '' };
+    for (const s of ['top', 'bottom', 'hand', 'foot', 'head']) {
+        o['outfit_' + s + '_id'] = '';
+        o['outfit_' + s + '_color'] = '';
+    }
+    for (const s of ['eyes', 'gaze', 'cheek', 'nose', 'mouth', 'body', 'expr', 'clothes']) {
+        o['cond_' + s + '_id'] = '';
+    }
+
+    return o;
+}
+
+const a = reactive(orangBaru());
+const b = reactive(orangBaru());
+
+const pilih = reactive<any>({
+    pose_id: '',
+    interaction_id: '',
+    attacker: 'a',
+    sub_jatuh_id: '',
+    sub_menang_id: '',
+    sub_reaksi_id: '',
+    sub_lokasi_id: '',
+    sub_sasaran_a_id: '',
+    sub_sasaran_b_id: '',
+    quality_id: '',
+    style_id: '',
+    background_id: '',
+    ring_id: '',
+    cam_distance_id: '',
+    cam_angle_id: '',
+    cam_effect_id: '',
+    lighting_id: '',
+});
+
+const tagTambahan = ref<string[]>([]);
+const trimImplied = ref(true);
+const latarSaran = ref<number[]>([]);
+
+const aiTeks = ref('');
+const sedangAi = ref(false);
+const aiNota = ref('');
+
+const sedang = ref(false);
+const galat = ref('');
+const hasil = ref<any>(null);
+const target = ref<'sd' | 'novelai' | 'nai5' | 'gemini'>('sd');
+
+// ----------------------------------------------------------- interaksi
+const interaksi = computed(() => (props.modul.interaction || []).find((m: any) => String(m.id) === String(pilih.interaction_id)));
+
+/** Sub-pilihan hanya ditawarkan kalau interaksinya memang memakainya. */
+const subAktif = computed(() => {
+    const s = String(interaksi.value?.sub || '');
+
+    return s ? s.split(',').map((x) => x.trim()).filter(Boolean) : [];
+});
+
+const adaArah = computed(() => Boolean(interaksi.value?.arah));
+
+function kelompok(tipe: string): Array<[string, any[]]> {
+    const peta = new Map<string, any[]>();
+    for (const m of props.modul[tipe] || []) {
+        const k = m.kategori || '';
+        if (!peta.has(k)) peta.set(k, []);
+        peta.get(k)!.push(m);
+    }
+
+    return [...peta.entries()];
+}
+
+// ------------------------------------------------------------ tag bebas
+const tagCari = ref('');
+const tagSaran = ref<any[]>([]);
+const tagTerbuka = ref(false);
+let jedaTag: number | undefined;
+
+watch(tagCari, () => {
+    window.clearTimeout(jedaTag);
+    jedaTag = window.setTimeout(cariTag, 220);
+});
+
+async function cariTag() {
+    if (tagCari.value.trim().length < 2) {
+        tagSaran.value = [];
+
+        return;
+    }
+
+    try {
+        const jawab = await kirim<any>(route('prompt.tag') + '?q=' + encodeURIComponent(tagCari.value.trim()), undefined, 'GET');
+        tagSaran.value = jawab.hasil || [];
+        tagTerbuka.value = true;
+    } catch {
+        tagSaran.value = [];
+    }
+}
+
+function tambahTag(nama: string) {
+    const t = nama.trim().toLowerCase().replace(/\s+/g, '_');
+    if (t && !tagTambahan.value.includes(t)) tagTambahan.value.push(t);
+    tagCari.value = '';
+    tagSaran.value = [];
+    tagTerbuka.value = false;
+}
+
+function tutupTagNanti() {
+    window.setTimeout(() => (tagTerbuka.value = false), 180);
+}
+
+// ---------------------------------------------------------- isi otomatis
+async function isiOtomatis() {
+    if (!aiTeks.value.trim()) return;
+
+    sedangAi.value = true;
+    galat.value = '';
+    aiNota.value = '';
+
+    try {
+        const jawab = await kirim<any>(route('prompt.isi'), { teks: aiTeks.value.trim(), mode: mode.value });
+        const p = jawab.pilihan || {};
+
+        for (const k of ['quality_id', 'style_id', 'background_id', 'cam_distance_id', 'cam_angle_id', 'cam_effect_id', 'lighting_id', 'pose_id', 'interaction_id']) {
+            if (p[k]) pilih[k] = p[k];
+        }
+        if (p.outfit_id) a.outfit_id = p.outfit_id;
+        if (p.condition_id) a.condition_id = p.condition_id;
+        if (p.character) a.character = p.character;
+        if (p.character_b) b.character = p.character_b;
+        for (const t of p.extra_tags || []) tambahTag(t);
+
+        const buang = [
+            ...(jawab.nota?.karakter_ditolak || []).map((x: string) => `karakter "${x}" tidak ada di kamus`),
+            ...(jawab.nota?.tag_ditolak || []).map((x: string) => `tag "${x}" tidak dikenal`),
+        ];
+        aiNota.value = [jawab.alasan, buang.length ? 'Dibuang: ' + buang.join(', ') + '.' : ''].filter(Boolean).join(' ');
+    } catch (e: any) {
+        galat.value = e instanceof GalatKirim ? e.message : 'Gagal memanggil AI.';
+    } finally {
+        sedangAi.value = false;
+    }
+}
+
+// --------------------------------------------------------------- susun
+async function susun() {
+    sedang.value = true;
+    galat.value = '';
+
+    try {
+        const muatan: any = {
+            mode: mode.value,
+            a: bersih(a),
+            ...pilih,
+            extra_tags: tagTambahan.value,
+            trim_implied: trimImplied.value,
+            used_ai: Boolean(aiNota.value),
+        };
+        if (mode.value === 'duo') muatan.b = bersih(b);
+
+        hasil.value = await kirim<any>(route('prompt.susun'), muatan);
+    } catch (e: any) {
+        galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun prompt.';
+    } finally {
+        sedang.value = false;
+    }
+}
+
+/** Kunci yang kosong tidak dikirim — server memakai bawaannya sendiri. */
+function bersih(o: any): any {
+    const keluar: any = {};
+    for (const [k, v] of Object.entries(o)) {
+        if (v !== '' && v !== null && v !== undefined) keluar[k] = v;
+    }
+
+    return keluar;
+}
+
+function acak() {
+    const ambil = (tipe: string) => {
+        const daftar = props.modul[tipe] || [];
+
+        return daftar.length ? daftar[Math.floor(Math.random() * daftar.length)].id : '';
+    };
+
+    pilih.quality_id = ambil('quality');
+    pilih.style_id = ambil('style');
+    pilih.background_id = ambil('background');
+    pilih.lighting_id = ambil('lighting');
+    pilih.cam_distance_id = ambil('cam_distance');
+    pilih.cam_angle_id = ambil('cam_angle');
+    a.outfit_id = ambil('outfit');
+    a.condition_id = ambil('condition');
+
+    if (mode.value === 'duo') {
+        pilih.interaction_id = ambil('interaction');
+        b.outfit_id = ambil('outfit');
+        b.condition_id = ambil('condition');
+    } else {
+        pilih.pose_id = ambil('pose');
+    }
+}
+
+const keluaran = computed(() => hasil.value?.keluaran?.[target.value] ?? null);
+const nai = computed(() => hasil.value?.keluaran?.[target.value]?.structured ?? null);
+
+const TARGET = [
+    ['sd', 'Stable Diffusion'],
+    ['novelai', 'NovelAI (tag)'],
+    ['nai5', 'NovelAI V5 (kalimat)'],
+    ['gemini', 'Gemini'],
+] as const;
+</script>
+
+<template>
+    <Head title="Prompt Generator" />
+
+    <AppLayout judul="Prompt Generator" anak="Prompt gambar anime berbasis tag Danbooru — dipilih sendiri, bukan dari cerita.">
+        <div class="mb-5 flex flex-wrap items-center gap-2">
+            <button
+                v-for="[n, l] in [['single', '1 Petinju'], ['duo', '2 Petinju']]"
+                :key="n"
+                type="button"
+                class="rounded-xl border px-4 py-2 text-sm transition-colors"
+                :class="mode === n ? 'gradasi-tombol border-transparent text-white' : 'border-border text-muted-foreground hover:border-[hsl(var(--sorot)/0.5)]'"
+                @click="mode = n as any"
+            >
+                {{ l }}
+            </button>
+
+            <span class="ml-auto flex gap-2 text-[11px] text-muted-foreground">
+                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.tag.toLocaleString('id-ID') }} tag</span>
+                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.karakter.toLocaleString('id-ID') }} karakter</span>
+            </span>
+        </div>
+
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+            <!-- ============================ KIRI: SUSUN ============================ -->
+            <div class="space-y-5">
+                <Kartu judul="1. Susun" ket="Pilih seperlunya — yang dikosongkan tidak ikut ke prompt.">
+                    <!-- Isi otomatis -->
+                    <div class="mb-5 rounded-xl border border-border/70 bg-card/50 p-3">
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tulis bebas, biar AI yang memilihkan</span>
+                        <div class="flex gap-2">
+                            <input
+                                v-model="aiTeks"
+                                type="text"
+                                maxlength="500"
+                                :disabled="!aiSiap || sedangAi"
+                                placeholder="contoh: maki tinju di ring bawah tanah, malam, babak akhir"
+                                :class="isianKelas"
+                                @keydown.enter.prevent="isiOtomatis"
+                            />
+                            <Tombol jenis="garis" :nonaktif="!aiSiap || sedangAi || !aiTeks.trim()" @click="isiOtomatis">
+                                <LoaderCircle v-if="sedangAi" class="h-4 w-4 animate-spin" />
+                                <Wand2 v-else class="h-4 w-4" />
+                                Isi otomatis
+                            </Tombol>
+                        </div>
+                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                            <template v-if="aiSiap">AI hanya boleh memilih dari database — tag karangan otomatis dibuang.</template>
+                            <template v-else>Fitur AI belum aktif. Isi <code>AI_API_KEY</code> di <code>config.local.php</code>. Tanpa itu pun semua pilihan di bawah tetap berfungsi.</template>
+                        </p>
+                        <p v-if="aiNota" class="mt-1.5 text-[11px] text-[hsl(var(--sorot))]">{{ aiNota }}</p>
+                    </div>
+
+                    <!-- Petinju -->
+                    <div class="space-y-4">
+                        <PanelPetinju
+                            :judul="mode === 'single' ? 'Petinju' : 'Petinju A'"
+                            :modul="modul"
+                            :warna="warna"
+                            :semesta="semesta"
+                            :orang="a"
+                            @latar="latarSaran = $event"
+                        />
+                        <PanelPetinju
+                            v-if="mode === 'duo'"
+                            judul="Petinju B"
+                            :modul="modul"
+                            :warna="warna"
+                            :semesta="semesta"
+                            :orang="b"
+                        />
+                    </div>
+
+                    <!-- Pose / interaksi -->
+                    <label v-if="mode === 'single'" class="mt-4 block">
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Pose</span>
+                        <select v-model="pilih.pose_id" :class="isianKelas">
+                            <option value="">— tidak dipakai —</option>
+                            <optgroup v-for="[kat, daftar] in kelompok('pose')" :key="kat" :label="kat || 'lainnya'">
+                                <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
+                            </optgroup>
+                        </select>
+                    </label>
+
+                    <template v-else>
+                        <label class="mt-4 block">
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Interaksi</span>
+                            <select v-model="pilih.interaction_id" :class="isianKelas">
+                                <option value="">— tidak dipakai —</option>
+                                <optgroup v-for="[kat, daftar] in kelompok('interaction')" :key="kat" :label="kat || 'lainnya'">
+                                    <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
+                                </optgroup>
+                            </select>
+                        </label>
+
+                        <div v-if="adaArah" class="mt-3 rounded-xl border border-border/70 p-3">
+                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
+                                {{ interaksi?.arahLabel || 'Siapa yang melakukan?' }}
+                            </span>
+                            <div class="flex gap-2">
+                                <label v-for="s in ['a', 'b']" :key="s" class="flex items-center gap-2 text-sm">
+                                    <input v-model="pilih.attacker" type="radio" :value="s" class="accent-[hsl(var(--sorot))]" />
+                                    Petinju {{ s.toUpperCase() }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div v-if="subAktif.length" class="mt-3 grid gap-3 sm:grid-cols-2">
+                            <label v-for="grup in subAktif" :key="grup" class="block">
+                                <span class="mb-1.5 block text-xs text-muted-foreground">
+                                    {{ ({ sub_jatuh: 'Cara tumbang', sub_menang: 'Sikap yang menang', sub_reaksi: 'Reaksi', sub_lokasi: 'Bagian ring', sub_sasaran: 'Sasaran pukulan' } as any)[grup] || grup }}
+                                </span>
+                                <template v-if="grup === 'sub_sasaran'">
+                                    <select v-model="pilih.sub_sasaran_a_id" :class="[isianKelas, 'mb-2']">
+                                        <option value="">— bebas — (pukulan A)</option>
+                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                    </select>
+                                    <select v-model="pilih.sub_sasaran_b_id" :class="isianKelas">
+                                        <option value="">— bebas — (pukulan B)</option>
+                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                    </select>
+                                </template>
+                                <select v-else v-model="pilih[grup + '_id']" :class="isianKelas">
+                                    <option value="">— bebas —</option>
+                                    <option v-for="m in modul[grup] || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                </select>
+                            </label>
+                        </div>
+                    </template>
+                </Kartu>
+
+                <!-- Gambarnya -->
+                <Kartu judul="Gambarnya" ket="Kualitas, gaya, tempat, kamera, dan cahaya.">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label v-for="[tipe, label] in [['quality', 'Kualitas'], ['style', 'Gaya'], ['background', 'Latar'], ['lighting', 'Cahaya'], ['cam_distance', 'Jarak kamera'], ['cam_angle', 'Sudut kamera'], ['cam_effect', 'Efek kamera'], ['ring', 'Ring']]" :key="tipe" class="block">
+                            <span class="mb-1.5 block text-xs text-muted-foreground">
+                                {{ label }}
+                                <span v-if="tipe === 'background' && latarSaran.length" class="text-[11px] text-[hsl(var(--sorot))]">· ada saran dari serinya</span>
+                            </span>
+                            <select v-model="pilih[tipe + '_id']" :class="isianKelas">
+                                <option value="">— tidak dipakai —</option>
+                                <option v-if="tipe === 'ring'" value="auto">— sesuaikan dengan tempat —</option>
+                                <optgroup v-for="[kat, daftar] in kelompok(tipe)" :key="kat" :label="kat || 'lainnya'">
+                                    <option
+                                        v-for="m in daftar"
+                                        :key="m.id"
+                                        :value="m.id"
+                                        :class="tipe === 'background' && latarSaran.includes(m.id) ? 'font-semibold' : ''"
+                                    >
+                                        {{ tipe === 'background' && latarSaran.includes(m.id) ? '★ ' : '' }}{{ m.nama }}{{ m.nsfw ? ' •' : '' }}
+                                    </option>
+                                </optgroup>
+                            </select>
+                        </label>
+                    </div>
+
+                    <!-- Tag tambahan -->
+                    <div class="relative mt-4">
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tag tambahan</span>
+                        <input
+                            v-model="tagCari"
+                            type="text"
+                            autocomplete="off"
+                            placeholder="ketik tag, misal: rain, night, crowd"
+                            :class="isianKelas"
+                            @focus="tagTerbuka = true"
+                            @blur="tutupTagNanti"
+                            @keydown.enter.prevent="tambahTag(tagCari)"
+                        />
+                        <ul v-if="tagTerbuka && tagSaran.length" class="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-lg">
+                            <li v-for="t in tagSaran" :key="t.nama">
+                                <button type="button" class="flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent" @mousedown.prevent="tambahTag(t.nama)">
+                                    <span class="truncate">
+                                        {{ t.tampil }}
+                                        <span v-if="t.label" class="text-[11px] text-muted-foreground">· {{ t.label }}</span>
+                                        <span v-if="!t.pasti" class="text-[11px] text-[hsl(var(--kanvas))]">· belum tersinkron</span>
+                                    </span>
+                                    <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">{{ t.jumlah.toLocaleString('id-ID') }}</span>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div v-if="tagTambahan.length" class="mt-2 flex flex-wrap gap-1.5">
+                            <span v-for="t in tagTambahan" :key="t" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px]">
+                                {{ t.replace(/_/g, ' ') }}
+                                <button type="button" class="text-muted-foreground transition-colors hover:text-destructive" @click="tagTambahan = tagTambahan.filter((x) => x !== t)"><X class="h-3 w-3" /></button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <label class="mt-4 flex items-start gap-2 text-sm">
+                        <input v-model="trimImplied" type="checkbox" class="mt-1 accent-[hsl(var(--sorot))]" />
+                        <span>Buang tag yang sudah tersirat <span class="block text-[11px] text-muted-foreground">Misalnya <code>boxing_gloves</code> yang sudah dibawa temanya sendiri.</span></span>
+                    </label>
+
+                    <div class="mt-5 flex flex-wrap gap-3">
+                        <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
+                            <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
+                            <Sparkles v-else class="h-4 w-4" />
+                            {{ sedang ? 'Menyusun…' : 'Generate Prompt' }}
+                        </Tombol>
+                        <Tombol jenis="garis" ukuran="besar" :nonaktif="sedang" @click="acak">
+                            <Dices class="h-4 w-4" />
+                            Acak
+                        </Tombol>
+                    </div>
+
+                    <p v-if="galat" class="mt-3 text-xs text-destructive">{{ galat }}</p>
+                </Kartu>
+            </div>
+
+            <!-- ============================ KANAN: HASIL ============================ -->
+            <div class="space-y-5">
+                <Kartu judul="2. Hasil">
+                    <template v-if="hasil" #alat>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button
+                                v-for="[n, l] in TARGET"
+                                :key="n"
+                                type="button"
+                                class="rounded-lg border px-2.5 py-1 text-[11px] transition-colors"
+                                :class="target === n ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
+                                @click="target = n as any"
+                            >
+                                {{ l }}
+                            </button>
+                        </div>
+                    </template>
+
+                    <div v-if="!hasil" class="rounded-2xl border border-dashed border-border px-6 py-14 text-center">
+                        <Sparkles class="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
+                        <p class="text-sm text-muted-foreground">
+                            Belum ada hasil. Pilih minimal satu komponen lalu tekan <strong>Generate Prompt</strong>.
+                        </p>
+                    </div>
+
+                    <div v-else class="space-y-4">
+                        <p class="text-[11px] text-muted-foreground">
+                            ≈ {{ hasil.token }} token
+                            <span v-if="hasil.peringatan" class="text-[hsl(var(--kanvas))]"> · {{ hasil.peringatan }}</span>
+                        </p>
+
+                        <KotakTeks v-if="keluaran" judul="Prompt" :teks="keluaran.prompt || ''" :baris="7" />
+
+                        <!-- NovelAI memisahkan Base Prompt dan Character Prompt -->
+                        <template v-if="nai">
+                            <KotakTeks judul="Base Prompt" :teks="nai.base || ''" :baris="4" />
+                            <KotakTeks v-for="(c, i) in nai.characters || []" :key="i" :judul="c.label || `Character ${i + 1}`" :teks="c.prompt || ''" :baris="3" />
+                            <p class="text-[11px] leading-relaxed text-muted-foreground">
+                                Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.
+                            </p>
+                        </template>
+
+                        <KotakTeks v-if="keluaran?.negative" judul="Negative prompt" :teks="keluaran.negative" :baris="3" />
+
+                        <div v-if="hasil.catatan?.length" class="space-y-1 text-[11px] text-muted-foreground">
+                            <p v-for="(c, i) in hasil.catatan" :key="i">{{ c }}</p>
+                        </div>
+
+                        <details v-if="hasil.blok?.length" class="rounded-xl border border-border/70 p-3">
+                            <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Kenapa tag ini muncul</summary>
+                            <div v-for="bl in hasil.blok" :key="bl.blok" class="mt-2">
+                                <p class="text-[11px] font-medium text-[hsl(var(--sudut))]">{{ bl.blok }}</p>
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    <span v-for="t in bl.tag" :key="t.nama" class="rounded border border-border/60 px-1.5 py-0.5 text-[10px]" :title="t.dari || ''">
+                                        {{ t.tampil }}<span v-if="t.bobot !== 1" class="text-muted-foreground"> ×{{ t.bobot }}</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </details>
+
+                        <div v-if="hasil.nota" class="space-y-1 text-[11px] text-muted-foreground">
+                            <p v-if="hasil.nota.tag_asing?.length"><strong class="text-foreground/80">Tag tidak dikenal:</strong> {{ hasil.nota.tag_asing.join(', ') }}</p>
+                            <p v-if="hasil.nota.dibuang?.length"><strong class="text-foreground/80">Dibuang karena tersirat:</strong> {{ hasil.nota.dibuang.join(', ') }}</p>
+                            <p v-if="hasil.nota.bentrok?.length"><strong class="text-foreground/80">Bentrok:</strong> {{ hasil.nota.bentrok.join(', ') }}</p>
+                        </div>
+                    </div>
+                </Kartu>
+            </div>
+        </div>
+    </AppLayout>
+</template>

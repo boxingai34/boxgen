@@ -4,6 +4,8 @@ use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\PromptController;
+use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,6 +28,22 @@ Route::get('/', [LandingController::class, 'show'])->name('home');
 Route::prefix('generator')->group(function () {
     Route::middleware(['auth'])->group(function () {
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+        // ---- Prompt Generator (dari pilihan) ----
+        Route::get('prompt', [PromptController::class, 'halaman'])->name('prompt');
+        Route::post('prompt/susun', [PromptController::class, 'susun'])->name('prompt.susun');
+        Route::post('prompt/isi-otomatis', [PromptController::class, 'isiOtomatis'])->name('prompt.isi');
+        Route::get('prompt/judul', [PromptController::class, 'judul'])->name('prompt.judul');
+        Route::get('prompt/karakter', [PromptController::class, 'cariKarakter'])->name('prompt.karakter');
+        Route::get('prompt/tag', [PromptController::class, 'cariTag'])->name('prompt.tag');
+        Route::get('prompt/pakaian', [PromptController::class, 'bawaanPakaian'])->name('prompt.pakaian');
+        Route::get('prompt/latar', [PromptController::class, 'latarSaran'])->name('prompt.latar');
+
+        // ---- Dari Gambar/Video (reverse prompt) ----
+        Route::get('reverse', [ReverseController::class, 'halaman'])->name('reverse');
+        Route::post('reverse/ambil', [ReverseController::class, 'ambilUrl'])->name('reverse.ambil');
+        Route::post('reverse/baca', [ReverseController::class, 'baca'])->name('reverse.baca');
+        Route::post('reverse/susun', [ReverseController::class, 'susun'])->name('reverse.susun');
 
         // ---- Rancang Pertandingan (dari cerita) ----
         Route::get('rancang', [CeritaController::class, 'halaman'])->name('rancang');

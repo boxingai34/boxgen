@@ -280,11 +280,19 @@ halamanHeader('Prompt Generator', 'index.php');
 <div class="modebar">
     <button class="modebtn active" data-mode="single">1 Petinju</button>
     <button class="modebtn" data-mode="duo">2 Petinju</button>
-    <button class="modebtn" data-mode="seedance">Video (Seedance)</button>
-    <button class="modebtn" data-mode="storyboard">Storyboard</button>
-    <button class="modebtn" data-mode="comic">Halaman Komik</button>
-    <button class="modebtn" data-mode="wan">Video Wan 3.0</button>
-    <button class="modebtn" data-mode="seedance25">Video Seedance 2.5</button>
+
+    <!-- Lima mode di bawah ini jarang dipakai, jadi tombolnya disembunyikan
+         — bukan dibuang. Mesinnya (api/generate.php, api/storyboard.php,
+         api/comic.php, api/wan.php, api/seedance25.php) dan seluruh
+         isian di app.js tetap utuh, jadi prompt lama di Riwayat masih bisa
+         dibuka dan modenya tinggal dimunculkan lagi kalau diperlukan. -->
+    <div class="modebar-sembunyi" hidden aria-hidden="true">
+        <button class="modebtn" data-mode="seedance">Video (Seedance)</button>
+        <button class="modebtn" data-mode="storyboard">Storyboard</button>
+        <button class="modebtn" data-mode="comic">Halaman Komik</button>
+        <button class="modebtn" data-mode="wan">Video Wan 3.0</button>
+        <button class="modebtn" data-mode="seedance25">Video Seedance 2.5</button>
+    </div>
 </div>
 
 <div id="preset-banner" class="preset-banner" hidden>
