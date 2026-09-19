@@ -180,6 +180,44 @@ class ContohModul extends Command
             'rasio' => '1:1',
         ],
 
+        // --- daftar tetap (bukan modul database) ---
+        'view' => [
+            'adegan' => '1girl, solo, female boxer, mature female, boxing gloves, sports bra, boxing shorts, '
+                . 'fighting stance, upper body, simple background, grey background, '
+                . 'anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'bentuk' => [
+            'adegan' => '1girl, solo, female boxer, mature female, sports bra, boxing shorts, standing, '
+                . 'full body, front view, simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '3:4',
+        ],
+        'dada' => [
+            'adegan' => '1girl, solo, mature female, sports bra, upper body, front view, close-up, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'otot' => [
+            'adegan' => '1girl, solo, female boxer, mature female, sports bra, upper body, torso, front view, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'sarung' => [
+            'adegan' => '1girl, solo, mature female, hands focus, close-up, cropped, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'atasan_tag' => [
+            'adegan' => '1girl, solo, mature female, upper body, close-up, clothing focus, front view, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'bawahan_tag' => [
+            'adegan' => '1girl, solo, mature female, lower body, hips, thighs, close-up, clothing focus, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+
         // Interaksi butuh DUA orang dan butuh ringnya — yang ditunjukkan
         // hubungan antar petinju, bukan sepotong badan.
         'interaction' => [
@@ -188,6 +226,68 @@ class ContohModul extends Command
                 . 'anime coloring, masterpiece, best quality',
             'rasio' => '16:9',
             'duo' => true,
+        ],
+    ];
+
+    /**
+     * Pilihan yang BUKAN modul database.
+     *
+     * Sebagian kolom di halaman Dari Gambar/Video isinya daftar tetap yang
+     * ditulis di kode, bukan modul: arah hadap, bentuk badan, ukuran dada,
+     * bentuk otot, dan daftar pakaian yang memakai tag Danbooru mentah.
+     * Semuanya tetap butuh contoh dengan alasan yang sama — "miring tiga
+     * perempat" dan "miring membelakangi" itu dua kata yang nyaris sama dan
+     * dua gambar yang jauh berbeda.
+     *
+     * Bentuknya slug => tag yang ditempelkan ke adegan tipe itu.
+     */
+    private const DAFTAR_TETAP = [
+        'view' => [
+            'toward_viewer'      => 'facing viewer, looking at viewer, front view',
+            'three_quarter'      => 'three-quarter view, turning head, looking to the side',
+            'profile'            => 'profile, from side, side view',
+            'three_quarter_away' => 'from behind, three-quarter view from behind, looking back',
+            'away_from_viewer'   => 'from behind, facing away, back turned',
+        ],
+        'bentuk' => [
+            'berotot' => 'muscular female, abs, toned',
+            'kencang' => 'toned, fit',
+            'biasa'   => 'average build, soft body',
+            'ramping' => 'petite, slim, slender',
+            'berisi'  => 'curvy, wide hips, thick thighs',
+        ],
+        'dada' => [
+            'rata'   => 'flat chest',
+            'kecil'  => 'small breasts',
+            'sedang' => 'medium breasts',
+            'besar'  => 'large breasts',
+            'sangat' => 'huge breasts',
+        ],
+        'otot' => [
+            'muscular_female' => 'muscular female, defined muscles',
+            'toned'           => 'toned, lean muscle',
+            'abs'             => 'abs, defined abdominal muscles',
+        ],
+        'sarung' => [
+            'boxing_gloves'  => 'boxing gloves, hands up',
+            'mma_gloves'     => 'mma gloves, fingerless gloves, hands up',
+            'bandaged_hands' => 'bandaged hands, hand wraps, no gloves, hands up',
+            'none'           => 'bare hands, clenched fists, no gloves, hands up',
+        ],
+    ];
+
+    /** Tag pakaian mentah yang dipakai halaman Dari Gambar/Video. */
+    private const PAKAIAN_TAG = [
+        'atasan_tag' => [
+            'sports_bra', 'athletic_leotard', 'gym_uniform', 'tank_top', 'crop_top', 'track_jacket',
+            'leotard', 'wrestling_outfit', 'sarashi', 'chest_sarashi', 'bandages', 't-shirt', 'shirt',
+            'sleeveless_shirt', 'tube_top', 'camisole', 'undershirt', 'hoodie', 'jacket', 'swimsuit',
+            'one-piece_swimsuit', 'bra',
+        ],
+        'bawahan_tag' => [
+            'boxing_shorts', 'gym_shorts', 'short_shorts', 'buruma', 'bike_shorts', 'dolphin_shorts',
+            'micro_shorts', 'track_pants', 'sweatpants', 'leggings', 'yoga_pants', 'shorts', 'pants',
+            'jeans', 'skirt', 'panties', 'briefs', 'boxer_briefs', 'thong',
         ],
     ];
 
@@ -232,8 +332,8 @@ class ContohModul extends Command
                 continue;
             }
 
-            $modul = PromptBuilder::listModules($t, ALLOW_NSFW);
-            $this->info(count($modul) . " modul bertipe {$t}");
+            $modul = $this->daftar($t);
+            $this->info(count($modul) . " pilihan bertipe {$t}");
 
             foreach ($modul as $ke => $m) {
                 if ($batas > 0 && $jadi >= $batas) {
@@ -255,9 +355,13 @@ class ContohModul extends Command
                 $this->line("  [{$nomor}/" . count($modul) . "] {$t}/{$slug} — " . ($m['name_id'] ?: $m['name']));
 
                 try {
+                    $tag = isset($m['tag_tetap'])
+                        ? (string) $m['tag_tetap']
+                        : implode(', ', $this->tagModul((int) $m['id']));
+
                     $g = GambarAi::tokoh(
                         [
-                            'base'       => $resep['adegan'] . ', ' . implode(', ', $this->tagModul((int) $m['id'])),
+                            'base'       => $resep['adegan'] . ', ' . $tag,
                             'characters' => [],
                             'undesired'  => self::HINDARI
                                 . (! empty($resep['sendiri'])
@@ -298,6 +402,42 @@ class ContohModul extends Command
         }
 
         return $gagal === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * Daftar yang akan digambar untuk satu tipe.
+     *
+     * Modul database dan daftar tetap dipulangkan dalam bentuk yang sama,
+     * jadi gelung utamanya tidak perlu tahu bedanya.
+     *
+     * @return list<array{slug:string,name:string,name_id:string,id?:int,tag_tetap?:string}>
+     */
+    private function daftar(string $tipe): array
+    {
+        if (isset(self::DAFTAR_TETAP[$tipe])) {
+            $keluar = [];
+            foreach (self::DAFTAR_TETAP[$tipe] as $slug => $tag) {
+                $keluar[] = ['slug' => $slug, 'name' => $slug, 'name_id' => $slug, 'tag_tetap' => $tag];
+            }
+
+            return $keluar;
+        }
+
+        if (isset(self::PAKAIAN_TAG[$tipe])) {
+            return array_map(
+                static fn (string $tag): array => [
+                    'slug'      => $tag,
+                    'name'      => str_replace('_', ' ', $tag),
+                    'name_id'   => str_replace('_', ' ', $tag),
+                    // Tag pakaian dikirim apa adanya; itu memang tag Danbooru
+                    // yang dipakai halamannya, bukan terjemahan.
+                    'tag_tetap' => str_replace('_', ' ', $tag),
+                ],
+                self::PAKAIAN_TAG[$tipe]
+            );
+        }
+
+        return PromptBuilder::listModules($tipe, ALLOW_NSFW);
     }
 
     /** @return list<string> */
