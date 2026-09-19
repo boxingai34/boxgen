@@ -1,0 +1,117 @@
+<script setup lang="ts">
+import { X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+
+/**
+ * Katalog gaya visual — nama gaya tidak memberi tahu apa-apa sampai dilihat.
+ *
+ * "Rasa Mushishi" dan "Rasa Kengan Ashura" sama-sama satu baris teks di
+ * daftar pilihan, padahal yang satu kabut tenang dan yang satu otot dan
+ * keringat. Di sini tiap gaya punya satu gambar contoh, dan adegannya
+ * sengaja sama untuk semua — satu petinju, sikap yang sama, ring yang sama —
+ * supaya yang berbeda antar kartu memang gayanya, bukan adegannya.
+ *
+ * Gambarnya dibuat sekali lewat `php artisan gaya:contoh` dan ikut ke git,
+ * jadi halaman ini tidak pernah memanggil AI.
+ */
+type Gaya = { id: number; nama: string; kategori: string; ket: string; contoh: string | null };
+
+const props = defineProps<{ gaya: Gaya[]; terpilih: number | '' }>();
+const emit = defineEmits<{ (e: 'pilih', id: number | ''): void }>();
+
+const buka = ref(false);
+
+const berkelompok = computed(() => {
+    const peta = new Map<string, Gaya[]>();
+
+    for (const g of props.gaya) {
+        const k = g.kategori || 'Lainnya';
+        if (! peta.has(k)) peta.set(k, []);
+        peta.get(k)!.push(g);
+    }
+
+    return [...peta.entries()].map(([nama, isi]) => ({ nama, isi }));
+});
+
+const adaContoh = computed(() => props.gaya.filter((g) => g.contoh).length);
+
+function pilih(id: number | '') {
+    emit('pilih', id);
+    buka.value = false;
+}
+
+function tombolEsc(e: KeyboardEvent) {
+    if (e.key === 'Escape') buka.value = false;
+}
+
+onMounted(() => window.addEventListener('keydown', tombolEsc));
+onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
+</script>
+
+<template>
+    <button
+        type="button"
+        class="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-[hsl(var(--sorot)/0.6)] hover:text-foreground"
+        @click="buka = true"
+    >
+        Lihat katalog gaya
+        <span class="tabular-nums opacity-70">({{ adaContoh }})</span>
+    </button>
+
+    <Teleport to="body">
+        <div v-if="buka" class="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/70 p-4 sm:p-8" @click.self="buka = false">
+            <div class="w-full max-w-6xl rounded-2xl border border-border bg-card p-4 shadow-2xl sm:p-6">
+                <div class="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-base font-semibold">Katalog gaya visual</h2>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            Adegannya sama untuk semua contoh, jadi yang berbeda memang gayanya. Klik salah satu untuk memakainya.
+                        </p>
+                    </div>
+                    <button type="button" class="shrink-0 rounded-lg border border-border p-1.5 transition-colors hover:border-[hsl(var(--sorot)/0.6)]" @click="buka = false">
+                        <X class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    class="mb-4 rounded-lg border px-3 py-1.5 text-xs transition-colors"
+                    :class="terpilih === '' ? 'border-[hsl(var(--sorot))] text-foreground' : 'border-border text-muted-foreground hover:border-[hsl(var(--sorot)/0.6)]'"
+                    @click="pilih('')"
+                >
+                    — ikut referensi (tanpa gaya) —
+                </button>
+
+                <div v-for="k in berkelompok" :key="k.nama" class="mb-6">
+                    <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        <button
+                            v-for="g in k.isi"
+                            :key="g.id"
+                            type="button"
+                            class="group overflow-hidden rounded-xl border text-left transition-colors"
+                            :class="terpilih === g.id ? 'border-[hsl(var(--sorot))]' : 'border-border/70 hover:border-[hsl(var(--sorot)/0.6)]'"
+                            :title="g.ket"
+                            @click="pilih(g.id)"
+                        >
+                            <img
+                                v-if="g.contoh"
+                                :src="g.contoh"
+                                :alt="g.nama"
+                                width="512"
+                                height="512"
+                                loading="lazy"
+                                decoding="async"
+                                class="aspect-square w-full object-cover"
+                            />
+                            <div v-else class="flex aspect-square w-full items-center justify-center bg-muted/40 text-center text-xs text-muted-foreground">
+                                belum ada contoh
+                            </div>
+                            <span class="block truncate px-2.5 py-2 text-xs">{{ g.nama }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Teleport>
+</template>

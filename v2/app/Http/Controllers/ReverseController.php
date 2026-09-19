@@ -362,12 +362,22 @@ class ReverseController extends Controller
             return [];
         }
 
+        // Gambar contoh tiap gaya (dibuat `php artisan gaya:contoh`) dibaca
+        // sekali sebagai daftar, bukan diperiksa satu per satu: lima puluh
+        // is_file() di tiap kunjungan halaman itu lima puluh kali menyentuh
+        // disk untuk pertanyaan yang jawabannya sama sepanjang hari.
+        $contoh = [];
+        foreach (glob(public_path('img/gaya/*.webp')) ?: [] as $berkas) {
+            $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya/'.basename($berkas);
+        }
+
         return array_map(static fn (array $m): array => [
             'id'       => (int) $m['id'],
             'nama'     => (string) ($m['name_id'] ?: $m['name']),
             'kategori' => (string) ($m['category'] ?? ''),
             'nsfw'     => (int) ($m['is_nsfw'] ?? 0) === 1,
             'ket'      => (string) ($m['description'] ?? ''),
+            'contoh'   => $contoh[(string) $m['slug']] ?? null,
         ], $modul);
     }
 

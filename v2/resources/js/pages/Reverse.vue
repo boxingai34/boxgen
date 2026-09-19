@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import IsianKarakter from '@/components/box/IsianKarakter.vue';
 import Kartu from '@/components/box/Kartu.vue';
+import KatalogGaya from '@/components/box/KatalogGaya.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
@@ -24,7 +25,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
  */
 const props = defineProps<{
     status: any;
-    gaya: Array<{ id: number; nama: string; kategori: string; nsfw: boolean; ket: string }>;
+    gaya: Array<{ id: number; nama: string; kategori: string; nsfw: boolean; ket: string; contoh: string | null }>;
     maks: { frame: number; byte: number; hint: number; artis: number };
     kuat: Record<string, string>;
     gambar: { latar: boolean; tokoh: boolean };
@@ -840,6 +841,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     <option v-for="g in daftar" :key="g.id" :value="g.id">{{ g.nama }}{{ g.nsfw ? ' •' : '' }}</option>
                                 </optgroup>
                             </select>
+                            <KatalogGaya :gaya="gaya" :terpilih="gayaId" @pilih="gayaId = $event" />
                             <span class="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
                                 Biarkan kosong kalau mau meniru gaya referensinya. Pilih salah satu kalau ingin wujudnya beda: gaya pilihanmu menggantikan gaya bacaan — tag medium dari gambar (anime coloring, realistic, 3d) dibuang, tidak dicampur, supaya keduanya tidak saling berkelahi.
                             </span>
