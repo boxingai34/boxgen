@@ -19,9 +19,9 @@ function kirim() {
 </script>
 
 <template>
-    <Head title="Masuk" />
+    <Head title="Sign in" />
 
-    <AuthLayout judul="Masuk" ket="Pakai akun yang sama dengan aplikasi lama.">
+    <AuthLayout judul="Sign in" ket="Use the same account as the old app.">
         <div
             v-if="status"
             class="mb-5 rounded-xl border border-[hsl(var(--sorot)/0.4)] bg-[hsl(var(--sorot)/0.08)] px-4 py-3 text-sm"
@@ -31,7 +31,7 @@ function kirim() {
 
         <form class="space-y-4" @submit.prevent="kirim">
             <div>
-                <label for="login" class="mb-1.5 block text-xs font-medium text-muted-foreground">Username atau email</label>
+                <label for="login" class="mb-1.5 block text-xs font-medium text-muted-foreground">Username or email</label>
                 <input
                     id="login"
                     v-model="form.login"
@@ -45,7 +45,7 @@ function kirim() {
             </div>
 
             <div>
-                <label for="password" class="mb-1.5 block text-xs font-medium text-muted-foreground">Kata sandi</label>
+                <label for="password" class="mb-1.5 block text-xs font-medium text-muted-foreground">Password</label>
                 <input
                     id="password"
                     v-model="form.password"
@@ -60,13 +60,13 @@ function kirim() {
             <Tombol tipe="submit" ukuran="besar" penuh :nonaktif="form.processing">
                 <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
                 <LogIn v-else class="h-4 w-4" />
-                {{ form.processing ? 'Memeriksa…' : 'Masuk' }}
+                {{ form.processing ? 'Checking…' : 'Sign in' }}
             </Tombol>
         </form>
 
         <p class="mt-6 text-center text-sm text-muted-foreground">
-            Belum punya akun?
-            <Link :href="route('register')" class="font-medium text-[hsl(var(--sorot))] hover:underline">Daftar dulu</Link>
+            Don't have an account yet?
+            <Link :href="route('register')" class="font-medium text-[hsl(var(--sorot))] hover:underline">Sign up</Link>
         </p>
     </AuthLayout>
 </template>

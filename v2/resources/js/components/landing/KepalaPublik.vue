@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PilihBahasa from '@/components/landing/PilihBahasa.vue';
 import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link } from '@inertiajs/vue3';
@@ -17,6 +18,7 @@ const props = defineProps<{
     tautan: Array<{ label: string; href: string }>;
     cta: { label: string; url: string };
     masuk: boolean;
+    bahasa: { kini: string; daftar: Array<{ kode: string; nama: string; aktif: boolean }> };
 }>();
 
 const digulir = ref(false);
@@ -93,6 +95,8 @@ onBeforeUnmount(() => {
                     <Sun v-if="gelap" class="h-4 w-4" />
                     <Moon v-else class="h-4 w-4" />
                 </button>
+
+                <PilihBahasa :kini="bahasa.kini" :daftar="bahasa.daftar" />
 
                 <a
                     v-magnet

@@ -28,11 +28,11 @@ defineProps<{ judul: string; ket?: string }>();
 
                 <div class="max-w-md">
                     <h2 class="text-3xl font-semibold leading-tight tracking-tight">
-                        Ceritamu jadi <span class="teks-sorot">papan cerita</span>, klip demi klip.
+                        Your story becomes a <span class="teks-sorot">storyboard</span>, clip by clip.
                     </h2>
                     <p class="mt-3 text-sm leading-relaxed text-muted-foreground">
-                        Tulis jalan ceritanya dalam bahasa Indonesia. Mesin membaca adegannya, membagi durasinya, lalu
-                        menyusun prompt tiap klip lengkap dengan kamera, efek, dan suaranya.
+                        Write the plot out in Indonesian. The engine reads the scenes, splits up the timing, then
+                        builds a prompt for every clip, camera, effects and sound included.
                     </p>
                 </div>
             </div>

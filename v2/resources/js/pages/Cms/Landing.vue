@@ -68,7 +68,7 @@ async function simpan() {
         Object.assign(isi, JSON.parse(JSON.stringify(jawab.isi)));
         awal.value = JSON.stringify(isi);
     } catch (e) {
-        galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyimpan.';
+        galat.value = e instanceof GalatKirim ? e.message : 'Could not save.';
     } finally {
         sibuk.value = false;
     }
@@ -79,12 +79,12 @@ function segarkanUnggahan() {
 }
 
 async function hapusUnggahan(nama: string) {
-    if (!window.confirm(`Hapus berkas ${nama}? Galeri yang memakainya akan kehilangan gambarnya.`)) return;
+    if (!window.confirm(`Delete ${nama}? Any gallery using it will lose its image.`)) return;
     try {
         const jawab = await kirim<any>(route('cms.unggah.hapus'), { nama }, 'DELETE');
         unggahan.value = jawab.unggahan;
     } catch (e) {
-        galat.value = e instanceof GalatKirim ? e.message : 'Gagal menghapus.';
+        galat.value = e instanceof GalatKirim ? e.message : 'Could not delete.';
     }
 }
 
@@ -102,7 +102,7 @@ async function periksa(kotak: typeof cekYoutube, alamat: string, sesudah: (jawab
         const jawab = await kirim<any>(alamat, undefined, 'GET');
         kotak.value = { sibuk: false, pesan: sesudah(jawab), galat: false, isi: jawab };
     } catch (e) {
-        kotak.value = { sibuk: false, pesan: e instanceof GalatKirim ? e.message : 'Gagal memeriksa.', galat: true, isi: null };
+        kotak.value = { sibuk: false, pesan: e instanceof GalatKirim ? e.message : 'Check failed.', galat: true, isi: null };
     }
 }
 
@@ -110,7 +110,7 @@ function periksaYoutube() {
     const alamat = isi.youtube.channel_id || isi.youtube.url || isi.youtube.handle;
     return periksa(cekYoutube, route('cms.youtube') + '?alamat=' + encodeURIComponent(alamat), (j) => {
         isi.youtube.channel_id = j.channel_id;
-        return `Kanal ketemu: ${j.channel_id} · ${j.video.length} video terbaca.`;
+        return `Channel found: ${j.channel_id} · ${j.video.length} videos read.`;
     });
 }
 
@@ -121,7 +121,7 @@ function periksaPatreon() {
         isi.patreon.campaign_id = j.campaign_id;
         const k = j.kampanye || {};
         const disaring = (j.semua?.length ?? 0) - (j.pos?.length ?? 0);
-        return `Kampanye ${j.campaign_id} · ${k.patrons ?? '?'} patron, ${k.posts ?? '?'} pos` + (disaring > 0 ? ` · ${disaring} judul tersaring.` : '.');
+        return `Campaign ${j.campaign_id} · ${k.patrons ?? '?'} patrons, ${k.posts ?? '?'} posts` + (disaring > 0 ? ` · ${disaring} titles filtered out.` : '.');
     });
 }
 
@@ -130,8 +130,8 @@ function periksaDeviantart() {
         // Lewat mana bacanya ikut disebut: dari komputer sendiri RSS selalu
         // bisa, dari hosting hampir tidak pernah — jadi "lewat RSS" di
         // server berarti kuncinya belum dipakai, bukan berarti aman.
-        const jalan = j.sumber === 'api' ? 'lewat API resmi' : 'lewat umpan RSS';
-        return `${j.jumlah} karya terbaca ${jalan}, ${j.dewasa} di antaranya ditandai "adult" oleh DeviantArt.`;
+        const jalan = j.sumber === 'api' ? 'through the official API' : 'through the RSS feed';
+        return `${j.jumlah} works read ${jalan}, ${j.dewasa} of them flagged "adult" by DeviantArt.`;
     });
 }
 
@@ -147,21 +147,21 @@ const contoh = {
 };
 
 const kitSemua = [
-    ['gloves', 'Sarung tinju'],
-    ['wraps', 'Perban tangan'],
-    ['mouthguard', 'Pelindung mulut'],
-    ['headguard', 'Pelindung kepala'],
-    ['bra', 'Bra olahraga'],
+    ['gloves', 'Gloves'],
+    ['wraps', 'Hand wraps'],
+    ['mouthguard', 'Mouthguard'],
+    ['headguard', 'Headguard'],
+    ['bra', 'Sports bra'],
 ] as const;
 
 // Angka hidup yang bisa dipasang di kartu "tale of the tape".
 const angkaOtomatis = [
-    ['', 'Diketik sendiri'],
-    ['views', 'Tayangan YouTube'],
-    ['subs', 'Subscriber YouTube'],
-    ['patrons', 'Jumlah patron'],
-    ['paid', 'Patron berbayar'],
-    ['posts', 'Pos Patreon'],
+    ['', 'Typed in by hand'],
+    ['views', 'YouTube views'],
+    ['subs', 'YouTube subscribers'],
+    ['patrons', 'Patron count'],
+    ['paid', 'Paid patrons'],
+    ['posts', 'Patreon posts'],
 ] as const;
 
 function kitAda(k: string): boolean {
@@ -185,84 +185,84 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
 </script>
 
 <template>
-    <Head title="Halaman depan" />
+    <Head title="Landing page" />
 
-    <AppLayout judul="Halaman depan" anak="Semua teks, angka, gambar, dan tautan di landing page publik diatur dari sini. Urutannya sama dengan urutan di halaman.">
+    <AppLayout judul="Landing page" anak="Every text, number, image, and link on the public landing page is set from here. The order matches the order on the page itself.">
         <!-- Bilah simpan, menempel di atas -->
         <div class="sticky top-[61px] z-10 -mx-4 mb-6 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur-[2px] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
             <div class="flex flex-wrap items-center gap-3">
                 <Tombol :nonaktif="sibuk || !adaPerubahan" @click="simpan">
                     <LoaderCircle v-if="sibuk" class="h-4 w-4 animate-spin" />
                     <Save v-else class="h-4 w-4" />
-                    {{ sibuk ? 'Menyimpan…' : adaPerubahan ? 'Simpan perubahan' : 'Tersimpan' }}
+                    {{ sibuk ? 'Saving…' : adaPerubahan ? 'Save changes' : 'Saved' }}
                 </Tombol>
                 <a :href="route('home')" target="_blank" rel="noopener" class="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm transition-colors hover:border-[hsl(var(--sorot)/0.6)]">
                     <ExternalLink class="h-4 w-4" />
-                    Lihat halaman depan
+                    View landing page
                 </a>
                 <span v-if="kabar" class="flex items-center gap-1.5 text-xs text-[hsl(var(--sorot))]"><Check class="h-3.5 w-3.5" />{{ kabar }}</span>
                 <span v-if="galat" class="text-xs text-destructive">{{ galat }}</span>
-                <span v-if="!gd" class="ml-auto text-xs text-muted-foreground">GD tidak aktif: unggahan disimpan tanpa dikecilkan.</span>
+                <span v-if="!gd" class="ml-auto text-xs text-muted-foreground">GD is not enabled: uploads are stored without being resized.</span>
             </div>
         </div>
 
         <!-- Keterangan penanda angka -->
         <div class="mb-5 rounded-xl border border-border/70 bg-card/60 p-4 text-xs leading-relaxed text-muted-foreground">
-            <p class="mb-1 font-medium text-foreground">Angka yang mengisi dirinya sendiri</p>
+            <p class="mb-1 font-medium text-foreground">Numbers that fill themselves in</p>
             <p>
-                Di teks mana pun, tulis
+                In any text, write
                 <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{subs}</code>,
                 <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{views}</code>,
                 <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{patrons}</code>,
                 <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{paid}</code>,
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{posts}</code>, atau
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{posts}</code>, or
                 <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{hari_ini}</code> —
-                halaman depan menggantinya dengan angka terbaru dari YouTube dan Patreon. Kalau sumbernya sedang tidak
-                terbaca, yang dipakai angka cadangan di bawah.
+                the landing page swaps them for the latest numbers from YouTube and Patreon. If a source cannot be
+                read right now, the fallback numbers below are used instead.
             </p>
         </div>
 
         <div class="grid gap-5 xl:grid-cols-2">
             <!-- ============ HERO ============ -->
-            <Kartu judul="Sampul (hero)" ket="Bagian pertama yang dilihat orang. Judulnya dipecah dua baris otomatis.">
+            <Kartu judul="Cover (hero)" ket="The first thing people see. The title is split over two lines automatically.">
                 <div class="space-y-4">
-                    <Isian v-model="isi.hero.eyebrow" label="Baris kecil di atas judul" />
-                    <Isian v-model="isi.hero.title" label="Judul besar" />
-                    <Isian v-model="isi.hero.subtitle" label="Kalimat pengantar" tipe="textarea" :baris="3" />
-                    <Isian v-model="isi.hero.pill" label="Pil kecil di bawah pengantar" ket="boleh kosong" />
+                    <Isian v-model="isi.hero.eyebrow" label="Small line above the title" />
+                    <Isian v-model="isi.hero.title" label="Big title" />
+                    <Isian v-model="isi.hero.subtitle" label="Intro text" tipe="textarea" :baris="3" />
+                    <Isian v-model="isi.hero.pill" label="Small pill below the intro" ket="optional" />
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <Isian v-model="isi.hero.primary.label" label="Tombol utama — teks" />
-                        <Isian v-model="isi.hero.primary.url" label="Tombol utama — tautan" tipe="url" />
-                        <Isian v-model="isi.hero.secondary.label" label="Tombol kedua — teks" />
-                        <Isian v-model="isi.hero.secondary.url" label="Tombol kedua — tautan" tipe="url" />
+                        <Isian v-model="isi.hero.primary.label" label="Primary button — label" />
+                        <Isian v-model="isi.hero.primary.url" label="Primary button — link" tipe="url" />
+                        <Isian v-model="isi.hero.secondary.label" label="Second button — label" />
+                        <Isian v-model="isi.hero.secondary.url" label="Second button — link" tipe="url" />
                     </div>
                     <label class="flex items-start gap-2 text-sm">
                         <input v-model="isi.hero.secondary.auto_latest" type="checkbox" :class="[centang, 'mt-1']" />
-                        <span>Tombol kedua ke video terbaru <span class="text-xs text-muted-foreground">(otomatis; tautan di atas jadi cadangan kalau umpan YouTube kosong)</span></span>
+                        <span>Second button goes to the latest video <span class="text-xs text-muted-foreground">(automatic; the link above is the fallback if the YouTube feed is empty)</span></span>
                     </label>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <Isian v-model="isi.hero.badge" label="Label di pojok kartu" ket="mis. Red corner" />
-                        <Isian v-model="isi.hero.jp_vertical" label="Tulisan tegak di samping kartu" ket="boleh kosong" />
+                        <Isian v-model="isi.hero.badge" label="Label in the card corner" ket="e.g. Red corner" />
+                        <Isian v-model="isi.hero.jp_vertical" label="Vertical text beside the card" ket="optional" />
                     </div>
 
                     <div class="border-t border-border/60 pt-4">
                         <span class="mb-1.5 flex items-baseline justify-between gap-3">
-                            <span class="text-xs font-medium text-muted-foreground">Gambar di kartu geser</span>
-                            <span class="text-xs text-muted-foreground/70">{{ isi.hero.images.length }} / 10 · bisa digulir pengunjung</span>
+                            <span class="text-xs font-medium text-muted-foreground">Images in the swipe card</span>
+                            <span class="text-xs text-muted-foreground/70">{{ isi.hero.images.length }} / 10 · visitors can swipe through them</span>
                         </span>
                         <div v-for="(g, i) in isi.hero.images" :key="i" class="mb-3 rounded-xl border border-border/70 p-3">
                             <div class="mb-2 flex items-center gap-1.5">
                                 <span class="mr-auto text-xs text-muted-foreground">Fig. {{ String(i + 1).padStart(2, '0') }}</span>
                                 <KendaliBaris :i="i" :total="isi.hero.images.length" @geser="(a) => geser(isi.hero.images, i, a)" @hapus="hapus(isi.hero.images, i)" />
                             </div>
-                            <Gambar v-model="g.src" label="Gambar (potret tegak paling pas)" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                            <Gambar v-model="g.src" label="Image (a tall portrait works best)" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                             <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                <input v-model="g.alt" placeholder="Keterangan (alt)" :class="[k, 'h-8 text-xs']" />
-                                <input v-model="g.caption" placeholder="Keterangan di bawah kartu" :class="[k, 'h-8 text-xs']" />
+                                <input v-model="g.alt" placeholder="Alt text" :class="[k, 'h-8 text-xs']" />
+                                <input v-model="g.caption" placeholder="Caption under the card" :class="[k, 'h-8 text-xs']" />
                             </div>
                         </div>
                         <button type="button" :class="tombolTambah" :disabled="heroPenuh" @click="tambah(isi.hero.images, contoh.gambarHero)">
-                            <Plus class="h-3.5 w-3.5" /> Tambah gambar
+                            <Plus class="h-3.5 w-3.5" /> Add image
                         </button>
                     </div>
                 </div>
@@ -270,32 +270,32 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
 
             <!-- ============ MEREK, TICKER, SEO, ANGKA CADANGAN ============ -->
             <div class="space-y-5">
-                <Kartu judul="Merek & teks berjalan" ket="Nama di kepala dan kaki halaman, plus pita teks yang berjalan di bawah hero.">
+                <Kartu judul="Brand & ticker" ket="The name in the header and footer, plus the ribbon of text scrolling under the hero.">
                     <div class="space-y-4">
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <Isian v-model="isi.brand.name" label="Nama" />
-                            <Isian v-model="isi.brand.jp" label="Tulisan Jepang" ket="katakana, hiasan di bawah nama" />
-                            <Isian v-model="isi.brand.kicker" label="Kalimat pendek" />
+                            <Isian v-model="isi.brand.name" label="Name" />
+                            <Isian v-model="isi.brand.jp" label="Japanese text" ket="katakana, decoration under the name" />
+                            <Isian v-model="isi.brand.kicker" label="Short line" />
                             <Isian v-model="isi.brand.tagline" label="Tagline" />
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <Gambar v-model="isi.brand.logo_dark" label="Logo — tema gelap" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
-                            <Gambar v-model="isi.brand.logo_light" label="Logo — tema terang" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                            <Gambar v-model="isi.brand.logo_dark" label="Logo — dark theme" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                            <Gambar v-model="isi.brand.logo_light" label="Logo — light theme" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                         </div>
-                        <p class="text-xs text-muted-foreground">Kosongkan keduanya kalau mau kembali ke nama + cap kanji.</p>
-                        <DaftarTeks v-model="isi.marquee" label="Teks berjalan (ticker)" ket="boleh campur Jepang; yang Jepang otomatis diberi huruf serif" placeholder="A new bout every week" />
+                        <p class="text-xs text-muted-foreground">Leave both empty to go back to the name + kanji stamp.</p>
+                        <DaftarTeks v-model="isi.marquee" label="Scrolling text (ticker)" ket="Japanese may be mixed in; Japanese lines get a serif face automatically" placeholder="A new bout every week" />
                     </div>
                 </Kartu>
 
-                <Kartu judul="SEO & bagikan" ket="Judul tab browser, deskripsi mesin pencari, gambar waktu tautannya dibagikan.">
+                <Kartu judul="SEO & sharing" ket="Browser tab title, search engine description, and the image used when the link is shared.">
                     <div class="space-y-4">
-                        <Isian v-model="isi.seo.title" label="Judul halaman" />
-                        <Isian v-model="isi.seo.description" label="Deskripsi" ket="paling pas di bawah 155 huruf" tipe="textarea" :baris="2" />
-                        <Gambar v-model="isi.seo.og_image" label="Gambar pratinjau tautan (1200×630 paling pas)" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                        <Isian v-model="isi.seo.title" label="Page title" />
+                        <Isian v-model="isi.seo.description" label="Description" ket="best kept under 155 characters" tipe="textarea" :baris="2" />
+                        <Gambar v-model="isi.seo.og_image" label="Link preview image (1200×630 works best)" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                     </div>
                 </Kartu>
 
-                <Kartu judul="Angka cadangan" ket="Dipakai kalau YouTube atau Patreon sedang tidak terbaca, supaya kalimat berpenanda tidak pernah bolong.">
+                <Kartu judul="Fallback numbers" ket="Used when YouTube or Patreon cannot be read, so sentences with placeholders are never left with a gap.">
                     <div class="grid gap-3 sm:grid-cols-3">
                         <Isian v-model="isi.angka_cadangan.subs" label="{subs}" />
                         <Isian v-model="isi.angka_cadangan.views" label="{views}" />
@@ -307,44 +307,44 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             </div>
 
             <!-- ============ 01 CERITA ============ -->
-            <Kartu judul="01 · Cerita" ket="Perkenalan singkat. Baris kosong memisahkan paragraf.">
+            <Kartu judul="01 · Story" ket="A short introduction. A blank line separates paragraphs.">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.about" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.about" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="space-y-4">
                     <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                        <Isian v-model="isi.about.eyebrow" label="Label kecil" />
-                        <Isian v-model="isi.about.heading" label="Judul" />
+                        <Isian v-model="isi.about.eyebrow" label="Small label" />
+                        <Isian v-model="isi.about.heading" label="Heading" />
                     </div>
-                    <Isian v-model="isi.about.quote" label="Kutipan" />
-                    <Isian v-model="isi.about.body" label="Isi" tipe="textarea" :baris="8" />
+                    <Isian v-model="isi.about.quote" label="Quote" />
+                    <Isian v-model="isi.about.body" label="Body" tipe="textarea" :baris="8" />
                     <div>
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Fakta singkat</span>
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Quick facts</span>
                         <div v-for="(f, i) in isi.about.facts" :key="i" class="mb-2 flex flex-wrap items-center gap-1.5">
                             <input v-model="f.label" placeholder="Format" :class="[k, 'w-32']" />
                             <input v-model="f.value" placeholder="Original, fully animated bouts" :class="[k, 'min-w-[10rem] flex-1']" />
                             <KendaliBaris :i="i" :total="isi.about.facts.length" @geser="(a) => geser(isi.about.facts, i, a)" @hapus="hapus(isi.about.facts, i)" />
                         </div>
-                        <button type="button" :class="tombolTambah" @click="tambah(isi.about.facts, contoh.fakta)"><Plus class="h-3.5 w-3.5" /> Tambah fakta</button>
+                        <button type="button" :class="tombolTambah" @click="tambah(isi.about.facts, contoh.fakta)"><Plus class="h-3.5 w-3.5" /> Add fact</button>
                     </div>
                 </div>
             </Kartu>
 
             <!-- ============ 02 REKOR ============ -->
-            <Kartu judul="02 · Rekor (tale of the tape)" ket="Angka besar yang menghitung naik. Kolom terakhir memilih dari mana angkanya datang.">
+            <Kartu judul="02 · Record (tale of the tape)" ket="Big numbers that count up. The last column picks where each number comes from.">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.stats" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.stats" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="space-y-4">
                     <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                        <Isian v-model="isi.stats.eyebrow" label="Label kecil" />
-                        <Isian v-model="isi.stats.heading" label="Judul" />
+                        <Isian v-model="isi.stats.eyebrow" label="Small label" />
+                        <Isian v-model="isi.stats.heading" label="Heading" />
                     </div>
-                    <Isian v-model="isi.stats.note" label="Catatan di bawah judul" ket="boleh pakai {hari_ini}" />
+                    <Isian v-model="isi.stats.note" label="Note under the heading" ket="{hari_ini} may be used" />
                     <div>
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Angka</span>
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Numbers</span>
                         <div v-for="(s, i) in isi.stats.items" :key="i" class="mb-2 flex flex-wrap items-center gap-1.5">
-                            <input v-model="s.value" placeholder="570" :class="[k, 'w-24']" :disabled="!!s.auto" :title="s.auto ? 'Diisi otomatis' : ''" />
+                            <input v-model="s.value" placeholder="570" :class="[k, 'w-24']" :disabled="!!s.auto" :title="s.auto ? 'Filled in automatically' : ''" />
                             <input v-model="s.suffix" placeholder="K" :class="[k, 'w-12']" :disabled="!!s.auto" />
                             <input v-model="s.label" placeholder="Patrons" :class="[k, 'min-w-[8rem] flex-1']" />
                             <select v-model="s.auto" :class="[k, 'w-40 px-2 text-xs']">
@@ -352,41 +352,41 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             </select>
                             <KendaliBaris :i="i" :total="isi.stats.items.length" @geser="(a) => geser(isi.stats.items, i, a)" @hapus="hapus(isi.stats.items, i)" />
                         </div>
-                        <button type="button" :class="tombolTambah" @click="tambah(isi.stats.items, contoh.statistik)"><Plus class="h-3.5 w-3.5" /> Tambah angka</button>
+                        <button type="button" :class="tombolTambah" @click="tambah(isi.stats.items, contoh.statistik)"><Plus class="h-3.5 w-3.5" /> Add number</button>
                     </div>
-                    <Isian v-model="isi.stats.secondary" label="Baris angka kecil di bawahnya" ket="boleh pakai {subs}, {views}, …" />
+                    <Isian v-model="isi.stats.secondary" label="Small stat line underneath" ket="{subs}, {views}, … may be used" />
                 </div>
             </Kartu>
 
             <!-- ============ 03 YOUTUBE ============ -->
-            <Kartu judul="03 · Kartu pertandingan (YouTube)" ket="Video terbaru diambil sendiri dari umpan kanalmu, tanpa kunci API, dan disegarkan tiap jam." class="xl:col-span-2">
+            <Kartu judul="03 · Fight card (YouTube)" ket="The latest videos are pulled from your channel feed, no API key needed, and refreshed every hour." class="xl:col-span-2">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.youtube" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.youtube" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="grid gap-4 lg:grid-cols-2">
                     <div class="space-y-4">
                         <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                            <Isian v-model="isi.youtube.eyebrow" label="Label kecil" />
-                            <Isian v-model="isi.youtube.heading" label="Judul" />
+                            <Isian v-model="isi.youtube.eyebrow" label="Small label" />
+                            <Isian v-model="isi.youtube.heading" label="Heading" />
                         </div>
-                        <Isian v-model="isi.youtube.body" label="Kalimat pengantar" tipe="textarea" :baris="2" />
+                        <Isian v-model="isi.youtube.body" label="Intro text" tipe="textarea" :baris="2" />
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <Isian v-model="isi.youtube.cta" label="Teks tombol" />
-                            <Isian v-model="isi.youtube.meta" label="Keterangan di bawah video" ket="boleh pakai {subs}, {views}" />
+                            <Isian v-model="isi.youtube.cta" label="Button label" />
+                            <Isian v-model="isi.youtube.meta" label="Note under the videos" ket="{subs}, {views} may be used" />
                         </div>
                     </div>
                     <div class="space-y-4">
                         <div class="grid gap-3 sm:grid-cols-2">
                             <Isian v-model="isi.youtube.handle" label="Handle" placeholder="@BoxinGenerated" />
-                            <Isian v-model="isi.youtube.url" label="Tautan kanal" tipe="url" />
+                            <Isian v-model="isi.youtube.url" label="Channel link" tipe="url" />
                         </div>
                         <div>
-                            <Isian v-model="isi.youtube.channel_id" label="Id kanal (UC…)" ket="diisi otomatis oleh tombol periksa" />
+                            <Isian v-model="isi.youtube.channel_id" label="Channel id (UC…)" ket="filled in by the check button" />
                             <div class="mt-2 flex flex-wrap items-center gap-2">
                                 <button type="button" :class="tombolPeriksa" :disabled="cekYoutube.sibuk" @click="periksaYoutube">
                                     <LoaderCircle v-if="cekYoutube.sibuk" class="h-3.5 w-3.5 animate-spin" />
                                     <RefreshCw v-else class="h-3.5 w-3.5" />
-                                    Periksa kanal
+                                    Check channel
                                 </button>
                                 <span v-if="cekYoutube.pesan" class="text-xs" :class="cekYoutube.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekYoutube.pesan }}</span>
                             </div>
@@ -399,38 +399,38 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             </ul>
                         </div>
                         <div class="grid gap-2 sm:grid-cols-2">
-                            <label class="flex items-center gap-2 text-sm"><input v-model="isi.youtube.auto_latest" type="checkbox" :class="centang" /> Ambil video terbaru otomatis</label>
-                            <label class="flex items-center gap-2 text-sm"><input v-model="isi.youtube.auto_stats" type="checkbox" :class="centang" /> Ambil subscriber &amp; tayangan otomatis</label>
+                            <label class="flex items-center gap-2 text-sm"><input v-model="isi.youtube.auto_latest" type="checkbox" :class="centang" /> Fetch the latest videos automatically</label>
+                            <label class="flex items-center gap-2 text-sm"><input v-model="isi.youtube.auto_stats" type="checkbox" :class="centang" /> Fetch subscribers &amp; views automatically</label>
                         </div>
-                        <Isian v-model="isi.youtube.max" label="Jumlah video yang tampil" tipe="number" />
-                        <DaftarTeks v-model="isi.youtube.featured" label="Video pilihan (id 11 huruf)" ket="tampil lebih dulu sebagai main event, sebelum yang terbaru" placeholder="dQw4w9WgXcQ" />
+                        <Isian v-model="isi.youtube.max" label="How many videos to show" tipe="number" />
+                        <DaftarTeks v-model="isi.youtube.featured" label="Featured videos (11-character id)" ket="shown first as the main event, ahead of the latest ones" placeholder="dQw4w9WgXcQ" />
                     </div>
                 </div>
             </Kartu>
 
             <!-- ============ 04 PATREON ============ -->
-            <Kartu judul="04 · Patreon" ket="Bagian yang disorot. Angka patron dan daftar pos terbaru bisa diambil sendiri dari Patreon." class="xl:col-span-2">
+            <Kartu judul="04 · Patreon" ket="The highlighted section. Patron numbers and the list of latest posts can be pulled from Patreon automatically." class="xl:col-span-2">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.patreon" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.patreon" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="grid gap-4 lg:grid-cols-2">
                     <div class="space-y-4">
                         <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                            <Isian v-model="isi.patreon.eyebrow" label="Label kecil" />
-                            <Isian v-model="isi.patreon.heading" label="Judul" />
+                            <Isian v-model="isi.patreon.eyebrow" label="Small label" />
+                            <Isian v-model="isi.patreon.heading" label="Heading" />
                         </div>
-                        <Isian v-model="isi.patreon.body" label="Kalimat pengantar" tipe="textarea" :baris="3" />
-                        <DaftarTeks v-model="isi.patreon.benefits" label="Manfaat" ket="boleh pakai {patrons}, {posts}, …" placeholder="Upcoming YouTube bouts, 1–2 months before they go public." />
+                        <Isian v-model="isi.patreon.body" label="Intro text" tipe="textarea" :baris="3" />
+                        <DaftarTeks v-model="isi.patreon.benefits" label="Benefits" ket="{patrons}, {posts}, … may be used" placeholder="Upcoming YouTube bouts, 1–2 months before they go public." />
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <Isian v-model="isi.patreon.cta" label="Teks tombol" />
-                            <Isian v-model="isi.patreon.secondary_cta" label="Teks tautan kedua" />
-                            <Isian v-model="isi.patreon.url" label="Tautan Patreon" tipe="url" />
-                            <Isian v-model="isi.patreon.note" label="Catatan kecil di bawah tombol" />
+                            <Isian v-model="isi.patreon.cta" label="Button label" />
+                            <Isian v-model="isi.patreon.secondary_cta" label="Second link label" />
+                            <Isian v-model="isi.patreon.url" label="Patreon link" tipe="url" />
+                            <Isian v-model="isi.patreon.note" label="Small note under the button" />
                         </div>
                     </div>
                     <div class="space-y-4">
                         <div>
-                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tier</span>
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tiers</span>
                             <div v-for="(t, i) in isi.patreon.tiers" :key="i" class="mb-2 rounded-xl border border-border/70 p-2.5" :class="t.show ? '' : 'opacity-60'">
                                 <div class="flex flex-wrap items-center gap-1.5">
                                     <input v-model="t.name" placeholder="Animation only" :class="[k, 'min-w-[10rem] flex-1']" />
@@ -438,34 +438,34 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                                     <KendaliBaris :i="i" :total="isi.patreon.tiers.length" @geser="(a) => geser(isi.patreon.tiers, i, a)" @hapus="hapus(isi.patreon.tiers, i)" />
                                 </div>
                                 <div class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                                    <input v-model="t.benefit" placeholder="Apa yang didapat" :class="[k, 'w-full']" />
-                                    <label class="flex items-center gap-1.5 text-xs"><input v-model="t.show" type="checkbox" :class="centang" /> tampil</label>
-                                    <label class="flex items-center gap-1.5 text-xs"><input v-model="t.highlight" type="checkbox" :class="centang" /> disorot (tiket besar)</label>
+                                    <input v-model="t.benefit" placeholder="What they get" :class="[k, 'w-full']" />
+                                    <label class="flex items-center gap-1.5 text-xs"><input v-model="t.show" type="checkbox" :class="centang" /> show</label>
+                                    <label class="flex items-center gap-1.5 text-xs"><input v-model="t.highlight" type="checkbox" :class="centang" /> highlighted (big ticket)</label>
                                 </div>
                             </div>
-                            <button type="button" :class="tombolTambah" @click="tambah(isi.patreon.tiers, contoh.tier)"><Plus class="h-3.5 w-3.5" /> Tambah tier</button>
+                            <button type="button" :class="tombolTambah" @click="tambah(isi.patreon.tiers, contoh.tier)"><Plus class="h-3.5 w-3.5" /> Add tier</button>
                         </div>
 
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <Isian v-model="isi.patreon.stamp" label="Teks stempel di tiket" ket="boleh kosong" />
-                            <Isian v-model="isi.patreon.trust" label="Angka kecil di tiket" ket="boleh pakai {patrons}, {paid}, {posts}" />
+                            <Isian v-model="isi.patreon.stamp" label="Stamp text on the ticket" ket="optional" />
+                            <Isian v-model="isi.patreon.trust" label="Small stat on the ticket" ket="{patrons}, {paid}, {posts} may be used" />
                         </div>
 
                         <div class="rounded-xl border border-border/70 p-3">
-                            <p class="mb-2 text-xs font-medium text-muted-foreground">Pos terbaru & angka dari Patreon</p>
+                            <p class="mb-2 text-xs font-medium text-muted-foreground">Latest posts & numbers from Patreon</p>
                             <div class="grid gap-2 sm:grid-cols-2">
-                                <label class="flex items-center gap-2 text-sm"><input v-model="isi.patreon.recent_auto" type="checkbox" :class="centang" /> Ambil pos terbaru otomatis</label>
-                                <label class="flex items-center gap-2 text-sm"><input v-model="isi.patreon.auto_stats" type="checkbox" :class="centang" /> Ambil angka patron otomatis</label>
+                                <label class="flex items-center gap-2 text-sm"><input v-model="isi.patreon.recent_auto" type="checkbox" :class="centang" /> Fetch the latest posts automatically</label>
+                                <label class="flex items-center gap-2 text-sm"><input v-model="isi.patreon.auto_stats" type="checkbox" :class="centang" /> Fetch patron numbers automatically</label>
                             </div>
                             <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_8rem]">
-                                <Isian v-model="isi.patreon.campaign_id" label="Id kampanye" ket="diisi otomatis oleh tombol periksa" />
-                                <Isian v-model="isi.patreon.recent_max" label="Jumlah pos" tipe="number" />
+                                <Isian v-model="isi.patreon.campaign_id" label="Campaign id" ket="filled in by the check button" />
+                                <Isian v-model="isi.patreon.recent_max" label="How many posts" tipe="number" />
                             </div>
                             <div class="mt-2 flex flex-wrap items-center gap-2">
                                 <button type="button" :class="tombolPeriksa" :disabled="cekPatreon.sibuk" @click="periksaPatreon">
                                     <LoaderCircle v-if="cekPatreon.sibuk" class="h-3.5 w-3.5 animate-spin" />
                                     <RefreshCw v-else class="h-3.5 w-3.5" />
-                                    Periksa & lihat yang akan tampil
+                                    Check & preview what will show
                                 </button>
                                 <span v-if="cekPatreon.pesan" class="text-xs" :class="cekPatreon.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekPatreon.pesan }}</span>
                             </div>
@@ -476,64 +476,64 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                                     <span class="shrink-0 text-muted-foreground">{{ p.tanggal }}</span>
                                 </li>
                             </ul>
-                            <DaftarTeks v-model="isi.patreon.recent_filter" class="mt-3" label="Kata saring" ket="judul pos yang memuat salah satu kata ini tidak ditampilkan" placeholder="nsfw" />
-                            <DaftarTeks v-model="isi.patreon.recent" class="mt-3" label="Daftar cadangan" ket="dipakai kalau otomatisnya dimatikan atau Patreon tidak terbaca" placeholder="Hinata vs Orihime — Full Fight" />
+                            <DaftarTeks v-model="isi.patreon.recent_filter" class="mt-3" label="Filter words" ket="posts whose title contains any of these words are left out" placeholder="nsfw" />
+                            <DaftarTeks v-model="isi.patreon.recent" class="mt-3" label="Fallback list" ket="used when the automatic fetch is off or Patreon cannot be read" placeholder="Hinata vs Orihime — Full Fight" />
                         </div>
                     </div>
                 </div>
             </Kartu>
 
             <!-- ============ 05 GALERI ============ -->
-            <Kartu judul="05 · Galeri" ket="Daftar gambar sendiri, atau karya terbaru dari DeviantArt. 'Bout' tampil lebar, 'Fighter' tegak." class="xl:col-span-2">
+            <Kartu judul="05 · Gallery" ket="Your own list of images, or the latest works from DeviantArt. 'Bout' shows wide, 'Fighter' tall." class="xl:col-span-2">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.gallery" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.gallery" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="mb-4 grid gap-3 sm:grid-cols-[10rem_1fr_1fr]">
-                    <Isian v-model="isi.gallery_text.eyebrow" label="Label kecil" />
-                    <Isian v-model="isi.gallery_text.heading" label="Judul" />
-                    <Isian v-model="isi.gallery_text.cta" label="Teks tombol Instagram" />
+                    <Isian v-model="isi.gallery_text.eyebrow" label="Small label" />
+                    <Isian v-model="isi.gallery_text.heading" label="Heading" />
+                    <Isian v-model="isi.gallery_text.cta" label="Instagram button label" />
                 </div>
-                <Isian v-model="isi.gallery_text.body" label="Kalimat pengantar" class="mb-4" />
+                <Isian v-model="isi.gallery_text.body" label="Intro text" class="mb-4" />
 
                 <!-- Umpan DeviantArt -->
                 <div class="mb-5 rounded-xl border border-border/70 p-3">
                     <label class="flex items-center gap-2 text-sm font-medium">
                         <input v-model="isi.gallery_feed.on" type="checkbox" :class="centang" />
-                        Ambil galeri otomatis dari DeviantArt
+                        Pull the gallery from DeviantArt automatically
                     </label>
                     <p class="mt-2 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                         <TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--kanvas))]" />
                         <span>
-                            Waktu ini diperiksa, <strong>semua</strong> karya terbaru di galerimu ditandai <em>adult</em> oleh DeviantArt sendiri —
-                            jadi kalau saklar ini dinyalakan tanpa mencentang "ikutkan yang adult", galerinya akan kosong dan halaman depan
-                            kembali memakai daftar gambar di bawah. Nyalakan "ikutkan yang adult" hanya kalau memang mau menampilkannya di halaman umum.
+                            When this was last checked, <strong>every</strong> recent work in your gallery was flagged <em>adult</em> by DeviantArt itself —
+                            so if this switch is on without ticking "include works flagged adult", the gallery comes out empty and the landing page
+                            falls back to the list of images below. Only turn on "include works flagged adult" if you really want them shown on a public page.
                         </span>
                     </p>
                     <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_8rem]">
-                        <Isian v-model="isi.gallery_feed.username" label="Nama pengguna DeviantArt" />
-                        <Isian v-model="isi.gallery_feed.max" label="Jumlah karya" tipe="number" />
+                        <Isian v-model="isi.gallery_feed.username" label="DeviantArt username" />
+                        <Isian v-model="isi.gallery_feed.max" label="How many works" tipe="number" />
                     </div>
-                    <label class="mt-2 flex items-center gap-2 text-sm"><input v-model="isi.gallery_feed.ikut_dewasa" type="checkbox" :class="centang" /> Ikutkan karya yang ditandai adult</label>
+                    <label class="mt-2 flex items-center gap-2 text-sm"><input v-model="isi.gallery_feed.ikut_dewasa" type="checkbox" :class="centang" /> Include works flagged adult</label>
 
                     <!-- Kuncinya tidak di sini tapi di config.local.php, dan
                          perbedaannya besar: tanpa kunci, server hosting selalu
                          ditolak DeviantArt walau di komputer sendiri lancar. -->
                     <p v-if="!deviantartApi" class="mt-2 rounded-lg border border-border/70 bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
-                        Sekarang dibaca lewat umpan RSS publik. Itu bekerja dari komputer sendiri, tapi dari server hosting
-                        DeviantArt menolaknya dengan 403 — alamat IP pusat data. Untuk jalur resminya: daftarkan aplikasi di
+                        Right now this reads the public RSS feed. That works from your own computer, but from a hosting server
+                        DeviantArt rejects it with a 403 — data centre IP addresses. For the official route: register an app at
                         <a href="https://www.deviantart.com/developers/register" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">deviantart.com/developers/register</a>
-                        (gratis, langsung jadi — alamat itu persis, yang tanpa <code class="font-mono">/register</code> dialihkan ke situs dokumentasi),
-                        lalu isi <code class="font-mono">DEVIANTART_CLIENT_ID</code> dan
-                        <code class="font-mono">DEVIANTART_CLIENT_SECRET</code> di <code class="font-mono">config.local.php</code>.
+                        (free, instant — that exact address; the one without <code class="font-mono">/register</code> redirects to the documentation site),
+                        then fill in <code class="font-mono">DEVIANTART_CLIENT_ID</code> and
+                        <code class="font-mono">DEVIANTART_CLIENT_SECRET</code> in <code class="font-mono">config.local.php</code>.
                     </p>
                     <p v-else class="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        Kunci aplikasi DeviantArt terpasang — galerinya diambil lewat API resmi, bukan umpan RSS.
+                        DeviantArt app keys are in place — the gallery is fetched through the official API, not the RSS feed.
                     </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                         <button type="button" :class="tombolPeriksa" :disabled="cekDeviant.sibuk" @click="periksaDeviantart">
                             <LoaderCircle v-if="cekDeviant.sibuk" class="h-3.5 w-3.5 animate-spin" />
                             <RefreshCw v-else class="h-3.5 w-3.5" />
-                            Periksa umpan
+                            Check feed
                         </button>
                         <span v-if="cekDeviant.pesan" class="text-xs" :class="cekDeviant.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekDeviant.pesan }}</span>
                     </div>
@@ -543,7 +543,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             <span v-if="karya.dewasa" class="absolute inset-x-0 bottom-0 bg-background/85 text-center text-[11px] text-[hsl(var(--sudut))]">adult</span>
                         </a>
                     </div>
-                    <DaftarTeks v-model="isi.gallery_feed.skip" class="mt-3" label="Karya yang dilewati" ket="tempel alamat karyanya kalau ada satu-dua yang tidak mau ditampilkan" placeholder="https://www.deviantart.com/…" />
+                    <DaftarTeks v-model="isi.gallery_feed.skip" class="mt-3" label="Works to skip" ket="paste a work's address if there are one or two you don't want shown" placeholder="https://www.deviantart.com/…" />
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -556,22 +556,22 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             </select>
                             <KendaliBaris :i="i" :total="isi.gallery.length" @geser="(a) => geser(isi.gallery, i, a)" @hapus="hapus(isi.gallery, i)" />
                         </div>
-                        <Gambar v-model="g.src" label="Gambar" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
+                        <Gambar v-model="g.src" label="Image" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                         <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                            <input v-model="g.caption" placeholder="Judul singkat" :class="[k, 'h-8 text-xs']" />
-                            <input v-model="g.alt" placeholder="Keterangan (alt)" :class="[k, 'h-8 text-xs']" />
-                            <input v-model="g.link" placeholder="Tautan (opsional)" :class="[k, 'h-8 text-xs sm:col-span-2']" />
+                            <input v-model="g.caption" placeholder="Short title" :class="[k, 'h-8 text-xs']" />
+                            <input v-model="g.alt" placeholder="Alt text" :class="[k, 'h-8 text-xs']" />
+                            <input v-model="g.link" placeholder="Link (optional)" :class="[k, 'h-8 text-xs sm:col-span-2']" />
                         </div>
                     </div>
                 </div>
-                <button type="button" :class="[tombolTambah, 'mt-3']" @click="tambah(isi.gallery, contoh.galeri)"><Plus class="h-3.5 w-3.5" /> Tambah gambar</button>
+                <button type="button" :class="[tombolTambah, 'mt-3']" @click="tambah(isi.gallery, contoh.galeri)"><Plus class="h-3.5 w-3.5" /> Add image</button>
 
                 <div v-if="unggahan.length" class="mt-5 border-t border-border/60 pt-4">
-                    <p class="mb-2 text-xs font-medium text-muted-foreground">Berkas unggahan ({{ unggahan.length }})</p>
+                    <p class="mb-2 text-xs font-medium text-muted-foreground">Uploaded files ({{ unggahan.length }})</p>
                     <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-8 lg:grid-cols-12">
                         <div v-for="u in unggahan" :key="u.nama" class="group relative aspect-square overflow-hidden rounded-md border border-border" :title="`${u.nama} · ${u.kb} KB`">
                             <img :src="u.src" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async" />
-                            <button type="button" class="absolute inset-x-0 bottom-0 hidden items-center justify-center gap-1 bg-background/85 py-1 text-[12px] text-destructive group-hover:flex" @click="hapusUnggahan(u.nama)"><Trash2 class="h-3 w-3" /> hapus</button>
+                            <button type="button" class="absolute inset-x-0 bottom-0 hidden items-center justify-center gap-1 bg-background/85 py-1 text-[12px] text-destructive group-hover:flex" @click="hapusUnggahan(u.nama)"><Trash2 class="h-3 w-3" /> delete</button>
                         </div>
                     </div>
                 </div>
@@ -586,8 +586,8 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                         <em>restricted</em> oleh Instagram, jadi pengunjung yang tidak masuk Instagram mungkin cuma melihat kotak kosong. Karena itu bawaannya mati.
                     </p>
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <Isian v-model="isi.instagram.handle" label="Handle (tanpa @)" />
-                        <Isian v-model="isi.instagram.url" label="Tautan profil" tipe="url" />
+                        <Isian v-model="isi.instagram.handle" label="Handle (without @)" />
+                        <Isian v-model="isi.instagram.url" label="Profile link" tipe="url" />
                     </div>
                     <DaftarTeks v-model="isi.instagram.embeds" class="mt-3" label="Pos yang disematkan" ket="https://www.instagram.com/p/…/" placeholder="https://www.instagram.com/p/XXXXXXXXX/" />
                 </div>
@@ -596,14 +596,14 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             <!-- ============ 06 RONDE ============ -->
             <Kartu judul="06 · Tiga ronde (proses)" ket="Bagaimana satu video dibuat, tiga langkah.">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.rounds" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.rounds" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="space-y-4">
                     <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                        <Isian v-model="isi.rounds.eyebrow" label="Label kecil" />
-                        <Isian v-model="isi.rounds.heading" label="Judul" />
+                        <Isian v-model="isi.rounds.eyebrow" label="Small label" />
+                        <Isian v-model="isi.rounds.heading" label="Heading" />
                     </div>
-                    <Isian v-model="isi.rounds.body" label="Kalimat pengantar" />
+                    <Isian v-model="isi.rounds.body" label="Intro text" />
                     <div>
                         <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Ronde</span>
                         <div v-for="(r, i) in isi.rounds.items" :key="i" class="mb-2 rounded-xl border border-border/70 p-2.5">
@@ -631,19 +631,19 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             <!-- ============ 07 X ============ -->
             <Kartu judul="07 · Sudut ring (X)" ket="Linimasa resminya dimuat waktu pengunjung sampai ke bagiannya, bukan saat halaman dibuka.">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.x" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.x" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="space-y-4">
                     <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
-                        <Isian v-model="isi.x.eyebrow" label="Label kecil" />
-                        <Isian v-model="isi.x.heading" label="Judul" ket="tampil di dalam tanda kutip" />
+                        <Isian v-model="isi.x.eyebrow" label="Small label" />
+                        <Isian v-model="isi.x.heading" label="Heading" ket="tampil di dalam tanda kutip" />
                     </div>
-                    <Isian v-model="isi.x.body" label="Kalimat pengantar" tipe="textarea" :baris="2" />
+                    <Isian v-model="isi.x.body" label="Intro text" tipe="textarea" :baris="2" />
                     <div class="grid gap-3 sm:grid-cols-2">
-                        <Isian v-model="isi.x.cta" label="Teks tombol" />
+                        <Isian v-model="isi.x.cta" label="Button label" />
                         <Isian v-model="isi.x.meta" label="Keterangan angka" />
-                        <Isian v-model="isi.x.handle" label="Handle (tanpa @)" />
-                        <Isian v-model="isi.x.url" label="Tautan profil" tipe="url" />
+                        <Isian v-model="isi.x.handle" label="Handle (without @)" />
+                        <Isian v-model="isi.x.url" label="Profile link" tipe="url" />
                     </div>
                     <label class="flex items-start gap-2 text-sm">
                         <input v-model="isi.x.show_timeline" type="checkbox" :class="[centang, 'mt-1']" />
@@ -655,13 +655,13 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             <!-- ============ 08 TAUTAN ============ -->
             <Kartu judul="08 · Tautan" ket="Urutannya mengikuti daftar ini. Yang disorot tampil sebagai kartu besar di atas." class="xl:col-span-2">
                 <template #alat>
-                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.socials" type="checkbox" :class="centang" /> tampil</label>
+                    <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.socials" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="mb-4 grid gap-3 sm:grid-cols-[10rem_1fr]">
-                    <Isian v-model="isi.socials_text.eyebrow" label="Label kecil" />
-                    <Isian v-model="isi.socials_text.heading" label="Judul" />
+                    <Isian v-model="isi.socials_text.eyebrow" label="Small label" />
+                    <Isian v-model="isi.socials_text.heading" label="Heading" />
                 </div>
-                <Isian v-model="isi.socials_text.body" label="Kalimat pengantar" class="mb-4" />
+                <Isian v-model="isi.socials_text.body" label="Intro text" class="mb-4" />
 
                 <div class="grid gap-3 lg:grid-cols-2">
                     <div v-for="(s, i) in isi.socials" :key="i" class="rounded-xl border border-border/70 p-3">

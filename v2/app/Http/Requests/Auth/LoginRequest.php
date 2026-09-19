@@ -38,8 +38,8 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'login.required'    => 'Username atau email harus diisi.',
-            'password.required' => 'Kata sandinya harus diisi.',
+            'login.required'    => 'Please fill in your username or email.',
+            'password.required' => 'Please fill in your password.',
         ];
     }
 
@@ -64,19 +64,19 @@ class LoginRequest extends FormRequest
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'login' => 'Username atau kata sandinya salah.',
+                'login' => 'That username or password is wrong.',
             ]);
         }
 
         if ($user->status === 'pending') {
             throw ValidationException::withMessages([
-                'login' => 'Akunmu sudah terdaftar tapi belum disetujui admin. Tunggu sebentar, lalu coba lagi.',
+                'login' => 'Your account is registered but an admin has not approved it yet. Wait a moment, then try again.',
             ]);
         }
 
         if ($user->status === 'rejected') {
             throw ValidationException::withMessages([
-                'login' => 'Pendaftaranmu ditolak admin.',
+                'login' => 'An admin rejected your registration.',
             ]);
         }
 
@@ -98,7 +98,7 @@ class LoginRequest extends FormRequest
         $detik = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'login' => 'Terlalu banyak percobaan. Coba lagi ' . $detik . ' detik lagi.',
+            'login' => 'Too many attempts. Try again in ' . $detik . ' seconds.',
         ]);
     }
 

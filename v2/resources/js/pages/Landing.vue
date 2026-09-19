@@ -35,6 +35,7 @@ const props = defineProps<{
     seo: { title: string; description: string; og_image: string; url: string };
     video: Array<{ id: string; judul: string; url: string; tanggal: string; thumb: string }>;
     masuk: boolean;
+    bahasa: { kini: string; daftar: Array<{ kode: string; nama: string; aktif: boolean }> };
 }>();
 
 // ------------------------------------------------------------- hero "bel"
@@ -183,7 +184,7 @@ const karyaGrid = computed(() => {
 
         <div class="maju-gulir" aria-hidden="true" />
 
-        <KepalaPublik :merek="isi.brand" :tautan="tautanNav" :cta="isi.hero.primary" :masuk="masuk" />
+        <KepalaPublik :merek="isi.brand" :tautan="tautanNav" :cta="isi.hero.primary" :masuk="masuk" :bahasa="bahasa" />
 
         <main id="content" tabindex="-1" class="outline-none">
             <!-- ============================ SAMPUL / HERO ============================ -->

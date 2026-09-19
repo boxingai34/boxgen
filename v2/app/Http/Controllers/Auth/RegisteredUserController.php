@@ -36,11 +36,11 @@ class RegisteredUserController extends Controller
             'email'     => ['nullable', 'email', 'max:190', Rule::unique('users', 'email')],
             'password'  => ['required', 'string', 'min:8', 'confirmed'],
         ], [
-            'username.regex'  => 'Username hanya boleh huruf, angka, titik, garis bawah, dan strip.',
-            'username.unique' => 'Username itu sudah dipakai.',
-            'email.unique'    => 'Email itu sudah terdaftar.',
-            'password.min'    => 'Kata sandi minimal 8 karakter.',
-            'password.confirmed' => 'Ulangan kata sandinya belum sama.',
+            'username.regex'  => 'A username can only use letters, numbers, dots, underscores and hyphens.',
+            'username.unique' => 'That username is already taken.',
+            'email.unique'    => 'That email is already registered.',
+            'password.min'    => 'A password needs at least 8 characters.',
+            'password.confirmed' => 'The password confirmation does not match yet.',
         ]);
 
         User::create([
@@ -53,6 +53,6 @@ class RegisteredUserController extends Controller
         ]);
 
         return to_route('login')->with('status',
-            'Pendaftaranmu masuk. Tunggu admin menyetujui akunnya, lalu masuk dengan username dan kata sandi tadi.');
+            'Your registration went through. Wait for an admin to approve the account, then sign in with the username and password you just used.');
     }
 }

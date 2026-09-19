@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\AngkaHidup;
+use Illuminate\Support\Facades\Cookie;
+use App\Services\BahasaLanding;
 use App\Services\DeviantartTerbaru;
 use App\Services\LandingContent;
 use App\Services\PatreonTerbaru;
@@ -44,6 +46,20 @@ class LandingController extends Controller
     {
         $isi = LandingContent::ambil();
 
+        // Bahasa dipilih orangnya, tidak ditebak dari perambannya: halaman
+        // ini ditulis bahasa Inggris, dan pembaca yang perambannya berbahasa
+        // lain belum tentu ingin membacanya dalam bahasa itu. Pilihannya
+        // diingat lewat kuki supaya kunjungan berikutnya tidak perlu
+        // memilih lagi.
+        $bahasa = BahasaLanding::sah($request->query('lang') ?? $request->cookie('lang'));
+
+        // Diingat setahun, dan TIDAK dienkripsi: isinya dua huruf yang sudah
+        // terlihat di alamatnya sendiri, dan kuki terenkripsi tidak bisa
+        // dibaca cache di depan aplikasi.
+        if ($request->query('lang') !== null) {
+            Cookie::queue(cookie('lang', $bahasa, 60 * 24 * 365, null, null, null, false));
+        }
+
         // Angka hidup (subscriber, tayangan, patron) dipasang lebih dulu:
         // penanda {subs} dan kawan-kawannya ada di banyak kalimat.
         $isi = AngkaHidup::terapkan($isi, AngkaHidup::kumpulkan($isi));
@@ -62,14 +78,25 @@ class LandingController extends Controller
             $isi['hero']['secondary']['url'] = $video[0]['url'];
         }
 
+        // Diterjemahkan di ujung, sesudah angka hidup dan umpan terpasang:
+        // yang diterjemahkan kalimat jadinya, bukan cetakannya. Kalimat
+        // "{subs} subscribers" yang belum terisi angkanya tidak akan pernah
+        // cocok dengan peta mana pun.
+        $isi = BahasaLanding::terapkan($isi, $bahasa);
+
         $seo = $this->seo($isi);
 
         return Inertia::render('Landing', [
-            'isi'   => self::untukPublik($isi),
-            'seo'   => $seo,
-            'video' => $video,
-            'masuk' => $request->user() !== null,
+            'isi'    => self::untukPublik($isi),
+            'seo'    => $seo,
+            'video'  => $video,
+            'masuk'  => $request->user() !== null,
+            'bahasa' => [
+                'kini'   => $bahasa,
+                'daftar' => BahasaLanding::daftar($bahasa),
+            ],
         ])->withViewData([
+            'lang'   => BahasaLanding::html($bahasa),
             'seo'    => $seo,
             'hero'   => $isi['hero']['images'][0]['src'] ?? '',
             'publik' => [
