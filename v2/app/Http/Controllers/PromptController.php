@@ -442,7 +442,13 @@ class PromptController extends Controller
         $user = "PERMINTAAN USER:\n{$data['teks']}\n\nDAFTAR PILIHAN YANG TERSEDIA:\n" . implode("\n", $katalog);
 
         try {
-            $jawab = AiClient::parseJson(AiClient::complete($system, $user, true));
+            // Profil ISI, bukan profil bawaan: tugas ini memilih dari katalog
+            // dan memulangkan JSON, dan model yang paling jarang mengarang
+            // kunci di luar daftar yang menang. Lihat blok AI_ISI_* di
+            // config.php — bawaannya menumpang setelan OpenAI yang sudah ada.
+            $jawab = AiClient::parseJson(
+                AiClient::completeDengan(AiClient::profil('ISI'), $system, $user, true)
+            );
         } catch (Throwable $e) {
             return response()->json(['ok' => false, 'error' => 'AI gagal dipanggil: ' . $e->getMessage()], 502);
         }

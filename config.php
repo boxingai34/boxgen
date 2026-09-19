@@ -240,6 +240,26 @@ defined('REVERSE_URL_TIMEOUT')   || define('REVERSE_URL_TIMEOUT', 120);
 defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 * 1024);
 
 // ---------------------------------------------------------------------
+// Pengisi otomatis Prompt Generator ("Tulis bebas, biar AI yang memilihkan").
+//
+// Tugasnya memilih modul dari katalog dan memulangkan JSON — bukan menulis
+// prosa, bukan membaca gambar. Yang menang di tugas begini model yang
+// patuh pada bentuk jawaban, dan OpenAI yang paling jarang mengarang
+// kunci baru di luar daftar.
+//
+// Bawaannya menumpang setelan profil vision, yang di mesin ini memang
+// sudah menunjuk OpenAI — jadi tidak ada kunci baru yang perlu diisi.
+// Timpa di config.local.php kalau mau model lain:
+//
+//     define('AI_ISI_MODEL', 'gpt-5.6-sol');
+//     define('AI_ISI_API_KEY', 'sk-...');
+// ---------------------------------------------------------------------
+defined('AI_ISI_PROVIDER') || define('AI_ISI_PROVIDER', 'openai_compatible');
+defined('AI_ISI_MODEL')    || define('AI_ISI_MODEL', AI_VISION_MODEL);
+defined('AI_ISI_BASE_URL') || define('AI_ISI_BASE_URL', AI_VISION_BASE_URL);
+defined('AI_ISI_API_KEY')  || define('AI_ISI_API_KEY', AI_VISION_API_KEY);
+
+// ---------------------------------------------------------------------
 // Galeri DeviantArt di halaman depan (v2).
 //
 // Halaman depan bisa mengambil karya terbaru dari galeri DeviantArt lewat
