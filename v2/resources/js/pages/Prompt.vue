@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
+import KatalogModul from '@/components/box/KatalogModul.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
 import PanelPetinju from '@/components/box/PanelPetinju.vue';
 import Tombol from '@/components/box/Tombol.vue';
@@ -373,15 +374,15 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                     </div>
 
                     <!-- Pose / interaksi -->
-                    <label v-if="mode === 'single'" class="mt-4 block">
+                    <div v-if="mode === 'single'" class="mt-4">
                         <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Pose</span>
-                        <select v-model="pilih.pose_id" :class="isianKelas">
-                            <option value="">— tidak dipakai —</option>
-                            <optgroup v-for="[kat, daftar] in kelompok('pose')" :key="kat" :label="kat || 'lainnya'">
-                                <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
-                            </optgroup>
-                        </select>
-                    </label>
+                        <KatalogModul
+                            :modul="modul.pose || []"
+                            :terpilih="pilih.pose_id === '' ? '' : Number(pilih.pose_id)"
+                            judul="Pose"
+                            @pilih="pilih.pose_id = $event"
+                        />
+                    </div>
 
                     <template v-else>
                         <label class="mt-4 block">
@@ -438,20 +439,27 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                                 {{ label }}
                                 <span v-if="tipe === 'background' && latarSaran.length" class="text-xs text-[hsl(var(--sorot))]">· ada saran dari serinya</span>
                             </span>
-                            <select v-model="pilih[tipe + '_id']" :class="isianKelas">
+                            <!-- Katalog bergambar, bukan daftar nama. "Sudut
+                                 rendah" dan "Sudut belanda" sama-sama satu
+                                 baris teks; bedanya baru kelihatan waktu
+                                 dilihat. Ring punya satu pilihan tambahan yang
+                                 bukan modul ("sesuaikan dengan tempat"), jadi
+                                 kolomnya tetap select. -->
+                            <select v-if="tipe === 'ring'" v-model="pilih[tipe + '_id']" :class="isianKelas">
                                 <option value="">— tidak dipakai —</option>
-                                <option v-if="tipe === 'ring'" value="auto">— sesuaikan dengan tempat —</option>
+                                <option value="auto">— sesuaikan dengan tempat —</option>
                                 <optgroup v-for="[kat, daftar] in kelompok(tipe)" :key="kat" :label="kat || 'lainnya'">
-                                    <option
-                                        v-for="m in daftar"
-                                        :key="m.id"
-                                        :value="m.id"
-                                        :class="tipe === 'background' && latarSaran.includes(m.id) ? 'font-semibold' : ''"
-                                    >
-                                        {{ tipe === 'background' && latarSaran.includes(m.id) ? '★ ' : '' }}{{ m.nama }}{{ m.nsfw ? ' •' : '' }}
-                                    </option>
+                                    <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
                                 </optgroup>
                             </select>
+
+                            <KatalogModul
+                                v-else
+                                :modul="modul[tipe] || []"
+                                :terpilih="pilih[tipe + '_id'] === '' ? '' : Number(pilih[tipe + '_id'])"
+                                :judul="label"
+                                @pilih="pilih[tipe + '_id'] = $event"
+                            />
                         </label>
                     </div>
 

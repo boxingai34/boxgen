@@ -47,8 +47,30 @@ class PromptController extends Controller
     private function modul(): array
     {
         $ambil = function (string $tipe): array {
+            // Gambar contoh tiap modul (dibuat `php artisan modul:contoh`)
+            // dibaca sekali sebagai daftar per tipe, bukan diperiksa satu per
+            // satu: tujuh ratus modul berarti tujuh ratus kali menyentuh disk
+            // untuk pertanyaan yang jawabannya sama sepanjang hari.
+            $contoh = [];
+            foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
+                $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
+            }
+
+            // Gaya punya foldernya sendiri, lengkap dengan versi bergeraknya.
+            $gerak = [];
+            if ($tipe === 'style') {
+                foreach (glob(public_path('img/gaya/*.webp')) ?: [] as $berkas) {
+                    $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya/'.basename($berkas);
+                }
+                foreach (glob(public_path('img/gaya-gerak/*.webp')) ?: [] as $berkas) {
+                    $gerak[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya-gerak/'.basename($berkas);
+                }
+            }
+
             try {
                 return array_map(static fn (array $m): array => [
+                    'contoh'   => $contoh[(string) ($m['slug'] ?? '')] ?? null,
+                    'gerak'    => $gerak[(string) ($m['slug'] ?? '')] ?? null,
                     'id'       => (int) $m['id'],
                     'nama'     => (string) ($m['name_id'] ?: $m['name']),
                     'kategori' => (string) ($m['category'] ?? ''),
