@@ -164,19 +164,45 @@ PREPARE ubah FROM @sql;
 EXECUTE ubah;
 DEALLOCATE PREPARE ubah;
 
-UPDATE `characters` c
-  JOIN `{TABEL}` p ON p.`kar` = c.`booru_tag`
-  JOIN `series` s ON s.`booru_tag` = p.`jud`
-   SET c.`series_id` = s.`id`
- WHERE c.`series_id` IS NULL;
+-- INDEKS NAMA TAG JUDUL — INI YANG MENENTUKAN SELESAI ATAU TIDAK.
+--
+-- Penyambungan di bawah mencari judul lewat series.booru_tag, dan kolom itu
+-- lama tidak punya indeks. Tanpanya, tiap dari puluhan ribu pasangan
+-- memindai SELURUH tabel judul: sekitar satu setengah miliar perbandingan,
+-- dan MySQL memutusnya di tengah dengan "max_statement_time exceeded".
+--
+-- Sama isinya dengan migrasi 014; ditaruh di sini juga supaya berkas ini
+-- berdiri sendiri.
+DROP PROCEDURE IF EXISTS `pasang_indeks_judul`;
+DELIMITER //
+CREATE PROCEDURE `pasang_indeks_judul`()
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME   = 'series'
+          AND INDEX_NAME   = 'idx_series_booru'
+    ) THEN
+        ALTER TABLE `series` ADD KEY `idx_series_booru` (`booru_tag`);
+    END IF;
+END //
+DELIMITER ;
+CALL `pasang_indeks_judul`();
+DROP PROCEDURE `pasang_indeks_judul`;
+
+-- PEMASANGANNYA DIPOTONG PER RENTANG ID.
+--
+-- Indeks di atas sudah membuatnya cepat, tapi batas waktu hosting tidak
+-- bisa ditawar dan besar tabelnya akan terus bertambah. Dipotong begini,
+-- tiap pernyataan mendapat jatah waktunya sendiri — dan kalau satu
+-- terputus, yang sudah lewat tetap tersimpan karena masing-masing berdiri
+-- sendiri. Rentang yang tidak berisi apa-apa selesai seketika.
+{POTONGAN}
 
 -- Jumlah karakter per judul ikut disegarkan: judul yang barusan terisi
 -- masih tercatat kosong, dan judul kosong ditaruh di bawah daftar.
-UPDATE `series` s
-   SET s.`char_count` = (
-       SELECT COUNT(*) FROM `characters` c
-        WHERE c.`series_id` = s.`id` AND c.`is_active` = 1
-   );
+-- Dipotong dengan alasan yang sama.
+{POTONGAN_JUDUL}
 
 -- Laporan: berapa pasangan yang TIDAK bisa dipasang, dan kenapa.
 -- Yang wajar adalah karakter atau judulnya memang belum diimpor di sini.
@@ -195,6 +221,55 @@ DROP TABLE `{TABEL}`;
 
 SQL
 );
+
+// ------------------------------------------------- potongan per rentang id
+//
+// Langit-langitnya dihitung dari id tertinggi DI SINI lalu dilebihkan,
+// karena id di server tidak sama dengan di sini — kamusnya sejuta tag,
+// jadi urutan impornya berbeda dan idnya bisa jauh lebih tinggi. Rentang
+// yang kelebihan tidak merugikan: yang kosong selesai seketika.
+$langit = max(
+    (int) Database::value('SELECT COALESCE(MAX(id), 0) FROM characters'),
+    (int) Database::value('SELECT COALESCE(MAX(id), 0) FROM series')
+) * 4 + 500000;
+
+$potong = static function (int $langit, int $langkah, callable $tulis): string {
+    $keluar = [];
+    for ($dari = 0; $dari < $langit; $dari += $langkah) {
+        $keluar[] = $tulis($dari, $dari + $langkah - 1);
+    }
+
+    // Penyapu terakhir, TANPA batas atas.
+    //
+    // Langit-langitnya ditebak dari id di sini, dan tebakan bisa meleset:
+    // server yang pernah gagal impor berkali-kali punya id jauh lebih
+    // tinggi. Baris di luar rentang akan terlewat TANPA BERSUARA — tidak
+    // ada galat, cuma karakter yang judulnya tetap kosong dan tidak ada
+    // yang tahu kenapa. Pernyataan ini yang menutupnya; kalau rentangnya
+    // memang sudah cukup, ia selesai seketika tanpa mengubah apa pun.
+    $keluar[] = $tulis($langit, -1);
+
+    return implode("\n", $keluar);
+};
+
+$potonganKarakter = $potong($langit, 25000, static fn (int $a, int $b): string => "UPDATE `characters` c\n"
+    . "  JOIN `{TABEL}` p ON p.`kar` = c.`booru_tag`\n"
+    . "  JOIN `series` s ON s.`booru_tag` = p.`jud`\n"
+    . "   SET c.`series_id` = s.`id`\n"
+    . " WHERE c.`series_id` IS NULL AND " . ($b < 0 ? "c.`id` > {$a}" : "c.`id` BETWEEN {$a} AND {$b}") . ';');
+
+$potonganJudul = $potong($langit, 25000, static fn (int $a, int $b): string => "UPDATE `series` s\n"
+    . "   SET s.`char_count` = (\n"
+    . "       SELECT COUNT(*) FROM `characters` c\n"
+    . "        WHERE c.`series_id` = s.`id` AND c.`is_active` = 1\n"
+    . "   )\n"
+    . ' WHERE ' . ($b < 0 ? "s.`id` > {$a}" : "s.`id` BETWEEN {$a} AND {$b}") . ';');
+
+file_put_contents($terapkan, str_replace(
+    ['{POTONGAN_JUDUL}', '{POTONGAN}'],
+    [$potonganJudul, $potonganKarakter],
+    file_get_contents($terapkan)
+));
 
 // Nama tabelnya disisipkan sesudahnya, supaya konstanta TABEL tetap satu
 // sumber dan tidak perlu diketik ulang di enam tempat.
