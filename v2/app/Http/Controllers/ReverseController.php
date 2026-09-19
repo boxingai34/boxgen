@@ -366,15 +366,19 @@ class ReverseController extends Controller
         // sekali sebagai daftar, bukan diperiksa satu per satu: lima puluh
         // is_file() di tiap kunjungan halaman itu lima puluh kali menyentuh
         // disk untuk pertanyaan yang jawabannya sama sepanjang hari.
-        // Yang bergerak didahulukan: contoh tiga frame (gaya:gerak) jauh
-        // lebih memberi tahu daripada gambar diam, dan yang belum punya
-        // tetap memakai gambar diamnya.
-        $contoh = [];
+        // Dua berkas per gaya, bukan satu yang menang. Yang diam dipakai
+        // selama kartunya didiamkan; yang bergerak baru ditukar masuk waktu
+        // kartunya disorot. WebP animasi tidak bisa dijeda dari CSS — begitu
+        // dimuat ia berputar terus — jadi enam puluh enam kartu yang semua
+        // bergerak sekaligus cuma bisa dicegah dengan tidak memuatnya.
+        $diam = [];
         foreach (glob(public_path('img/gaya/*.webp')) ?: [] as $berkas) {
-            $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya/'.basename($berkas);
+            $diam[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya/'.basename($berkas);
         }
+
+        $gerak = [];
         foreach (glob(public_path('img/gaya-gerak/*.webp')) ?: [] as $berkas) {
-            $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya-gerak/'.basename($berkas);
+            $gerak[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/gaya-gerak/'.basename($berkas);
         }
 
         return array_map(static fn (array $m): array => [
@@ -383,7 +387,8 @@ class ReverseController extends Controller
             'kategori' => (string) ($m['category'] ?? ''),
             'nsfw'     => (int) ($m['is_nsfw'] ?? 0) === 1,
             'ket'      => (string) ($m['description'] ?? ''),
-            'contoh'   => $contoh[(string) $m['slug']] ?? null,
+            'contoh'   => $diam[(string) $m['slug']] ?? null,
+            'gerak'    => $gerak[(string) $m['slug']] ?? null,
         ], $modul);
     }
 

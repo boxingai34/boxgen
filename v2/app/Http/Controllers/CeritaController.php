@@ -47,6 +47,7 @@ class CeritaController extends Controller
                     'kategori' => (string) ($m['category'] ?? ''),
                     'ket'      => (string) ($m['description'] ?? ''),
                     'contoh'   => self::contohGaya((string) $m['slug']),
+                    'gerak'    => self::contohGerak((string) $m['slug']),
                 ])
                 ->sortBy(fn (array $m) => $m['slug'] === 'v-anime-violet' ? 0 : 1)
                 ->values(),
@@ -73,11 +74,9 @@ class CeritaController extends Controller
     {
         $dasar = str_starts_with($slug, 'v-') ? substr($slug, 2) : $slug;
 
-        // Urutannya menentukan: contoh bergerak dipakai lebih dulu kalau ada.
         $calon = [
-            public_path('img/gaya-gerak/'.$dasar.'.webp') => '/img/gaya-gerak/'.$dasar.'.webp',
-            public_path('img/gaya/'.$dasar.'.webp')       => '/img/gaya/'.$dasar.'.webp',
-            public_path('img/gaya-video/'.$slug.'.webp')  => '/img/gaya-video/'.$slug.'.webp',
+            public_path('img/gaya/'.$dasar.'.webp')      => '/img/gaya/'.$dasar.'.webp',
+            public_path('img/gaya-video/'.$slug.'.webp') => '/img/gaya-video/'.$slug.'.webp',
         ];
 
         foreach ($calon as $berkas => $alamat) {
@@ -87,6 +86,16 @@ class CeritaController extends Controller
         }
 
         return null;
+    }
+
+    /** Versi bergeraknya, kalau sudah pernah dibuat `php artisan gaya:gerak`. */
+    private static function contohGerak(string $slug): ?string
+    {
+        $dasar = str_starts_with($slug, 'v-') ? substr($slug, 2) : $slug;
+
+        return is_file(public_path('img/gaya-gerak/'.$dasar.'.webp'))
+            ? '/img/gaya-gerak/'.$dasar.'.webp'
+            : null;
     }
 
     /**

@@ -393,11 +393,11 @@ html[data-hemat='1'] .hidupkan {
 }
 
 /* ---------------------------------------------------------------------
-   Gambar diam yang terasa hidup.
-   Dipakai di katalog gaya: contoh yang benar-benar beranimasi (WebP tiga
-   frame) berjalan sendiri, sedangkan yang cuma gambar diam mendapat
-   geseran sangat pelan supaya kartunya tidak terasa mati. Yang bergerak
-   cuma transform, jadi tidak ada tata letak yang dihitung ulang.
+   Gambar diam yang terasa hidup — HANYA saat disorot.
+   Dipakai di katalog gaya untuk kartu yang belum punya contoh bergerak.
+   Enam puluh enam kartu yang bergerak bersamaan bikin pusing, jadi yang
+   hidup cuma yang sedang ditunjuk kursor. Yang bergerak cuma transform,
+   jadi tidak ada tata letak yang dihitung ulang.
    --------------------------------------------------------------------- */
 @keyframes geser-pelan {
     0%   { transform: scale(1.06) translate3d(-1.2%, -0.8%, 0); }

@@ -31,7 +31,8 @@ use Symfony\Component\Process\Process;
 class GerakGaya extends Command
 {
     protected $signature = 'gaya:gerak
-        {--hanya= : slug gaya yang digambar, dipisah koma (wajib — ini perintah mahal)}
+        {--hanya= : slug gaya yang digambar, dipisah koma}
+        {--sisa : semua gaya yang belum punya contoh bergerak}
         {--ulang : timpa yang sudah ada}
         {--fps=3 : berapa frame per detik}';
 
@@ -57,8 +58,19 @@ class GerakGaya extends Command
     {
         $hanya = array_values(array_filter(array_map('trim', explode(',', (string) $this->option('hanya')))));
 
+        // --sisa menyapu yang belum punya, supaya tidak perlu menempel
+        // puluhan slug. Tetap bukan bawaan: perintah ini tiga gambar per
+        // gaya, dan menjalankannya tanpa sengaja itu mahal.
+        if ($hanya === [] && $this->option('sisa')) {
+            foreach (PromptBuilder::listModules('style', true) as $m) {
+                if (! is_file(public_path('img/gaya-gerak/'.$m['slug'].'.webp'))) {
+                    $hanya[] = (string) $m['slug'];
+                }
+            }
+        }
+
         if ($hanya === []) {
-            $this->error('Sebutkan slugnya: --hanya=anime-ippo,game-genshin. Tiap gaya butuh tiga gambar.');
+            $this->error('Sebutkan slugnya (--hanya=anime-ippo,game-genshin) atau pakai --sisa. Tiap gaya butuh tiga gambar.');
 
             return self::FAILURE;
         }

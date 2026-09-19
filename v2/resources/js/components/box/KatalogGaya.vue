@@ -14,7 +14,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
  * Gambarnya dibuat sekali lewat `php artisan gaya:contoh` dan ikut ke git,
  * jadi halaman ini tidak pernah memanggil AI.
  */
-type Gaya = { id: number; nama: string; kategori: string; ket: string; contoh: string | null };
+type Gaya = { id: number; nama: string; kategori: string; ket: string; contoh: string | null; gerak?: string | null };
 
 const props = defineProps<{ gaya: Gaya[]; terpilih: number | '' }>();
 const emit = defineEmits<{ (e: 'pilih', id: number | ''): void }>();
@@ -36,6 +36,20 @@ const berkelompok = computed(() => {
 const adaContoh = computed(() => props.gaya.filter((g) => g.contoh).length);
 
 const terpilihObj = computed(() => props.gaya.find((g) => g.id === props.terpilih) ?? null);
+
+/**
+ * Yang bergerak cuma kartu yang sedang disorot.
+ *
+ * WebP animasi tidak bisa dijeda dari CSS — begitu dimuat ia berputar
+ * terus — jadi enam puluh enam kartu yang semuanya bergerak sekaligus cuma
+ * bisa dicegah dengan TIDAK memuatnya. Berkas bergeraknya baru diminta
+ * waktu kursornya sampai, dan pergi lagi begitu kursornya pindah.
+ */
+const disorot = ref<number | null>(null);
+
+function sumber(g: Gaya): string {
+    return (disorot.value === g.id && g.gerak ? g.gerak : g.contoh) ?? '';
+}
 
 function pilih(id: number | '') {
     emit('pilih', id);
@@ -112,31 +126,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                             v-for="g in k.isi"
                             :key="g.id"
                             type="button"
-                            class="group overflow-hidden rounded-xl border text-left transition-colors"
+                            class="group relative overflow-hidden rounded-xl border text-left transition-colors"
                             :class="terpilih === g.id ? 'border-[hsl(var(--sorot))]' : 'border-border/70 hover:border-[hsl(var(--sorot)/0.6)]'"
                             :title="g.ket"
                             @click="pilih(g.id)"
+                            @mouseenter="disorot = g.id"
+                            @mouseleave="disorot = disorot === g.id ? null : disorot"
+                            @focus="disorot = g.id"
+                            @blur="disorot = disorot === g.id ? null : disorot"
                         >
-                            <!-- Contoh yang benar-benar beranimasi (WebP tiga
-                                 frame) berjalan sendiri. Yang cuma gambar diam
-                                 digeser sangat pelan supaya kartunya tidak
-                                 terasa mati — dan geserannya dipotong kotak
-                                 kartunya, jadi tidak ada yang melebar. -->
+                            <!-- Diam sampai disorot. Yang punya contoh bergerak
+                                 menukar gambarnya; yang belum punya digeser
+                                 pelan supaya kartunya tetap menjawab sorotan.
+                                 Geserannya dipotong kotak kartunya, jadi tidak
+                                 ada yang melebar keluar. -->
                             <span class="block aspect-square w-full overflow-hidden">
                                 <img
                                     v-if="g.contoh"
-                                    :src="g.contoh"
+                                    :src="sumber(g)"
                                     :alt="g.nama"
                                     width="512"
                                     height="512"
                                     loading="lazy"
                                     decoding="async"
                                     class="h-full w-full object-cover"
-                                    :class="g.contoh.includes('/gaya-gerak/') ? '' : 'hidupkan'"
+                                    :class="!g.gerak && disorot === g.id ? 'hidupkan' : ''"
                                 />
                                 <span v-else class="flex h-full w-full items-center justify-center bg-muted/40 text-center text-xs text-muted-foreground">
                                     belum ada contoh
                                 </span>
+                            </span>
+
+                            <span
+                                v-if="g.gerak"
+                                class="pointer-events-none absolute right-2 top-2 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                            >
+                                {{ disorot === g.id ? 'berputar' : 'sorot' }}
                             </span>
                             <span class="block truncate px-2.5 py-2 text-xs">{{ g.nama }}</span>
                         </button>
