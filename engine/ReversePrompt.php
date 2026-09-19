@@ -50,10 +50,19 @@ final class ReversePrompt
      * membuat hasilnya "punya karakter": tanpa penekanan, tag gaya kalah
      * suara oleh puluhan tag isi.
      */
+    /**
+     * Lima tingkat, bukan tiga.
+     *
+     * Urutan kuncinya menentukan urutan tombol di halaman, jadi jangan
+     * ditukar. Tiga kunci lama (ikut, sedang, kuat) sengaja dipertahankan
+     * apa adanya supaya rancangan yang sudah tersimpan tetap terbaca.
+     */
     public const KUAT = [
         'ikut'   => ['label' => 'Ikut apa adanya', 'bobot' => 1.0],
+        'tipis'  => ['label' => 'Tipis',           'bobot' => 1.08],
         'sedang' => ['label' => 'Sedang',          'bobot' => 1.15],
         'kuat'   => ['label' => 'Kuat',            'bobot' => 1.3],
+        'sangat' => ['label' => 'Sangat kuat',     'bobot' => 1.45],
     ];
 
     /**

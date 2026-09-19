@@ -74,6 +74,10 @@ const gayaId = ref<number | ''>('');
 const artis = ref('');
 const kuatGaya = ref('ikut');
 
+/** Urutan kunci dari mesinnya sudah dari lemah ke kuat; itu yang jadi tangga. */
+const tanggaKuat = computed(() => Object.keys(props.kuat));
+const indeksKuat = computed(() => Math.max(0, tanggaKuat.value.indexOf(kuatGaya.value)));
+
 const rawTerbuka = ref(false);
 const rawTeks = ref('');
 const rawDisunting = ref(false);
@@ -424,17 +428,36 @@ function gantiKarakter(s: any) {
 
 const KOLOM_CIRI = ['hair', 'eyes', 'body', 'tags'];
 
+/**
+ * Ciri dari keempat kolom jadi satu daftar, tanpa kembar.
+ *
+ * Pembacanya rutin menulis tag yang sama di dua kolom sekaligus —
+ * "mature female" di body dan sekali lagi di daftar tag — dan dulu keduanya
+ * muncul sebagai dua kepingan yang kelihatan seperti kesalahan. Yang
+ * ditampilkan sekarang satu, tapi yang dibuang tetap semuanya.
+ */
 function ciriSubjek(s: any): Array<{ kolom: string; tag: string }> {
     const keluar: Array<{ kolom: string; tag: string }> = [];
+    const sudah = new Set<string>();
+
     for (const kolom of KOLOM_CIRI) {
-        for (const tag of s[kolom] ?? []) keluar.push({ kolom, tag });
+        for (const tag of s[kolom] ?? []) {
+            if (sudah.has(tag)) continue;
+            sudah.add(tag);
+            keluar.push({ kolom, tag });
+        }
     }
 
     return keluar;
 }
 
-function buangCiri(s: any, kolom: string, tag: string) {
-    s[kolom] = (s[kolom] ?? []).filter((t: string) => t !== tag);
+/** Dibuang dari semua kolom, bukan cuma dari kolom kepingannya. */
+function buangCiri(s: any, _kolom: string, tag: string) {
+    for (const kolom of KOLOM_CIRI) {
+        if (Array.isArray(s[kolom])) {
+            s[kolom] = s[kolom].filter((t: string) => t !== tag);
+        }
+    }
 }
 
 function tambahCiri(s: any) {
@@ -502,16 +525,8 @@ async function susun() {
     }
 }
 
-const gayaKelompok = computed(() => {
-    const peta = new Map<string, typeof props.gaya>();
-    for (const g of props.gaya) {
-        const k = g.kategori || 'lainnya';
-        if (!peta.has(k)) peta.set(k, []);
-        peta.get(k)!.push(g);
-    }
-
-    return [...peta.entries()];
-});
+// Pengelompokan gaya per kategori sekarang tinggal di KatalogGaya.vue —
+// halaman ini tidak lagi punya daftar pilihan sendiri untuk gaya.
 
 const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB');
 </script>
@@ -650,7 +665,16 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             {{ String(s.id || 'ab'[i] || i + 1).toUpperCase() }}
                         </h3>
 
-                        <div class="grid gap-3 sm:grid-cols-3">
+                        <!-- Karakter paling atas dan selebar kartunya: itu kolom
+                             yang paling menentukan hasil, dan yang paling sering
+                             dibetulkan. Peran dan jenis kelamin hampir tidak
+                             pernah disentuh, jadi mengalah ke bawah. -->
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-medium text-[hsl(var(--sorot))]">Karakter</span>
+                            <IsianKarakter v-model="s.character" @pilih="gantiKarakter(s)" />
+                        </label>
+
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Peran</span>
                                 <select v-model="s.role" :class="isianKelas">
@@ -662,10 +686,6 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 <select v-model="s.sex" :class="isianKelas">
                                     <option v-for="[n, l] in SEKS" :key="n" :value="n">{{ l }}</option>
                                 </select>
-                            </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs font-medium text-[hsl(var(--sorot))]">Karakter</span>
-                                <IsianKarakter v-model="s.character" @pilih="gantiKarakter(s)" />
                             </label>
                         </div>
 
@@ -681,7 +701,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <span v-if="s.view_evidence" class="mt-1 block text-xs text-muted-foreground">{{ s.view_evidence }}</span>
                         </label>
 
-                        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Bentuk badan</span>
                                 <select v-model="s.bentuk" :class="isianKelas">
@@ -694,34 +714,35 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     <option v-for="[n, l] in DADA" :key="n" :value="n">{{ l }}</option>
                                 </select>
                             </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Ekspresi</span>
-                                <input v-model="s.expression" type="text" placeholder="clenched teeth, determined" :class="isianKelas" />
-                            </label>
                         </div>
 
-                        <div class="mt-3">
-                            <span class="mb-1.5 block text-xs text-muted-foreground">
+                        <label class="mt-3 block">
+                            <span class="mb-1.5 block text-xs text-muted-foreground">Ekspresi</span>
+                            <input v-model="s.expression" type="text" placeholder="clenched teeth, determined" :class="isianKelas" />
+                        </label>
+
+                        <div class="mt-3 rounded-xl border border-border/60 p-3">
+                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
                                 Bentuk otot
-                                <span class="text-xs text-muted-foreground/70">— mati bawaan; centang kalau memang mau</span>
+                                <span class="font-normal text-muted-foreground/70">— mati bawaan; centang kalau memang mau</span>
                             </span>
-                            <div class="flex flex-wrap gap-x-5 gap-y-2">
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3">
                                 <label v-for="[k, l] in OTOT_PILIHAN" :key="k" class="flex items-center gap-2 text-sm">
                                     <input
                                         type="checkbox"
-                                        class="accent-[hsl(var(--sorot))]"
+                                        class="h-4 w-4 shrink-0 accent-[hsl(var(--sorot))]"
                                         :checked="punyaOtot(s, k)"
                                         @change="ubahOtot(s, k, ($event.target as HTMLInputElement).checked)"
                                     />
-                                    {{ l }}
+                                    <span class="truncate">{{ l }}</span>
                                 </label>
-                                <span v-if="(s.otot_terbaca || []).length" class="text-xs text-muted-foreground">
-                                    Dari gambarnya terbaca: {{ (s.otot_terbaca || []).map((t: string) => t.replace(/_/g, ' ')).join(', ') }}
-                                </span>
                             </div>
+                            <p v-if="(s.otot_terbaca || []).length" class="mt-2 text-xs text-muted-foreground">
+                                Dari gambarnya terbaca: {{ (s.otot_terbaca || []).map((t: string) => t.replace(/_/g, ' ')).join(', ') }}
+                            </p>
                         </div>
 
-                        <div class="mt-3 grid gap-3 sm:grid-cols-4">
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Atasan</span>
                                 <select v-model="s.attire.top" :class="isianKelas">
@@ -756,7 +777,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             </label>
                         </div>
 
-                        <div class="mt-3 grid gap-3 sm:grid-cols-4">
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Keringat</span>
                                 <select v-model.number="s.condition.sweat" :class="isianKelas">
@@ -771,44 +792,62 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             </label>
                         </div>
 
-                        <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                            <div>
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Memar di</span>
-                                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                                    <label v-for="[n, l] in MEMAR" :key="n" class="flex items-center gap-1.5 text-[13px]">
+                        <!-- Centangnya disusun kolom, bukan dibiarkan membungkus
+                             sendiri: daftar yang rata kiri-kanan bisa dibaca
+                             sekali lihat, sedangkan barisan yang panjangnya
+                             berbeda-beda harus ditelusuri satu per satu. -->
+                        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                            <div class="rounded-xl border border-border/60 p-3">
+                                <span class="mb-2 block text-xs font-medium text-muted-foreground">Memar di</span>
+                                <div class="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-2">
+                                    <label v-for="[n, l] in MEMAR" :key="n" class="flex items-center gap-2 text-sm">
                                         <input
                                             type="checkbox"
-                                            class="accent-[hsl(var(--sorot))]"
+                                            class="h-4 w-4 shrink-0 accent-[hsl(var(--sorot))]"
                                             :checked="punyaLokasi(s.condition.bruises, n)"
                                             @change="ubahLokasi(s, 'bruises', n, ($event.target as HTMLInputElement).checked)"
                                         />
-                                        {{ l }}
+                                        <span class="truncate">{{ l }}</span>
                                     </label>
                                 </div>
                             </div>
-                            <div>
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Darah di</span>
-                                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                                    <label v-for="[n, l] in DARAH" :key="n" class="flex items-center gap-1.5 text-[13px]">
+                            <div class="rounded-xl border border-border/60 p-3">
+                                <span class="mb-2 block text-xs font-medium text-muted-foreground">Darah di</span>
+                                <div class="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 lg:grid-cols-2">
+                                    <label v-for="[n, l] in DARAH" :key="n" class="flex items-center gap-2 text-sm">
                                         <input
                                             type="checkbox"
-                                            class="accent-[hsl(var(--sorot))]"
+                                            class="h-4 w-4 shrink-0 accent-[hsl(var(--sorot))]"
                                             :checked="punyaLokasi(s.condition.blood, n)"
                                             @change="ubahLokasi(s, 'blood', n, ($event.target as HTMLInputElement).checked)"
                                         />
-                                        {{ l }}
+                                        <span class="truncate">{{ l }}</span>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Ciri & tag dari gambar -->
-                        <div class="mt-4">
-                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Ciri &amp; tag dari gambar</span>
-                            <div class="mb-2 flex flex-wrap gap-1.5">
-                                <span v-for="(c, j) in ciriSubjek(s)" :key="j" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-xs">
+                        <div class="mt-4 rounded-xl border border-border/60 p-3">
+                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
+                                Ciri &amp; tag dari gambar
+                                <span class="font-normal text-muted-foreground/70">— klik × untuk membuang</span>
+                            </span>
+                            <div class="mb-3 flex flex-wrap gap-2">
+                                <span
+                                    v-for="(c, j) in ciriSubjek(s)"
+                                    :key="j"
+                                    class="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background py-1 pl-2.5 pr-1.5 text-xs"
+                                >
                                     {{ c.tag.replace(/_/g, ' ') }}
-                                    <button type="button" class="text-muted-foreground transition-colors hover:text-destructive" @click="buangCiri(s, c.kolom, c.tag)"><X class="h-3 w-3" /></button>
+                                    <button
+                                        type="button"
+                                        class="grid h-4 w-4 place-items-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                        :aria-label="'Buang ' + c.tag"
+                                        @click="buangCiri(s, c.kolom, c.tag)"
+                                    >
+                                        <X class="h-3 w-3" />
+                                    </button>
                                 </span>
                                 <span v-if="!ciriSubjek(s).length" class="text-xs text-muted-foreground">Tidak ada.</span>
                             </div>
@@ -831,36 +870,46 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
 
                     <!-- Gaya visual: sesudah pembacaan, karena menggantikannya -->
                     <div class="border-t border-border/60 pt-4">
-                        <label class="block">
-                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
-                                Gaya visual <span class="text-xs text-muted-foreground/70">menggantikan gaya bacaan</span>
-                            </span>
-                            <select v-model="gayaId" :class="isianKelas">
-                                <option value="">— ikut referensi —</option>
-                                <optgroup v-for="[kat, daftar] in gayaKelompok" :key="kat" :label="kat || 'lainnya'">
-                                    <option v-for="g in daftar" :key="g.id" :value="g.id">{{ g.nama }}{{ g.nsfw ? ' •' : '' }}</option>
-                                </optgroup>
-                            </select>
-                            <KatalogGaya :gaya="gaya" :terpilih="gayaId" @pilih="gayaId = $event" />
-                            <span class="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
-                                Biarkan kosong kalau mau meniru gaya referensinya. Pilih salah satu kalau ingin wujudnya beda: gaya pilihanmu menggantikan gaya bacaan — tag medium dari gambar (anime coloring, realistic, 3d) dibuang, tidak dicampur, supaya keduanya tidak saling berkelahi.
-                            </span>
-                        </label>
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
+                            Gaya visual <span class="text-xs text-muted-foreground/70">menggantikan gaya bacaan</span>
+                        </span>
 
-                        <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_12rem]">
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
-                                    Tag artis <span class="text-xs text-muted-foreground/70">opsional, pisahkan dengan koma</span>
-                                </span>
-                                <input v-model="artis" type="text" :maxlength="maks.artis" placeholder="ketik nama artis, misal: dairi" :class="isianKelas" />
-                            </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Kekuatan gaya</span>
-                                <select v-model="kuatGaya" :class="isianKelas">
-                                    <option v-for="(label, nilai) in kuat" :key="nilai" :value="nilai">{{ label }}</option>
-                                </select>
-                            </label>
+                        <KatalogGaya :gaya="gaya" :terpilih="gayaId" @pilih="gayaId = $event" />
+
+                        <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                            Biarkan "ikut gaya referensinya" kalau mau menirunya. Pilih salah satu kalau ingin wujudnya beda: gaya pilihanmu menggantikan gaya bacaan — tag medium dari gambar (anime coloring, realistic, 3d) dibuang, tidak dicampur, supaya keduanya tidak saling berkelahi.
+                        </p>
+
+                        <!-- Kekuatan gaya sebagai lima palang, bukan daftar pilihan:
+                             yang ditanyakan "seberapa", dan seberapa itu lebih cepat
+                             dibaca sebagai panjang daripada sebagai kata. -->
+                        <div class="mt-4">
+                            <div class="mb-1.5 flex items-baseline justify-between gap-3">
+                                <span class="text-xs font-medium text-muted-foreground">Kekuatan gaya</span>
+                                <span class="text-xs text-foreground">{{ kuat[kuatGaya] ?? '' }}</span>
+                            </div>
+                            <div class="flex gap-1.5" role="group" aria-label="Kekuatan gaya">
+                                <button
+                                    v-for="(nilai, i) in tanggaKuat"
+                                    :key="nilai"
+                                    type="button"
+                                    class="h-9 flex-1 rounded-lg border transition-colors"
+                                    :class="i <= indeksKuat
+                                        ? 'border-[hsl(var(--sorot))] bg-[hsl(var(--sorot)/0.55)]'
+                                        : 'border-border/70 bg-muted/30 hover:border-[hsl(var(--sorot)/0.5)]'"
+                                    :aria-pressed="i <= indeksKuat"
+                                    :title="kuat[nilai]"
+                                    @click="kuatGaya = nilai"
+                                />
+                            </div>
                         </div>
+
+                        <label class="mt-4 block">
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                Tag artis <span class="text-xs text-muted-foreground/70">opsional, pisahkan dengan koma</span>
+                            </span>
+                            <input v-model="artis" type="text" :maxlength="maks.artis" placeholder="ketik nama artis, misal: dairi" :class="isianKelas" />
+                        </label>
                         <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                             Satu nama artis mengubah garis, warna, dan proporsi sekaligus. Hanya nama yang ada di kamus Danbooru yang dipakai — sisanya dibuang dan dilaporkan.
                         </p>

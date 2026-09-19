@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X } from 'lucide-vue-next';
+import { ChevronDown, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
@@ -35,6 +35,8 @@ const berkelompok = computed(() => {
 
 const adaContoh = computed(() => props.gaya.filter((g) => g.contoh).length);
 
+const terpilihObj = computed(() => props.gaya.find((g) => g.id === props.terpilih) ?? null);
+
 function pilih(id: number | '') {
     emit('pilih', id);
     buka.value = false;
@@ -49,13 +51,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
 </script>
 
 <template>
+    <!-- Tombolnya sekaligus jadi kolomnya: tidak ada daftar pilihan terpisah,
+         karena nama gaya tanpa gambarnya memang tidak memberi tahu apa-apa.
+         Yang sedang terpilih ditampilkan di sini, lengkap dengan contohnya. -->
     <button
         type="button"
-        class="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-[hsl(var(--sorot)/0.6)] hover:text-foreground"
+        class="flex w-full items-center gap-3 rounded-xl border border-input bg-background p-2 text-left transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
         @click="buka = true"
     >
-        Lihat katalog gaya
-        <span class="tabular-nums opacity-70">({{ adaContoh }})</span>
+        <img
+            v-if="terpilihObj?.contoh"
+            :src="terpilihObj.contoh"
+            :alt="terpilihObj.nama"
+            width="512"
+            height="512"
+            loading="lazy"
+            decoding="async"
+            class="h-12 w-12 shrink-0 rounded-lg object-cover"
+        />
+        <span v-else class="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">ref</span>
+
+        <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm">{{ terpilihObj?.nama ?? 'Ikut gaya referensinya' }}</span>
+            <span class="block truncate text-xs text-muted-foreground">
+                Klik untuk membuka katalog — {{ adaContoh }} gaya dengan contohnya
+            </span>
+        </span>
+
+        <ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
     </button>
 
     <Teleport to="body">
