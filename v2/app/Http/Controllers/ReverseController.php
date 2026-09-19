@@ -59,6 +59,10 @@ class ReverseController extends Controller
                 'atasan'  => self::slotPakaian('outfit_top'),
                 'bawahan' => self::slotPakaian('outfit_bottom'),
             ],
+            // Gaya rambut dibaca dengan cara yang sama: yang dipakai sebagai
+            // id tetap tagnya, karena halaman ini menyimpan ciri sebagai tag
+            // mentah di dalam hasil pembacaan.
+            'rambut' => self::slotPakaian('hair_style'),
         ]);
     }
 

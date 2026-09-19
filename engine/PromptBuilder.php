@@ -334,6 +334,29 @@ final class PromptBuilder
             );
         }
 
+        // ---- gaya rambut ----
+        //
+        // Masuk ke blok penampilan, bukan blok sendiri: ini ciri fisik
+        // orangnya, sederajat dengan warna mata dan bentuk badan. Yang
+        // ditawarkan cuma TATANANNYA — panjang dan warna tetap milik
+        // karakternya, dan modul di daftar itu memang tidak punya tag
+        // panjang maupun warna.
+        if (!empty($p['hair_id'])) {
+            $gaya = self::loadModule((int)$p['hair_id'], $allowNsfw, 'hair_style');
+
+            if ($gaya !== null) {
+                foreach ($gaya['tags'] as $mt) {
+                    $items[] = [
+                        'tag_id' => (int)$mt['tag_id'],
+                        'name'   => $mt['name'],
+                        'weight' => (float)$mt['weight'],
+                        'block'  => 'appearance' . $suffix,
+                        'from'   => $label !== null ? $label . ': gaya rambut' : 'gaya rambut',
+                    ];
+                }
+            }
+        }
+
         // ---- pakaian ----
         foreach (self::resolveOutfit($p, $allowNsfw, $potong) as $item) {
             $item['block'] = 'outfit' . $suffix;

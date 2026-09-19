@@ -408,6 +408,12 @@ say('Sub-interaksi        : ' . $subTotal);
 
 $condMap  = saveModules('condition',  $scene['condition']);
 
+// Gaya rambut: tatanannya saja, bukan panjang atau warnanya. Panjang dan
+// warna datang dari karakternya sendiri, dan menimpanya berarti menggambar
+// orang lain dengan nama yang sama.
+$rambutMap = saveModules('hair_style', dataFile('rambut')['hair_style']);
+say('Gaya rambut          : ' . count($rambutMap));
+
 // Tema kondisi mengisi slot per bagian badan, sama seperti tema pakaian.
 // Dipakai ulang tabel module_defaults yang sudah ada.
 $condDefault = 0;

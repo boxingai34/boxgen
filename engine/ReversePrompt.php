@@ -745,6 +745,9 @@ TXT;
                 // Ditentukan sendiri lewat halaman; menimpa yang terbaca.
                 'bentuk'        => $bentuk,
                 'dada'          => $dada,
+                // Gaya rambut: DITAMBAHKAN, bukan menimpa. Warna dan
+                // panjangnya tetap dari gambar atau dari kamus karakternya.
+                'hair_style'    => $teks($s['hair_style'] ?? '', 120),
                 'view'          => $hadap,
                 'view_evidence' => $teks($s['view_evidence'] ?? '', 200),
                 'position' => [
@@ -1786,6 +1789,14 @@ TXT;
             static fn(string $t): bool => !in_array($t, ['mature_female', 'mature_male', 'aged_up'], true)
                                        || in_array($t, $umur, true)
         ));
+
+        // Gaya rambut pilihanmu: TATANANNYA saja. Warna dan panjang tetap
+        // datang dari $s['hair'] di atas — yang terbaca dari gambarnya atau
+        // dari kamus karakternya — jadi memilih "dikepang" tidak pernah
+        // mengubah rambut merah muda pendek jadi pirang panjang.
+        foreach (self::validasiTag(preg_split('/[,;]+/', (string)($s['hair_style'] ?? '')) ?: [])[0] as $t) {
+            $tag[] = $t;
+        }
 
         return array_values(array_unique($tag));
     }

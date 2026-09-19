@@ -32,6 +32,7 @@ const props = defineProps<{
     gambar: { latar: boolean; tokoh: boolean };
     contoh: Record<string, Record<string, string>>;
     pakaian: { atasan: any[]; bawahan: any[] };
+    rambut: any[];
 }>();
 
 /**
@@ -967,6 +968,23 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 />
                             </label>
                         </div>
+
+                        <!-- Gaya rambut DITAMBAHKAN, tidak menimpa: warna dan
+                             panjangnya tetap dari gambarnya atau dari kamus
+                             karakternya, jadi memilih "dikepang" tidak pernah
+                             mengubah rambut pendek jadi panjang. -->
+                        <label class="mt-3 block">
+                            <span class="mb-1.5 block text-xs text-muted-foreground">
+                                Gaya rambut <span class="text-muted-foreground/70">tatanannya saja</span>
+                            </span>
+                            <KatalogModul
+                                :modul="rambut"
+                                :terpilih="s.hair_style || ''"
+                                judul="Gaya rambut"
+                                kosong="— ikuti referensi —"
+                                @pilih="s.hair_style = $event"
+                            />
+                        </label>
 
                         <div class="mt-3 rounded-xl border border-border/60 p-3">
                             <span class="mb-2 block text-xs font-medium text-muted-foreground">

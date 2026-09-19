@@ -383,6 +383,22 @@ function kelompok(tipe: string): Array<[string, any[]]> {
             />
         </label>
 
+        <!-- Gaya rambut, bukan rambutnya. Panjang dan warna tetap milik
+             karakternya — mengubahnya berarti menggambar orang lain dengan
+             nama yang sama. -->
+        <label class="mt-3 block">
+            <span class="mb-1.5 block text-xs text-muted-foreground">
+                Gaya rambut <span class="text-xs text-muted-foreground/70">tatanannya saja, panjang dan warna tetap ikut karakternya</span>
+            </span>
+            <KatalogModul
+                :modul="modul.hair_style || []"
+                :terpilih="orang.hair_id === '' ? '' : Number(orang.hair_id)"
+                judul="Gaya rambut"
+                kosong="— ikut karakternya —"
+                @pilih="orang.hair_id = $event"
+            />
+        </label>
+
         <details class="mt-2 rounded-xl border border-border/70 p-3">
             <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Advanced — atur per bagian</summary>
             <p class="mt-2 text-xs leading-relaxed text-muted-foreground">

@@ -89,7 +89,7 @@ class PromptController extends Controller
 
         $daftar = [];
         foreach ([
-            'quality', 'style', 'outfit', 'pose', 'interaction', 'condition',
+            'quality', 'style', 'outfit', 'pose', 'interaction', 'condition', 'hair_style',
             'background', 'ring', 'cam_distance', 'cam_angle', 'cam_effect', 'lighting',
             'sub_jatuh', 'sub_menang', 'sub_reaksi', 'sub_lokasi', 'sub_sasaran',
         ] as $tipe) {

@@ -9,7 +9,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim } from '@/lib/kirim';
 import { Head } from '@inertiajs/vue3';
 import { Dices, LoaderCircle, Sparkles, Wand2, X } from 'lucide-vue-next';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 /**
  * Prompt Generator: prompt gambar dari pilihan, bukan dari cerita.
@@ -36,7 +36,7 @@ const isianKelas =
 const mode = ref<'single' | 'duo'>('single');
 
 function orangBaru() {
-    const o: any = { character: '', gender: '', mature: false, outfit_id: '', condition_id: '' };
+    const o: any = { character: '', gender: '', mature: false, hair_id: '', outfit_id: '', condition_id: '' };
     for (const s of ['top', 'bottom', 'hand', 'foot', 'head']) {
         o['outfit_' + s + '_id'] = '';
         o['outfit_' + s + '_color'] = '';
@@ -82,6 +82,7 @@ const aiNota = ref('');
 const sedang = ref(false);
 const galat = ref('');
 const hasil = ref<any>(null);
+const panelHasil = ref<HTMLElement | null>(null);
 // Bawaannya NovelAI, bukan Stable Diffusion: tombol SD-nya disembunyikan
 // (lihat TARGET di bawah), dan target yang tidak punya tombol tidak bisa
 // ditinggalkan kalau ia juga yang kepilih duluan.
@@ -199,6 +200,16 @@ async function susun() {
         if (mode.value === 'duo') muatan.b = bersih(b);
 
         hasil.value = await kirim<any>(route('prompt.susun'), muatan);
+
+        // Tombolnya di dasar kolom kiri, hasilnya di puncak kolom kanan —
+        // jadi sesudah menekan, yang baru saja dibuat justru berada di luar
+        // layar. Halaman yang pindah sendiri menghemat satu gulir yang
+        // harus dilakukan tiap kali, setiap kali.
+        await nextTick();
+        panelHasil.value?.scrollIntoView({
+            behavior: document.documentElement.dataset.hemat === '1' ? 'auto' : 'smooth',
+            block: 'start',
+        });
     } catch (e: any) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun prompt.';
     } finally {
@@ -526,7 +537,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
             </div>
 
             <!-- ============================ KANAN: HASIL ============================ -->
-            <div class="space-y-5">
+            <div ref="panelHasil" class="space-y-5">
                 <Kartu judul="2. Hasil">
                     <template v-if="hasil" #alat>
                         <div class="flex flex-wrap gap-1.5">
@@ -556,18 +567,38 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                             <span v-if="hasil.peringatan" class="text-[hsl(var(--kanvas))]"> · {{ hasil.peringatan }}</span>
                         </p>
 
-                        <KotakTeks v-if="keluaran" judul="Prompt" :teks="keluaran.prompt || ''" :baris="7" />
+                        <!-- Bisa disunting, dan yang disunting itu juga yang
+                             digambar: muatanGambar() membaca kotak-kotak ini
+                             saat tombolnya ditekan, bukan saat promptnya
+                             disusun. Jadi membetulkan satu kata di sini tidak
+                             perlu menyusun ulang dari awal. -->
+                        <KotakTeks v-if="keluaran" judul="Prompt" :teks="keluaran.prompt || ''" :baris="7" sunting @update:teks="keluaran.prompt = $event" />
 
                         <!-- NovelAI memisahkan Base Prompt dan Character Prompt -->
                         <template v-if="nai">
-                            <KotakTeks judul="Base Prompt" :teks="nai.base || ''" :baris="4" />
-                            <KotakTeks v-for="(c, i) in nai.characters || []" :key="i" :judul="c.label || `Character ${i + 1}`" :teks="c.prompt || ''" :baris="3" />
+                            <KotakTeks judul="Base Prompt" :teks="nai.base || ''" :baris="4" sunting @update:teks="nai.base = $event" />
+                            <KotakTeks
+                                v-for="(c, i) in nai.characters || []"
+                                :key="i"
+                                :judul="c.label || `Character ${i + 1}`"
+                                :teks="c.prompt || ''"
+                                :baris="3"
+                                sunting
+                                @update:teks="c.prompt = $event"
+                            />
                             <p class="text-xs leading-relaxed text-muted-foreground">
                                 Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
                         </template>
 
-                        <KotakTeks v-if="keluaran?.negative" judul="Negative prompt" :teks="keluaran.negative" :baris="3" />
+                        <KotakTeks
+                            v-if="keluaran?.negative"
+                            judul="Negative prompt"
+                            :teks="keluaran.negative"
+                            :baris="3"
+                            sunting
+                            @update:teks="keluaran.negative = $event"
+                        />
 
                         <TombolGambar
                             v-if="tujuanGambar"
