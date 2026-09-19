@@ -6,6 +6,7 @@ import KartuGeser from '@/components/landing/KartuGeser.vue';
 import KepalaPublik from '@/components/landing/KepalaPublik.vue';
 import LinimasaX from '@/components/landing/LinimasaX.vue';
 import MerekPutar from '@/components/landing/MerekPutar.vue';
+import RingIsometrik from '@/components/landing/RingIsometrik.vue';
 import Rel from '@/components/landing/Rel.vue';
 import SematInstagram from '@/components/landing/SematInstagram.vue';
 import VideoLite from '@/components/landing/VideoLite.vue';
@@ -67,6 +68,21 @@ const angka = (props.isi.stats?.items ?? []).map((it: any) => ({
     bulat: bulat(String(it.value)),
     hitung: hitungNaik(bulat(String(it.value)) ? parseInt(String(it.value).replace(/,/g, ''), 10) : 0, 1000),
 }));
+/**
+ * Bentuk yang dimengerti panggung isometrik.
+ *
+ * Angka yang menghitung naik dibaca dari hitungannya, bukan dari nilai
+ * akhirnya — kalau tidak, kartu di atas ring melompat langsung ke angka
+ * penuh sementara kisi di bawahnya masih menghitung.
+ */
+const angkaIso = computed(() =>
+    angka.map((a: any) => ({
+        label: a.label,
+        suffix: a.suffix,
+        teks: a.bulat ? formatAngka(a.hitung.nilai.value, a.value) : a.value,
+    })),
+);
+
 let pengamatTape: IntersectionObserver | null = null;
 
 onMounted(() => {
@@ -282,12 +298,29 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
                             <p v-reveal="120" class="mt-3 text-xs text-muted-foreground">{{ isi.stats.note }}</p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/70 bg-border/60 lg:col-span-8 lg:grid-cols-4">
-                            <div v-for="(a, i) in angka" :key="a.label" v-reveal="i * 80" class="bg-card px-5 py-6">
-                                <p class="text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
-                                    {{ a.bulat ? formatAngka(a.hitung.nilai.value, a.value) : a.value }}<span class="text-[hsl(var(--kanvas))]">{{ a.suffix }}</span>
-                                </p>
-                                <p class="mt-2 text-xs text-muted-foreground">{{ a.label }}</p>
+                        <!-- Di layar lebar angkanya berdiri di atas ring
+                             isometrik; di layar sempit kembali jadi kisi biasa.
+                             Diagram sepanjang ini dipaksa masuk lebar ponsel
+                             cuma jadi gambar kecil yang tidak terbaca, dan
+                             angkanya justru yang hilang. -->
+                        <div class="lg:col-span-8">
+                            <RingIsometrik
+                                v-if="isi.stats.ring !== false"
+                                class="hidden lg:block"
+                                :angka="angkaIso"
+                                :petinju="isi.stats.petinju || '/img/ring/petinju.webp'"
+                            />
+
+                            <div
+                                class="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/70 bg-border/60 sm:grid-cols-4"
+                                :class="isi.stats.ring !== false ? 'lg:hidden' : 'lg:grid-cols-4'"
+                            >
+                                <div v-for="(a, i) in angka" :key="a.label" v-reveal="i * 80" class="bg-card px-5 py-6">
+                                    <p class="text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+                                        {{ a.bulat ? formatAngka(a.hitung.nilai.value, a.value) : a.value }}<span class="text-[hsl(var(--kanvas))]">{{ a.suffix }}</span>
+                                    </p>
+                                    <p class="mt-2 text-xs text-muted-foreground">{{ a.label }}</p>
+                                </div>
                             </div>
                         </div>
 

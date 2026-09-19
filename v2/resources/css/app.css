@@ -484,6 +484,66 @@ html[data-hemat='1'] .merek-putar .iris {
 }
 
 /* ---------------------------------------------------------------------
+   RING ISOMETRIK (RingIsometrik.vue)
+
+   Yang bergerak sengaja sedikit dan pelan: panggungnya diagram, bukan
+   pertunjukan. Kartu angkanya mengambang naik-turun dengan jeda berbeda,
+   simpulnya berdenyut bergiliran, dan petinjunya bergoyang sangat halus —
+   ketiganya transform dan opacity saja.
+
+   Keadaan diamnya memang keadaan yang benar: tanpa animasi, yang tersisa
+   diagram utuh yang dirancang untuk dilihat diam. Itu syaratnya, karena
+   mode hemat mematikan seluruhnya sekaligus.
+   --------------------------------------------------------------------- */
+@keyframes iso-apung {
+    0%,
+    100% { transform: translate3d(-50%, 0, 0); }
+    50%  { transform: translate3d(-50%, -7px, 0); }
+}
+
+@keyframes iso-denyut {
+    0%,
+    100% { opacity: 0.55; }
+    50%  { opacity: 1; }
+}
+
+@keyframes iso-goyang {
+    0%,
+    100% { transform: translate3d(-50%, 0, 0); }
+    50%  { transform: translate3d(-50%, -4px, 0); }
+}
+
+.kartu-iso {
+    animation: iso-apung 6.5s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -1.4s);
+    will-change: transform;
+}
+
+.simpul {
+    animation: iso-denyut 3.2s ease-in-out infinite;
+    animation-delay: calc(var(--i) * -0.8s);
+}
+
+.petinju-ring {
+    animation: iso-goyang 7.5s ease-in-out infinite;
+    will-change: transform;
+}
+
+html[data-hemat='1'] .kartu-iso,
+html[data-hemat='1'] .simpul,
+html[data-hemat='1'] .petinju-ring {
+    animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kartu-iso,
+    .simpul,
+    .petinju-ring {
+        animation: none;
+    }
+}
+
+/* ---------------------------------------------------------------------
    Gambar diam yang terasa hidup — HANYA saat disorot.
    Dipakai di katalog gaya untuk kartu yang belum punya contoh bergerak.
    Enam puluh enam kartu yang bergerak bersamaan bikin pusing, jadi yang
