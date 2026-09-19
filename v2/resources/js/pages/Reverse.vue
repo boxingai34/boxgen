@@ -31,6 +31,7 @@ const props = defineProps<{
     kuat: Record<string, string>;
     gambar: { latar: boolean; tokoh: boolean };
     contoh: Record<string, Record<string, string>>;
+    pakaian: { atasan: any[]; bawahan: any[] };
 }>();
 
 /**
@@ -57,17 +58,6 @@ const PETA_WARNA: Record<string, string> = {
 
 function warnaKotak(w: string): string {
     return PETA_WARNA[w] ?? '#6b7280';
-}
-
-function berkatalogTag(tipe: string, daftar: Array<{ nama: string; tag: string[] }>) {
-    return daftar.flatMap((g) =>
-        g.tag.map((t) => ({
-            id: t,
-            nama: t.replace(/_/g, ' '),
-            kategori: g.nama,
-            contoh: props.contoh?.[tipe]?.[t] ?? null,
-        })),
-    );
 }
 
 const isianKelas =
@@ -309,32 +299,19 @@ function tagOtot(s: any, kunci: string): string {
 }
 
 /**
- * Pakaian dikelompokkan, bukan diketik.
+ * Daftar atasan dan bawahan TIDAK lagi ditulis di sini.
  *
- * Tag yang dipakai harus ada di kamus Danbooru — salah satu huruf saja dan
- * tagnya dibuang diam-diam waktu prompt disusun. Semua yang di bawah ini
- * sudah dicocokkan ke kamus, jadi apa pun yang dipilih pasti terpakai.
+ * Dulu halaman ini punya daftar tag pakaiannya sendiri, terpisah dari modul
+ * database yang dipakai Prompt Generator. Begitu daftar di database
+ * bertambah, dua halaman menawarkan pakaian yang berbeda untuk pertanyaan
+ * yang sama — dan yang di sini selalu yang ketinggalan, karena menambahnya
+ * berarti menyunting kode, bukan data.
+ *
+ * Sekarang keduanya datang dari props.pakaian, yang disusun
+ * ReverseController dari modul outfit_top/outfit_bottom. Yang dipakai
+ * sebagai id tetap TAG-nya, bukan id modulnya, supaya bentuk data hasil
+ * pembacaan tidak berubah.
  */
-const ATASAN = [
-    { nama: 'Tinju & olahraga', tag: ['sports_bra', 'athletic_leotard', 'gym_uniform', 'tank_top', 'crop_top', 'track_jacket', 'leotard', 'wrestling_outfit'] },
-    { nama: 'Pembalut dada', tag: ['sarashi', 'chest_sarashi', 'bandages'] },
-    { nama: 'Sehari-hari', tag: ['t-shirt', 'shirt', 'sleeveless_shirt', 'tube_top', 'camisole', 'undershirt', 'hoodie', 'jacket'] },
-    { nama: 'Renang & dalaman', tag: ['swimsuit', 'one-piece_swimsuit', 'bra'] },
-];
-
-const BAWAHAN = [
-    { nama: 'Tinju & olahraga', tag: ['boxing_shorts', 'gym_shorts', 'short_shorts', 'buruma', 'bike_shorts', 'dolphin_shorts', 'micro_shorts'] },
-    { nama: 'Latihan', tag: ['track_pants', 'sweatpants', 'leggings', 'yoga_pants'] },
-    { nama: 'Sehari-hari', tag: ['shorts', 'pants', 'jeans', 'skirt'] },
-    { nama: 'Dalaman', tag: ['panties', 'briefs', 'boxer_briefs', 'thong'] },
-];
-
-/** Nilai dari gambar yang belum ada di daftar tetap ditampilkan apa adanya. */
-function diLuarDaftar(daftar: Array<{ tag: string[] }>, nilai: string): boolean {
-    const v = String(nilai || '').trim();
-
-    return v !== '' && !daftar.some((g) => g.tag.includes(v));
-}
 
 /**
  * Memar dan darah: lokasi yang dicentang, bukan diketik.
@@ -1047,7 +1024,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Atasan</span>
                                 <KatalogModul
-                                    :modul="berkatalogTag('atasan_tag', ATASAN)"
+                                    :modul="pakaian.atasan"
                                     :terpilih="s.attire.top || ''"
                                     judul="Atasan"
                                     kosong="— ikuti referensi —"
@@ -1058,7 +1035,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Bawahan</span>
                                 <KatalogModul
-                                    :modul="berkatalogTag('bawahan_tag', BAWAHAN)"
+                                    :modul="pakaian.bawahan"
                                     :terpilih="s.attire.bottom || ''"
                                     judul="Bawahan"
                                     kosong="— ikuti referensi —"

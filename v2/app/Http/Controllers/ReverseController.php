@@ -48,9 +48,17 @@ class ReverseController extends Controller
             'kuat'   => array_map(static fn (array $k): string => $k['label'], ReversePrompt::KUAT),
             'gambar' => GambarController::status(),
             // Contoh untuk kolom yang daftarnya ditulis di kode, bukan modul
-            // database: arah hadap, bentuk badan, ukuran dada, otot, sarung,
-            // dan dua daftar pakaian bertag mentah.
+            // database: arah hadap, bentuk badan, ukuran dada, otot, sarung.
             'contoh' => self::contohPilihan(),
+            // Atasan dan bawahan diambil dari modul database yang sama
+            // dengan Prompt Generator. Dulu halaman ini punya daftarnya
+            // sendiri yang diketik di kode — dan begitu daftar di database
+            // bertambah, dua halaman menawarkan pakaian yang berbeda untuk
+            // pertanyaan yang sama.
+            'pakaian' => [
+                'atasan'  => self::slotPakaian('outfit_top'),
+                'bawahan' => self::slotPakaian('outfit_bottom'),
+            ],
         ]);
     }
 
@@ -382,6 +390,58 @@ class ReverseController extends Controller
         'mata-berbinar'  => '+_+',
         'mata-bulat'     => 'o_o',
     ];
+
+    /**
+     * Satu slot pakaian jadi bentuk katalog, beridentitas TAG.
+     *
+     * Halaman ini menyimpan pakaian sebagai tag mentah di dalam hasil
+     * pembacaan (attire.top = "chest_sarashi"), bukan sebagai id modul.
+     * Jadi yang dipakai sebagai id di sini tag pertama modulnya — dengan
+     * begitu daftarnya ikut bertambah sendiri tiap kali modul baru
+     * disimpan, tanpa mengubah bentuk data yang sudah dipakai mesinnya.
+     *
+     * Modul tanpa tag wajib dilewati: tidak ada yang bisa disimpan
+     * darinya, dan memilihnya akan terbaca sebagai "tidak diisi".
+     *
+     * @return list<array{id:string,nama:string,kategori:string,ket:string,contoh:?string}>
+     */
+    private static function slotPakaian(string $tipe): array
+    {
+        try {
+            $modul = PromptBuilder::listModules($tipe, ALLOW_NSFW);
+        } catch (Throwable) {
+            return [];
+        }
+
+        $contoh = [];
+        foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
+            $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
+        }
+
+        $keluar = [];
+        foreach ($modul as $m) {
+            $tag = Database::value(
+                'SELECT t.name FROM module_tags mt JOIN tags t ON t.id = mt.tag_id
+                 WHERE mt.module_id = ? AND (mt.is_optional IS NULL OR mt.is_optional = 0)
+                 ORDER BY mt.sort_order, mt.id LIMIT 1',
+                [(int) $m['id']]
+            );
+
+            if ($tag === null || $tag === '') {
+                continue;
+            }
+
+            $keluar[] = [
+                'id'       => (string) $tag,
+                'nama'     => (string) ($m['name_id'] ?: $m['name']),
+                'kategori' => (string) ($m['category'] ?? ''),
+                'ket'      => str_replace('_', ' ', (string) $tag),
+                'contoh'   => $contoh[(string) $m['slug']] ?? null,
+            ];
+        }
+
+        return $keluar;
+    }
 
     private static function contohPilihan(): array
     {
