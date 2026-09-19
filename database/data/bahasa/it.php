@@ -127,4 +127,18 @@ return [
     'Cadence' => 'Ritmo',
     'Made with' => 'Realizzato con',
     'Characters belong to their respective creators. Fights are original, fan-made and AI-generated. Hand-counted figures as of {hari_ini}.' => "I personaggi appartengono ai rispettivi autori. Gli incontri sono originali, creati dai fan e generati con l'IA. Dati contati a mano al {hari_ini}.",
+
+    // Statistik sosial. Penandanya di depan kalimat, dan itu yang
+    // membuatnya terlewat waktu daftar kalimat pertama dikumpulkan.
+    '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X' => '{subs} iscritti su YouTube · 2.471 follower · 390 post su X',
+    '{subs} subscribers · {views} views' => '{subs} iscritti · {views} visualizzazioni',
+    '{patrons} patrons · {paid} paid members · {posts} posts' => '{patrons} sostenitori · {paid} membri paganti · {posts} post',
+    '{patrons} patrons · {posts} posts' => '{patrons} sostenitori · {posts} post',
+    '{subs} subscribers' => '{subs} iscritti',
+
+    // Seksi "cerita". Dulu terhalang penjaga kunci "value".
+    'Original, fully animated bouts' => 'Incontri originali, animati per intero',
+    'One release every week' => 'Un\'uscita ogni settimana',
+    'Advanced AI generation, by one person' => 'IA generativa avanzata, da una sola persona',
+    'Patreon, then YouTube' => 'Prima Patreon, poi YouTube',
 ];

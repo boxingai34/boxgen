@@ -112,4 +112,18 @@ De lo tierno y delicado a lo feroz y poderoso, cada pelea se crea con generació
     'Yor vs Fiona — Full Fight' => 'Yor vs Fiona — Pelea completa',
     'YouTube and Patreon figures update themselves — last checked {hari_ini}.' => 'Las cifras de YouTube y Patreon se actualizan solas; última comprobación: {hari_ini}.',
     'YouTube views' => 'Visitas en YouTube',
+
+    // Statistik sosial. Penandanya di depan kalimat, dan itu yang
+    // membuatnya terlewat waktu daftar kalimat pertama dikumpulkan.
+    '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X' => '{subs} suscriptores en YouTube · 2.471 seguidores · 390 publicaciones en X',
+    '{subs} subscribers · {views} views' => '{subs} suscriptores · {views} visualizaciones',
+    '{patrons} patrons · {paid} paid members · {posts} posts' => '{patrons} mecenas · {paid} miembros de pago · {posts} publicaciones',
+    '{patrons} patrons · {posts} posts' => '{patrons} mecenas · {posts} publicaciones',
+    '{subs} subscribers' => '{subs} suscriptores',
+
+    // Seksi "cerita". Dulu terhalang penjaga kunci "value".
+    'Original, fully animated bouts' => 'Combates originales, completamente animados',
+    'One release every week' => 'Un lanzamiento cada semana',
+    'Advanced AI generation, by one person' => 'IA generativa avanzada, hecha por una sola persona',
+    'Patreon, then YouTube' => 'Primero Patreon, luego YouTube',
 ];

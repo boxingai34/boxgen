@@ -134,4 +134,18 @@ return [
     'Characters belong to their respective creators. Fights are original, fan-made and AI-generated. Hand-counted figures as of {hari_ini}.' => 'Персонажи принадлежат своим создателям. Бои оригинальные, фанатские и сгенерированы ИИ. Цифры посчитаны вручную на {hari_ini}.',
     'YouTube and Patreon figures update themselves — last checked {hari_ini}.' => 'Цифры YouTube и Patreon обновляются сами — последняя проверка {hari_ini}.',
 
+
+    // Statistik sosial. Penandanya di depan kalimat, dan itu yang
+    // membuatnya terlewat waktu daftar kalimat pertama dikumpulkan.
+    '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X' => '{subs} подписчиков на YouTube · 2 471 подписчик · 390 постов в X',
+    '{subs} subscribers · {views} views' => '{subs} подписчиков · {views} просмотров',
+    '{patrons} patrons · {paid} paid members · {posts} posts' => '{patrons} патронов · {paid} платных участников · {posts} постов',
+    '{patrons} patrons · {posts} posts' => '{patrons} патронов · {posts} постов',
+    '{subs} subscribers' => '{subs} подписчиков',
+
+    // Seksi "cerita". Dulu terhalang penjaga kunci "value".
+    'Original, fully animated bouts' => 'Оригинальные бои, полностью анимированные',
+    'One release every week' => 'Один выпуск каждую неделю',
+    'Advanced AI generation, by one person' => 'Передовой генеративный ИИ, силами одного человека',
+    'Patreon, then YouTube' => 'Сначала Patreon, потом YouTube',
 ];

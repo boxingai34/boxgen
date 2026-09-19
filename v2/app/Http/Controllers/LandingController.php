@@ -60,8 +60,18 @@ class LandingController extends Controller
             Cookie::queue(cookie('lang', $bahasa, 60 * 24 * 365, null, null, null, false));
         }
 
-        // Angka hidup (subscriber, tayangan, patron) dipasang lebih dulu:
-        // penanda {subs} dan kawan-kawannya ada di banyak kalimat.
+        // DITERJEMAHKAN DULU, BARU ANGKANYA DIISI — urutannya menentukan.
+        //
+        // Peta terjemahan mencocokkan kalimat persis, dan kalimat sumbernya
+        // masih memuat penanda: "…dihitung tangan per {hari_ini}". Kalau
+        // angkanya diisi lebih dulu, yang tersisa "…per 19 September 2026",
+        // dan itu tidak akan pernah cocok dengan kunci mana pun — kalimatnya
+        // diam-diam tetap bahasa Inggris di semua bahasa, tanpa galat.
+        //
+        // Terjemahannya sendiri memuat penanda yang sama, jadi AngkaHidup di
+        // bawah tetap bisa mengisinya.
+        $isi = BahasaLanding::terapkan($isi, $bahasa);
+
         $isi = AngkaHidup::terapkan($isi, AngkaHidup::kumpulkan($isi));
 
         $isi['hero']['images'] = array_slice($isi['hero']['images'], 0, self::HERO_MAKS);
@@ -78,12 +88,6 @@ class LandingController extends Controller
             $isi['hero']['secondary']['url'] = $video[0]['url'];
         }
 
-        // Diterjemahkan di ujung, sesudah angka hidup dan umpan terpasang:
-        // yang diterjemahkan kalimat jadinya, bukan cetakannya. Kalimat
-        // "{subs} subscribers" yang belum terisi angkanya tidak akan pernah
-        // cocok dengan peta mana pun.
-        $isi = BahasaLanding::terapkan($isi, $bahasa);
-
         $seo = $this->seo($isi);
 
         return Inertia::render('Landing', [
@@ -94,6 +98,7 @@ class LandingController extends Controller
             'bahasa' => [
                 'kini'   => $bahasa,
                 'daftar' => BahasaLanding::daftar($bahasa),
+                'ui'     => BahasaLanding::ui($bahasa),
             ],
         ])->withViewData([
             'lang'   => BahasaLanding::html($bahasa),

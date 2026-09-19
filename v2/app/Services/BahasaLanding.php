@@ -53,7 +53,18 @@ class BahasaLanding
     private const LEWATI = [
         'key', 'handle', 'url', 'link', 'src', 'logo_dark', 'logo_light',
         'og_image', 'channel_id', 'campaign_id', 'username', 'id', 'slug',
-        'jp', 'jp_vertical', 'kind', 'icon', 'color', 'value', 'suffix',
+        'jp', 'jp_vertical', 'kind', 'icon', 'color', 'suffix',
+        // "value" TIDAK ada di sini, walau sempat. Di stats isinya angka
+        // ("2.07K"), tapi di about isinya kalimat utuh — satu nama kunci,
+        // dua maksud. Menjaganya berarti empat kalimat di seksi "cerita"
+        // tidak pernah bisa diterjemahkan. Angkanya sendiri tidak perlu
+        // dijaga: peta cuma mengganti yang ada di dalamnya, dan tidak ada
+        // yang menulis "2.07K" sebagai kunci terjemahan.
+        // "auto" menyebut sumber angkanya ("views", "patrons", "posts").
+        // Kebetulan ketiganya juga kata Inggris biasa, jadi tanpa penjagaan
+        // ini suatu hari ada yang menerjemahkannya dan angka statistiknya
+        // berhenti terisi — tanpa galat, cuma kosong.
+        'auto',
     ];
 
     /** Bahasa yang dipakai kalau yang diminta tidak dikenal. */
@@ -154,5 +165,31 @@ class BahasaLanding
     public static function html(string $kode): string
     {
         return self::BAHASA[$kode]['html'] ?? 'en';
+    }
+
+    /**
+     * Kalimat milik komponen halaman — label tombol dan teks pembaca layar.
+     *
+     * Terpisah dari peta kalimat karena isinya tidak pernah lewat CMS: yang
+     * ini hidup di dalam komponen Vue, jadi kuncinya nama pendek dan bukan
+     * kalimat Inggrisnya. Yang belum diterjemahkan jatuh ke bahasa Inggris,
+     * bukan ke kunci mentah.
+     *
+     * @return array<string,string>
+     */
+    public static function ui(string $kode): array
+    {
+        static $singgah = [];
+
+        if (isset($singgah[$kode])) {
+            return $singgah[$kode];
+        }
+
+        $berkas = base_path('../database/data/bahasa/ui.php');
+        $semua = is_file($berkas) ? (array) require $berkas : [];
+
+        $singgah[$kode] = array_merge($semua['en'] ?? [], $semua[$kode] ?? []);
+
+        return $singgah[$kode];
     }
 }

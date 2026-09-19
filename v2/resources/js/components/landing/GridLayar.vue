@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowUpRight, ChevronLeft, ChevronRight, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Galeri satu layar penuh, bergaya papan kontak.
@@ -26,6 +27,8 @@ type Karya = { src: string; alt?: string; caption?: string; link?: string; kind?
 
 const props = defineProps<{ buka: boolean; karya: Karya[]; judul?: string }>();
 const emit = defineEmits<{ (e: 'tutup'): void }>();
+
+const t = teksLanding();
 
 const disorot = ref<number | null>(null);
 /** Petak yang sedang dibuka utuh; null berarti cuma kisinya yang tampil. */
@@ -116,25 +119,25 @@ onBeforeUnmount(() => {
                 class="fixed inset-0 z-[60] overflow-y-auto bg-background outline-none"
                 role="dialog"
                 aria-modal="true"
-                :aria-label="judul || 'Gallery'"
+                :aria-label="judul || t('galeri')"
             >
                 <!-- Keterangan sudut, huruf mono kecil: penanda ruangan, bukan
                      judul halaman. Judul dan jumlah menumpuk di kiri supaya
                      sudut kanan tetap milik tombol tutup sendirian. -->
                 <div class="pointer-events-none fixed left-0 top-0 z-10 flex items-baseline gap-2 p-3 font-mono text-[11px] uppercase tracking-wider text-foreground/70 sm:p-4">
-                    <span>{{ judul || 'Gallery' }}</span>
-                    <span class="text-[hsl(var(--kanvas))]">works({{ dua(karya.length) }})</span>
+                    <span>{{ judul || t('galeri') }}</span>
+                    <span class="text-[hsl(var(--kanvas))]">{{ t('karya') }}({{ dua(karya.length) }})</span>
                 </div>
 
                 <div class="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-end justify-between gap-4 p-3 font-mono text-[11px] uppercase tracking-wider text-foreground/70 sm:p-4">
                     <span class="truncate">{{ keterangan }}</span>
-                    <span class="shrink-0">esc to close</span>
+                    <span class="shrink-0">{{ t('esc_tutup') }}</span>
                 </div>
 
                 <button
                     type="button"
                     class="fixed right-3 top-3 z-30 grid h-9 w-9 place-items-center rounded-lg border border-border/70 bg-background/80 backdrop-blur transition-colors hover:border-[hsl(var(--sudut))] sm:right-4 sm:top-4"
-                    aria-label="Close gallery"
+                    :aria-label="t('galeri_tutup')"
                     @click="penuh !== null ? (penuh = null) : emit('tutup')"
                 >
                     <X class="h-4 w-4" />
@@ -156,7 +159,7 @@ onBeforeUnmount(() => {
                             type="button"
                             class="petak-grid group relative block aspect-square overflow-hidden"
                             :style="{ '--i': i }"
-                            :aria-label="k.caption || k.alt || `Image ${i + 1}`"
+                            :aria-label="k.caption || k.alt || t('gambar_ke', { n: i + 1 })"
                             @mouseenter="disorot = i"
                             @mouseleave="disorot = disorot === i ? null : disorot"
                             @focusin="disorot = i"
@@ -180,7 +183,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <p v-if="! karya.length" class="px-6 py-24 text-center text-sm text-muted-foreground">
-                        Nothing in the gallery yet.
+                        {{ t('galeri_kosong') }}
                     </p>
                 </div>
 
@@ -210,7 +213,7 @@ onBeforeUnmount(() => {
                                 rel="noopener"
                                 class="inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 font-mono text-[11px] uppercase tracking-wider transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
                             >
-                                view source
+                                {{ t('galeri_sumber') }}
                                 <ArrowUpRight class="h-4 w-4" />
                             </a>
                         </div>
@@ -219,7 +222,7 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 class="absolute left-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border/70 bg-background/85 transition-colors hover:border-[hsl(var(--sudut))] sm:left-4"
-                                aria-label="Previous image"
+                                :aria-label="t('gambar_lalu')"
                                 @click="geser(-1)"
                             >
                                 <ChevronLeft class="h-4 w-4" />
@@ -227,7 +230,7 @@ onBeforeUnmount(() => {
                             <button
                                 type="button"
                                 class="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border/70 bg-background/85 transition-colors hover:border-[hsl(var(--sudut))] sm:right-4"
-                                aria-label="Next image"
+                                :aria-label="t('gambar_lanjut')"
                                 @click="geser(1)"
                             >
                                 <ChevronRight class="h-4 w-4" />

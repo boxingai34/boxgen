@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Instagram } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Satu pos Instagram, disematkan lewat iframe /embed/ resminya.
@@ -10,6 +11,9 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
  * menunggu ditekan.
  */
 const props = defineProps<{ url: string }>();
+
+const t = teksLanding();
+
 
 const wadah = ref<HTMLElement | null>(null);
 const aktif = ref(false);
@@ -43,7 +47,7 @@ onBeforeUnmount(() => pengamat?.disconnect());
         <iframe
             v-if="aktif && alamatEmbed"
             :src="alamatEmbed"
-            title="Instagram post"
+            :title="t('ig_muat')"
             class="h-[560px] w-full"
             loading="lazy"
             allowtransparency
@@ -58,7 +62,7 @@ onBeforeUnmount(() => pengamat?.disconnect());
             @click="alamatEmbed ? (aktif = true, $event.preventDefault()) : undefined"
         >
             <Instagram class="h-6 w-6" />
-            <span>Tap to load this post</span>
+            <span>{{ t('ig_muat') }}</span>
         </a>
     </div>
 </template>

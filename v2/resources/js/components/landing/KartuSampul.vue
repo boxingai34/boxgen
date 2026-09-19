@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { LayoutGrid } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Kartu potret di sampul halaman.
@@ -24,6 +25,9 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ (e: 'grid'): void }>();
+
+const t = teksLanding();
+
 
 const utama = computed(() => props.gambar.find((g) => g && g.src) ?? null);
 const jumlah = computed(() => props.gambar.filter((g) => g && g.src).length);
@@ -76,7 +80,7 @@ const jumlah = computed(() => props.gambar.filter((g) => g && g.src).length);
                 class="pointer-events-none absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/85 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-wider text-foreground/80 backdrop-blur transition-colors group-hover:border-[hsl(var(--sudut))] group-hover:text-foreground"
             >
                 <LayoutGrid class="h-3.5 w-3.5" />
-                grid ({{ String(jumlah).padStart(2, '0') }})
+                {{ t('grid') }} ({{ String(jumlah).padStart(2, '0') }})
             </span>
         </button>
 

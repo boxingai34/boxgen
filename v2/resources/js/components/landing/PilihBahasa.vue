@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Globe } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Pemilih bahasa halaman depan.
@@ -18,6 +19,8 @@ defineProps<{
     kini: string;
     daftar: Array<{ kode: string; nama: string; aktif: boolean }>;
 }>();
+
+const t = teksLanding();
 
 const buka = ref(false);
 const bungkus = ref<HTMLElement | null>(null);
@@ -48,7 +51,7 @@ onBeforeUnmount(() => {
             class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-xs uppercase tracking-wider transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
             :aria-expanded="buka"
             aria-haspopup="true"
-            aria-label="Language"
+            :aria-label="t('bahasa')"
             @click="buka = !buka"
         >
             <Globe class="h-3.5 w-3.5" />

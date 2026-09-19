@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import IkonSosial from '@/components/landing/IkonSosial.vue';
 import Merek from '@/components/landing/Merek.vue';
+import { teksLanding } from '@/lib/teksLanding';
+
+const t = teksLanding();
 
 defineProps<{
     merek: { name: string; jp?: string; logo_dark?: string; logo_light?: string };
@@ -22,7 +25,7 @@ defineProps<{
                     <p class="mt-4 max-w-md text-sm text-muted-foreground">{{ line }}</p>
                 </div>
 
-                <nav aria-label="Social links">
+                <nav :aria-label="t('tautan_sosial')">
                     <ul class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                         <li v-for="s in socials" :key="s.key">
                             <a :href="s.url" target="_blank" rel="noopener" class="group inline-flex items-center gap-2 py-1 text-muted-foreground transition-colors hover:text-foreground">

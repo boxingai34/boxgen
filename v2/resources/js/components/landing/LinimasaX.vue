@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ExternalLink, LoaderCircle } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Linimasa X (Twitter) resmi, dimuat waktu dibutuhkan.
@@ -12,6 +13,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
  * sensitif sering begitu — kartu tautannya tetap ada.
  */
 const props = defineProps<{ handle: string; url: string; tinggi?: number }>();
+
+const t = teksLanding();
+
 
 const wadah = ref<HTMLElement | null>(null);
 const keadaan = ref<'diam' | 'memuat' | 'jadi' | 'gagal'>('diam');
@@ -88,18 +92,18 @@ onBeforeUnmount(() => {
     <div class="overflow-hidden rounded-2xl border border-border/70 bg-card">
         <div ref="wadah" class="min-h-[120px]" :class="keadaan === 'jadi' ? '' : 'flex items-center justify-center p-6'">
             <div v-if="keadaan === 'diam'" class="text-center">
-                <p class="text-sm text-muted-foreground">Latest posts from <span class="font-medium text-foreground">@{{ handle }}</span></p>
+                <p class="text-sm text-muted-foreground">{{ t('x_terbaru') }} <span class="font-medium text-foreground">@{{ handle }}</span></p>
                 <button
                     type="button"
                     class="mt-3 inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
                     @click="muat"
                 >
-                    Load timeline
+                    {{ t('x_muat') }}
                 </button>
             </div>
             <p v-else-if="keadaan === 'memuat'" class="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderCircle class="h-4 w-4 animate-spin" />
-                Loading posts from X…
+                {{ t('x_memuat') }}
             </p>
             <div v-else-if="keadaan === 'gagal'" class="text-center">
                 <p class="text-sm text-muted-foreground">X won't embed this timeline here — open it directly instead.</p>

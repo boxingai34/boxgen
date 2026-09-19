@@ -116,4 +116,18 @@ return [
     'Yor vs Fiona — Full Fight'                                     => 'Yor vs Fiona —— 完整比赛',
     'YouTube and Patreon figures update themselves — last checked {hari_ini}.' => 'YouTube 和 Patreon 的数据会自动更新 —— 最近一次检查是 {hari_ini}。',
     'YouTube views'                                                 => 'YouTube 观看量',
+
+    // Statistik sosial. Penandanya di depan kalimat, dan itu yang
+    // membuatnya terlewat waktu daftar kalimat pertama dikumpulkan.
+    '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X' => 'YouTube {subs} 位订阅者 · X 2,471 位关注者 · 390 条动态',
+    '{subs} subscribers · {views} views' => '{subs} 位订阅者 · {views} 次观看',
+    '{patrons} patrons · {paid} paid members · {posts} posts' => '{patrons} 位赞助者 · {paid} 位付费会员 · {posts} 条动态',
+    '{patrons} patrons · {posts} posts' => '{patrons} 位赞助者 · {posts} 条动态',
+    '{subs} subscribers' => '{subs} 位订阅者',
+
+    // Seksi "cerita". Dulu terhalang penjaga kunci "value".
+    'Original, fully animated bouts' => '原创比赛，全程动画',
+    'One release every week' => '每周发布一支',
+    'Advanced AI generation, by one person' => '前沿生成式 AI，一人完成',
+    'Patreon, then YouTube' => '先 Patreon，后 YouTube',
 ];

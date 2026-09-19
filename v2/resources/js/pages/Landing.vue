@@ -14,6 +14,7 @@ import VideoLite from '@/components/landing/VideoLite.vue';
 import { hemat, hitungNaik } from '@/lib/gerak';
 import { Head } from '@inertiajs/vue3';
 import { ArrowRight, ArrowUpRight, ExternalLink, Play } from 'lucide-vue-next';
+import { teksLanding } from '@/lib/teksLanding';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
@@ -114,16 +115,18 @@ function formatAngka(n: number, asli: string): string {
 // ------------------------------------------------------ kartu pertandingan
 const panggung = ref(0);
 
+const t = teksLanding();
+
 // ------------------------------------------------------------ pembantu
 // Menu mengikuti seksi yang dinyalakan di CMS — seksi yang mati tidak
 // punya tautan yang menggulir ke kekosongan.
 const tautanNav = computed(() =>
     [
-        { label: 'Story', href: '#story', on: props.isi.sections.about },
-        { label: 'Bouts', href: '#bouts', on: props.isi.sections.youtube },
-        { label: 'Patreon', href: '#patreon', on: props.isi.sections.patreon },
-        { label: 'Gallery', href: '#gallery', on: props.isi.sections.gallery },
-        { label: 'Feed', href: '#feed', on: props.isi.sections.x },
+        { label: t('nav_cerita'), href: '#story', on: props.isi.sections.about },
+        { label: t('nav_tanding'), href: '#bouts', on: props.isi.sections.youtube },
+        { label: t('nav_patreon'), href: '#patreon', on: props.isi.sections.patreon },
+        { label: t('nav_galeri'), href: '#gallery', on: props.isi.sections.gallery },
+        { label: t('nav_linimasa'), href: '#feed', on: props.isi.sections.x },
     ].filter((t) => t.on),
 );
 
@@ -135,7 +138,7 @@ const tierLain = computed(() => tierTampil.value.filter((t) => t !== tierUtama.v
 const patreon = computed(() => (props.isi.socials as any[]).find((s) => s.key === 'patreon'));
 const sosialLain = computed(() => (props.isi.socials as any[]).filter((s) => !s.highlight));
 const sosialSorot = computed(() => (props.isi.socials as any[]).filter((s) => s.highlight));
-const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps', mouthguard: 'Mouthguard', headguard: 'Headguard', bra: 'Sports bra' };
+const kitLabel = (k: string) => t('kit_' + k);
 
 // ------------------------------------------------------ galeri satu layar
 const gridBuka = ref(false);
@@ -179,7 +182,7 @@ const karyaGrid = computed(() => {
             href="#content"
             class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:text-sm"
         >
-            Skip to content
+            {{ t('ke_isi') }}
         </a>
 
         <div class="maju-gulir" aria-hidden="true" />
@@ -274,7 +277,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 01 · CERITA ============================ -->
             <section v-if="isi.sections.about" id="story" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Story" />
+                <Rel :en="t('rel_cerita')" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="grid gap-10 lg:grid-cols-12 lg:gap-8">
                         <div class="lg:col-span-5">
@@ -310,7 +313,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 02 · TALE OF THE TAPE ============================ -->
             <section v-if="isi.sections.stats" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Record" />
+                <Rel :en="t('rel_rekor')" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="tali-ring" aria-hidden="true" />
                     <div ref="tape" class="mx-auto grid max-w-6xl gap-8 px-5 py-14 lg:grid-cols-12 lg:py-16">
@@ -356,7 +359,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 03 · KARTU PERTANDINGAN ============================ -->
             <section v-if="isi.sections.youtube" id="bouts" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Card" />
+                <Rel :en="t('rel_kartu')" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
@@ -377,7 +380,7 @@ const karyaGrid = computed(() => {
                         <div v-reveal class="reveal-skala min-w-0 lg:col-span-7">
                             <VideoLite :key="video[panggung].id" :id="video[panggung].id" :judul="video[panggung].judul" :tanggal="video[panggung].tanggal" />
                             <p class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                                <span class="text-[hsl(var(--sudut))]">{{ panggung === 0 ? 'Main event' : `Bout ${dua(panggung + 1)}` }}</span>
+                                <span class="text-[hsl(var(--sudut))]">{{ panggung === 0 ? t('acara_utama') : t('tanding_ke', { n: dua(panggung + 1) }) }}</span>
                                 <span class="ml-auto normal-case tracking-normal">{{ isi.youtube.meta }}</span>
                             </p>
                         </div>
@@ -394,9 +397,9 @@ const karyaGrid = computed(() => {
                                     <img :src="v.thumb" :alt="''" width="96" height="54" loading="lazy" decoding="async" class="h-[54px] w-24 shrink-0 rounded-lg object-cover" />
                                     <span class="min-w-0 flex-1">
                                         <span class="block text-[12px] font-semibold uppercase tracking-[0.18em] text-muted-foreground group-hover:text-[hsl(var(--sudut))]">
-                                            {{ i === 0 ? 'Main event' : `Bout ${dua(i + 1)}` }}
+                                            {{ i === 0 ? t('acara_utama') : t('tanding_ke', { n: dua(i + 1) }) }}
                                         </span>
-                                        <span class="block truncate text-sm font-medium transition-transform duration-300 group-hover:translate-x-1">{{ v.judul || 'Watch on YouTube' }}</span>
+                                        <span class="block truncate text-sm font-medium transition-transform duration-300 group-hover:translate-x-1">{{ v.judul || t('tonton_yt') }}</span>
                                     </span>
                                     <span class="shrink-0 text-xs text-muted-foreground">{{ v.tanggal }}</span>
                                 </button>
@@ -412,7 +415,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 04 · PATREON ============================ -->
             <section v-if="isi.sections.patreon" id="patreon" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Support" />
+                <Rel :en="t('rel_dukung')" />
                 <div class="relative w-full overflow-hidden border-y border-[hsl(var(--sudut)/0.35)] bg-card/40">
                     <!-- Hiasan 111 KB dengan opasitas 10 % — tidak diunduh di mode hemat. -->
                     <img v-if="!hemat" src="/img/arena-biru.webp" alt="" width="1600" height="900" loading="lazy" decoding="async" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-10" />
@@ -461,7 +464,7 @@ const karyaGrid = computed(() => {
 
                                 <div v-if="tierUtama" class="potong-sudut relative overflow-hidden rounded-2xl border-2 border-[hsl(var(--sudut)/0.6)] bg-card p-6">
                                     <span v-for="n in 4" :key="n" class="absolute h-1.5 w-1.5 bg-[hsl(var(--sudut))]" :class="[n % 2 ? 'left-2' : 'right-2', n < 3 ? 'top-2' : 'bottom-2']" aria-hidden="true" />
-                                    <p class="text-[12px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">Featured tier</p>
+                                    <p class="text-[12px] font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">{{ t('tier_unggulan') }}</p>
                                     <div class="mt-2 flex items-baseline justify-between gap-4">
                                         <h3 class="text-xl font-semibold tracking-tight">{{ tierUtama.name }}</h3>
                                         <p class="text-3xl font-semibold tabular-nums text-[hsl(var(--kanvas))]">{{ tierUtama.price }}<span class="text-sm text-muted-foreground">/mo</span></p>
@@ -481,7 +484,7 @@ const karyaGrid = computed(() => {
                                 </ul>
 
                                 <div v-if="isi.patreon.recent.length" class="mt-3 rounded-2xl border border-border/70 bg-card p-5">
-                                    <p class="text-[12px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Recently for patrons</p>
+                                    <p class="text-[12px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{{ t('terbaru_patron') }}</p>
                                     <ul class="mt-3 space-y-2 text-sm">
                                         <li v-for="r in isi.patreon.recent" :key="r" class="flex items-center gap-2.5">
                                             <IkonTinju jenis="bell" :ukuran="14" class="shrink-0 text-[hsl(var(--kanvas))]" />
@@ -498,7 +501,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 05 · GALERI ============================ -->
             <section v-if="isi.sections.gallery" id="gallery" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Gallery" />
+                <Rel :en="t('rel_galeri')" />
                 <div class="mx-auto w-full max-w-6xl px-5 py-20 lg:py-28">
                     <div class="flex flex-wrap items-end justify-between gap-6">
                         <div class="max-w-2xl">
@@ -541,16 +544,16 @@ const karyaGrid = computed(() => {
                                 class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04]"
                             />
                             <span class="absolute left-2.5 top-2.5 rounded-md bg-background/80 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-[0.16em]">
-                                {{ g.kind === 'bout' ? 'Bout' : 'Fighter' }}
+                                {{ g.kind === 'bout' ? t('tanding') : t('petinju') }}
                             </span>
                             <figcaption class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent px-3 pb-2.5 pt-8 text-xs">
-                                <span class="text-[hsl(var(--kanvas))]">Fig. {{ dua(i + 1) }}</span> — {{ g.caption }}
+                                <span class="text-[hsl(var(--kanvas))]">{{ t('gambar_no', { n: dua(i + 1) }) }}</span> — {{ g.caption }}
                             </figcaption>
                         </component>
                     </div>
 
                     <div v-if="isi.sections.instagram && isi.instagram.embeds.length" class="mt-10">
-                        <p v-reveal class="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Latest on Instagram · @{{ isi.instagram.handle }}</p>
+                        <p v-reveal class="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{{ t('ig_terbaru') }} · @{{ isi.instagram.handle }}</p>
                         <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             <SematInstagram v-for="u in isi.instagram.embeds" :key="u" :url="u" />
                         </div>
@@ -560,7 +563,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 06 · TIGA RONDE ============================ -->
             <section v-if="isi.sections.rounds" class="relative lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Process" />
+                <Rel :en="t('rel_proses')" />
                 <div class="w-full border-y border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-xs font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
@@ -586,7 +589,7 @@ const karyaGrid = computed(() => {
                         <ul v-reveal="400" class="mt-8 flex flex-wrap gap-2">
                             <li v-for="k in isi.rounds.kit" :key="k" class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-xs text-muted-foreground">
                                 <IkonTinju :jenis="k" :ukuran="14" class="text-[hsl(var(--sudut))]" />
-                                {{ kitLabel[k] ?? k }}
+                                {{ kitLabel(k) || k }}
                             </li>
                         </ul>
                     </div>
@@ -595,7 +598,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 07 · SUDUT RING (X) ============================ -->
             <section v-if="isi.sections.x" id="feed" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Feed" />
+                <Rel :en="t('rel_linimasa')" />
                 <div class="mx-auto grid w-full max-w-6xl gap-10 px-5 py-20 lg:grid-cols-12 lg:gap-12 lg:py-28">
                     <div class="lg:col-span-5">
                         <p v-reveal class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
@@ -624,7 +627,7 @@ const karyaGrid = computed(() => {
 
             <!-- ============================ 08 · TAUTAN ============================ -->
             <section v-if="isi.sections.socials" id="links" class="relative scroll-mt-20 lg:grid lg:grid-cols-[3rem_1fr]">
-                <Rel en="Links" />
+                <Rel :en="t('rel_tautan')" />
                 <div class="w-full border-t border-border/60 bg-card/40">
                     <div class="mx-auto max-w-6xl px-5 py-20 lg:py-24">
                         <p v-reveal class="text-xs font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
@@ -655,7 +658,7 @@ const karyaGrid = computed(() => {
                                     <span class="mt-1 block text-sm text-muted-foreground">{{ s.description }}<span v-if="s.meta"> · {{ s.meta }}</span></span>
                                 </span>
                                 <span class="inline-flex h-11 items-center gap-2 rounded-xl gradasi-tombol px-5 text-sm font-medium text-white">
-                                    {{ isi.patreon?.cta || 'Support' }}
+                                    {{ isi.patreon?.cta || t('dukung') }}
                                     <ArrowRight class="h-4 w-4" />
                                 </span>
                             </a>
@@ -690,7 +693,7 @@ const karyaGrid = computed(() => {
 
         <KakiPublik :merek="isi.brand" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" />
 
-        <GridLayar :buka="gridBuka" :karya="karyaGrid" :judul="isi.brand?.name || 'Gallery'" @tutup="gridBuka = false" />
+        <GridLayar :buka="gridBuka" :karya="karyaGrid" :judul="isi.brand?.name || t('galeri')" @tutup="gridBuka = false" />
     </div>
 </template>
 

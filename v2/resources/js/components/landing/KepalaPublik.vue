@@ -5,6 +5,7 @@ import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link } from '@inertiajs/vue3';
 import { Gauge, Menu, Moon, Sun, X } from 'lucide-vue-next';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { teksLanding } from '@/lib/teksLanding';
 
 /**
  * Bilah atas halaman publik.
@@ -22,6 +23,8 @@ const props = defineProps<{
 }>();
 
 const digulir = ref(false);
+const t = teksLanding();
+
 const menuTerbuka = ref(false);
 const gelap = ref(true);
 
@@ -63,7 +66,7 @@ onBeforeUnmount(() => {
                 <Merek :merek="merek" tinggi="h-7 sm:h-8" />
             </a>
 
-            <nav class="hidden items-center gap-1 md:flex" aria-label="Sections">
+            <nav class="hidden items-center gap-1 md:flex" :aria-label="t('seksi')">
                 <a
                     v-for="t in tautan"
                     :key="t.href"
@@ -80,7 +83,7 @@ onBeforeUnmount(() => {
                     class="grid h-9 w-9 place-items-center rounded-lg border border-border/70 text-muted-foreground transition-colors hover:text-foreground"
                     :class="hemat ? 'border-[hsl(var(--kanvas)/0.5)] text-[hsl(var(--kanvas))]' : ''"
                     :title="hemat ? 'Low-power mode is on — motion disabled' : 'Turn on low-power mode (disables motion)'"
-                    aria-label="Toggle low-power mode"
+                    :aria-label="t('hemat_daya')"
                     @click="pasangHemat(!hemat)"
                 >
                     <Gauge class="h-4 w-4" />
@@ -89,7 +92,7 @@ onBeforeUnmount(() => {
                     type="button"
                     class="grid h-9 w-9 place-items-center rounded-lg border border-border/70 text-muted-foreground transition-colors hover:text-foreground"
                     :title="gelap ? 'Switch to light' : 'Switch to dark'"
-                    aria-label="Toggle theme"
+                    :aria-label="t('tema')"
                     @click="tukarTema"
                 >
                     <Sun v-if="gelap" class="h-4 w-4" />
@@ -113,7 +116,7 @@ onBeforeUnmount(() => {
                     class="grid h-9 w-9 place-items-center rounded-lg border border-border/70 text-muted-foreground md:hidden"
                     :aria-expanded="menuTerbuka"
                     aria-controls="menu-ponsel"
-                    aria-label="Menu"
+                    :aria-label="t('menu')"
                     @click="menuTerbuka = !menuTerbuka"
                 >
                     <X v-if="menuTerbuka" class="h-4 w-4" />
@@ -124,7 +127,7 @@ onBeforeUnmount(() => {
 
         <!-- Menu ponsel -->
         <Transition name="menu">
-            <nav v-if="menuTerbuka" id="menu-ponsel" class="border-t border-border/60 bg-background px-5 py-3 md:hidden" aria-label="Sections">
+            <nav v-if="menuTerbuka" id="menu-ponsel" class="border-t border-border/60 bg-background px-5 py-3 md:hidden" :aria-label="t('seksi')">
                 <a
                     v-for="t in tautan"
                     :key="t.href"
@@ -142,7 +145,7 @@ onBeforeUnmount(() => {
                 >
                     {{ cta.label }}
                 </a>
-                <Link v-if="masuk" :href="route('dashboard')" class="mt-2 block px-3 py-2 text-xs text-muted-foreground">Open the studio →</Link>
+                <Link v-if="masuk" :href="route('dashboard')" class="mt-2 block px-3 py-2 text-xs text-muted-foreground">{{ t('ke_studio') }}</Link>
             </nav>
         </Transition>
     </header>

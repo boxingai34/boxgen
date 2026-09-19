@@ -116,4 +116,18 @@ return [
     'Yor vs Fiona — Full Fight'                                  => 'Yor vs Fiona — フルファイト',
     'YouTube and Patreon figures update themselves — last checked {hari_ini}.' => 'YouTubeとPatreonの数値は自動で更新されます。最終確認は{hari_ini}。',
     'YouTube views'                                              => 'YouTube再生回数',
+
+    // Statistik sosial. Penandanya di depan kalimat, dan itu yang
+    // membuatnya terlewat waktu daftar kalimat pertama dikumpulkan.
+    '{subs} subscribers on YouTube · 2,471 followers · 390 posts on X' => 'YouTube登録者{subs}人 · Xフォロワー2,471人・390投稿',
+    '{subs} subscribers · {views} views' => '登録者{subs}人 · 再生回数{views}回',
+    '{patrons} patrons · {paid} paid members · {posts} posts' => 'パトロン{patrons}人 · 有料メンバー{paid}人 · {posts}投稿',
+    '{patrons} patrons · {posts} posts' => 'パトロン{patrons}人 · {posts}投稿',
+    '{subs} subscribers' => '登録者{subs}人',
+
+    // Seksi "cerita". Dulu terhalang penjaga kunci "value".
+    'Original, fully animated bouts' => 'オリジナルの、フルアニメーション試合',
+    'One release every week' => '毎週1本リリース',
+    'Advanced AI generation, by one person' => '最先端の生成AIを、たったひとりで',
+    'Patreon, then YouTube' => 'まずPatreon、そのあとYouTube',
 ];
