@@ -99,8 +99,9 @@ angka itu lewat kolom pilihan di CMS.
 
 1. **API resmi** (`gallery/all`), kalau `DEVIANTART_CLIENT_ID` dan
    `DEVIANTART_CLIENT_SECRET` sudah diisi di `config.local.php`. Daftarkan
-   aplikasinya di <https://www.deviantart.com/developers/> — gratis, langsung
-   jadi. Alurnya `client_credentials`: aplikasinya bicara sebagai dirinya
+   aplikasinya di <https://www.deviantart.com/developers/register> — alamat
+   itu persis, karena `/developers/` saja dialihkan ke situs dokumentasi.
+   Gratis, langsung jadi; daftar aplikasimu ada di `/developers/apps`. Alurnya `client_credentials`: aplikasinya bicara sebagai dirinya
    sendiri, tidak mewakili akun siapa pun, jadi tidak ada yang perlu login.
 2. **Umpan RSS publik**, tanpa kunci apa pun.
 

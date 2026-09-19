@@ -521,8 +521,9 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                     <p v-if="!deviantartApi" class="mt-2 rounded-lg border border-border/70 bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground">
                         Sekarang dibaca lewat umpan RSS publik. Itu bekerja dari komputer sendiri, tapi dari server hosting
                         DeviantArt menolaknya dengan 403 — alamat IP pusat data. Untuk jalur resminya: daftarkan aplikasi di
-                        <a href="https://www.deviantart.com/developers/" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">deviantart.com/developers</a>
-                        (gratis, langsung jadi), lalu isi <code class="font-mono">DEVIANTART_CLIENT_ID</code> dan
+                        <a href="https://www.deviantart.com/developers/register" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">deviantart.com/developers/register</a>
+                        (gratis, langsung jadi — alamat itu persis, yang tanpa <code class="font-mono">/register</code> dialihkan ke situs dokumentasi),
+                        lalu isi <code class="font-mono">DEVIANTART_CLIENT_ID</code> dan
                         <code class="font-mono">DEVIANTART_CLIENT_SECRET</code> di <code class="font-mono">config.local.php</code>.
                     </p>
                     <p v-else class="mt-2 text-[11px] leading-relaxed text-muted-foreground">

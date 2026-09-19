@@ -248,9 +248,14 @@ defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 *
 // pun) penjaga botnya menjawab 403 dan tidak pernah berubah pikiran.
 //
 // API resminya memang untuk dipanggil dari server. Daftarkan aplikasi di
-// https://www.deviantart.com/developers/ (gratis, langsung jadi, tidak
-// ada persetujuan manual), lalu salin client_id dan client_secret-nya ke
-// config.local.php:
+//
+//     https://www.deviantart.com/developers/register
+//
+// — alamat itu, bukan /developers/ saja: yang tanpa /register dialihkan ke
+// situs dokumentasi dan tidak ada tombol daftarnya di sana. Aplikasi yang
+// sudah jadi ada di https://www.deviantart.com/developers/apps. Gratis,
+// langsung jadi, tidak ada persetujuan manual. Salin client_id dan
+// client_secret-nya ke config.local.php:
 //
 //     define('DEVIANTART_CLIENT_ID',     '12345');
 //     define('DEVIANTART_CLIENT_SECRET', 'abcdef...');

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
@@ -107,19 +108,45 @@ class DeviantartTerbaru
      */
     private static function dariApi(string $nama): array
     {
-        $jawab = self::klienApi()
+        // mature_content tidak tercantum di spesifikasi gallery/all — di
+        // endpoint itu ia setelan profil, bukan parameter. Tetap dikirim
+        // lebih dulu karena hampir seluruh galeri ini bertanda adult dan
+        // sebagian endpoint memang menerimanya; kalau ditolak sebagai
+        // parameter yang tidak dikenal (400), diulang tanpa itu. Menebak
+        // salah satunya dan berhenti di situ berarti mempertaruhkan seluruh
+        // galerinya pada tebakan.
+        try {
+            return self::uraiApi(self::mintaApi($nama, true));
+        } catch (RequestException $e) {
+            if ($e->response->status() !== 400) {
+                throw $e;
+            }
+        }
+
+        return self::uraiApi(self::mintaApi($nama, false));
+    }
+
+    /** Satu halaman galeri; 24 itu batas maksimal DeviantArt sendiri. */
+    private static function mintaApi(string $nama, bool $sebutDewasa): array
+    {
+        $param = ['username' => $nama, 'limit' => 24, 'offset' => 0];
+
+        if ($sebutDewasa) {
+            $param['mature_content'] = 'true';
+        }
+
+        return self::klienApi()
             ->timeout(12)
             ->retry(2, 500, throw: false)
             ->withToken(self::token())
-            ->get('https://www.deviantart.com/api/v1/oauth2/gallery/all', [
-                'username'       => $nama,
-                'limit'          => 24,
-                'offset'         => 0,
-                'mature_content' => 'true',
-            ])
+            ->get('https://www.deviantart.com/api/v1/oauth2/gallery/all', $param)
             ->throw()
             ->json();
+    }
 
+    /** @return list<array{judul:string,url:string,tanggal:string,thumb:string,dewasa:bool}> */
+    private static function uraiApi(array $jawab): array
+    {
         $hasil = $jawab['results'] ?? null;
 
         if (! is_array($hasil) || $hasil === []) {
