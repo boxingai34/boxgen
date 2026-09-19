@@ -22,11 +22,13 @@ const props = withDefaults(
         /** Dipanggil saat diklik; memulangkan badan kiriman. */
         muatan: () => Record<string, unknown>;
         label?: string;
+        /** Dipakai sesudah gambar pertama jadi. */
+        labelUlang?: string;
         alt?: string;
         /** Bentuk bawaan: tokoh itu berdiri, latar itu ruangan. */
         bentuk?: '3:4' | '9:16' | '16:9' | '1:1';
     }>(),
-    { label: 'Buat gambarnya', alt: 'Hasil', bentuk: '3:4' },
+    { label: 'Buat gambarnya', labelUlang: 'Generate ulang', alt: 'Hasil', bentuk: '3:4' },
 );
 
 const BENTUK = [
@@ -38,6 +40,15 @@ const BENTUK = [
 
 const rasio = ref<string>(props.bentuk);
 const sedang = ref(false);
+/**
+ * Sudah ada gambar yang jadi di kotak ini.
+ *
+ * Dipisah dari `gambar` karena keduanya menjawab hal berbeda:
+ * `gambar` itu "ada yang sedang tampil", ini "tombolnya sudah
+ * pernah dipakai". Waktu menggambar ulang, gambar lama masih
+ * terpasang sementara labelnya sudah harus bilang "ulang".
+ */
+const pernahJadi = ref(false);
 const pesan = ref('');
 const galat = ref(false);
 const gambar = ref('');
@@ -49,6 +60,16 @@ function lepasGambar() {
 
 onBeforeUnmount(lepasGambar);
 
+/**
+ * Dibuka untuk induknya.
+ *
+ * Halaman Prompt menekannya sendiri begitu promptnya selesai
+ * disusun — lihat susun() di sana. Tanpa ini induknya harus
+ * menyalin seluruh logika kirim-gambarnya, dan dua salinan yang
+ * sama akan berbeda dalam sebulan.
+ */
+defineExpose({ buat: () => buat() });
+
 async function buat() {
     sedang.value = true;
     galat.value = false;
@@ -58,6 +79,7 @@ async function buat() {
         const jawab = await kirimGambar(props.alamat, { ...props.muatan(), rasio: rasio.value });
         lepasGambar();
         gambar.value = jawab.url;
+        pernahJadi.value = true;
         pesan.value =
             Math.round(jawab.byte / 1024) + ' KB · ' + jawab.model +
             ' · tidak disimpan di server; tekan Simpan atau klik kanan kalau mau menyimpannya sendiri.';
@@ -82,7 +104,7 @@ async function buat() {
             <Tombol :nonaktif="sedang" @click="buat">
                 <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                 <ImagePlus v-else class="h-4 w-4" />
-                {{ sedang ? 'Menggambar…' : label }}
+                {{ sedang ? 'Menggambar…' : pernahJadi ? labelUlang : label }}
             </Tombol>
 
             <select

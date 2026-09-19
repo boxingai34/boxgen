@@ -83,6 +83,7 @@ const sedang = ref(false);
 const galat = ref('');
 const hasil = ref<any>(null);
 const panelHasil = ref<HTMLElement | null>(null);
+const tombolGambar = ref<{ buat: () => Promise<void> } | null>(null);
 // Bawaannya NovelAI, bukan Stable Diffusion: tombol SD-nya disembunyikan
 // (lihat TARGET di bawah), dan target yang tidak punya tombol tidak bisa
 // ditinggalkan kalau ia juga yang kepilih duluan.
@@ -222,6 +223,17 @@ async function susun() {
             behavior: document.documentElement.dataset.hemat === '1' ? 'auto' : 'smooth',
             block: 'start',
         });
+
+        // Gambarnya langsung diminta, tanpa menunggu ditekan lagi.
+        //
+        // TIDAK di-await: menyusun prompt selesai dalam sekejap,
+        // menggambar makan lima sampai tiga puluh detik. Menunggunya
+        // berarti tombol Generate tetap mati selama itu, padahal
+        // promptnya sudah ada dan sudah boleh disunting.
+        //
+        // Galatnya ditangani kotak gambarnya sendiri, jadi yang di
+        // sini cuma menjaga agar penolakan tidak lolos ke konsol.
+        void tombolGambar.value?.buat().catch(() => {});
     } catch (e: any) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun prompt.';
     } finally {
@@ -649,6 +661,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                              layar tidak mengubah apa yang digambar. -->
                         <TombolGambar
                             v-if="tujuanGambar"
+                            ref="tombolGambar"
                             :key="target"
                             :alamat="tujuanGambar.alamat"
                             :label="tujuanGambar.label"
@@ -726,7 +739,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
              di bawah, ia selalu di tempat yang sama dan selalu terjangkau,
              berapa pun panjang isiannya. -->
         <div class="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
-            <div class="flex flex-wrap items-center justify-center gap-3">
+            <div class="relative flex flex-wrap items-center justify-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
                     <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />
@@ -736,7 +749,10 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                     <Dices class="h-4 w-4" />
                     Acak
                 </Tombol>
-                <span v-if="hasil" class="ml-auto text-xs text-muted-foreground">
+                <span
+                    v-if="hasil"
+                    class="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 text-xs text-muted-foreground lg:block"
+                >
                     ≈ {{ hasil.token }} token
                 </span>
             </div>
