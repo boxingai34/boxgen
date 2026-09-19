@@ -298,6 +298,24 @@ while (true) {
 
     Database::run('UPDATE series SET chars_synced_at = NOW() WHERE id = ?', [(int) $judul['id']]);
 
+    // char_count disegarkan berkala, bukan cuma di akhir.
+    //
+    // Pekerjaan lima setengah jam tidak selalu sampai ke akhirnya — yang
+    // pertama mati karena komputernya dimatikan di tengah jalan. Waktu itu
+    // delapan ribu karakter sudah terpasang dengan benar, tapi char_count
+    // masih menyebut angka sebelum pekerjaan dimulai, jadi judul yang
+    // barusan terisi tetap dianggap kosong dan ditaruh di bawah daftar.
+    //
+    // Tiap 200 judul, bukan tiap judul: kuerinya menyapu seluruh tabel
+    // karakter, dan menjalankannya dua puluh ribu kali lebih mahal daripada
+    // pekerjaan yang dilayaninya.
+    if ($ke % 200 === 0) {
+        Database::run(
+            'UPDATE series s SET char_count =
+                (SELECT COUNT(*) FROM characters c WHERE c.series_id = s.id AND c.is_active = 1)'
+        );
+    }
+
     if ($pasang > 0) {
         say(sprintf(
             '  [%s] %-42s %3d dipasang (dari %d calon, %s gambar)',
