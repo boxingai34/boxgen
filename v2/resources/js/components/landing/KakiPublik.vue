@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IkonSosial from '@/components/landing/IkonSosial.vue';
 import Merek from '@/components/landing/Merek.vue';
 
 defineProps<{
@@ -24,7 +25,8 @@ defineProps<{
                 <nav aria-label="Social links">
                     <ul class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                         <li v-for="s in socials" :key="s.key">
-                            <a :href="s.url" target="_blank" rel="noopener" class="group inline-flex items-baseline gap-2 py-1 text-muted-foreground transition-colors hover:text-foreground">
+                            <a :href="s.url" target="_blank" rel="noopener" class="group inline-flex items-center gap-2 py-1 text-muted-foreground transition-colors hover:text-foreground">
+                                <IkonSosial :kunci="s.key" :ukuran="16" class="shrink-0 text-muted-foreground transition-colors group-hover:text-[hsl(var(--sudut))]" />
                                 <span class="font-medium text-foreground/90">{{ s.label }}</span>
                                 <span class="text-xs">{{ s.handle }}</span>
                             </a>

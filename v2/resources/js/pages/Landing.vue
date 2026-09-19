@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IkonSosial from '@/components/landing/IkonSosial.vue';
 import IkonTinju from '@/components/landing/IkonTinju.vue';
 import KakiPublik from '@/components/landing/KakiPublik.vue';
 import KartuGeser from '@/components/landing/KartuGeser.vue';
@@ -577,7 +578,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
                             >
                                 <span v-for="n in 4" :key="n" class="absolute h-1.5 w-1.5 bg-[hsl(var(--sudut))]" :class="[n % 2 ? 'left-2.5' : 'right-2.5', n < 3 ? 'top-2.5' : 'bottom-2.5']" aria-hidden="true" />
                                 <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))] text-white">
-                                    <IkonTinju jenis="gloves" :ukuran="26" />
+                                    <IkonSosial :kunci="s.key" :ukuran="26" />
                                 </span>
                                 <span class="min-w-0 flex-1">
                                     <span class="flex flex-wrap items-baseline gap-x-3">
@@ -603,7 +604,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
                                     class="kartu kartu-angkat group flex flex-col gap-3 p-5"
                                 >
                                     <span class="flex items-start justify-between">
-                                        <IkonTinju jenis="gloves" :ukuran="18" class="text-[hsl(var(--sudut))]" />
+                                        <IkonSosial :kunci="s.key" :ukuran="18" class="text-[hsl(var(--sudut))] transition-colors group-hover:text-[hsl(var(--sorot))]" />
                                         <ArrowUpRight class="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                                     </span>
                                     <span>
