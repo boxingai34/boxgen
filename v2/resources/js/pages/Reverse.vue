@@ -218,10 +218,20 @@ function pasangEkstrak(jawab: any) {
     rawDisunting.value = false;
     hasil.value = null;
 
-    // Ciri asli tiap subjek disimpan sekali: kalau nama karakternya diganti
-    // lalu dikembalikan, cirinya ikut kembali.
     for (const s of ekstrak.value.subjects ?? []) {
+        // Otot, kencang, dan perut kotak-kotak dimatikan dulu. Pembacanya
+        // menyebutnya di hampir tiap gambar — petinju memang begitu — lalu
+        // semua prompt keluar berotot walau bukan itu yang kamu mau. Sekarang
+        // jadi pilihan yang dicentang sendiri, dan yang terbaca dari gambar
+        // cuma jadi tebakan awal yang boleh diabaikan.
+        s.otot_terbaca = OTOT_SEMUA.filter((t) => (s.body ?? []).includes(t) || (s.tags ?? []).includes(t));
+        s.body = (s.body ?? []).filter((t: string) => !OTOT_SEMUA.includes(t));
+        s.tags = (s.tags ?? []).filter((t: string) => !OTOT_SEMUA.includes(t));
+
+        // Ciri asli tiap subjek disimpan sekali: kalau nama karakternya
+        // diganti lalu dikembalikan, cirinya ikut kembali.
         s.ciri_asal = { hair: [...(s.hair ?? [])], eyes: [...(s.eyes ?? [])], body: [...(s.body ?? [])] };
+        s.tags_asal = [...(s.tags ?? [])];
         s.character_awal = s.character ?? '';
         s.tag_baru = '';
     }
@@ -232,8 +242,35 @@ function pasangEkstrak(jawab: any) {
 // --------------------------------------------------------------- kolom
 const PERAN = [['fighter', 'Petinju'], ['second', 'Pendamping'], ['referee', 'Wasit'], ['bystander', 'Orang lain']];
 const SEKS = [['female', 'Perempuan'], ['male', 'Laki-laki'], ['unclear', 'Tidak jelas']];
-const KUDA = [['orthodox', 'Orthodox'], ['southpaw', 'Southpaw'], ['unclear', 'Tidak jelas']];
-const SISI = [['left', 'Kiri'], ['right', 'Kanan'], ['center', 'Tengah']];
+/**
+ * Otot bukan bacaan yang harus dipatuhi, tapi pilihan.
+ *
+ * Pembacanya menyebut muscular/toned/abs di hampir tiap gambar tinju —
+ * memang begitu bentuk petinju — lalu tiap prompt keluar berotot walau
+ * bukan itu yang diminta. Jadi ketiganya dibuang waktu pembacaan masuk, dan
+ * kembali hanya kalau dicentang sendiri.
+ */
+const OTOT_SEMUA = ['muscular_female', 'muscular_male', 'toned', 'abs'];
+const OTOT_PILIHAN: Array<[string, string]> = [
+    ['muscular', 'Berotot'],
+    ['toned', 'Kencang'],
+    ['abs', 'Perut kotak-kotak'],
+];
+
+/** muscular punya dua bentuk; yang lain sama untuk semua jenis kelamin. */
+function tagOtot(s: any, kunci: string): string {
+    return kunci === 'muscular' ? (s.sex === 'male' ? 'muscular_male' : 'muscular_female') : kunci;
+}
+
+function punyaOtot(s: any, kunci: string): boolean {
+    return (s.body ?? []).includes(tagOtot(s, kunci));
+}
+
+function ubahOtot(s: any, kunci: string, nyala: boolean) {
+    const t = tagOtot(s, kunci);
+    s.body = (s.body ?? []).filter((x: string) => x !== t);
+    if (nyala) s.body.push(t);
+}
 const PANDANG = [
     ['toward_viewer', 'Wajah menghadap kamera'],
     ['three_quarter', 'Miring (tiga perempat)'],
@@ -256,16 +293,10 @@ const SARUNG = [
 ];
 const WARNA = ['', 'red', 'blue', 'black', 'white', 'pink', 'green', 'yellow', 'purple', 'orange', 'brown', 'grey', 'gold', 'silver'];
 const TINGKAT = [['0', 'tidak ada'], ['1', 'sedikit'], ['2', 'sedang'], ['3', 'banyak']];
-const AKSI = [
-    ['jab', 'Jab'], ['cross', 'Cross'], ['lead_hook', 'Hook depan'], ['rear_hook', 'Hook belakang'],
-    ['uppercut', 'Uppercut'], ['body_shot', 'Pukulan badan'], ['overhand', 'Overhand'],
-    ['clinch', 'Clinch'], ['block', 'Menangkis'], ['dodge', 'Menghindar'], ['down', 'Tumbang'],
-    ['guard', 'Kuda-kuda jaga'], ['idle', 'Diam'], ['other', 'Lainnya'],
-];
-const ADEGAN = [
-    ['fight', 'Bertanding'], ['corner', 'Istirahat di sudut ring'], ['lineup', 'Foto bersama / berpose'],
-    ['training', 'Latihan'], ['aftermath', 'Sesudah bertanding'], ['other', 'Lainnya'],
-];
+// Kuda-kuda, jenis pukulan, posisi, dan jenis adegan tidak lagi punya
+// kolom di halaman ini — tidak pernah dibetulkan sendiri, dan tiap kolom
+// yang tidak pernah disentuh cuma menambah yang harus dibaca. Nilainya
+// tetap dibaca mesin dan tetap ikut terkirim apa adanya.
 
 const petinju = computed(() => (ekstrak.value?.subjects ?? []).filter((s: any) => (s.role || 'fighter') === 'fighter'));
 
@@ -294,6 +325,18 @@ const striker = computed({
  * juga — bukan cuma di server — supaya perubahannya kelihatan sebelum
  * Susun Prompt ditekan.
  */
+const POLA_IDENTITAS = [
+    /_hair$/, /^hair_/, /_hairstyle$/, /_bun$/, /_bangs$/,
+    /ponytail$/, /twintails$/, /braid/, /^sidelocks$/, /^ahoge$/,
+    /_eyes$/, /^heterochromia$/,
+    /_breasts$/, /^flat_chest$/,
+];
+
+/** Ciri yang melekat pada siapa orangnya, bukan pada petinjunya. */
+function identitasOrang(t: string): boolean {
+    return POLA_IDENTITAS.some((p) => p.test(String(t)));
+}
+
 function gantiKarakter(s: any) {
     const c = String(s.character || '').trim().toLowerCase().replace(/\s+/g, '_');
     s.character = c || null;
@@ -307,11 +350,17 @@ function gantiKarakter(s: any) {
         s.eyes = [];
         // Ukuran dada itu identitas karakter, bukan bentuk badan petinju.
         s.body = (s.ciri_asal?.body ?? []).filter((t: string) => !String(t).endsWith('_breasts'));
+        // Daftar tag umum menyimpan ciri yang sama sekali lagi — pembacanya
+        // hampir selalu menulis purple_hair di kolom rambut DAN di daftar
+        // tag. Yang tertinggal di sini ikut ke prompt dan mengalahkan ciri
+        // karakter barunya.
+        s.tags = (s.tags_asal ?? s.tags ?? []).filter((t: string) => !identitasOrang(t));
         s.ciri_dibuang = c;
     } else if (!diubah && s.ciri_dibuang) {
         s.hair = [...(s.ciri_asal?.hair ?? [])];
         s.eyes = [...(s.ciri_asal?.eyes ?? [])];
         s.body = [...(s.ciri_asal?.body ?? [])];
+        s.tags = [...(s.tags_asal ?? [])];
         delete s.ciri_dibuang;
     }
 }
@@ -537,16 +586,6 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <p v-for="(c, i) in validasi.catatan || []" :key="i">{{ c }}</p>
                     </div>
 
-                    <label class="mb-4 block">
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Jenis adegan</span>
-                        <select v-model="ekstrak.scene" :class="isianKelas">
-                            <option v-for="[n, l] in ADEGAN" :key="n" :value="n">{{ l }}</option>
-                        </select>
-                        <span class="mt-1.5 block text-[11px] text-muted-foreground">
-                            Tidak semua gambar tinju itu pertandingan. Kalau adegannya istirahat di sudut atau foto bersama, pilih di sini supaya kuda-kuda dan tag pukulan tidak dipaksakan masuk.
-                        </span>
-                    </label>
-
                     <!-- Kartu tiap subjek -->
                     <div v-for="(s, i) in ekstrak.subjects" :key="i" class="mb-4 rounded-2xl border border-border/70 p-4">
                         <h3 class="mb-3 text-sm font-semibold tracking-tight">
@@ -577,27 +616,6 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             Karakter diganti jadi "{{ String(s.character).replace(/_/g, ' ') }}", jadi rambut, mata, dan ukuran dada dari gambar dibuang. Ciri asli karakter ini diambil dari kamus saat Susun Prompt ditekan.
                         </p>
 
-                        <div class="mt-3 grid gap-3 sm:grid-cols-3">
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Kuda-kuda</span>
-                                <select v-model="s.stance" :class="isianKelas">
-                                    <option v-for="[n, l] in KUDA" :key="n" :value="n">{{ l }}</option>
-                                </select>
-                            </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Jenis pukulan</span>
-                                <select v-model="s.action.type" :class="isianKelas">
-                                    <option v-for="[n, l] in AKSI" :key="n" :value="n">{{ l }}</option>
-                                </select>
-                            </label>
-                            <label class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Posisi di gambar</span>
-                                <select v-model="s.position.side" :class="isianKelas">
-                                    <option v-for="[n, l] in SISI" :key="n" :value="n">{{ l }}</option>
-                                </select>
-                            </label>
-                        </div>
-
                         <label class="mt-3 block">
                             <span class="mb-1.5 block text-xs text-muted-foreground">Terlihat dari sisi mana</span>
                             <select v-model="s.view" :class="isianKelas">
@@ -623,6 +641,27 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Ekspresi</span>
                                 <input v-model="s.expression" type="text" placeholder="clenched teeth, determined" :class="isianKelas" />
                             </label>
+                        </div>
+
+                        <div class="mt-3">
+                            <span class="mb-1.5 block text-xs text-muted-foreground">
+                                Bentuk otot
+                                <span class="text-[11px] text-muted-foreground/70">— mati bawaan; centang kalau memang mau</span>
+                            </span>
+                            <div class="flex flex-wrap gap-x-5 gap-y-2">
+                                <label v-for="[k, l] in OTOT_PILIHAN" :key="k" class="flex items-center gap-2 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        class="accent-[hsl(var(--sorot))]"
+                                        :checked="punyaOtot(s, k)"
+                                        @change="ubahOtot(s, k, ($event.target as HTMLInputElement).checked)"
+                                    />
+                                    {{ l }}
+                                </label>
+                                <span v-if="(s.otot_terbaca || []).length" class="text-[11px] text-muted-foreground">
+                                    Dari gambarnya terbaca: {{ (s.otot_terbaca || []).map((t: string) => t.replace(/_/g, ' ')).join(', ') }}
+                                </span>
+                            </div>
                         </div>
 
                         <div class="mt-3 grid gap-3 sm:grid-cols-4">
@@ -768,7 +807,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 :class="versi === v ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
                                 @click="versi = v as any"
                             >
-                                {{ v === 'sfw' ? 'Versi aman' : 'Versi setia' }}
+                                {{ v === 'sfw' ? 'Versi aman' : 'Versi NSFW' }}
                             </button>
                         </div>
                     </template>
@@ -786,21 +825,27 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <span v-if="hasil.token_warning" class="text-[hsl(var(--kanvas))]"> · {{ hasil.token_warning }}</span>
                         </p>
 
+                        <!-- Tiap kotak bisa disunting, dan yang disunting itu
+                             juga yang dikirim ke NovelAI di bawah. Sebelumnya
+                             kotaknya cuma bisa dibaca, jadi satu kata yang
+                             salah berarti menyalin ke NovelAI dan membetulkan
+                             di sana — padahal tombol menggambarnya ada di
+                             halaman ini. -->
                         <template v-if="keluaran">
-                            <KotakTeks judul="Base Prompt" :teks="keluaran.base || ''" />
-                            <KotakTeks v-for="(c, i) in keluaran.characters || []" :key="i" :judul="c.label || 'Character'" :teks="c.prompt || ''" />
-                            <KotakTeks judul="Undesired Content" :teks="keluaran.undesired || ''" :baris="3" />
-
-                            <details v-if="keluaran.v45" class="rounded-xl border border-border/70 p-3">
-                                <summary class="cursor-pointer text-xs font-medium text-muted-foreground">V4.5 + Vibe Transfer</summary>
-                                <div class="mt-2 space-y-3">
-                                    <KotakTeks judul="Base Prompt V4.5" :teks="keluaran.v45.base || ''" />
-                                    <p v-if="keluaran.v45.vibe" class="text-[11px] text-muted-foreground">Vibe Transfer dari gambar referensinya: {{ keluaran.v45.vibe }}</p>
-                                </div>
-                            </details>
+                            <KotakTeks judul="Base Prompt" :teks="keluaran.base || ''" sunting @update:teks="keluaran.base = $event" />
+                            <KotakTeks
+                                v-for="(c, i) in keluaran.characters || []"
+                                :key="i"
+                                :judul="c.label || 'Character'"
+                                :teks="c.prompt || ''"
+                                sunting
+                                @update:teks="c.prompt = $event"
+                            />
+                            <KotakTeks judul="Undesired Content" :teks="keluaran.undesired || ''" :baris="3" sunting @update:teks="keluaran.undesired = $event" />
 
                             <p class="text-[11px] leading-relaxed text-muted-foreground">
-                                Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.
+                                Tiap kotak boleh kamu betulkan langsung di sini — yang terbaca di kotaknya itu juga yang dipakai tombol di bawah.
+                                Kalau mau ditempel sendiri ke NovelAI, urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
 
                             <!-- Atau langsung digambar di sini: bentuk keluaran di atas

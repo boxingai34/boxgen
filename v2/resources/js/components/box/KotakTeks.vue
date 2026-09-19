@@ -15,9 +15,13 @@ const props = withDefaults(
         judul: string;
         teks: string;
         baris?: number;
+        /** Boleh disunting di tempat; yang diketik langsung jadi isinya. */
+        sunting?: boolean;
     }>(),
-    { baris: 5 },
+    { baris: 5, sunting: false },
 );
+
+const emit = defineEmits<{ (e: 'update:teks', nilai: string): void }>();
 
 const tersalin = ref(false);
 
@@ -48,12 +52,17 @@ async function salinIni() {
                 </button>
             </span>
         </div>
+        <!-- Yang disunting di sini bukan salinan: halaman yang memakainya
+             menulis balik ke sumbernya, jadi tombol "Buat gambarnya" memakai
+             teks yang sedang terlihat, bukan yang tadi disusun mesin. -->
         <textarea
             :value="teks"
             :rows="baris"
-            readonly
+            :readonly="!sunting"
             spellcheck="false"
             class="w-full resize-y bg-transparent px-3.5 py-2.5 font-mono text-[12px] leading-relaxed outline-none"
+            :class="sunting ? 'focus:bg-background/40' : ''"
+            @input="emit('update:teks', ($event.target as HTMLTextAreaElement).value)"
         />
     </div>
 </template>

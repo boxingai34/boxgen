@@ -860,6 +860,18 @@ TXT;
                         static fn(string $t): bool => !str_ends_with($t, '_breasts')
                     ));
 
+                    // Daftar tag umum menyimpan ciri yang sama sekali lagi:
+                    // pembacanya hampir selalu menulis purple_hair di kolom
+                    // "hair" DAN di daftar tag. Mengosongkan kolomnya saja
+                    // tidak cukup — yang tertinggal di daftar tag tetap ikut
+                    // ke prompt, dan di situ ia menang atas ciri karakter
+                    // baru yang baru saja diambil dari kamus. Itu sebabnya
+                    // Sakura keluar berambut ungu.
+                    $ekstrak['subjects'][$i]['tags'] = array_values(array_filter(
+                        $s['tags'] ?? [],
+                        static fn(string $t): bool => !self::identitasOrang($t)
+                    ));
+
                     if ($ciriBaru !== []) {
                         // Ditaruh di kolom yang benar, bukan ditumpuk semua
                         // di 'hair'. Panel pembacaan menampilkan tiap kolom
@@ -2030,6 +2042,31 @@ TXT;
         }
 
         return $items;
+    }
+
+    /**
+     * Ciri yang melekat pada SIAPA orangnya, bukan pada petinjunya.
+     *
+     * Dipakai waktu karakternya diganti sendiri. Rambut, mata, dan ukuran
+     * dada milik orang yang lama harus pergi; otot, keringat, memar, dan
+     * sarung tangan tetap tinggal — itu milik adegannya, bukan identitasnya.
+     * Karena itu daftar ini lebih sempit daripada POLA_PENAMPILAN, yang juga
+     * menganggap muscular dan mature sebagai penampilan.
+     */
+    private static function identitasOrang(string $t): bool
+    {
+        foreach ([
+            '/_hair$/', '/^hair_/', '/_hairstyle$/', '/_bun$/', '/_bangs$/',
+            '/ponytail$/', '/twintails$/', '/braid/', '/^sidelocks$/', '/^ahoge$/',
+            '/_eyes$/', '/^heterochromia$/',
+            '/_breasts$/', '/^flat_chest$/',
+        ] as $p) {
+            if (preg_match($p, $t) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function penampilan(string $t): bool

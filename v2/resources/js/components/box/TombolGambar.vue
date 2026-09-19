@@ -77,9 +77,9 @@ async function buat() {
 </script>
 
 <template>
-    <div class="rounded-xl border border-border/70 bg-card/40 p-3">
+    <div class="rounded-xl border border-[hsl(var(--sorot)/0.35)] bg-[hsl(var(--sorot)/0.06)] p-3">
         <div class="flex flex-wrap items-center gap-2">
-            <Tombol jenis="garis" :nonaktif="sedang" @click="buat">
+            <Tombol :nonaktif="sedang" @click="buat">
                 <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                 <ImagePlus v-else class="h-4 w-4" />
                 {{ sedang ? 'Menggambar…' : label }}
@@ -108,15 +108,15 @@ async function buat() {
             {{ pesan }}
         </p>
 
-        <!-- Pratinjau sengaja kecil: hasilnya cuma untuk memastikan gambarnya
-             benar, bukan untuk dilihat lama-lama, dan kotak setinggi layar
-             mendorong prompt yang sedang dibaca keluar dari pandangan.
-             Ukuran penuhnya sejauh satu klik. -->
+        <!-- Selebar kotaknya, tapi tingginya dibatasi: gambar lanskap jadi
+             besar karena memang ada ruangnya, sedangkan potret 3:4 tidak
+             sampai mendorong prompt yang sedang dibaca keluar dari layar.
+             Ukuran aslinya sejauh satu klik. -->
         <a v-if="gambar" :href="gambar" target="_blank" rel="noopener" class="group mt-3 block">
             <img
                 :src="gambar"
                 :alt="alt"
-                class="max-h-64 w-auto max-w-full rounded-xl border border-border/70 transition-colors group-hover:border-[hsl(var(--sorot)/0.6)]"
+                class="max-h-[36rem] w-auto max-w-full rounded-xl border border-border/70 transition-colors group-hover:border-[hsl(var(--sorot)/0.6)]"
             />
             <span class="mt-1 block text-[11px] text-muted-foreground">Klik gambarnya untuk melihat ukuran penuh.</span>
         </a>
