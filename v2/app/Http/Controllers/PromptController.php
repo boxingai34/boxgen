@@ -167,15 +167,28 @@ class PromptController extends Controller
     /** Pencarian karakter di seluruh kamus. */
     public function cariKarakter(Request $request): JsonResponse
     {
+        $batas = min(60, max(1, (int) $request->query('limit', 30)));
+        $mulai = max(0, (int) $request->query('mulai', 0));
+
+        // Satu lebih banyak dari yang diminta, cuma untuk tahu apakah masih
+        // ada halaman berikutnya. Yang kelebihan dibuang sebelum dikirim —
+        // dengan begitu halaman tidak perlu menghitung total, dan total itu
+        // sendiri tidak perlu dihitung di database.
         $hasil = CharacterResolver::search(
             (string) $request->query('q', ''),
             ($u = trim((string) $request->query('semesta', ''))) !== '' ? $u : null,
             ($s = $request->query('series_id')) !== null && $s !== '' ? (int) $s : null,
-            min(60, max(1, (int) $request->query('limit', 30)))
+            $batas + 1,
+            $mulai
         );
+
+        $masihAda = count($hasil) > $batas;
+        $hasil = array_slice($hasil, 0, $batas);
 
         return response()->json([
             'ok'    => true,
+            'mulai' => $mulai,
+            'lagi'  => $masihAda,
             'hasil' => array_map(static fn (array $c): array => [
                 'tag'    => $c['booru_tag'],
                 'tampil' => str_replace('_', ' ', $c['booru_tag']),

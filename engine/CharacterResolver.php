@@ -87,9 +87,15 @@ final class CharacterResolver
         string $q = '',
         ?string $universe = null,
         ?int $seriesId = null,
-        int $limit = 30
+        int $limit = 30,
+        int $offset = 0
     ): array {
         $limit = max(1, min($limit, 100));
+        // Halaman berikutnya dibaca dengan menggeser awalnya. Tanpa ini,
+        // mengetik nama judul yang punya ratusan karakter cuma memulangkan
+        // yang pertama saja dan sisanya tidak pernah bisa dijangkau — daftar
+        // berhenti di tengah tanpa memberi tahu bahwa masih ada.
+        $offset = max(0, min($offset, 5000));
         $q = trim($q);
 
         // Sejak tools/import_characters.php dijalankan, SELURUH karakter sudah
@@ -132,7 +138,7 @@ final class CharacterResolver
                 LEFT JOIN series s ON s.id = c.series_id
                 WHERE ' . implode(' AND ', $where) . '
                 ORDER BY ' . $urut . '
-                LIMIT ' . $limit;
+                LIMIT ' . $limit . ' OFFSET ' . $offset;
 
         $rows = Database::all($sql, $params);
 

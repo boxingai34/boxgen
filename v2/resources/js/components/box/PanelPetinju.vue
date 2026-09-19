@@ -89,31 +89,71 @@ watch([cari, seriCari, daftarSeri], () => {
  * panjangnya tidak mengganggu — yang mengganggu justru kalau yang dicari
  * tidak ada di dalamnya.
  */
+const adaLagi = ref(false);
+const sedangTambah = ref(false);
+const SEHALAMAN = 40;
+
 async function cariKarakter() {
     const kata = cari.value.trim();
     const seri = seriTerpilih.value?.id ?? '';
 
     if (kata.length < 1 && seri === '') {
         saran.value = [];
+        adaLagi.value = false;
 
         return;
     }
 
     sedangCari.value = true;
     try {
-        const alamat =
-            route('prompt.karakter') +
-            '?limit=60' +
-            '&q=' + encodeURIComponent(kata) +
-            '&series_id=' + encodeURIComponent(String(seri));
-
-        const jawab = await kirim<any>(alamat, undefined, 'GET');
+        const jawab = await ambilHalaman(0);
         saran.value = jawab.hasil || [];
+        adaLagi.value = Boolean(jawab.lagi);
         saranTerbuka.value = true;
     } catch {
         saran.value = [];
+        adaLagi.value = false;
     } finally {
         sedangCari.value = false;
+    }
+}
+
+function ambilHalaman(mulai: number) {
+    const alamat =
+        route('prompt.karakter') +
+        '?limit=' + SEHALAMAN +
+        '&mulai=' + mulai +
+        '&q=' + encodeURIComponent(cari.value.trim()) +
+        '&series_id=' + encodeURIComponent(String(seriTerpilih.value?.id ?? ''));
+
+    return kirim<any>(alamat, undefined, 'GET');
+}
+
+/**
+ * Halaman berikutnya diambil waktu daftarnya digulir sampai mentok.
+ *
+ * Judul seperti Genshin Impact punya ratusan karakter; memuat semuanya
+ * sekaligus berarti menunggu lama untuk daftar yang sembilan puluh persennya
+ * tidak akan dilihat. Jadi empat puluh dulu, lalu empat puluh lagi tiap kali
+ * kamu sampai di dasarnya.
+ */
+async function gulir(e: Event) {
+    const el = e.target as HTMLElement;
+
+    if (! adaLagi.value || sedangTambah.value) return;
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 48) return;
+
+    sedangTambah.value = true;
+    try {
+        const jawab = await ambilHalaman(saran.value.length);
+        const sudah = new Set(saran.value.map((k: any) => k.tag));
+
+        saran.value = [...saran.value, ...(jawab.hasil || []).filter((k: any) => ! sudah.has(k.tag))];
+        adaLagi.value = Boolean(jawab.lagi);
+    } catch {
+        adaLagi.value = false;
+    } finally {
+        sedangTambah.value = false;
     }
 }
 
@@ -233,7 +273,11 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 @blur="tutupSaranNanti"
             />
 
-            <ul v-if="saranTerbuka && saran.length" class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-lg">
+            <ul
+                v-if="saranTerbuka && saran.length"
+                class="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-lg"
+                @scroll.passive="gulir"
+            >
                 <li v-for="k in saran" :key="k.tag">
                     <button type="button" class="flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent" @mousedown.prevent="pilihKarakter(k)">
                         <span class="truncate">
@@ -242,6 +286,13 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                         </span>
                         <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{{ k.jumlah.toLocaleString('id-ID') }}</span>
                     </button>
+                </li>
+
+                <li v-if="adaLagi" class="px-3 py-2 text-center text-xs text-muted-foreground">
+                    {{ sedangTambah ? 'Memuat lagi…' : 'Gulir ke bawah untuk memuat lagi' }}
+                </li>
+                <li v-else class="px-3 py-2 text-center text-xs text-muted-foreground/70">
+                    {{ saran.length }} karakter — itu semuanya
                 </li>
             </ul>
 
