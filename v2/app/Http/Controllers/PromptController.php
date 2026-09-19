@@ -232,11 +232,19 @@ class PromptController extends Controller
     }
 
     /** Isi bawaan tiap slot untuk sebuah tema pakaian. */
-    public function bawaanPakaian(Request $request): JsonResponse
+    /**
+     * Isi bawaan slot untuk SEBUAH tema — pakaian atau kondisi.
+     *
+     * Keduanya bekerja sama persis: tema mengisi beberapa slot sekaligus,
+     * dan isinya tersimpan di tabel module_defaults yang tidak peduli tema
+     * itu soal baju atau soal memar. Jadi satu jalur untuk keduanya, bukan
+     * dua yang harus dijaga tetap sama.
+     */
+    public function bawaanSlot(Request $request): JsonResponse
     {
         $id = (int) $request->query('id', 0);
         if ($id <= 0) {
-            return response()->json(['ok' => false, 'error' => 'Id tema pakaian wajib diisi.'], 422);
+            return response()->json(['ok' => false, 'error' => 'Id temanya wajib diisi.'], 422);
         }
 
         return response()->json(['ok' => true, 'bawaan' => PromptBuilder::outfitDefaults($id)]);

@@ -37,7 +37,7 @@ Route::prefix('generator')->group(function () {
         Route::get('prompt/judul', [PromptController::class, 'judul'])->name('prompt.judul');
         Route::get('prompt/karakter', [PromptController::class, 'cariKarakter'])->name('prompt.karakter');
         Route::get('prompt/tag', [PromptController::class, 'cariTag'])->name('prompt.tag');
-        Route::get('prompt/pakaian', [PromptController::class, 'bawaanPakaian'])->name('prompt.pakaian');
+        Route::get('prompt/bawaan', [PromptController::class, 'bawaanSlot'])->name('prompt.bawaan');
         Route::get('prompt/latar', [PromptController::class, 'latarSaran'])->name('prompt.latar');
 
         // ---- Dari Gambar/Video (reverse prompt) ----

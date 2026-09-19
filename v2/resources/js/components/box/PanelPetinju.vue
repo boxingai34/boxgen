@@ -201,21 +201,42 @@ function warnaUntuk(slot: string): any[] {
     return dasar ? props.warna.peta[dasar] || [] : [];
 }
 
-/** Tema pakaian mengisi kelima slot sekaligus. */
-async function temaBerubah() {
-    const id = props.orang.outfit_id;
+/**
+ * Isi bawaan slot untuk satu tema, apa pun temanya.
+ *
+ * Pakaian dan kondisi bekerja sama persis: tema mengisi beberapa slot
+ * sekaligus, dan isinya tersimpan di tabel yang sama. Yang membedakan
+ * cuma awalan kolomnya — outfit_* atau cond_*.
+ */
+async function isiSlotDariTema(id: number | '', awalan: string, slot: ReadonlyArray<readonly [string, string]>, warna = false) {
     if (!id) return;
 
     try {
-        const jawab = await kirim<any>(route('prompt.pakaian') + '?id=' + encodeURIComponent(String(id)), undefined, 'GET');
-        for (const [slot] of SLOT_PAKAIAN) {
-            const nilai = jawab.bawaan?.[slot];
-            props.orang['outfit_' + slot + '_id'] = nilai ?? '';
-            props.orang['outfit_' + slot + '_color'] = '';
+        const jawab = await kirim<any>(route('prompt.bawaan') + '?id=' + encodeURIComponent(String(id)), undefined, 'GET');
+        for (const [s] of slot) {
+            props.orang[awalan + s + '_id'] = jawab.bawaan?.[s] ?? '';
+            if (warna) props.orang[awalan + s + '_color'] = '';
         }
     } catch {
         /* tema tetap terpakai walau slotnya gagal terisi */
     }
+}
+
+/** Tema pakaian mengisi kelima slot sekaligus. */
+function temaBerubah() {
+    return isiSlotDariTema(props.orang.outfit_id, 'outfit_', SLOT_PAKAIAN, true);
+}
+
+/**
+ * Tema kondisi juga — dan dulu tidak.
+ *
+ * Kotak Advanced-nya berjanji "terisi otomatis mengikuti tema kondisi di
+ * atas", tapi memilih temanya tidak memanggil apa pun: kedelapan slotnya
+ * tetap "ikut tema" selamanya, dan yang tertulis di layar tidak pernah
+ * cocok dengan yang benar-benar dipakai mesinnya.
+ */
+function kondisiBerubah() {
+    return isiSlotDariTema(props.orang.condition_id, 'cond_', SLOT_KONDISI);
 }
 
 function kembaliKeTema() {
@@ -228,6 +249,7 @@ function kembaliKeTema() {
 
 function kembaliKeTemaKondisi() {
     for (const [slot] of SLOT_KONDISI) props.orang['cond_' + slot + '_id'] = '';
+    kondisiBerubah();
 }
 
 /** Modul dikelompokkan per kategori, seperti optgroup di halaman lama. */
@@ -382,7 +404,7 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 :modul="modul.condition || []"
                 :terpilih="orang.condition_id === '' ? '' : Number(orang.condition_id)"
                 judul="Kondisi"
-                @pilih="orang.condition_id = $event"
+                @pilih="orang.condition_id = $event; kondisiBerubah()"
             />
         </label>
 
