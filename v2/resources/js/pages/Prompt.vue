@@ -81,7 +81,10 @@ const aiNota = ref('');
 const sedang = ref(false);
 const galat = ref('');
 const hasil = ref<any>(null);
-const target = ref<'sd' | 'novelai' | 'nai5' | 'gemini'>('sd');
+// Bawaannya NovelAI, bukan Stable Diffusion: tombol SD-nya disembunyikan
+// (lihat TARGET di bawah), dan target yang tidak punya tombol tidak bisa
+// ditinggalkan kalau ia juga yang kepilih duluan.
+const target = ref<'sd' | 'novelai' | 'nai5' | 'gemini'>('novelai');
 
 // ----------------------------------------------------------- interaksi
 const interaksi = computed(() => (props.modul.interaction || []).find((m: any) => String(m.id) === String(pilih.interaction_id)));
@@ -279,12 +282,22 @@ function muatanGambar(): Record<string, unknown> {
     };
 }
 
+/**
+ * Bentuk keluaran yang bisa dipilih.
+ *
+ * `tampil: false` menyembunyikan tombolnya tanpa membuang jalurnya —
+ * mesinnya tetap menyusun keluaran itu dan hasilnya tetap ada di jawaban,
+ * jadi menyalakannya lagi cukup mengubah satu kata. Stable Diffusion
+ * disembunyikan karena jarang dipakai.
+ */
 const TARGET = [
-    ['sd', 'Stable Diffusion'],
-    ['novelai', 'NovelAI (tag)'],
-    ['nai5', 'NovelAI V5 (kalimat)'],
-    ['gemini', 'Gemini'],
+    { nilai: 'sd', label: 'Stable Diffusion', tampil: false },
+    { nilai: 'novelai', label: 'NovelAI (tag)', tampil: true },
+    { nilai: 'nai5', label: 'NovelAI V5 (kalimat)', tampil: true },
+    { nilai: 'gemini', label: 'Gemini', tampil: true },
 ] as const;
+
+const targetTampil = TARGET.filter((t) => t.tampil);
 </script>
 
 <template>
@@ -503,14 +516,14 @@ const TARGET = [
                     <template v-if="hasil" #alat>
                         <div class="flex flex-wrap gap-1.5">
                             <button
-                                v-for="[n, l] in TARGET"
-                                :key="n"
+                                v-for="t in targetTampil"
+                                :key="t.nilai"
                                 type="button"
                                 class="rounded-lg border px-2.5 py-1 text-[11px] transition-colors"
-                                :class="target === n ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
-                                @click="target = n as any"
+                                :class="target === t.nilai ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
+                                @click="target = t.nilai as any"
                             >
-                                {{ l }}
+                                {{ t.label }}
                             </button>
                         </div>
                     </template>
