@@ -31,6 +31,15 @@ class LandingController extends Controller
     /** Batas gambar di kartu geser sampul. */
     private const HERO_MAKS = 10;
 
+    /**
+     * Batas gambar di lapisan grid satu layar.
+     *
+     * Lima kolom dikali lima baris sudah lebih tinggi dari layar mana pun,
+     * jadi selebihnya cuma menambah berkas yang diunduh tanpa pernah dilihat
+     * — dan semua gambarnya lazy, jadi angka ini batas atas, bukan beban.
+     */
+    private const GRID_MAKS = 24;
+
     public function show(Request $request): Response
     {
         $isi = LandingContent::ambil();
@@ -41,7 +50,10 @@ class LandingController extends Controller
 
         $isi['hero']['images'] = array_slice($isi['hero']['images'], 0, self::HERO_MAKS);
         $isi['patreon']['recent'] = $this->posPatreon($isi);
-        $isi['gallery'] = $this->galeri($isi);
+
+        // Dua daftar dari satu panggilan: yang pendek untuk seksi galeri,
+        // yang panjang untuk lapisan grid satu layar.
+        ['tampil' => $isi['gallery'], 'semua' => $isi['gallery_semua']] = $this->galeri($isi);
 
         $video = $this->video($isi);
 
@@ -124,17 +136,26 @@ class LandingController extends Controller
      * Bawaannya daftar gambar sendiri dari CMS. Kalau umpan DeviantArt
      * dinyalakan dan menjawab, karya terbarunya yang tampil — yang ditandai
      * "adult" oleh DeviantArt tetap dilewati kecuali memang diminta ikut.
+     *
+     * Dikembalikan dua daftar. "tampil" sepanjang yang diminta CMS, dipakai
+     * seksi galeri; "semua" lebih panjang, dipakai lapisan grid satu layar
+     * yang memang butuh dinding gambar. Keduanya lahir dari satu panggilan
+     * jaringan — grid yang mengambil sendiri berarti umpan yang sama ditarik
+     * dua kali hanya karena potongannya beda panjang.
      */
     private function galeri(array $isi): array
     {
         $umpan = $isi['gallery_feed'];
         if (empty($umpan['on']) || $umpan['username'] === '') {
-            return $isi['gallery'];
+            return ['tampil' => $isi['gallery'], 'semua' => $isi['gallery']];
         }
+
+        $pendek = max(1, (int) ($umpan['max'] ?: 6));
+        $panjang = max($pendek, self::GRID_MAKS);
 
         $karya = DeviantartTerbaru::ambil(
             (string) $umpan['username'],
-            (int) ($umpan['max'] ?: 6) + count($umpan['skip']),
+            $panjang + count($umpan['skip']),
             (bool) $umpan['ikut_dewasa'],
         );
 
@@ -160,9 +181,14 @@ class LandingController extends Controller
             ];
         }
 
-        $keluar = array_slice($keluar, 0, max(1, (int) ($umpan['max'] ?: 6)));
+        if ($keluar === []) {
+            return ['tampil' => $isi['gallery'], 'semua' => $isi['gallery']];
+        }
 
-        return $keluar === [] ? $isi['gallery'] : $keluar;
+        return [
+            'tampil' => array_slice($keluar, 0, $pendek),
+            'semua'  => array_slice($keluar, 0, $panjang),
+        ];
     }
 
     /** Gambar bagikan harus alamat mutlak (aturan Open Graph). */
@@ -210,6 +236,7 @@ class LandingController extends Controller
         }
         if (empty($isi['sections']['gallery'])) {
             $isi['gallery'] = [];
+            $isi['gallery_semua'] = [];
         }
         if (empty($isi['sections']['instagram'])) {
             $isi['instagram']['embeds'] = [];

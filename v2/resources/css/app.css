@@ -826,3 +826,65 @@ html[data-hemat='1'] *::after {
         animation-duration: 0s !important;
     }
 }
+
+/* ------------------------------------------------------------------
+   GALERI SATU LAYAR (GridLayar.vue)
+
+   Dua gerak saja, dan keduanya murah: tirai clip-path waktu lapisannya
+   dibuka, dan petak-petaknya yang muncul bergiliran. Tidak ada yang
+   menganimasikan warna atau filter — grayscale→warna dipegang transisi
+   di kelas Tailwind-nya sendiri, satu petak pada satu waktu.
+   ------------------------------------------------------------------ */
+.grid-layar-enter-active,
+.grid-layar-leave-active {
+    transition:
+        opacity 0.25s ease,
+        clip-path 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    /* Keadaan akhir tirai ditulis utuh, bukan dibiarkan 'none': clip-path
+       tidak bisa ditengahi dari none ke inset(), jadi tanpa baris ini
+       tirainya meloncat dan yang tersisa cuma redupnya. */
+    clip-path: inset(0 0 0 0);
+}
+
+.grid-layar-enter-from,
+.grid-layar-leave-to {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+}
+
+.petak-grid {
+    animation: petak-masuk 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    /* Jedanya dibatasi: tanpa min(), petak ke-80 baru muncul satu setengah
+       detik sesudah yang pertama, dan bagian bawah layar terasa macet. */
+    animation-delay: calc(min(var(--i, 0), 24) * 18ms);
+}
+
+@keyframes petak-masuk {
+    from {
+        opacity: 0;
+        transform: scale(0.94);
+        clip-path: inset(14% 14% 14% 14%);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+/* Durasi sudah dinolkan pemukul umum di bawah; jedanya belum, dan jeda
+   tanpa durasi menahan petaknya tetap tak terlihat sampai gilirannya. */
+html[data-hemat='1'] .petak-grid {
+    animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .petak-grid {
+        animation: none;
+    }
+
+    .grid-layar-enter-active,
+    .grid-layar-leave-active {
+        transition: none;
+    }
+}

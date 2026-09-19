@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
@@ -24,6 +24,8 @@ const props = withDefaults(
     }>(),
     { badge: '', tegak: '', utama: true },
 );
+
+const emit = defineEmits<{ (e: 'grid'): void }>();
 
 const rel = ref<HTMLElement | null>(null);
 const kini = ref(0);
@@ -74,8 +76,11 @@ function roda(e: WheelEvent) {
 let menyeret = false;
 let mulaiX = 0;
 let mulaiGeser = 0;
+/** Sejauh apa tetikus berpindah sejak ditekan — pemisah seret dari klik. */
+const jauhSeret = ref(0);
 
 function turun(e: PointerEvent) {
+    jauhSeret.value = 0;
     if (e.pointerType !== 'mouse' || !banyak.value) return;
     menyeret = true;
     mulaiX = e.clientX;
@@ -85,7 +90,8 @@ function turun(e: PointerEvent) {
 function gerak(e: PointerEvent) {
     if (!menyeret || !rel.value) return;
     const beda = e.clientX - mulaiX;
-    if (Math.abs(beda) > 3) {
+    jauhSeret.value = Math.abs(beda);
+    if (jauhSeret.value > 3) {
         rel.value.scrollLeft = mulaiGeser - beda;
         catat();
     }
@@ -95,6 +101,16 @@ function lepas() {
     if (!menyeret) return;
     menyeret = false;
     keIndeks(kini.value);
+}
+
+/**
+ * Klik di gambarnya membuka galeri satu layar — tapi hanya kalau memang
+ * klik. Kartu ini bisa diseret, dan seretan berakhir dengan peristiwa
+ * click juga; tanpa ambang ini, tiap geseran ikut membuka lapisan penuh.
+ */
+function mungkinBuka() {
+    if (jauhSeret.value > 3) return;
+    emit('grid');
 }
 
 onMounted(() => {
@@ -129,8 +145,10 @@ const dua = (n: number) => String(n).padStart(2, '0');
                 @scroll.passive="catat"
                 @pointerdown="turun"
                 @pointermove="gerak"
+                @click="mungkinBuka"
                 @keydown.left.prevent="keIndeks(kini - 1)"
                 @keydown.right.prevent="keIndeks(kini + 1)"
+                @keydown.enter.prevent="emit('grid')"
             >
                 <img
                     v-for="(g, i) in daftar"
@@ -164,6 +182,18 @@ const dua = (n: number) => String(n).padStart(2, '0');
 
             <!-- tali ring melintasi bawah plat -->
             <div class="tali-ring pointer-events-none absolute inset-x-0 bottom-6 opacity-80" aria-hidden="true" />
+
+            <!-- Pengalih tampilan. Klik di gambarnya sudah membuka galeri
+                 penuh, tapi itu tidak terlihat oleh siapa pun; tombol ini
+                 yang memberitahukannya — sekaligus jalan bagi papan tik. -->
+            <button
+                type="button"
+                class="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/85 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-wider text-foreground/80 backdrop-blur transition-colors hover:border-[hsl(var(--sudut))] hover:text-foreground"
+                @click.stop="emit('grid')"
+            >
+                <LayoutGrid class="h-3.5 w-3.5" />
+                grid
+            </button>
 
             <template v-if="banyak">
                 <button

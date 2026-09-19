@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GridLayar from '@/components/landing/GridLayar.vue';
 import IkonSosial from '@/components/landing/IkonSosial.vue';
 import IkonTinju from '@/components/landing/IkonTinju.vue';
 import KakiPublik from '@/components/landing/KakiPublik.vue';
@@ -134,6 +135,28 @@ const patreon = computed(() => (props.isi.socials as any[]).find((s) => s.key ==
 const sosialLain = computed(() => (props.isi.socials as any[]).filter((s) => !s.highlight));
 const sosialSorot = computed(() => (props.isi.socials as any[]).filter((s) => s.highlight));
 const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps', mouthguard: 'Mouthguard', headguard: 'Headguard', bra: 'Sports bra' };
+
+// ------------------------------------------------------ galeri satu layar
+const gridBuka = ref(false);
+
+/**
+ * Isi grid: gambar kartu sampul dulu, baru galeri.
+ *
+ * Urutannya begitu supaya yang sedang dilihat orang waktu ia mengklik tetap
+ * ada di baris pertama — lapisannya terasa seperti kartu yang membesar,
+ * bukan seperti halaman lain yang kebetulan terbuka.
+ *
+ * Sumbernya menumpang galeri di bawah: kalau umpan DeviantArt menyala,
+ * gallery_semua sudah berisi karya dari sana (daftar panjangnya, bukan
+ * potongan enam yang tampil di seksi); kalau tidak, daftar CMS. Dipangkas
+ * menurut src supaya gambar yang muncul di dua tempat tidak tampil dobel.
+ */
+const karyaGrid = computed(() => {
+    const semua = [...((props.isi.hero.images ?? []) as any[]), ...((props.isi.gallery_semua ?? props.isi.gallery ?? []) as any[])];
+    const pernah = new Set<string>();
+
+    return semua.filter((k) => k?.src && !pernah.has(k.src) && pernah.add(k.src));
+});
 </script>
 
 <template>
@@ -231,7 +254,7 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
                     <!-- Kartu potret yang bisa digulir -->
                     <div class="plat-bungkus relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
-                        <KartuGeser :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" />
+                        <KartuGeser :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" @grid="gridBuka = true" />
                     </div>
                 </div>
             </section>
@@ -665,6 +688,8 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
         </main>
 
         <KakiPublik :merek="isi.brand" :line="isi.footer.line" :note="`${isi.footer.copyright} · ${isi.footer.note}`" :socials="isi.socials" />
+
+        <GridLayar :buka="gridBuka" :karya="karyaGrid" :judul="isi.brand?.name || 'Gallery'" @tutup="gridBuka = false" />
     </div>
 </template>
 
