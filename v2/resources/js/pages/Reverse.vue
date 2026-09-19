@@ -882,7 +882,10 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         </label>
                     </div>
 
-                    <div class="mt-5">
+                    <!-- Ditengahkan, sejajar dengan Susun Prompt di bilah bawah:
+                         keduanya menyangkut seluruh kartunya, bukan satu kolom
+                         di dalamnya. -->
+                    <div class="mt-5 flex justify-center">
                         <Tombol ukuran="besar" :nonaktif="!bisaBaca" @click="baca">
                             <LoaderCircle v-if="sedangBaca" class="h-4 w-4 animate-spin" />
                             <Eye v-else class="h-4 w-4" />
@@ -1297,6 +1300,35 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <span v-if="hasil.token_warning" class="text-[hsl(var(--kanvas))]"> · {{ hasil.token_warning }}</span>
                         </p>
 
+                        <template v-if="keluaran">
+                            <!-- Tombol gambar DI ATAS kotak promptnya.
+                                 Ini yang paling sering ditekan di kolom ini, dan
+                                 gambarnya sendiri yang paling sering dilihat. Di
+                                 bawah empat kotak teks yang tingginya berubah
+                                 mengikuti panjang prompt, letaknya berpindah-pindah
+                                 dan harus dicari tiap kali.
+
+                                 Yang dikirim tetap isi kotak-kotak di bawahnya:
+                                 muatannya dibaca saat tombolnya ditekan, bukan saat
+                                 promptnya disusun — bentuk keluarannya (base + kotak
+                                 karakter + undesired) memang persis yang diminta API
+                                 NovelAI, jadi tidak ada yang dirakit ulang. -->
+                            <TombolGambar
+                                v-if="gambar.tokoh"
+                                :alamat="route('gambar.tokoh')"
+                                label="Buat gambarnya (NovelAI)"
+                                alt="Hasil NovelAI"
+                                bentuk="3:4"
+                                :muatan="() => ({
+                                    bagian: {
+                                        base: keluaran.base || '',
+                                        characters: (keluaran.characters || []).map((c: any) => ({ prompt: c.prompt || '' })),
+                                        undesired: keluaran.undesired || '',
+                                    },
+                                })"
+                            />
+                        </template>
+
                         <!-- Tiap kotak bisa disunting, dan yang disunting itu
                              juga yang dikirim ke NovelAI di bawah. Sebelumnya
                              kotaknya cuma bisa dibaca, jadi satu kata yang
@@ -1316,27 +1348,10 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <KotakTeks judul="Undesired Content" :teks="keluaran.undesired || ''" :baris="3" sunting @update:teks="keluaran.undesired = $event" />
 
                             <p class="text-xs leading-relaxed text-muted-foreground">
-                                Tiap kotak boleh kamu betulkan langsung di sini — yang terbaca di kotaknya itu juga yang dipakai tombol di bawah.
+                                Tiap kotak boleh kamu betulkan langsung di sini — yang terbaca di kotaknya itu juga yang dipakai tombol di atas.
                                 Kalau mau ditempel sendiri ke NovelAI, urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
 
-                            <!-- Atau langsung digambar di sini: bentuk keluaran di atas
-                                 (base + kotak karakter + undesired) memang persis yang
-                                 diminta API NovelAI, jadi tidak ada yang dirakit ulang. -->
-                            <TombolGambar
-                                v-if="gambar.tokoh"
-                                :alamat="route('gambar.tokoh')"
-                                label="Buat gambarnya (NovelAI)"
-                                alt="Hasil NovelAI"
-                                bentuk="3:4"
-                                :muatan="() => ({
-                                    bagian: {
-                                        base: keluaran.base || '',
-                                        characters: (keluaran.characters || []).map((c: any) => ({ prompt: c.prompt || '' })),
-                                        undesired: keluaran.undesired || '',
-                                    },
-                                })"
-                            />
                         </template>
 
                         <details v-if="hasil.tahap" class="rounded-xl border border-border/70 p-3">
@@ -1365,7 +1380,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
              tinggi mengikuti hasil bacaannya, jadi tombol di kakinya
              berpindah-pindah dan harus dicari tiap kali. -->
         <div class="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center justify-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedangSusun || !ekstrak" @click="susun">
                     <LoaderCircle v-if="sedangSusun" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />

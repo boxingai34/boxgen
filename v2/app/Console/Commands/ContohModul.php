@@ -303,6 +303,23 @@ class ContohModul extends Command
             'rasio' => '16:9',
             'duo' => true,
         ],
+
+        // Bagian ring: DI MANA petinjunya berdiri, bukan ringnya sendiri.
+        //
+        // Sengaja tidak memakai resep 'ring' yang kosong tanpa orang. Yang
+        // membedakan "Tengah Ring" dari "Di Tali" itu posisi orangnya
+        // terhadap talinya — tanpa orang di dalamnya, keempat kartunya jadi
+        // foto ring yang sama persis empat kali.
+        //
+        // Diambil lebar dan penuh badan karena talinya harus ikut masuk
+        // bingkai; potret setengah badan membuang justru yang membedakan.
+        'sub_lokasi' => [
+            'adegan' => self::MODEL_ORANG . ', female boxer, ' . self::SERAGAM . ', '
+                . 'fighting stance, full body, wide shot, boxing ring, ring ropes, spotlight, indoors, '
+                . 'anime coloring, masterpiece, best quality',
+            'rasio' => '16:9',
+            'benih' => self::BENIH,
+        ],
     ];
 
     /**
@@ -465,6 +482,19 @@ class ContohModul extends Command
             . 'arms wrapped around each other, heads side by side, leaning on one another'],
         'interaction/headlock' => ['tambah' => 'one boxer holding the other\'s head clamped under her arm, '
             . 'the trapped boxer bent forward at the waist'],
+        // Bagian ring. Keempatnya bertag boxing_ring, dan dua di antaranya
+        // (tali dan tepi) bertag rope yang sama persis — digambar apa adanya,
+        // keempat kartunya jadi foto ring yang nyaris kembar. Yang
+        // membedakannya posisi orangnya terhadap talinya, dan itu tidak punya
+        // nama di kamus tag.
+        'sub_lokasi/tengah' => ['tambah' => 'standing out in the middle of the ring, '
+            . 'empty canvas all around her, the ropes far away at the edges of the frame'],
+        'sub_lokasi/sudut' => ['tambah' => 'backed into the corner post of the ring, '
+            . 'turnbuckle right behind her shoulders, ropes converging on both sides, nowhere to go'],
+        'sub_lokasi/tali' => ['tambah' => 'pressed back against the top rope, '
+            . 'the rope bowing outward under her weight, leaning back over it, ropes across the frame'],
+        'sub_lokasi/tepi' => ['tambah' => 'at the very edge of the ring, half over the apron, '
+            . 'seen from outside the ropes, the ring floor dropping away behind her'],
         'cond_body/bandaged-leg' => ['ganti' => self::MODEL . ', nipples, toned, lower body, thighs, '
             . 'legs, knees, cropped, head out of frame, close-up, front view, simple background, '
             . 'grey background, anime coloring, masterpiece, best quality'],

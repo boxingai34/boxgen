@@ -299,7 +299,17 @@ function enter() {
                     </button>
                 </li>
 
-                <li v-if="sedangTambah" class="px-2.5 py-2 text-xs text-muted-foreground">Memuat lagi…</li>
+                <!-- Kaki daftar, sama seperti di Prompt Generator.
+                     Tanpa ini daftarnya berhenti begitu saja di layar, dan
+                     tidak ada cara membedakan "cuma segini yang ada" dari
+                     "masih ada di bawah, gulir saja" — yang terbaca selalu
+                     yang pertama, dan biasanya keliru. -->
+                <li v-if="adaLagi" class="px-2.5 py-2 text-center text-xs text-muted-foreground">
+                    {{ sedangTambah ? 'Memuat lagi…' : 'Gulir ke bawah untuk memuat lagi' }}
+                </li>
+                <li v-else class="px-2.5 py-2 text-center text-xs text-muted-foreground/70">
+                    {{ saran.length }} karakter — itu semuanya
+                </li>
             </ul>
         </div>
     </div>

@@ -171,10 +171,18 @@ function keluar() {
             </Link>
         </nav>
 
-        <!-- Baris 3: judul halaman -->
-        <div class="border-t border-border/50 px-4 py-2.5 sm:px-6">
-            <h1 class="truncate text-[15px] font-semibold tracking-tight">{{ judul }}</h1>
-            <p v-if="anak" class="truncate text-xs text-muted-foreground">{{ anak }}</p>
+        <!-- Baris 3: judul halaman.
+             Sisi kanannya milik halaman: angka, penanda, apa pun yang
+             menerangkan halaman ini secara keseluruhan. Ditaruh sejajar
+             judulnya, bukan di dalam isinya, supaya tidak ikut menggeser
+             kolom-kolom di bawah dan tetap di tempat yang sama di semua
+             halaman. -->
+        <div class="flex items-center gap-3 border-t border-border/50 px-4 py-2.5 sm:px-6">
+            <div class="min-w-0 flex-1">
+                <h1 class="truncate text-[15px] font-semibold tracking-tight">{{ judul }}</h1>
+                <p v-if="anak" class="truncate text-xs text-muted-foreground">{{ anak }}</p>
+            </div>
+            <slot name="kanan" />
         </div>
     </header>
 </template>

@@ -316,7 +316,21 @@ const targetTampil = TARGET.filter((t) => t.tampil);
     <Head title="Prompt Generator" />
 
     <AppLayout judul="Prompt Generator" anak="Prompt gambar anime berbasis tag Danbooru — dipilih sendiri, bukan dari cerita.">
-        <div class="mb-5 flex flex-wrap items-center gap-2">
+        <!-- Angka kamus naik sejajar judul halaman.
+             Ia menerangkan halaman ini seluruhnya, bukan satu kolom di
+             dalamnya, dan di sini ia tidak lagi ikut menggeser barisan
+             tombol di bawahnya. -->
+        <template #kanan>
+            <span class="hidden gap-2 text-xs text-muted-foreground sm:flex">
+                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.tag.toLocaleString('id-ID') }} tag</span>
+                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.karakter.toLocaleString('id-ID') }} karakter</span>
+            </span>
+        </template>
+
+        <!-- Ditengahkan, sejajar dengan tombol Generate di bilah bawah:
+             keduanya menyangkut seluruh halaman, bukan satu kolom, jadi
+             letaknya di tengah dan bukan menempel ke salah satu tepi. -->
+        <div class="mb-5 flex flex-wrap items-center justify-center gap-2">
             <button
                 v-for="[n, l] in [['single', '1 Petinju'], ['duo', '2 Petinju']]"
                 :key="n"
@@ -327,11 +341,6 @@ const targetTampil = TARGET.filter((t) => t.tampil);
             >
                 {{ l }}
             </button>
-
-            <span class="ml-auto flex gap-2 text-xs text-muted-foreground">
-                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.tag.toLocaleString('id-ID') }} tag</span>
-                <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.karakter.toLocaleString('id-ID') }} karakter</span>
-            </span>
         </div>
 
         <!-- Satu kolom, kartu bertumpuk, selebar halaman.
@@ -394,6 +403,80 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                          itu yang paling banyak memangkas tinggi halaman,
                          dan membandingkan A dengan B jadi mungkin tanpa
                          menggulir. -->
+                    <!-- Pose / interaksi — DI ATAS panel petinju.
+                         Ini yang menentukan adegannya, dan yang paling sering
+                         diganti. Di bawah kedua panel, keduanya baru terlihat
+                         sesudah menggulir melewati seluruh isian penampilan —
+                         dan panjang gulirannya sendiri berubah mengikuti mode. -->
+                    <div v-if="mode === 'single'" class="mb-4">
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Pose</span>
+                        <KatalogModul
+                            :modul="modul.pose || []"
+                            :terpilih="pilih.pose_id === '' ? '' : Number(pilih.pose_id)"
+                            judul="Pose"
+                            @pilih="pilih.pose_id = $event"
+                        />
+                    </div>
+
+                    <template v-else>
+                        <div class="mb-4">
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Interaksi</span>
+                            <KatalogModul
+                                :modul="modul.interaction || []"
+                                :terpilih="pilih.interaction_id === '' ? '' : Number(pilih.interaction_id)"
+                                judul="Interaksi"
+                                @pilih="pilih.interaction_id = $event"
+                            />
+                        </div>
+
+                        <div v-if="adaArah" class="mb-3 rounded-xl border border-border/70 p-3">
+                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
+                                {{ interaksi?.arahLabel || 'Siapa yang melakukan?' }}
+                            </span>
+                            <div class="flex gap-2">
+                                <label v-for="s in ['a', 'b']" :key="s" class="flex items-center gap-2 text-sm">
+                                    <input v-model="pilih.attacker" type="radio" :value="s" class="accent-[hsl(var(--sorot))]" />
+                                    Petinju {{ s.toUpperCase() }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div v-if="subAktif.length" class="mb-4 grid gap-3 sm:grid-cols-2">
+                            <label v-for="grup in subAktif" :key="grup" class="block">
+                                <span class="mb-1.5 block text-xs text-muted-foreground">
+                                    {{ ({ sub_jatuh: 'Cara tumbang', sub_menang: 'Sikap yang menang', sub_reaksi: 'Reaksi', sub_lokasi: 'Bagian ring', sub_sasaran: 'Sasaran pukulan' } as any)[grup] || grup }}
+                                </span>
+                                <template v-if="grup === 'sub_sasaran'">
+                                    <select v-model="pilih.sub_sasaran_a_id" :class="[isianKelas, 'mb-2']">
+                                        <option value="">— bebas — (pukulan A)</option>
+                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                    </select>
+                                    <select v-model="pilih.sub_sasaran_b_id" :class="isianKelas">
+                                        <option value="">— bebas — (pukulan B)</option>
+                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                    </select>
+                                </template>
+                                <!-- Bagian ring punya katalog bergambar.
+                                     Keempat pilihannya soal LETAK — di tengah,
+                                     di sudut, di tali, di tepi — dan letak itu
+                                     hal yang langsung terbaca dari gambar
+                                     sementara dari empat nama di dalam daftar
+                                     tarik-turun harus dibayangkan sendiri. -->
+                                <KatalogModul
+                                    v-else-if="grup === 'sub_lokasi'"
+                                    :modul="modul.sub_lokasi || []"
+                                    :terpilih="pilih.sub_lokasi_id === '' ? '' : Number(pilih.sub_lokasi_id)"
+                                    judul="Bagian ring"
+                                    @pilih="pilih.sub_lokasi_id = $event"
+                                />
+                                <select v-else v-model="pilih[grup + '_id']" :class="isianKelas">
+                                    <option value="">— bebas —</option>
+                                    <option v-for="m in modul[grup] || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
+                                </select>
+                            </label>
+                        </div>
+                    </template>
+
                     <div class="grid gap-4" :class="mode === 'duo' ? 'lg:grid-cols-2' : ''">
                         <PanelPetinju
                             :judul="mode === 'single' ? 'Petinju' : 'Petinju A'"
@@ -413,62 +496,6 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         />
                     </div>
 
-                    <!-- Pose / interaksi -->
-                    <div v-if="mode === 'single'" class="mt-4">
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Pose</span>
-                        <KatalogModul
-                            :modul="modul.pose || []"
-                            :terpilih="pilih.pose_id === '' ? '' : Number(pilih.pose_id)"
-                            judul="Pose"
-                            @pilih="pilih.pose_id = $event"
-                        />
-                    </div>
-
-                    <template v-else>
-                        <div class="mt-4">
-                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Interaksi</span>
-                            <KatalogModul
-                                :modul="modul.interaction || []"
-                                :terpilih="pilih.interaction_id === '' ? '' : Number(pilih.interaction_id)"
-                                judul="Interaksi"
-                                @pilih="pilih.interaction_id = $event"
-                            />
-                        </div>
-
-                        <div v-if="adaArah" class="mt-3 rounded-xl border border-border/70 p-3">
-                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
-                                {{ interaksi?.arahLabel || 'Siapa yang melakukan?' }}
-                            </span>
-                            <div class="flex gap-2">
-                                <label v-for="s in ['a', 'b']" :key="s" class="flex items-center gap-2 text-sm">
-                                    <input v-model="pilih.attacker" type="radio" :value="s" class="accent-[hsl(var(--sorot))]" />
-                                    Petinju {{ s.toUpperCase() }}
-                                </label>
-                            </div>
-                        </div>
-
-                        <div v-if="subAktif.length" class="mt-3 grid gap-3 sm:grid-cols-2">
-                            <label v-for="grup in subAktif" :key="grup" class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">
-                                    {{ ({ sub_jatuh: 'Cara tumbang', sub_menang: 'Sikap yang menang', sub_reaksi: 'Reaksi', sub_lokasi: 'Bagian ring', sub_sasaran: 'Sasaran pukulan' } as any)[grup] || grup }}
-                                </span>
-                                <template v-if="grup === 'sub_sasaran'">
-                                    <select v-model="pilih.sub_sasaran_a_id" :class="[isianKelas, 'mb-2']">
-                                        <option value="">— bebas — (pukulan A)</option>
-                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
-                                    </select>
-                                    <select v-model="pilih.sub_sasaran_b_id" :class="isianKelas">
-                                        <option value="">— bebas — (pukulan B)</option>
-                                        <option v-for="m in modul.sub_sasaran || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
-                                    </select>
-                                </template>
-                                <select v-else v-model="pilih[grup + '_id']" :class="isianKelas">
-                                    <option value="">— bebas —</option>
-                                    <option v-for="m in modul[grup] || []" :key="m.id" :value="m.id">{{ m.nama }}</option>
-                                </select>
-                            </label>
-                        </div>
-                    </template>
                 </Kartu>
                 </div>
 
@@ -597,6 +624,27 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                             <span v-if="hasil.peringatan" class="text-[hsl(var(--kanvas))]"> · {{ hasil.peringatan }}</span>
                         </p>
 
+                        <!-- Tombol gambar DI ATAS kotak promptnya.
+                             Ini yang paling sering ditekan di kolom ini, dan
+                             gambarnya sendiri yang paling sering dilihat. Di
+                             bawah empat kotak teks yang tingginya berubah
+                             mengikuti panjang prompt, letaknya berpindah-pindah
+                             dan harus dicari tiap kali.
+
+                             Yang dibaca tetap isi kotak-kotak di bawahnya:
+                             muatanGambar() membacanya saat tombolnya ditekan,
+                             bukan saat promptnya disusun — jadi urutannya di
+                             layar tidak mengubah apa yang digambar. -->
+                        <TombolGambar
+                            v-if="tujuanGambar"
+                            :key="target"
+                            :alamat="tujuanGambar.alamat"
+                            :label="tujuanGambar.label"
+                            :bentuk="tujuanGambar.bentuk"
+                            :alt="'Hasil ' + target"
+                            :muatan="muatanGambar"
+                        />
+
                         <!-- Bisa disunting, dan yang disunting itu juga yang
                              digambar: muatanGambar() membaca kotak-kotak ini
                              saat tombolnya ditekan, bukan saat promptnya
@@ -630,15 +678,6 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                             @update:teks="keluaran.negative = $event"
                         />
 
-                        <TombolGambar
-                            v-if="tujuanGambar"
-                            :key="target"
-                            :alamat="tujuanGambar.alamat"
-                            :label="tujuanGambar.label"
-                            :bentuk="tujuanGambar.bentuk"
-                            :alt="'Hasil ' + target"
-                            :muatan="muatanGambar"
-                        />
 
                         <div v-if="hasil.catatan?.length" class="space-y-1 text-xs text-muted-foreground">
                             <p v-for="(c, i) in hasil.catatan" :key="i">{{ c }}</p>
@@ -675,7 +714,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
              di bawah, ia selalu di tempat yang sama dan selalu terjangkau,
              berapa pun panjang isiannya. -->
         <div class="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center justify-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
                     <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />

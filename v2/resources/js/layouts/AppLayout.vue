@@ -27,7 +27,9 @@ const kunciHalaman = computed(() => halaman.url.split('?')[0]);
 
 <template>
     <div class="min-h-screen bg-background">
-        <AtasNav :judul="judul" :anak="anak" />
+        <AtasNav :judul="judul" :anak="anak">
+            <template #kanan><slot name="kanan" /></template>
+        </AtasNav>
 
         <!--
             Transisi antar halaman: geser 8 piksel + pudar, 220 ms.
