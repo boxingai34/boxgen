@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>BoxinGenerated — Intro</title>
+<style>
+  html,body{margin:0;height:100%;background:#15121f;color:#cfc8e6;
+    font:13px/1.5 Bahnschrift,"Segoe UI",Arial,sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+  #c{max-width:94vw;max-height:80vh;background:#000;border-radius:8px;
+     box-shadow:0 18px 60px #0008}
+  #hud{display:flex;align-items:center;gap:12px;width:min(94vw,900px)}
+  #hud button{background:#3b2a63;color:#fff;border:0;border-radius:6px;padding:6px 14px;cursor:pointer;font:inherit}
+  #hud button:hover{background:#4d3780}
+  #sc{flex:1;accent-color:#b45cfa}
+  #tt{font-variant-numeric:tabular-nums;opacity:.75;min-width:76px;text-align:right}
+  #hud button:hover{background:#4d3780}
+  body.render #hud{display:none}
+  html.render,body.render{background:transparent}
+  body.render #wrap{display:block;position:static}
+  body.render #c{max-width:none;max-height:none;border-radius:0;box-shadow:none;background:transparent;display:block}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="1920" height="1080"></canvas>
+  <div id="hud">
+    <button id="pp">Jeda</button>
+    <input id="sc" type="range" min="0" max="1000" value="0">
+    <span id="tt">0.00 s</span>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   INTRO BOXINGENERATED - animasi 3 detik untuk pembuka video
+   ---------------------------------------------------------------------
+   Alurnya: sarung tinju melesat ke arah penonton sampai memenuhi layar,
+   menghantam "kaca" layar, lalu mundur mengecil ke tengah dan duduk jadi
+   logo BoxinGenerated. Penutupnya, seluruh bingkai jadi kotak-kotak
+   piksel yang makin kasar lalu menghilang - dari tepi ke tengah, supaya
+   logonya yang terakhir lenyap tepat di titik sambung ke video utama.
+
+   Semua bentuknya diambil dari logo yang dipakai di situs. Berkas ini
+   tidak butuh internet - aset PNG-nya ditempel sebagai data URI di
+   bagian paling bawah.
+
+   Animasinya digerakkan murni oleh waktu lewat drawFrame(t), bukan oleh
+   jam dinding, supaya perender di render.mjs bisa meminta detik ke
+   berapa pun dan selalu dapat gambar yang sama persis.
+   ===================================================================== */
+
+const CFG = {
+  W: 1920, H: 1080, FPS: 30, DUR: 3.0,
+
+  /* Ukuran logo. 360 adalah lebar logo asli dalam satuan aslinya, jadi
+     lebar logo di layar = 360 * logoScale piksel. */
+  logoScale: 3.15,
+  logoY: 510,              // titik tengah logo secara tegak
+
+  tagline: 'Turn your waifu to be a boxer!',
+  showTagline: true,
+
+  /* Patokan waktu, dalam detik. */
+  tDark:     0.06,         // sebelum ini layar hitam pekat, tanpa apa pun
+  tLight:    0.36,         // cahaya selesai mekar dari titik sarungnya
+  tPunch:    0.32,         // sarung mulai melesat ke depan
+  tImpact:   0.60,         // menghantam layar
+  tSettle:   1.02,         // sarung sudah duduk di tempatnya
+  tWord:     0.96,         // wordmark mulai tersingkap
+  tWordEnd:  1.26,
+  tTag:      1.32,
+  tTagEnd:   1.60,
+  tSweep:    1.56,         // kilau menyapu wordmark
+  tExit:     2.16,         // mulai memiksel lalu menghilang
+
+  gloveMax:  6.2,          // sebesar apa sarungnya waktu menghantam
+  /* Sarung di logo itu tampak samping. Supaya terbaca sebagai tinju yang
+     datang ke arah kamera, sumbu panjangnya dipipihkan (seperti benda
+     yang menghadap kita) dan badannya dimiringkan supaya pergelangannya
+     menjauh ke kanan bawah - persis pose tinju lurus ke lensa. Keduanya
+     kembali ke nol waktu sarungnya mundur jadi logo, jadi bentuk akhir
+     lockup-nya tetap sama persis dengan logo aslinya. */
+  gloveTilt: -0.56,        // radian, di puncak pukulan (-32 derajat)
+  gloveFlat: 0.50          // seberapa pipih sumbu panjangnya di puncak
+};
+
+const PALETTE = ['#c06bff', '#a855f7', '#e24be0', '#ff52be', '#ff3da6', '#8a3ae8', '#d648f0'];
+
+/* ---------- alat bantu ---------- */
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, p) => a + (b - a) * p;
+const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const easeOutCubic = p => 1 - Math.pow(1 - p, 3);
+const easeOutQuint = p => 1 - Math.pow(1 - p, 5);
+const easeOutExpo = p => p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
+const easeInOut = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+
+/* Acak berbenih: dipanggil ulang selalu memberi urutan yang sama, jadi
+   render kedua tidak pernah berbeda dari render pertama. */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const W = CFG.W, H = CFG.H;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+/* Kanvas bayangan: adegan digambar di sini lebih dulu, lalu disalin ke
+   kanvas utama - supaya bisa dipiksel atau digeser per kanal warna
+   tanpa menggambar ulang semuanya. */
+const sceneCv = document.createElement('canvas');
+sceneCv.width = W; sceneCv.height = H;
+const sctx = sceneCv.getContext('2d');
+
+const sweepCv = document.createElement('canvas');
+const wctx = sweepCv.getContext('2d');
+
+const tmpCv = document.createElement('canvas');
+tmpCv.width = W; tmpCv.height = H;
+const tctx = tmpCv.getContext('2d');
+
+const pixCv = document.createElement('canvas');
+const pctx = pixCv.getContext('2d');
+
+let GLOVE = null, WORD = null;
+
+/* ---------- tata letak logo ---------- */
+const S = CFG.logoScale;
+const LOGO_W = 360 * S, LOGO_H = 120 * S;
+const LX = (W - LOGO_W) / 2;
+const LY = CFG.logoY - LOGO_H / 2;
+const GLOVE_BOX = { x: LX, y: LY, w: 82 * S, h: 120 * S };
+const WORD_BOX = { x: LX + 85 * S, y: LY, w: 275 * S, h: 120 * S };
+const GLOVE_CX = GLOVE_BOX.x + GLOVE_BOX.w / 2;
+const GLOVE_CY = GLOVE_BOX.y + GLOVE_BOX.h / 2;
+
+/* Titik tinjunya - sedikit di kanan atas tengah layar, supaya tidak
+   terasa terlalu simetris. */
+const HIT = { x: W * 0.52, y: H * 0.45 };
+
+/* ---------- benda-benda yang diacak sekali di awal ---------- */
+const rndA = mulberry32(20260919);
+const AMBIENT = Array.from({ length: 74 }, () => ({
+  x: rndA() * W, y: rndA() * H,
+  s: 5 + rndA() * 22,
+  c: PALETTE[(rndA() * PALETTE.length) | 0],
+  vy: -6 - rndA() * 22,
+  ph: rndA() * Math.PI * 2,
+  sp: 0.7 + rndA() * 1.8,
+  a: 0.10 + rndA() * 0.30
+}));
+
+/* Kotak piksel yang melesat melewati kamera waktu sarungnya maju -
+   memberi rasa "bergerak maju", seperti bintang di layar warp. */
+const rndR = mulberry32(777001);
+const RUSH = Array.from({ length: 170 }, () => ({
+  ang: rndR() * Math.PI * 2,
+  rad: 30 + rndR() * 300,
+  s: 2 + rndR() * 7,
+  c: PALETTE[(rndR() * PALETTE.length) | 0],
+  del: rndR() * 0.34,
+  life: 0.30 + rndR() * 0.26,
+  a: 0.4 + rndR() * 0.6
+}));
+
+/* Serpihan yang terlempar ke luar waktu layarnya kena tinju. */
+const rndS = mulberry32(31337);
+const SHARDS = Array.from({ length: 62 }, () => {
+  const ang = rndS() * Math.PI * 2;
+  return {
+    ang, spd: 700 + rndS() * 1900, s: 7 + rndS() * 32,
+    c: PALETTE[(rndS() * PALETTE.length) | 0],
+    rot: (rndS() - 0.5) * 3, life: 0.30 + rndS() * 0.40,
+    del: rndS() * 0.05
+  };
+});
+
+/* Kisi penghapus untuk penutup. Tiap petak 40x40 piksel; yang di tepi
+   menghilang lebih dulu, yang di tengah - tempat logonya - paling
+   belakangan, jadi video utama tersingkap dari pinggir ke dalam. */
+const CELL = 40;
+const FCOLS = Math.ceil(W / CELL), FROWS = Math.ceil(H / CELL);
+const rndF = mulberry32(90210);
+const FADECELLS = [];
+for (let r = 0; r < FROWS; r++) {
+  for (let c = 0; c < FCOLS; c++) {
+    const cx = c * CELL + CELL / 2, cy = r * CELL + CELL / 2;
+    const dist = Math.hypot((cx - W / 2) / (W / 2), (cy - H / 2) / (H / 2)) / 1.414;
+    FADECELLS.push({ x: c * CELL, y: r * CELL, del: (1 - dist) * 0.34 + rndF() * 0.18 });
+  }
+}
+
+const rndE = mulberry32(555000);
+const EXITBITS = Array.from({ length: 70 }, () => ({
+  x: rndE() * W, y: rndE() * H,
+  ang: rndE() * Math.PI * 2, spd: 60 + rndE() * 220,
+  s: 6 + rndE() * 26,
+  c: PALETTE[(rndE() * PALETTE.length) | 0],
+  del: rndE() * 0.34, life: 0.26 + rndE() * 0.3
+}));
+
+/* ---------- latar ---------- */
+function drawBackground(sx, t) {
+  /* Bingkai pertama hitam pekat betulan, lalu semuanya mekar dari nol:
+     warna latar, kisi, sorot ungu. Yang muncul duluan cahaya, bukan
+     gambarnya. */
+  const bloom = seg(t, CFG.tDark, CFG.tLight);
+
+  sx.fillStyle = 'rgb(' + (10 * bloom).toFixed(1) + ',' +
+    (8 * bloom).toFixed(1) + ',' + (20 * bloom).toFixed(1) + ')';
+  sx.fillRect(0, 0, W, H);
+  if (bloom <= 0) return;
+
+  // kisi piksel tipis - mengingatkan pada kotak-kotak di logo
+  sx.save();
+  sx.globalAlpha = 0.045 * bloom;
+  sx.strokeStyle = '#8b5cf6';
+  sx.lineWidth = 1;
+  sx.beginPath();
+  for (let x = 0; x <= W; x += 60) { sx.moveTo(x + .5, 0); sx.lineTo(x + .5, H); }
+  for (let y = 0; y <= H; y += 60) { sx.moveTo(0, y + .5); sx.lineTo(W, y + .5); }
+  sx.stroke();
+  sx.restore();
+
+  // sorot ungu di tengah, napasnya pelan
+  const puls = 1 + 0.05 * Math.sin(t * 2.4);
+  let g = sx.createRadialGradient(W / 2, H * 0.47, 0, W / 2, H * 0.47, 980 * puls * lerp(0.35, 1, bloom));
+  g.addColorStop(0, 'rgba(139,92,246,' + (0.34 * bloom).toFixed(4) + ')');
+  g.addColorStop(0.5, 'rgba(112,58,214,' + (0.13 * bloom).toFixed(4) + ')');
+  g.addColorStop(1, 'rgba(10,8,20,0)');
+  sx.fillStyle = g; sx.fillRect(0, 0, W, H);
+
+  /* Titik cahaya yang membuka di tempat sarungnya akan muncul: menyala
+     cepat, lalu surut begitu sarungnya sendiri sudah terbaca. */
+  if (bloom < 1) {
+    const core = Math.pow(Math.sin(bloom * Math.PI), 1.3);
+    if (core > 0.004) {
+      g = sx.createRadialGradient(HIT.x, HIT.y, 0, HIT.x, HIT.y, lerp(40, 400, bloom));
+      g.addColorStop(0, 'rgba(255,238,252,' + Math.min(1, 1.15 * core).toFixed(4) + ')');
+      g.addColorStop(0.18, 'rgba(255,120,235,' + (0.72 * core).toFixed(4) + ')');
+      g.addColorStop(0.55, 'rgba(168,85,247,' + (0.22 * core).toFixed(4) + ')');
+      g.addColorStop(1, 'rgba(168,85,247,0)');
+      sx.save();
+      sx.globalCompositeOperation = 'lighter';
+      sx.fillStyle = g; sx.fillRect(0, 0, W, H);
+      sx.restore();
+    }
+  }
+
+  // kilatan magenta di titik tumbukan, mekar lalu surut
+  const hot = Math.exp(-Math.max(0, t - CFG.tImpact) * 3.1) * seg(t, CFG.tImpact - 0.1, CFG.tImpact);
+  if (hot > 0.003) {
+    g = sx.createRadialGradient(HIT.x, HIT.y, 0, HIT.x, HIT.y, 860);
+    g.addColorStop(0, 'rgba(255,82,190,' + (0.42 * hot).toFixed(4) + ')');
+    g.addColorStop(1, 'rgba(255,82,190,0)');
+    sx.fillStyle = g; sx.fillRect(0, 0, W, H);
+  }
+
+  // bingkai gelap supaya mata jatuh ke tengah
+  g = sx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, H * 0.96);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.72)');
+  sx.fillStyle = g; sx.fillRect(0, 0, W, H);
+}
+
+/* ---------- kotak piksel yang melayang ---------- */
+function drawAmbient(sx, t) {
+  sx.save();
+  for (const p of AMBIENT) {
+    const a = p.a * (0.45 + 0.55 * Math.sin(t * p.sp * 2.2 + p.ph)) * seg(t, 0.5, 1.0);
+    if (a <= 0.004) continue;
+    sx.globalAlpha = a;
+    sx.fillStyle = p.c;
+    const y = ((p.y + p.vy * t) % (H + 60) + H + 60) % (H + 60) - 30;
+    sx.fillRect(Math.round(p.x), Math.round(y), p.s, p.s);
+  }
+  sx.restore();
+}
+
+/* Kotak yang melesat keluar layar, dari titik tinju ke segala arah.
+   Yang bikin adegannya terasa maju ke arah penonton. */
+function drawRush(sx, t) {
+  if (t > CFG.tImpact + 0.3) return;
+  sx.save();
+  const t0 = CFG.tPunch - 0.12;       // baru ramai begitu sarungnya melesat
+  for (const p of RUSH) {
+    const pr = seg(t, t0 + p.del, t0 + p.del + p.life);
+    if (pr <= 0 || pr >= 1) continue;
+    const e = pr * pr * pr;
+    const rad = p.rad * (1 + e * 11);
+    const s = p.s * (1 + e * 8);
+    sx.globalAlpha = Math.sin(pr * Math.PI) * p.a * 0.8;
+    sx.fillStyle = p.c;
+    sx.fillRect(HIT.x + Math.cos(p.ang) * rad * 1.45 - s / 2,
+      HIT.y + Math.sin(p.ang) * rad - s / 2, s, s);
+  }
+  sx.restore();
+}
+
+/* ---------- sarung tinju ----------
+   Tiga babak: ancang-ancang kecil di kejauhan, melesat ke depan sampai
+   memenuhi layar, lalu mundur mengecil ke posisinya di dalam logo. */
+function glovePose(t) {
+  const T = CFG.gloveTilt;
+  if (t < CFG.tPunch) {
+    // ancang-ancang: muncul dari dalam cahaya, mengecil sedikit seperti
+    // tangan yang ditarik ke belakang sebelum dilepas
+    const p = seg(t, 0, CFG.tPunch);
+    return {
+      x: HIT.x + 70, y: HIT.y - 40,
+      sc: lerp(0.54, 0.38, easeOutCubic(p)),
+      rot: lerp(T * 0.35, T * 0.55, p),
+      fore: lerp(0.1, 0.25, p),
+      al: seg(t, CFG.tDark + 0.03, CFG.tLight - 0.06)
+    };
+  }
+  if (t < CFG.tImpact) {
+    // melesat: skalanya meledak di ujung, badannya makin pipih dan makin
+    // miring - jadi terasa buku jarinya yang menghadap kamera
+    const p = seg(t, CFG.tPunch, CFG.tImpact);
+    const e = p * p * p;
+    return {
+      x: lerp(HIT.x + 70, HIT.x, e),
+      y: lerp(HIT.y - 40, HIT.y, e),
+      sc: lerp(0.38, CFG.gloveMax, e),
+      rot: lerp(T * 0.55, T, e),
+      fore: lerp(0.25, 1, e),
+      al: 1
+    };
+  }
+  // mundur ke tempatnya di dalam logo: miring dan pipihnya diurai balik
+  // ke nol, jadi bentuk akhirnya sama persis dengan logo aslinya
+  const p = seg(t, CFG.tImpact, CFG.tSettle);
+  const e = easeOutExpo(p);
+  const q = t - CFG.tImpact, d = Math.exp(-q * 9);
+  return {
+    x: lerp(HIT.x, GLOVE_CX, e) + 9 * d * Math.cos(q * 26),
+    y: lerp(HIT.y, GLOVE_CY, e) + 11 * d * Math.cos(q * 29 + 0.6),
+    sc: lerp(CFG.gloveMax, 1, e) * (1 + 0.07 * d * Math.cos(q * 32)),
+    rot: lerp(T, 0, e) + 0.045 * d * Math.cos(q * 30),
+    fore: lerp(1, 0, e),
+    al: 1
+  };
+}
+
+function blitGlove(sx, po, alpha) {
+  /* fore = 0 berarti bentuk apa adanya seperti di logo; fore = 1 berarti
+     paling terforeskors: sumbu panjangnya dipendekkan gloveFlat, dan
+     sedikit dilebarkan - persis yang terjadi pada benda yang berputar
+     menghadap lensa. */
+  const w = GLOVE_BOX.w * po.sc * (1 + 0.16 * po.fore);
+  const h = GLOVE_BOX.h * po.sc * (1 - CFG.gloveFlat * po.fore);
+  sx.save();
+  sx.globalAlpha = alpha;
+  sx.translate(po.x, po.y);
+  sx.rotate(po.rot);
+  sx.drawImage(GLOVE, -w / 2, -h / 2, w, h);
+  sx.restore();
+}
+
+function drawGlove(sx, t) {
+  const po = glovePose(t);
+  const prev = glovePose(Math.max(0, t - 1 / CFG.FPS));
+
+  /* Seberapa jauh sarungnya pindah sejak bingkai sebelumnya menentukan
+     seberapa tebal ekor geraknya. Karena yang berubah paling besar di
+     sini adalah skalanya, perubahan skala ikut dihitung - hasilnya ekor
+     yang memancar keluar, persis seperti benda yang menerjang kamera. */
+  const move = Math.hypot(po.x - prev.x, po.y - prev.y) +
+    Math.abs(po.sc - prev.sc) * GLOVE_BOX.h * 0.5;
+  const blur = clamp(move / 150, 0, 1);
+
+  if (blur > 0.02) {
+    const n = 9;
+    for (let i = n; i >= 1; i--) {
+      const gp = glovePose(Math.max(0, t - (i / n) * (1 / CFG.FPS)));
+      blitGlove(sx, gp, (0.04 + 0.17 * (1 - i / n)) * blur);
+    }
+  }
+
+  /* Pendar di belakang sarung. Waktu baru lahir dari cahaya, pendarnya
+     dilebihkan dan digambar dua kali - jadi yang terbaca duluan sinarnya,
+     baru bentuk sarungnya menyusul. */
+  const born = 1 - seg(t, CFG.tDark, CFG.tLight);
+  sx.save();
+  sx.shadowColor = 'rgba(255,77,190,0.9)';
+  sx.shadowBlur = 46 + 26 * Math.sin(t * 3.1) + 110 * born;
+  blitGlove(sx, po, po.al);
+  if (born > 0.02) blitGlove(sx, po, po.al * born);
+  sx.restore();
+  blitGlove(sx, po, po.al);
+}
+
+/* ---------- wordmark ---------- */
+function drawWord(sx, t) {
+  const p = seg(t, CFG.tWord, CFG.tWordEnd);
+  if (p <= 0) return;
+  const e = easeOutQuint(p);
+  const b = WORD_BOX;
+  const yOff = lerp(22, 0, easeOutCubic(p));
+  const revealW = b.w * e;
+
+  sx.save();
+  sx.beginPath();
+  sx.rect(b.x - 8, b.y - 40, revealW + 8, b.h + 80);
+  sx.clip();
+
+  // goyangan warna sesaat setelah muncul
+  const gl = Math.exp(-(t - CFG.tWord) * 16);
+  if (gl > 0.05) {
+    sx.globalAlpha = 0.55 * gl;
+    sx.globalCompositeOperation = 'lighter';
+    sx.drawImage(WORD, b.x - 9 * gl, b.y + yOff, b.w, b.h);
+    sx.drawImage(WORD, b.x + 9 * gl, b.y + yOff, b.w, b.h);
+    sx.globalCompositeOperation = 'source-over';
+  }
+
+  sx.globalAlpha = 1;
+  sx.shadowColor = 'rgba(168,85,247,0.75)';
+  sx.shadowBlur = 30;
+  sx.drawImage(WORD, b.x, b.y + yOff, b.w, b.h);
+  sx.shadowBlur = 0;
+  sx.drawImage(WORD, b.x, b.y + yOff, b.w, b.h);
+
+  // garis terang tipis di ujung penyingkapan
+  if (p < 1) {
+    const ex = b.x + revealW;
+    const g = sx.createLinearGradient(ex - 70, 0, ex, 0);
+    g.addColorStop(0, 'rgba(255,82,190,0)');
+    g.addColorStop(1, 'rgba(255,190,240,0.42)');
+    sx.globalCompositeOperation = 'lighter';
+    sx.globalAlpha = 1 - p;
+    sx.fillStyle = g;
+    sx.fillRect(ex - 70, b.y + 108, 70, b.h - 214);
+    sx.globalAlpha = 1;
+    sx.globalCompositeOperation = 'source-over';
+  }
+  sx.restore();
+
+  // kotak piksel yang berhamburan di ujung penyingkapan
+  if (p > 0 && p < 1) {
+    const ex = b.x + revealW;
+    const r = mulberry32(Math.round(t * CFG.FPS) * 7919 + 13);
+    sx.save();
+    for (let i = 0; i < 16; i++) {
+      const s = 6 + r() * 22;
+      sx.globalAlpha = 0.25 + r() * 0.6;
+      sx.fillStyle = PALETTE[(r() * PALETTE.length) | 0];
+      sx.fillRect(ex + (r() - 0.35) * 110, b.y + 100 + r() * (b.h - 200), s, s);
+    }
+    sx.restore();
+  }
+
+  drawSweep(sx, t);
+}
+
+function drawSweep(sx, t) {
+  const p = seg(t, CFG.tSweep, CFG.tSweep + 0.6);
+  if (p <= 0 || p >= 1) return;
+  const b = WORD_BOX;
+  sweepCv.width = Math.ceil(b.w); sweepCv.height = Math.ceil(b.h);
+  wctx.clearRect(0, 0, sweepCv.width, sweepCv.height);
+  wctx.drawImage(WORD, 0, 0, b.w, b.h);
+  wctx.globalCompositeOperation = 'source-in';
+  const cx = lerp(-260, b.w + 260, easeInOut(p));
+  const g = wctx.createLinearGradient(cx - 190, 0, cx + 190, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.5, 'rgba(255,214,246,0.85)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  wctx.fillStyle = g;
+  wctx.fillRect(0, 0, sweepCv.width, sweepCv.height);
+  wctx.globalCompositeOperation = 'source-over';
+
+  sx.save();
+  sx.globalCompositeOperation = 'lighter';
+  sx.globalAlpha = Math.sin(p * Math.PI);
+  sx.drawImage(sweepCv, b.x, b.y);
+  sx.restore();
+}
+
+/* ---------- baris tagline ---------- */
+function drawTagline(sx, t) {
+  if (!CFG.showTagline) return;
+  const p = seg(t, CFG.tTag, CFG.tTagEnd);
+  if (p <= 0) return;
+  const e = easeOutCubic(p);
+  sx.save();
+  sx.globalAlpha = e * 0.88;
+  sx.textAlign = 'center';
+  sx.textBaseline = 'middle';
+  sx.font = '600 30px Bahnschrift,"Segoe UI Semibold","Segoe UI",Arial,sans-serif';
+  if ('letterSpacing' in sx) sx.letterSpacing = '0.30em';
+  sx.fillStyle = 'rgba(238,228,255,0.95)';
+  sx.shadowColor = 'rgba(168,85,247,0.8)';
+  sx.shadowBlur = 22;
+  // disejajarkan ke tengah wordmark, bukan tengah layar, supaya huruf
+  // pertamanya tidak tertimpa sarung tinju
+  const y = CFG.logoY + LOGO_H / 2 - 44 + lerp(16, 0, e);
+  sx.fillText(CFG.tagline.toUpperCase(), WORD_BOX.x + WORD_BOX.w / 2 + 5, y);
+  if ('letterSpacing' in sx) sx.letterSpacing = '0px';
+  sx.restore();
+}
+
+/* ---------- tumbukan: gelombang, serpihan, kilat ---------- */
+function drawShock(sx, t) {
+  const p = seg(t, CFG.tImpact, CFG.tImpact + 0.30);
+  if (p <= 0 || p >= 1) return;
+  const e = easeOutExpo(p);
+  sx.save();
+  sx.globalCompositeOperation = 'lighter';
+  sx.globalAlpha = Math.pow(1 - p, 2) * 0.55;
+  sx.strokeStyle = 'rgba(255,120,215,1)';
+  sx.lineWidth = Math.max(0.5, lerp(38, 1, e));
+  sx.beginPath();
+  sx.ellipse(HIT.x, HIT.y, lerp(230, 1500, e), lerp(150, 1000, e), 0, 0, Math.PI * 2);
+  sx.stroke();
+  sx.restore();
+}
+
+function drawShards(sx, t) {
+  const q = t - CFG.tImpact;
+  if (q < 0 || q > 0.85) return;
+  sx.save();
+  for (const s of SHARDS) {
+    const lp = clamp((q - s.del) / s.life, 0, 1);
+    if (lp <= 0 || lp >= 1) continue;
+    const e = easeOutQuint(lp);
+    const d = s.spd * e * 0.55;
+    sx.save();
+    sx.globalAlpha = (1 - lp) * 0.95;
+    sx.translate(HIT.x + Math.cos(s.ang) * d * 1.5, HIT.y + Math.sin(s.ang) * d);
+    sx.rotate(s.rot * e);
+    sx.fillStyle = s.c;
+    const sz = s.s * (1 + lp * 0.8);      // membesar - melesat ke arah penonton
+    sx.fillRect(-sz / 2, -sz / 2, sz, sz);
+    sx.restore();
+  }
+  sx.restore();
+}
+
+function drawFlash(sx, t) {
+  const q = t - CFG.tImpact;
+  if (q < 0 || q > 0.24) return;
+  const a = Math.exp(-q * 30) * 0.95;
+  if (a <= 0.004) return;
+  sx.save();
+  sx.globalCompositeOperation = 'lighter';
+  const g = sx.createRadialGradient(HIT.x, HIT.y, 0, HIT.x, HIT.y, 1500);
+  g.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(4) + ')');
+  g.addColorStop(0.3, 'rgba(255,190,238,' + (a * 0.65).toFixed(4) + ')');
+  g.addColorStop(1, 'rgba(255,120,210,0)');
+  sx.fillStyle = g;
+  sx.fillRect(0, 0, W, H);
+  sx.restore();
+}
+
+/* ---------- satu adegan utuh ---------- */
+function drawScene(sx, t) {
+  sx.setTransform(1, 0, 0, 1, 0, 0);
+  sx.clearRect(0, 0, W, H);
+
+  const q = t - CFG.tImpact;
+  if (q > 0 && q < 0.55) {
+    // kamera tersentak mundur lalu bergetar
+    const d = Math.exp(-q * 12);
+    const k = 1 + 0.075 * d;
+    sx.translate(W / 2, H / 2); sx.scale(k, k); sx.translate(-W / 2, -H / 2);
+    sx.translate(30 * d * Math.cos(q * 61), 30 * d * Math.cos(q * 47 + 1.3));
+  }
+  // tarikan napas sebelum memiksel
+  const pre = seg(t, CFG.tExit - 0.26, CFG.tExit);
+  if (pre > 0) {
+    const k = 1 + 0.045 * easeOutCubic(pre);
+    sx.translate(W / 2, H / 2); sx.scale(k, k); sx.translate(-W / 2, -H / 2);
+  }
+
+  drawBackground(sx, t);
+  drawAmbient(sx, t);
+  drawRush(sx, t);
+  drawWord(sx, t);
+  drawTagline(sx, t);
+  drawGlove(sx, t);
+  drawShards(sx, t);
+  drawShock(sx, t);
+  drawFlash(sx, t);
+  sx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/* ---------- geseran warna sesaat setelah tumbukan ----------
+   Kanal merah digeser ke satu arah, sisanya (cyan) ke arah sebaliknya.
+   Merah + cyan = putih, jadi begitu geserannya nol gambarnya utuh lagi.
+   Caranya: salin adegan, kalikan dengan warna kanalnya, lalu alpha
+   aslinya dikembalikan dengan destination-in - kalau tidak, isian warna
+   yang menutup seluruh kanvas ikut membuat bagian tembus jadi pekat. */
+function channelCopy(color) {
+  tctx.setTransform(1, 0, 0, 1, 0, 0);
+  tctx.globalCompositeOperation = 'source-over';
+  tctx.globalAlpha = 1;
+  tctx.clearRect(0, 0, W, H);
+  tctx.drawImage(sceneCv, 0, 0);
+  tctx.globalCompositeOperation = 'multiply';
+  tctx.fillStyle = color;
+  tctx.fillRect(0, 0, W, H);
+  tctx.globalCompositeOperation = 'destination-in';
+  tctx.drawImage(sceneCv, 0, 0);
+  tctx.globalCompositeOperation = 'source-over';
+  return tmpCv;
+}
+
+function blitAberration(x, d) {
+  x.globalCompositeOperation = 'source-over';
+  x.drawImage(channelCopy('#ff0000'), -d, 0);
+  x.globalCompositeOperation = 'lighter';
+  x.drawImage(channelCopy('#00ffff'), d, 0);
+  x.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- penutup: memiksel lalu menghilang ---------- */
+function drawExit(x, te) {
+  const LEN = CFG.DUR - CFG.tExit;
+
+  // 1) kotaknya makin kasar: adegan dikecilkan lalu dibesarkan lagi
+  //    tanpa pelembutan, jadi tiap petak jadi satu blok warna rata
+  const pp = clamp(te / (LEN * 0.55), 0, 1);
+  const cell = Math.max(1, Math.round(lerp(1, CELL, easeOutCubic(pp))));
+  if (cell <= 1) {
+    x.drawImage(sceneCv, 0, 0);
+  } else {
+    const cw = Math.ceil(W / cell), chh = Math.ceil(H / cell);
+    pixCv.width = cw; pixCv.height = chh;
+    pctx.imageSmoothingEnabled = true;
+    pctx.imageSmoothingQuality = 'high';
+    pctx.clearRect(0, 0, cw, chh);
+    pctx.drawImage(sceneCv, 0, 0, W, H, 0, 0, cw, chh);
+    x.imageSmoothingEnabled = false;
+    x.drawImage(pixCv, 0, 0, cw, chh, 0, 0, cw * cell, chh * cell);
+    x.imageSmoothingEnabled = true;
+  }
+
+  // 2) petak-petaknya dihapus satu per satu, dari tepi ke tengah
+  x.save();
+  x.globalCompositeOperation = 'destination-out';
+  for (const c of FADECELLS) {
+    const lp = clamp((te - c.del) / 0.24, 0, 1);
+    if (lp <= 0) continue;
+    x.globalAlpha = lp;
+    x.fillRect(c.x, c.y, CELL, CELL);
+  }
+  x.restore();
+
+  // 3) beberapa kotak lepas yang melayang pergi
+  x.save();
+  for (const p of EXITBITS) {
+    const lp = clamp((te - p.del) / p.life, 0, 1);
+    if (lp <= 0 || lp >= 1) continue;
+    const e = easeOutCubic(lp);
+    x.globalAlpha = Math.sin(lp * Math.PI) * 0.55;
+    x.fillStyle = p.c;
+    const sz = p.s * (1 - lp * 0.6);
+    x.fillRect(p.x + Math.cos(p.ang) * p.spd * e,
+      p.y + Math.sin(p.ang) * p.spd * e, sz, sz);
+  }
+  x.restore();
+}
+
+/* ---------- satu bingkai ---------- */
+function drawFrame(t) {
+  t = clamp(t, 0, CFG.DUR);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.clearRect(0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = 'high';
+
+  drawScene(sctx, t);
+
+  const te = t - CFG.tExit;
+  if (te > 0) { drawExit(ctx, te); return; }
+
+  const q = t - CFG.tImpact;
+  const d = (q >= 0 && q < 0.18) ? 34 * Math.exp(-q * 20) : 0;
+  if (d > 0.7) blitAberration(ctx, d);
+  else ctx.drawImage(sceneCv, 0, 0);
+}
+window.drawFrame = drawFrame;
+window.INTRO_CFG = CFG;
+
+/* ---------- pratinjau di peramban ---------- */
+const params = new URLSearchParams(location.search);
+const RENDER = params.has('render');
+if (RENDER) {
+  document.body.classList.add('render');
+  document.documentElement.classList.add('render');
+}
+
+function boot(A) {
+  let left = 2;
+  const done = () => { if (--left === 0) start(); };
+  GLOVE = new Image(); GLOVE.onload = done; GLOVE.src = A.glove;
+  WORD = new Image(); WORD.onload = done; WORD.src = A.word;
+}
+window.boot = boot;
+
+function start() {
+  drawFrame(0);
+  window.introReady = true;
+  if (RENDER) return;
+
+  const pp = document.getElementById('pp');
+  const sc = document.getElementById('sc');
+  const tt = document.getElementById('tt');
+  let playing = true, t0 = performance.now(), t = 0;
+
+  function loop(now) {
+    if (playing) {
+      t = ((now - t0) / 1000) % (CFG.DUR + 0.55);
+      const tc = Math.min(t, CFG.DUR);
+      drawFrame(tc);
+      sc.value = Math.round(tc / CFG.DUR * 1000);
+      tt.textContent = tc.toFixed(2) + ' s';
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  pp.onclick = () => {
+    playing = !playing;
+    pp.textContent = playing ? 'Jeda' : 'Main';
+    if (playing) t0 = performance.now() - t * 1000;
+  };
+  sc.oninput = () => {
+    playing = false; pp.textContent = 'Main';
+    const tc = sc.value / 1000 * CFG.DUR;
+    t = tc; drawFrame(tc); tt.textContent = tc.toFixed(2) + ' s';
+  };
+}
+</script>

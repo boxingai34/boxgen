@@ -52,7 +52,13 @@ return [
     ['category' => 'terbuka',  'slug' => 'see-through-top','name' => 'See-through',    'name_id' => 'Menerawang',
      'description' => 'Tag "see-through" tidak ada; yang benar see-through_clothes.',
      'tags' => ['see-through_clothes']],
-    ['category' => 'terbuka',  'slug' => 'no-shirt',      'name' => 'No Shirt',        'name_id' => 'Tanpa atasan',   'tags' => ['no_shirt']],
+    // "Tanpa atasan" (no-shirt) dibuang: ia bersebelahan dengan "Topless"
+    // di kategori yang sama dan artinya persis sama, tapi tagnya no_shirt
+    // — tag yang di Danbooru hampir selalu dipakai untuk laki-laki
+    // bertelanjang dada, dan yang untuk perempuan justru membuat model
+    // menangkap kata "shirt" di dalamnya lalu menggambar kaus atau bra.
+    // Dua pilihan yang sama di satu daftar sudah membingungkan; satu di
+    // antaranya yang tidak bekerja lebih buruk lagi.
     ['category' => 'terbuka',  'slug' => 'topless',       'name' => 'Topless',         'name_id' => 'Topless',
      'is_nsfw' => 1,
      'description' => 'Tag "topless" polos tidak ada; yang benar topless_female.',

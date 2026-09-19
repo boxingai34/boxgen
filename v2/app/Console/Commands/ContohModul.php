@@ -43,6 +43,17 @@ class ContohModul extends Command
      *   sendiri: true kalau modulnya TENTANG tempat, bukan tentang orang —
      *            petinjunya dibuang supaya tempatnya yang terlihat
      */
+    /**
+     * Satu orang yang sama untuk seluruh katalog kondisi.
+     *
+     * Yang dibandingkan di katalog itu kondisinya, bukan orangnya. Kalau
+     * tiap kartu memakai wajah, rambut, dan warna mata yang berbeda, mata
+     * pembaca sibuk membedakan orang dan bukan membedakan babak belur dari
+     * kelelahan. Ciri yang ditulis di sini yang menjaga wajahnya bertahan;
+     * benih tetap di resepnya menjaga sisanya.
+     */
+    private const MODEL = '1girl, solo, mature female, short brown hair, brown eyes, topless female';
+
     private const RESEP = [
         'pose' => [
             'adegan' => '1girl, solo, female boxer, mature female, boxing gloves, sports bra, boxing shorts, '
@@ -136,10 +147,17 @@ class ContohModul extends Command
         // bingkai. Yang tentang badan dan pakaian tetap setengah badan,
         // karena di situlah tandanya terlihat.
         // ---------------------------------------------------------------
+        // Kondisi dipotret rapat ke wajah: yang dibandingkan di katalog ini
+        // memar, keringat, dan mata yang mulai menutup — semuanya ada di
+        // wajah, dan di potret setengah badan semuanya tinggal beberapa
+        // piksel. Pakaiannya dilepas karena baju yang berbeda-beda di tiap
+        // kartu menarik mata lebih dulu daripada kondisinya.
         'condition' => [
-            'adegan' => '1girl, solo, female boxer, mature female, upper body, front view, '
-                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'adegan' => self::MODEL . ', close-up, portrait, face focus, looking at viewer, '
+                . 'bare shoulders, simple background, grey background, anime coloring, '
+                . 'masterpiece, best quality',
             'rasio' => '1:1',
+            'benih' => 20260919,
         ],
         'cond_eyes' => [
             'adegan' => '1girl, solo, mature female, portrait, close-up, eye focus, face, '
@@ -318,6 +336,9 @@ class ContohModul extends Command
     private const BENTROK = [
         'topless' => [
             'topless_female', 'topless_male', 'bare_pectorals', 'completely_nude', 'nude',
+            // no_shirt itu cara Danbooru menulis "tidak memakai atasan", dan
+            // tanpa baris ini kartu "Tanpa atasan" digambar memakai kamisol.
+            'no_shirt',
             'breasts_out', 'one_breast_out', 'nipple_slip', 'breast_slip', 'partially_undressed',
             'bra_lift', 'bra_pull', 'sports_bra_lift', 'clothing_aside', 'undressing',
             'wardrobe_malfunction', 'clothes_down', 'sideboob', 'underboob',
@@ -326,8 +347,13 @@ class ContohModul extends Command
             'completely_nude', 'nude', 'bottomless', 'topless_female', 'topless_male',
             'breasts_out', 'one_breast_out', 'nipple_slip',
         ],
-        // nsfw itu payung, bukan benda: yang menandainya baris modulnya.
-        'nsfw' => [],
+        // nsfw itu payung, bukan benda: biasanya yang menandainya baris
+        // modulnya. Tapi kalau yang diminta sudah jelas-jelas telanjang,
+        // payung itu ikut melawan — jadi ia mundur juga.
+        'nsfw' => [
+            'topless_female', 'topless_male', 'completely_nude', 'nude', 'bottomless',
+            'breasts_out', 'one_breast_out', 'nipple_slip', 'nipples',
+        ],
     ];
 
     /**
@@ -339,6 +365,22 @@ class ContohModul extends Command
      * perintah apa pun digambar bersarung tinju. Jadi khusus untuk
      * menggambar, ketiadaannya perlu diminta secara terbuka.
      */
+    /**
+     * Tipe yang artinya tersimpan di slot, bukan di tagnya sendiri.
+     *
+     * Keduanya bekerja dengan cara yang sama: tema memilihkan isi untuk
+     * beberapa slot, dan slot-slot itu yang membawa tagnya. "Berdarah"
+     * cuma bertag sweat, tapi slotnya menunjuk darah di pipi, darah dari
+     * mulut, hidung berdarah, mata bengkak, dan wajah menahan sakit —
+     * seluruh artinya ada di sana, dan tidak satu pun ikut tergambar
+     * selama daftar ini cuma berisi 'outfit'.
+     *
+     * Tabel module_defaults juga dipakai alur komik dan alur video, tapi
+     * keduanya tidak punya resep dan tidak pernah digambar; daftar ini
+     * sengaja ditulis terbatas supaya tetap begitu.
+     */
+    private const BERSLOT = ['outfit', 'condition'];
+
     private const TANPA_ISI = [
         'bare-hands' => [
             'positif' => 'bare hands, clenched fists',
@@ -427,7 +469,11 @@ class ContohModul extends Command
 
                     $minta = $resep['adegan'] . ', ' . $tag;
                     $tolak = self::HINDARI
-                        . self::larangan($tag, ! empty($m['is_nsfw']))
+                        // Dibaca dari SELURUH yang diminta, bukan dari tag
+                        // modulnya saja: resep kondisi menaruh "topless
+                        // female" di adegannya, dan larangan yang tidak
+                        // melihat ke sana akan melawan resepnya sendiri.
+                        . self::larangan($minta, ! empty($m['is_nsfw']))
                         . ($tolakTambahan !== '' ? ', ' . $tolakTambahan : '')
                         . (! empty($resep['sendiri'])
                             ? ', 1girl, solo, person, people, character, photorealistic, realistic, 3d, photo'
@@ -450,7 +496,9 @@ class ContohModul extends Command
 
                     $g = GambarAi::tokoh(
                         ['base' => $minta, 'characters' => [], 'undesired' => $tolak],
-                        ['rasio' => $resep['rasio']]
+                        // Benih tetap untuk tipe yang ingin memakai satu
+                        // orang yang sama di semua kartunya.
+                        ['rasio' => $resep['rasio'], 'benih' => (int) ($resep['benih'] ?? 0)]
                     );
 
                     $biner = base64_decode($g['data'], true);
@@ -561,7 +609,7 @@ class ContohModul extends Command
     {
         $tag = $this->tagModul($modulId);
 
-        if ($tipe !== 'outfit') {
+        if (! in_array($tipe, self::BERSLOT, true)) {
             return [implode(', ', $tag), ''];
         }
 

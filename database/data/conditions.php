@@ -302,11 +302,11 @@ return [
     ['category' => 'rusak', 'slug' => 'loose', 'name' => 'Longgar', 'name_id' => 'Pakaian melorot',
      'sort_order' => 2, 'tags' => ['loose_clothes']],
     // Pakaian terbuka tanpa apa pun yang terlihat di baliknya cuma jaket
-    // yang tidak dikancingkan. Yang dimaksud: bajunya terbuka dan kulitnya
-    // kelihatan — tapi berhenti di situ, bukan sampai topless. Larangan
-    // "topless" sengaja tetap berlaku untuk modul ini.
+    // yang tidak dikancingkan. Yang dimaksud: bajunya terbuka dan dadanya
+    // terbuka — breasts_out sekaligus yang mencabut larangan "topless"
+    // waktu contohnya digambar, karena larangan itu memang membantahnya.
     ['category' => 'rusak', 'slug' => 'open', 'name' => 'Terbuka', 'name_id' => 'Pakaian terbuka',
-     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['open_clothes' => 1.1, 'open_shirt', 'cleavage']],
+     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['open_clothes' => 1.1, 'open_shirt', 'breasts_out']],
 
     ['category' => 'lepas', 'slug' => 'strap-slip', 'name' => 'Tali Melorot Sebelah', 'name_id' => 'Tali bahu turun',
      'sort_order' => 1, 'tags' => ['strap_slip' => 1.1]],
