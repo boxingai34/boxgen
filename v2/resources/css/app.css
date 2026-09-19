@@ -393,6 +393,97 @@ html[data-hemat='1'] .hidupkan {
 }
 
 /* ---------------------------------------------------------------------
+   LOGO BERAYUN (MerekPutar.vue)
+
+   Tidak ada properti perspective di mana pun di sini, dan itu disengaja:
+   tanpa perspective, rotateY di dalam preserve-3d diproyeksikan SEJAJAR —
+   persis kamera ortografik yang dipakai situs rujukannya. Sisi jauh dan
+   sisi dekat sama besar, jadi putarannya terbaca grafis, bukan sinematik.
+
+   Tebalnya datang dari salinan yang ditumpuk mundur di sumbu Z. Selama
+   menghadap lurus semuanya bertumpuk tepat dan yang terlihat cuma logo
+   datar; begitu berputar, tiap salinan bergeser mendatar sebesar z·sin θ.
+   Itulah sisi tebalnya — tidak ada bayangan yang digambar, tidak ada
+   gambar tambahan yang diunduh.
+   --------------------------------------------------------------------- */
+.merek-putar {
+    perspective: none;
+}
+
+.merek-putar .papan {
+    position: relative;
+    display: inline-grid;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+/* Semua salinan menempati petak yang sama, jadi tingginya tidak menumpuk. */
+.merek-putar .papan > img {
+    grid-area: 1 / 1;
+}
+
+.merek-putar .iris {
+    /* Makin ke belakang makin gelap: itu yang membuat barisan salinan
+       terbaca sebagai satu benda tebal, bukan sebagai bayangan berulang. */
+    transform: translateZ(calc(var(--i) * -0.9px));
+    filter: brightness(calc(1 - var(--i) * 0.11)) saturate(0.85);
+}
+
+.merek-putar .muka {
+    position: relative;
+    transform: translateZ(0.4px);
+}
+
+@keyframes papan-ayun {
+    0%   { transform: rotateY(-34deg); }
+    50%  { transform: rotateY(34deg); }
+    100% { transform: rotateY(-34deg); }
+}
+
+@keyframes papan-putar {
+    from { transform: rotateY(0deg); }
+    to   { transform: rotateY(360deg); }
+}
+
+.papan-ayun {
+    animation: papan-ayun 9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.papan-putar {
+    animation: papan-putar 11s linear infinite;
+}
+
+/* Keluar layar: dijeda, bukan dibiarkan berputar di balik layar. */
+.merek-putar.jeda .papan {
+    animation-play-state: paused;
+}
+
+/* Diam total kalau memang diminta diam. Bukan sekadar durasi nol: seluruh
+   salinan tebalnya disembunyikan, jadi yang tersisa PERSIS logo datar —
+   itu ujinya, bukan "animasinya berhenti". */
+html[data-hemat='1'] .merek-putar .papan,
+html[data-hemat='1'] .merek-putar .iris {
+    animation: none !important;
+    transform: none !important;
+}
+
+html[data-hemat='1'] .merek-putar .iris {
+    display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .merek-putar .papan,
+    .merek-putar .iris {
+        animation: none !important;
+        transform: none !important;
+    }
+
+    .merek-putar .iris {
+        display: none !important;
+    }
+}
+
+/* ---------------------------------------------------------------------
    Gambar diam yang terasa hidup — HANYA saat disorot.
    Dipakai di katalog gaya untuk kartu yang belum punya contoh bergerak.
    Enam puluh enam kartu yang bergerak bersamaan bikin pusing, jadi yang

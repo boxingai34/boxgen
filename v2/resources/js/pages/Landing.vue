@@ -5,6 +5,7 @@ import KakiPublik from '@/components/landing/KakiPublik.vue';
 import KartuGeser from '@/components/landing/KartuGeser.vue';
 import KepalaPublik from '@/components/landing/KepalaPublik.vue';
 import LinimasaX from '@/components/landing/LinimasaX.vue';
+import MerekPutar from '@/components/landing/MerekPutar.vue';
 import Rel from '@/components/landing/Rel.vue';
 import SematInstagram from '@/components/landing/SematInstagram.vue';
 import VideoLite from '@/components/landing/VideoLite.vue';
@@ -147,16 +148,25 @@ const kitLabel: Record<string, string> = { gloves: 'Gloves', wraps: 'Hand wraps'
 
         <main id="content" tabindex="-1" class="outline-none">
             <!-- ============================ SAMPUL / HERO ============================ -->
-            <section ref="hero" class="bel relative overflow-hidden pt-24 sm:pt-28" :class="belMulai ? 'bel-mulai' : ''">
+            <!-- pt dikurangi sedikit dari sebelumnya: logo berayun menambah
+                 tinggi, dan hero ini sudah melewati satu layar di 1366x768
+                 sebelum ditambah apa pun. -->
+            <section ref="hero" class="bel relative overflow-hidden pt-20 sm:pt-24" :class="belMulai ? 'bel-mulai' : ''">
                 <div class="hinomaru -right-40 -top-24 h-[34rem] w-[34rem] opacity-70 lg:-right-16" />
                 <div class="aurora opacity-60" />
 
                 <div class="relative mx-auto grid max-w-6xl gap-10 px-5 pb-16 lg:min-h-[calc(100svh-7rem)] lg:grid-cols-12 lg:items-center lg:gap-6 lg:pb-20">
                     <!-- Teks -->
                     <div class="lg:col-span-7">
-                        <p class="lunak flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
-                            <span>{{ isi.hero.eyebrow }}</span>
-                        </p>
+                        <!-- Logo berayun dan label kecilnya berbagi satu baris:
+                             tingginya diserap logo, jadi yang bertambah cuma
+                             selisihnya, bukan satu blok utuh. -->
+                        <div class="lunak flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <MerekPutar :merek="isi.brand" tinggi="h-12 sm:h-14" />
+                            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-[hsl(var(--sudut))]">
+                                {{ isi.hero.eyebrow }}
+                            </p>
+                        </div>
 
                         <h1 class="mt-5 text-[2.6rem] font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[4.4rem]">
                             <span
