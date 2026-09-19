@@ -46,6 +46,7 @@ const cari = ref('');
 const saran = ref<any[]>([]);
 const sedangCari = ref(false);
 const saranTerbuka = ref(false);
+const galatCari = ref('');
 
 // Dua penunda terpisah: yang satu menunggu ketikan judul, yang satu
 // menunggu ketikan nama. Satu penunda bersama membuat keduanya saling
@@ -54,6 +55,18 @@ let jeda: number | undefined;
 let jedaCari: number | undefined;
 
 async function muatSeri() {
+    // Kolom judul kosong berarti TIDAK menyaring — bukan "ambil semua
+    // judul lalu pakai yang pertama". Tanpa cabang ini, mengosongkan
+    // kolom judul memulangkan tiga ratus judul, dan yang pertama menurut
+    // abjad (".flow") jadi saringan diam-diam. Judul itu tidak punya satu
+    // pun karakter, jadi apa pun nama yang diketik di bawahnya selalu
+    // menghasilkan nol — persis seperti kolomnya rusak.
+    if (seriCari.value.trim() === '') {
+        daftarSeri.value = [];
+
+        return;
+    }
+
     try {
         const jawab = await kirim<any>(
             route('prompt.judul') + '?semesta=' + encodeURIComponent(kategori.value) + '&cari=' + encodeURIComponent(seriCari.value),
@@ -74,7 +87,7 @@ async function muatSeri() {
  * tidak ada yang cocok daftarnya tidak disaring sama sekali — bukan jadi
  * kosong. Judul yang salah ketik tidak boleh menghilangkan semua karakter.
  */
-const seriTerpilih = computed(() => daftarSeri.value[0] ?? null);
+const seriTerpilih = computed(() => (seriCari.value.trim() === '' ? null : (daftarSeri.value[0] ?? null)));
 
 watch(seriCari, () => {
     window.clearTimeout(jeda);
@@ -110,14 +123,19 @@ async function cariKarakter() {
     }
 
     sedangCari.value = true;
+    galatCari.value = '';
     try {
         const jawab = await ambilHalaman(0);
         saran.value = jawab.hasil || [];
         adaLagi.value = Boolean(jawab.lagi);
         saranTerbuka.value = true;
-    } catch {
+    } catch (e: any) {
+        // Dulu kegagalan di sini ditelan diam-diam, dan hasilnya sama
+        // persis dengan "tidak ada yang cocok": kolomnya terlihat seperti
+        // tidak bekerja, tanpa satu pun petunjuk kenapa.
         saran.value = [];
         adaLagi.value = false;
+        galatCari.value = e?.message || 'Gagal mencari karakter.';
     } finally {
         sedangCari.value = false;
     }
@@ -296,9 +314,14 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 autocomplete="off"
                 placeholder="ketik nama karakter, misal: maki, chun, miku"
                 :class="isianKelas"
-                @focus="saranTerbuka = true"
+                @focus="saranTerbuka = true; cariKarakter()"
                 @blur="tutupSaranNanti"
             />
+
+            <span v-if="galatCari" class="mt-1 block text-xs text-[hsl(var(--kanvas))]">{{ galatCari }}</span>
+            <span v-else-if="cari.trim() !== '' && ! sedangCari && saran.length === 0" class="mt-1 block text-xs text-muted-foreground">
+                Tidak ada karakter bernama "{{ cari.trim() }}"{{ seriTerpilih ? ' di ' + seriTerpilih.name : '' }}.
+            </span>
 
             <ul
                 v-if="saranTerbuka && saran.length"

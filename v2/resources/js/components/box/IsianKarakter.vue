@@ -98,6 +98,8 @@ function alamatCari(mulai: number, pakaiSeri = true): string {
  */
 const saringDilewati = ref(false);
 
+const galat = ref('');
+
 async function cari() {
     const kata = String(props.modelValue ?? '').trim();
 
@@ -114,6 +116,7 @@ async function cari() {
     const ini = ++permintaanKe;
     sibuk.value = true;
     saringDilewati.value = false;
+    galat.value = '';
 
     try {
         let jawab = await kirim<any>(alamatCari(0), undefined, 'GET');
@@ -131,11 +134,15 @@ async function cari() {
         adaLagi.value = Boolean(jawab.lagi);
         terbuka.value = saran.value.length > 0;
         sorot.value = -1;
-    } catch {
+    } catch (e: any) {
         if (ini !== permintaanKe) return;
+        // Kegagalan yang ditelan diam-diam terlihat sama persis dengan
+        // "tidak ada yang cocok", dan yang membacanya tidak punya cara
+        // membedakan sesi yang kedaluwarsa dari nama yang salah ketik.
         saran.value = [];
         adaLagi.value = false;
         terbuka.value = false;
+        galat.value = e?.message || 'Gagal mencari karakter.';
     } finally {
         if (ini === permintaanKe) sibuk.value = false;
     }
@@ -260,6 +267,14 @@ function enter() {
             />
 
             <LoaderCircle v-if="sibuk" class="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+
+            <span v-if="galat" class="mt-1 block text-xs text-[hsl(var(--kanvas))]">{{ galat }}</span>
+            <span
+                v-else-if="String(modelValue ?? '').trim() !== '' && ! sibuk && saran.length === 0"
+                class="mt-1 block text-xs text-muted-foreground"
+            >
+                Tidak ada karakter bernama "{{ String(modelValue).trim() }}" di kamus.
+            </span>
 
             <ul
                 v-if="terbuka"
