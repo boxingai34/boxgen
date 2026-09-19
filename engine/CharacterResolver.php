@@ -184,12 +184,12 @@ final class CharacterResolver
         $params = [];
 
         if ($universe !== null && $universe !== '' && $universe !== 'semua') {
-            $where[]  = 'universe = ?';
+            $where[]  = 's.universe = ?';
             $params[] = $universe;
         }
 
         if ($cari !== '') {
-            $where[]  = '(name LIKE ? OR booru_tag LIKE ?)';
+            $where[]  = '(s.name LIKE ? OR s.booru_tag LIKE ?)';
             $params[] = '%' . $cari . '%';
             $params[] = '%' . str_replace(' ', '_', mb_strtolower($cari)) . '%';
         }
@@ -200,20 +200,28 @@ final class CharacterResolver
         // MENCARI sesuatu yang sudah kamu tahu namanya — di situ abjad
         // jauh lebih cepat dibaca daripada peringkat popularitas.
         //
-        // Tapi kalau sedang mengetik, yang namanya DIAWALI kata itu
-        // didahulukan: mengetik "street" harus memunculkan "Street
-        // Fighter" di atas, bukan "Downtown Street Brawl".
+        // Tapi kalau sedang mengetik, dua hal didahulukan. Pertama yang
+        // PUNYA KARAKTER: mengetik "naruto" cocok ke delapan judul, dan
+        // yang paling depan menurut abjad ("Naruto (classic)") justru satu
+        // dari tujuh yang kosong — dipakai menyaring, ia menghapus seluruh
+        // daftarnya. Judul kosong tidak pernah berguna sebagai saringan.
+        // Kedua yang namanya DIAWALI kata itu: "street" harus memunculkan
+        // "Street Fighter" di atas, bukan "Downtown Street Brawl".
         $urut = $cari !== ''
-            ? '(name LIKE ?) DESC, name'
-            : 'name';
+            ? '(COUNT(c.id) > 0) DESC, (s.name LIKE ?) DESC, s.name'
+            : 's.name';
 
         if ($cari !== '') {
             $params[] = $cari . '%';
         }
 
         return Database::all(
-            "SELECT id, name, booru_tag, universe, post_count FROM series
+            "SELECT s.id, s.name, s.booru_tag, s.universe, s.post_count,
+                    COUNT(c.id) AS jumlah
+               FROM series s
+               LEFT JOIN characters c ON c.series_id = s.id AND c.is_active = 1
              {$sql}
+             GROUP BY s.id, s.name, s.booru_tag, s.universe, s.post_count
              ORDER BY {$urut}
              LIMIT {$limit}",
             $params
