@@ -387,8 +387,33 @@ html[data-hemat='1'] .aurora,
 html[data-hemat='1'] .berjalan,
 html[data-hemat='1'] .teks-sorot,
 html[data-hemat='1'] .denyut,
-html[data-hemat='1'] .rangka {
+html[data-hemat='1'] .rangka,
+html[data-hemat='1'] .hidupkan {
     animation: none !important;
+}
+
+/* ---------------------------------------------------------------------
+   Gambar diam yang terasa hidup.
+   Dipakai di katalog gaya: contoh yang benar-benar beranimasi (WebP tiga
+   frame) berjalan sendiri, sedangkan yang cuma gambar diam mendapat
+   geseran sangat pelan supaya kartunya tidak terasa mati. Yang bergerak
+   cuma transform, jadi tidak ada tata letak yang dihitung ulang.
+   --------------------------------------------------------------------- */
+@keyframes geser-pelan {
+    0%   { transform: scale(1.06) translate3d(-1.2%, -0.8%, 0); }
+    50%  { transform: scale(1.12) translate3d(1.2%, 0.8%, 0); }
+    100% { transform: scale(1.06) translate3d(-1.2%, -0.8%, 0); }
+}
+
+.hidupkan {
+    animation: geser-pelan 14s ease-in-out infinite;
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hidupkan {
+        animation: none;
+    }
 }
 
 html[data-hemat='1'] .teks-sorot {

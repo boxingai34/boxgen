@@ -71,9 +71,14 @@ class CeritaController extends Controller
      */
     private static function contohGaya(string $slug): ?string
     {
-        $calon = str_starts_with($slug, 'v-')
-            ? [public_path('img/gaya/'.substr($slug, 2).'.webp') => '/img/gaya/'.substr($slug, 2).'.webp']
-            : [public_path('img/gaya-video/'.$slug.'.webp') => '/img/gaya-video/'.$slug.'.webp'];
+        $dasar = str_starts_with($slug, 'v-') ? substr($slug, 2) : $slug;
+
+        // Urutannya menentukan: contoh bergerak dipakai lebih dulu kalau ada.
+        $calon = [
+            public_path('img/gaya-gerak/'.$dasar.'.webp') => '/img/gaya-gerak/'.$dasar.'.webp',
+            public_path('img/gaya/'.$dasar.'.webp')       => '/img/gaya/'.$dasar.'.webp',
+            public_path('img/gaya-video/'.$slug.'.webp')  => '/img/gaya-video/'.$slug.'.webp',
+        ];
 
         foreach ($calon as $berkas => $alamat) {
             if (is_file($berkas)) {

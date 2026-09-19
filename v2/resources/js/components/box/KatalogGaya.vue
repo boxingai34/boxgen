@@ -117,19 +117,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                             :title="g.ket"
                             @click="pilih(g.id)"
                         >
-                            <img
-                                v-if="g.contoh"
-                                :src="g.contoh"
-                                :alt="g.nama"
-                                width="512"
-                                height="512"
-                                loading="lazy"
-                                decoding="async"
-                                class="aspect-square w-full object-cover"
-                            />
-                            <div v-else class="flex aspect-square w-full items-center justify-center bg-muted/40 text-center text-xs text-muted-foreground">
-                                belum ada contoh
-                            </div>
+                            <!-- Contoh yang benar-benar beranimasi (WebP tiga
+                                 frame) berjalan sendiri. Yang cuma gambar diam
+                                 digeser sangat pelan supaya kartunya tidak
+                                 terasa mati — dan geserannya dipotong kotak
+                                 kartunya, jadi tidak ada yang melebar. -->
+                            <span class="block aspect-square w-full overflow-hidden">
+                                <img
+                                    v-if="g.contoh"
+                                    :src="g.contoh"
+                                    :alt="g.nama"
+                                    width="512"
+                                    height="512"
+                                    loading="lazy"
+                                    decoding="async"
+                                    class="h-full w-full object-cover"
+                                    :class="g.contoh.includes('/gaya-gerak/') ? '' : 'hidupkan'"
+                                />
+                                <span v-else class="flex h-full w-full items-center justify-center bg-muted/40 text-center text-xs text-muted-foreground">
+                                    belum ada contoh
+                                </span>
+                            </span>
                             <span class="block truncate px-2.5 py-2 text-xs">{{ g.nama }}</span>
                         </button>
                     </div>

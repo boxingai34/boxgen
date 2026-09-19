@@ -405,7 +405,14 @@ final class GambarAi
         // apa pun dipetakan ke salah satu dari ketiganya.
         [$lebar, $tinggi] = self::ukuranNovelAi((string)($opsi['rasio'] ?? ''));
 
-        $benih = random_int(1, 2147483646);
+        // Benih boleh ditentukan dari luar. Itu satu-satunya cara membuat
+        // beberapa gambar yang BERSAUDARA: prompt yang berbeda sedikit
+        // dengan benih yang sama memulangkan orang yang kurang lebih sama
+        // dalam pose yang berbeda — dipakai untuk membuat frame animasi.
+        // Tanpa ini tiap panggilan mengundi orang baru.
+        $benih = isset($opsi['benih']) && (int)$opsi['benih'] > 0
+            ? (int)$opsi['benih']
+            : random_int(1, 2147483646);
 
         $caption = [
             'base_caption'  => $base,
