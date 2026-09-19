@@ -888,3 +888,25 @@ html[data-hemat='1'] .petak-grid {
         transition: none;
     }
 }
+
+/* Gambar utuh di atas kisinya: naik sedikit sambil menajam, supaya terbaca
+   sebagai lapisan baru — bukan sebagai halaman yang berganti. */
+.penuh-layar-enter-active,
+.penuh-layar-leave-active {
+    transition:
+        opacity 0.22s ease,
+        transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.penuh-layar-enter-from,
+.penuh-layar-leave-to {
+    opacity: 0;
+    transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .penuh-layar-enter-active,
+    .penuh-layar-leave-active {
+        transition: none;
+    }
+}

@@ -3,7 +3,7 @@ import GridLayar from '@/components/landing/GridLayar.vue';
 import IkonSosial from '@/components/landing/IkonSosial.vue';
 import IkonTinju from '@/components/landing/IkonTinju.vue';
 import KakiPublik from '@/components/landing/KakiPublik.vue';
-import KartuGeser from '@/components/landing/KartuGeser.vue';
+import KartuSampul from '@/components/landing/KartuSampul.vue';
 import KepalaPublik from '@/components/landing/KepalaPublik.vue';
 import LinimasaX from '@/components/landing/LinimasaX.vue';
 import MerekPutar from '@/components/landing/MerekPutar.vue';
@@ -254,7 +254,7 @@ const karyaGrid = computed(() => {
 
                     <!-- Kartu potret yang bisa digulir -->
                     <div class="plat-bungkus relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
-                        <KartuGeser :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" @grid="gridBuka = true" />
+                        <KartuSampul :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" @grid="gridBuka = true" />
                     </div>
                 </div>
             </section>
