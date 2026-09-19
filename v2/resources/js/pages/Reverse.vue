@@ -2,6 +2,7 @@
 import IsianKarakter from '@/components/box/IsianKarakter.vue';
 import Kartu from '@/components/box/Kartu.vue';
 import KatalogGaya from '@/components/box/KatalogGaya.vue';
+import KatalogModul from '@/components/box/KatalogModul.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
@@ -29,7 +30,45 @@ const props = defineProps<{
     maks: { frame: number; byte: number; hint: number; artis: number };
     kuat: Record<string, string>;
     gambar: { latar: boolean; tokoh: boolean };
+    contoh: Record<string, Record<string, string>>;
 }>();
+
+/**
+ * Daftar tetap jadi bentuk yang dimengerti katalog.
+ *
+ * Kolom-kolom ini isinya pilihan yang ditulis di kode, bukan modul database
+ * — tapi pertanyaannya sama saja: "miring tiga perempat" dan "miring
+ * membelakangi" tidak bisa dibedakan dari namanya. Jadi daftarnya
+ * dibungkus jadi bentuk modul, lengkap dengan gambar contohnya.
+ */
+function berkatalog(tipe: string, daftar: ReadonlyArray<readonly [string, string]>, buang: string[] = []) {
+    return daftar
+        .filter(([n]) => ! buang.includes(n))
+        .map(([n, l]) => ({ id: n, nama: l, contoh: props.contoh?.[tipe]?.[n] ?? null }));
+}
+
+/** Nama warna Danbooru jadi warna layar yang bisa dilihat. */
+const PETA_WARNA: Record<string, string> = {
+    red: '#dc2626', blue: '#2563eb', black: '#171717', white: '#f5f5f5',
+    pink: '#ec4899', green: '#16a34a', yellow: '#eab308', purple: '#9333ea',
+    orange: '#ea580c', brown: '#92400e', grey: '#6b7280', gold: '#d4af37',
+    silver: '#c0c0c0',
+};
+
+function warnaKotak(w: string): string {
+    return PETA_WARNA[w] ?? '#6b7280';
+}
+
+function berkatalogTag(tipe: string, daftar: Array<{ nama: string; tag: string[] }>) {
+    return daftar.flatMap((g) =>
+        g.tag.map((t) => ({
+            id: t,
+            nama: t.replace(/_/g, ' '),
+            kategori: g.nama,
+            contoh: props.contoh?.[tipe]?.[t] ?? null,
+        })),
+    );
+}
 
 const isianKelas =
     'w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[hsl(var(--sorot))] disabled:opacity-50';
@@ -725,24 +764,36 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
 
                         <label class="mt-3 block">
                             <span class="mb-1.5 block text-xs text-muted-foreground">Terlihat dari sisi mana</span>
-                            <select v-model="s.view" :class="isianKelas">
-                                <option v-for="[n, l] in PANDANG" :key="n" :value="n">{{ l }}</option>
-                            </select>
+                            <KatalogModul
+                                :modul="berkatalog('view', PANDANG)"
+                                :terpilih="s.view"
+                                judul="Terlihat dari sisi mana"
+                                kosong=""
+                                @pilih="s.view = $event"
+                            />
                             <span v-if="s.view_evidence" class="mt-1 block text-xs text-muted-foreground">{{ s.view_evidence }}</span>
                         </label>
 
                         <div class="mt-3 grid gap-3 sm:grid-cols-2">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Bentuk badan</span>
-                                <select v-model="s.bentuk" :class="isianKelas">
-                                    <option v-for="[n, l] in BENTUK" :key="n" :value="n">{{ l }}</option>
-                                </select>
+                                <KatalogModul
+                                    :modul="berkatalog('bentuk', BENTUK, ['ikut'])"
+                                    :terpilih="s.bentuk === 'ikut' ? '' : s.bentuk"
+                                    judul="Bentuk badan"
+                                    kosong="— ikuti referensi —"
+                                    @pilih="s.bentuk = $event || 'ikut'"
+                                />
                             </label>
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Ukuran dada</span>
-                                <select v-model="s.dada" :class="isianKelas">
-                                    <option v-for="[n, l] in DADA" :key="n" :value="n">{{ l }}</option>
-                                </select>
+                                <KatalogModul
+                                    :modul="berkatalog('dada', DADA, ['ikut'])"
+                                    :terpilih="s.dada === 'ikut' ? '' : s.dada"
+                                    judul="Ukuran dada"
+                                    kosong="— ikuti referensi —"
+                                    @pilih="s.dada = $event || 'ikut'"
+                                />
                             </label>
                         </div>
 
@@ -775,36 +826,54 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Atasan</span>
-                                <select v-model="s.attire.top" :class="isianKelas">
-                                    <option value="">— tidak disebut —</option>
-                                    <option v-if="diLuarDaftar(ATASAN, s.attire.top)" :value="s.attire.top">{{ String(s.attire.top).replace(/_/g, ' ') }} (dari gambar)</option>
-                                    <optgroup v-for="g in ATASAN" :key="g.nama" :label="g.nama">
-                                        <option v-for="t in g.tag" :key="t" :value="t">{{ t.replace(/_/g, ' ') }}</option>
-                                    </optgroup>
-                                </select>
+                                <KatalogModul
+                                    :modul="berkatalogTag('atasan_tag', ATASAN)"
+                                    :terpilih="s.attire.top || ''"
+                                    judul="Atasan"
+                                    kosong="— tidak disebut —"
+                                    @pilih="s.attire.top = $event"
+                                />
                             </label>
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Bawahan</span>
-                                <select v-model="s.attire.bottom" :class="isianKelas">
-                                    <option value="">— tidak disebut —</option>
-                                    <option v-if="diLuarDaftar(BAWAHAN, s.attire.bottom)" :value="s.attire.bottom">{{ String(s.attire.bottom).replace(/_/g, ' ') }} (dari gambar)</option>
-                                    <optgroup v-for="g in BAWAHAN" :key="g.nama" :label="g.nama">
-                                        <option v-for="t in g.tag" :key="t" :value="t">{{ t.replace(/_/g, ' ') }}</option>
-                                    </optgroup>
-                                </select>
+                                <KatalogModul
+                                    :modul="berkatalogTag('bawahan_tag', BAWAHAN)"
+                                    :terpilih="s.attire.bottom || ''"
+                                    judul="Bawahan"
+                                    kosong="— tidak disebut —"
+                                    @pilih="s.attire.bottom = $event"
+                                />
                             </label>
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Sarung tangan</span>
-                                <select v-model="s.attire.gloves" :class="isianKelas">
-                                    <option v-for="[n, l] in SARUNG" :key="n" :value="n">{{ l }}</option>
-                                </select>
+                                <KatalogModul
+                                    :modul="berkatalog('sarung', SARUNG)"
+                                    :terpilih="s.attire.gloves || ''"
+                                    judul="Sarung tangan"
+                                    kosong=""
+                                    @pilih="s.attire.gloves = $event"
+                                />
                             </label>
-                            <label class="block">
+                            <div>
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Warna sarung</span>
-                                <select v-model="s.attire.gloves_color" :class="isianKelas">
-                                    <option v-for="w in WARNA" :key="w" :value="w">{{ w === '' ? 'tidak disebut' : w }}</option>
-                                </select>
-                            </label>
+                                <!-- Warna tidak perlu digambar AI: kotak warna
+                                     sungguhan lebih jujur daripada nama warna,
+                                     dan lebih cepat dibaca daripada gambar. -->
+                                <div class="flex flex-wrap gap-1.5">
+                                    <button
+                                        v-for="w in WARNA"
+                                        :key="w || 'kosong'"
+                                        type="button"
+                                        :title="w === '' ? 'tidak disebut' : w"
+                                        class="h-7 w-7 rounded-lg border-2 transition-transform hover:scale-110"
+                                        :class="s.attire.gloves_color === w ? 'border-[hsl(var(--sorot))]' : 'border-border/70'"
+                                        :style="w === '' ? {} : { background: warnaKotak(w) }"
+                                        @click="s.attire.gloves_color = w"
+                                    >
+                                        <span v-if="w === ''" class="block text-xs leading-none text-muted-foreground">—</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="mt-3 grid gap-3 sm:grid-cols-2">

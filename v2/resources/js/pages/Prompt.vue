@@ -327,6 +327,17 @@ const targetTampil = TARGET.filter((t) => t.tampil);
             <!-- ============================ KIRI: SUSUN ============================ -->
             <div class="space-y-5">
                 <Kartu judul="1. Susun" ket="Pilih seperlunya — yang dikosongkan tidak ikut ke prompt.">
+                    <!-- Acak duduk di kepala kartunya, bukan di kaki bersama
+                         Generate. Keduanya tombol besar bersebelahan di bawah,
+                         dan yang satu mengisi kolom sedangkan yang satu lagi
+                         membaca kolom — dua pekerjaan yang berlawanan arah. -->
+                    <template #alat>
+                        <Tombol jenis="garis" ukuran="kecil" :nonaktif="sedang" @click="acak">
+                            <Dices class="h-3.5 w-3.5" />
+                            Acak
+                        </Tombol>
+                    </template>
+
                     <!-- Isi otomatis -->
                     <div class="mb-5 rounded-xl border border-border/70 bg-card/50 p-3">
                         <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tulis bebas, biar AI yang memilihkan</span>
@@ -507,10 +518,6 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                             <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                             <Sparkles v-else class="h-4 w-4" />
                             {{ sedang ? 'Menyusun…' : 'Generate Prompt' }}
-                        </Tombol>
-                        <Tombol jenis="garis" ukuran="besar" :nonaktif="sedang" @click="acak">
-                            <Dices class="h-4 w-4" />
-                            Acak
                         </Tombol>
                     </div>
 

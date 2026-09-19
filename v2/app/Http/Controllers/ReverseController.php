@@ -47,6 +47,10 @@ class ReverseController extends Controller
             ],
             'kuat'   => array_map(static fn (array $k): string => $k['label'], ReversePrompt::KUAT),
             'gambar' => GambarController::status(),
+            // Contoh untuk kolom yang daftarnya ditulis di kode, bukan modul
+            // database: arah hadap, bentuk badan, ukuran dada, otot, sarung,
+            // dan dua daftar pakaian bertag mentah.
+            'contoh' => self::contohPilihan(),
         ]);
     }
 
@@ -354,6 +358,28 @@ class ReverseController extends Controller
     }
 
     /** @return list<array{id:int,nama:string,kategori:string,nsfw:bool,ket:string}> */
+    /**
+     * Gambar contoh untuk pilihan yang bukan modul.
+     *
+     * Dibaca sekali per tipe sebagai daftar, bukan diperiksa satu per satu:
+     * enam puluh tiga berkas berarti enam puluh tiga kali menyentuh disk
+     * untuk pertanyaan yang jawabannya sama sepanjang hari.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private static function contohPilihan(): array
+    {
+        $keluar = [];
+
+        foreach (['view', 'bentuk', 'dada', 'otot', 'sarung', 'atasan_tag', 'bawahan_tag'] as $tipe) {
+            foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
+                $keluar[$tipe][pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
+            }
+        }
+
+        return $keluar;
+    }
+
     private function modulGaya(string $tipe): array
     {
         try {
