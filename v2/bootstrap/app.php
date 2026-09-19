@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AlamatKanonis;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HanyaAdmin;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias(['admin' => HanyaAdmin::class]);
+
+        // Paling depan: pengalihan ke alamat kanonis tidak perlu menunggu
+        // sesi dibuka atau kuki dibaca.
+        $middleware->prepend(AlamatKanonis::class);
 
         $middleware->web(append: [
             HandleInertiaRequests::class,

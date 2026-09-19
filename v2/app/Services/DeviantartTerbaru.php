@@ -19,6 +19,8 @@ use Throwable;
  */
 class DeviantartTerbaru
 {
+    use MelaporGalat;
+
     /**
      * @return list<array{judul:string,url:string,tanggal:string,thumb:string,dewasa:bool}>
      */
@@ -36,7 +38,10 @@ class DeviantartTerbaru
             try {
                 $xml = self::klien()
                     ->timeout(6)
-                    ->retry(2, 200, throw: false)
+                    // DeviantArt sesekali menjawab 403 begitu saja dan
+                    // menerima permintaan yang sama sedetik kemudian —
+                    // sekali coba lagi terlalu cepat menyerah.
+                    ->retry(3, 500, throw: false)
                     ->get('https://backend.deviantart.com/rss.xml', [
                         'q'    => 'gallery:'.$nama,
                         'type' => 'deviation',
@@ -51,7 +56,8 @@ class DeviantartTerbaru
 
                 Cache::put($kunci, $daftar, now()->addHour());
                 Cache::forever($kunci.':terakhir', $daftar);
-            } catch (Throwable) {
+            } catch (Throwable $e) {
+                self::catatGagal('Umpan galeri DeviantArt', $e);
                 $terakhir = Cache::get($kunci.':terakhir');
                 $daftar = is_array($terakhir) ? $terakhir : [];
                 Cache::put($kunci, $daftar, now()->addMinutes(10));

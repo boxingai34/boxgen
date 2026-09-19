@@ -9,10 +9,12 @@ use Throwable;
 /**
  * Video terbaru sebuah kanal YouTube, tanpa kunci API.
  *
- * YouTube masih menyediakan umpan Atom untuk tiap kanal:
- * https://www.youtube.com/feeds/videos.xml?channel_id=UC... — lima belas
- * video terakhir, judul, tanggal, dan id-nya. Cukup untuk "video terbaru"
- * di halaman depan, dan tidak butuh pendaftaran apa pun.
+ * Dulu cukup umpan Atom tiap kanal
+ * (https://www.youtube.com/feeds/videos.xml?channel_id=UC...), tapi sejak
+ * September 2026 alamat itu menjawab 404 untuk kanal mana pun — bukan cuma
+ * kanal ini. Jadi sumber utamanya sekarang tab "Videos" di halaman kanal,
+ * yang dibaca dengan cara yang sama dengan angka subscriber; umpannya tetap
+ * dicoba lebih dulu, sekali sejam, kalau-kalau dihidupkan lagi.
  *
  * Hasilnya disimpan di cache satu jam. Kegagalan juga disimpan (sepuluh
  * menit), supaya YouTube yang sedang lambat tidak membuat tiap kunjungan
@@ -20,6 +22,8 @@ use Throwable;
  */
 class YoutubeTerbaru
 {
+    use MelaporGalat;
+
     /** @return list<array{id:string,judul:string,url:string,tanggal:string,thumb:string}> */
     public static function ambil(string $channelId, int $maks = 6): array
     {
@@ -35,31 +39,229 @@ class YoutubeTerbaru
             return array_slice($hasil, 0, $maks);
         }
 
-        try {
-            $xml = self::klien()
-                ->timeout(3)
-                ->retry(2, 200, throw: false)
-                ->get('https://www.youtube.com/feeds/videos.xml', ['channel_id' => $channelId])
-                ->throw()
-                ->body();
+        // Dua jalan, dicoba berurutan. Umpan Atom lebih murah dan membawa
+        // tanggal terbitnya, tapi sejak September 2026 YouTube menjawabnya
+        // 404 untuk kanal mana pun — termasuk kanal besar milik Google
+        // sendiri. Jadi tab "Videos" di halaman kanal yang jadi tumpuan
+        // (jalan yang sama dengan pengambilan angka subscriber, yang masih
+        // jalan), dan umpannya tetap dicoba lebih dulu kalau-kalau
+        // dihidupkan kembali.
+        $daftar = self::coba('Umpan video YouTube', fn () => self::dariUmpan($channelId));
 
-            $daftar = self::urai($xml);
-            if ($daftar === []) {
-                throw new \RuntimeException('Umpan kosong');
-            }
+        if ($daftar === []) {
+            $daftar = self::coba('Halaman video YouTube', fn () => self::dariHalaman($channelId));
+        }
+
+        if ($daftar !== []) {
+            // Jalan pertama yang gagal sudah tercatat di log, tapi begitu ada
+            // yang berhasil tidak ada lagi yang perlu dilaporkan ke halaman.
+            self::$galat = '';
+
             Cache::put($kunci, $daftar, now()->addHour());
             // Salinan terakhir yang berhasil, tanpa kedaluwarsa: kalau YouTube
             // sedang rewel, halaman depan tetap menampilkan daftar kemarin.
             Cache::forever($kunci.':terakhir', $daftar);
 
             return array_slice($daftar, 0, $maks);
-        } catch (Throwable) {
-            $terakhir = Cache::get($kunci.':terakhir');
-            $terakhir = is_array($terakhir) ? $terakhir : [];
-            Cache::put($kunci, $terakhir, now()->addMinutes(10));
-
-            return array_slice($terakhir, 0, $maks);
         }
+
+        $terakhir = Cache::get($kunci.':terakhir');
+        $terakhir = is_array($terakhir) ? $terakhir : [];
+        Cache::put($kunci, $terakhir, now()->addMinutes(10));
+
+        return array_slice($terakhir, 0, $maks);
+    }
+
+    /** Jalan yang gagal tidak menghentikan jalan berikutnya, tapi tercatat. */
+    private static function coba(string $sumber, callable $jalan): array
+    {
+        try {
+            return $jalan();
+        } catch (Throwable $e) {
+            self::catatGagal($sumber, $e);
+
+            return [];
+        }
+    }
+
+    /** Umpan Atom resmi: lima belas video terakhir berikut tanggalnya. */
+    private static function dariUmpan(string $channelId): array
+    {
+        $xml = self::klien()
+            ->timeout(4)
+            ->retry(2, 200, throw: false)
+            ->get('https://www.youtube.com/feeds/videos.xml', ['channel_id' => $channelId])
+            ->throw()
+            ->body();
+
+        $daftar = self::urai($xml);
+
+        if ($daftar === []) {
+            throw new \RuntimeException('Umpannya kosong');
+        }
+
+        return $daftar;
+    }
+
+    /**
+     * Tab "Videos" di halaman kanal.
+     *
+     * Isinya satu gumpalan JSON bernama ytInitialData. Bentuknya dalam dan
+     * berganti-ganti tiap beberapa bulan, jadi yang dicari bukan jalur
+     * tertentu melainkan setiap simpul yang punya videoId sekaligus judul —
+     * urutan munculnya di halaman sudah dari yang terbaru. Tanggalnya di
+     * sini relatif ("2 weeks ago"), dan memang begitu yang ditampilkan.
+     */
+    private static function dariHalaman(string $channelId): array
+    {
+        $html = self::klien()
+            ->timeout(8)
+            ->retry(2, 200, throw: false)
+            ->get('https://www.youtube.com/channel/'.$channelId.'/videos', ['hl' => 'en', 'gl' => 'US'])
+            ->throw()
+            ->body();
+
+        $data = json_decode(self::gumpalanJson($html, 'ytInitialData'), true);
+        if (! is_array($data)) {
+            throw new \RuntimeException('ytInitialData tidak terbaca sebagai JSON');
+        }
+
+        $daftar = [];
+        self::petikVideo($data, $daftar);
+
+        if ($daftar === []) {
+            throw new \RuntimeException('Tidak ada video di halaman kanal');
+        }
+
+        return array_values($daftar);
+    }
+
+    /**
+     * Potong satu objek JSON utuh yang dimulai sesudah penanda.
+     *
+     * Batasnya dicari dengan menghitung kurung, bukan dengan pola: gumpalan
+     * ytInitialData panjangnya ratusan kilobyte dan berisi kurung kurawal di
+     * dalam teks biasa, jadi pola secukupnya akan memotongnya di tempat yang
+     * salah — persis separuh daftar videonya.
+     */
+    private static function gumpalanJson(string $html, string $penanda): string
+    {
+        $mulai = strpos($html, $penanda);
+        if ($mulai === false) {
+            throw new \RuntimeException($penanda.' tidak ada di halaman kanal');
+        }
+
+        $mulai = strpos($html, '{', $mulai + strlen($penanda));
+        if ($mulai === false) {
+            throw new \RuntimeException($penanda.' tidak diikuti objek JSON');
+        }
+
+        $dalam = 0;      // kedalaman kurung
+        $teks = false;   // sedang di dalam string?
+        $lolos = false;  // karakter sebelumnya garis miring terbalik?
+        $panjang = strlen($html);
+
+        for ($i = $mulai; $i < $panjang; $i++) {
+            $c = $html[$i];
+
+            if ($teks) {
+                if ($lolos) {
+                    $lolos = false;
+                } elseif ($c === '\\') {
+                    $lolos = true;
+                } elseif ($c === '"') {
+                    $teks = false;
+                }
+
+                continue;
+            }
+
+            if ($c === '"') {
+                $teks = true;
+            } elseif ($c === '{') {
+                $dalam++;
+            } elseif ($c === '}' && --$dalam === 0) {
+                return substr($html, $mulai, $i - $mulai + 1);
+            }
+        }
+
+        throw new \RuntimeException($penanda.' terpotong di tengah jalan');
+    }
+
+    /**
+     * Menelusuri gumpalan JSON dan memungut tiap video yang ditemukan.
+     *
+     * Dua bentuk dikenali. Yang lama, videoRenderer, memakai "videoId" dan
+     * judul bertumpuk di title.runs. Yang dipakai grid kanal sekarang
+     * bernama lockupViewModel: idnya "contentId", judulnya satu untai utuh,
+     * dan tanggalnya bagian terakhir dari baris "10K views • 2 days ago".
+     */
+    private static function petikVideo(array $simpul, array &$daftar): void
+    {
+        $lockup = $simpul['lockupViewModel'] ?? null;
+
+        if (is_array($lockup) && ($lockup['contentType'] ?? '') === 'LOCKUP_CONTENT_TYPE_VIDEO') {
+            $meta = $lockup['metadata']['lockupMetadataViewModel'] ?? [];
+
+            self::simpanVideo(
+                $daftar,
+                (string) ($lockup['contentId'] ?? ''),
+                (string) ($meta['title']['content'] ?? ''),
+                self::umurLockup($meta),
+            );
+        }
+
+        $id = $simpul['videoId'] ?? null;
+
+        if (is_string($id)) {
+            $judul = $simpul['title']['runs'][0]['text']
+                ?? $simpul['title']['simpleText']
+                ?? '';
+
+            self::simpanVideo(
+                $daftar,
+                $id,
+                is_string($judul) ? $judul : '',
+                (string) ($simpul['publishedTimeText']['simpleText'] ?? ''),
+            );
+        }
+
+        foreach ($simpul as $anak) {
+            if (is_array($anak)) {
+                self::petikVideo($anak, $daftar);
+            }
+        }
+    }
+
+    /** Video yang sama bisa muncul beberapa kali; yang pertama yang dipakai. */
+    private static function simpanVideo(array &$daftar, string $id, string $judul, string $tanggal): void
+    {
+        if ($judul === '' || isset($daftar[$id]) || ! preg_match('/^[\w-]{11}$/', $id)) {
+            return;
+        }
+
+        $daftar[$id] = [
+            'id'      => $id,
+            'judul'   => $judul,
+            'url'     => 'https://www.youtube.com/watch?v='.$id,
+            'tanggal' => $tanggal,
+            'thumb'   => 'https://i.ytimg.com/vi/'.$id.'/hqdefault.jpg',
+        ];
+    }
+
+    /** "10K views • 2 days ago" -> "2 days ago"; halaman diminta hl=en. */
+    private static function umurLockup(array $meta): string
+    {
+        $bagian = $meta['metadata']['contentMetadataViewModel']['metadataRows'][0]['metadataParts'] ?? [];
+
+        foreach (is_array($bagian) ? array_reverse($bagian) : [] as $b) {
+            $teks = $b['text']['content'] ?? '';
+            if (is_string($teks) && str_ends_with($teks, 'ago')) {
+                return $teks;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -110,7 +312,8 @@ class YoutubeTerbaru
             Cache::forever($kunci . ':terakhir', $angka);
 
             return $angka;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            self::catatGagal('Angka kanal YouTube', $e);
             $terakhir = Cache::get($kunci . ':terakhir');
             $terakhir = is_array($terakhir) ? $terakhir : [];
             Cache::put($kunci, $terakhir, now()->addMinutes(30));

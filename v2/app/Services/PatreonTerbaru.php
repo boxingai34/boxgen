@@ -20,6 +20,8 @@ use Throwable;
  */
 class PatreonTerbaru
 {
+    use MelaporGalat;
+
     private const AWAL = 'https://www.patreon.com/api';
 
     /** @return array{patrons:string,paid:string,posts:string} */
@@ -171,7 +173,8 @@ class PatreonTerbaru
             Cache::forever($kunci.':terakhir', $baru);
 
             return $baru;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            self::catatGagal('Patreon (' . $kunci . ')', $e);
             $terakhir = Cache::get($kunci.':terakhir');
             $terakhir = is_array($terakhir) ? $terakhir : [];
             Cache::put($kunci, $terakhir, now()->addMinutes(10));

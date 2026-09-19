@@ -151,6 +151,18 @@ class CmsController extends Controller
         Cache::forget('youtube-terbaru:' . $id);
         $video = YoutubeTerbaru::ambil($id, 12);
 
+        // Daftar kosong dulu dijawab "ok" — dan halaman ini menampilkan nol
+        // video tanpa sepatah kata, padahal itu justru saat orang paling
+        // butuh tahu apa yang terjadi. Sebabnya sekarang ikut dibawa.
+        if ($video === []) {
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Umpan videonya tidak terbaca'
+                    . (YoutubeTerbaru::$galat === '' ? '' : ' — ' . YoutubeTerbaru::$galat)
+                    . '. Id kanalnya sendiri ketemu: ' . $id . '.',
+            ], 422);
+        }
+
         return response()->json(['ok' => true, 'channel_id' => $id, 'video' => $video]);
     }
 
@@ -200,7 +212,12 @@ class CmsController extends Controller
         $aman = DeviantartTerbaru::ambil($nama, 24, false);
 
         if ($semua === []) {
-            return response()->json(['ok' => false, 'error' => 'Umpannya tidak terbaca. Pastikan nama penggunanya benar dan galerinya publik.'], 422);
+            return response()->json([
+                'ok'    => false,
+                'error' => 'Umpannya tidak terbaca'
+                    . (DeviantartTerbaru::$galat === '' ? '' : ' — ' . DeviantartTerbaru::$galat)
+                    . '. Pastikan nama penggunanya benar dan galerinya publik.',
+            ], 422);
         }
 
         return response()->json([
