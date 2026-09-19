@@ -91,9 +91,14 @@ CREATE TABLE IF NOT EXISTS `series` (
   -- seratus ribu karakter, padahal angkanya cuma berubah waktu
   -- tools/import_characters.php dijalankan. Di situlah ia diisi ulang.
   `char_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  -- Kapan daftar karakter judul ini terakhir ditarik dari Danbooru
+  -- (tools/judul_karakter.php). NULL = belum pernah. Dipakai untuk
+  -- melanjutkan pekerjaan lima jam yang berhenti di tengah.
+  `chars_synced_at` TIMESTAMP NULL DEFAULT NULL,
   UNIQUE KEY `uq_series_slug` (`slug`),
   KEY `idx_series_pop` (`universe`, `post_count`),
-  KEY `idx_series_isi` (`char_count`)
+  KEY `idx_series_isi` (`char_count`),
+  KEY `idx_series_tarik` (`chars_synced_at`, `post_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
