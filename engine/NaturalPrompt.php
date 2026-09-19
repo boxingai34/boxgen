@@ -55,11 +55,30 @@ final class NaturalPrompt
         $baris   = [];
         $catatan = [];
 
-        // ---- 1. adegan ----
-        $baris[] = self::adegan($sel, $duo);
+        if (! $duo) {
+            // SATU kalimat, SATU subjek.
+            //
+            // Dulu mode satu petinju memancarkan frasa benda "boxer" tiga
+            // kali sebagai subjek kalimat yang berdiri sendiri: "A boxer
+            // stands ready… The boxer sits back… The boxer is bleeding…".
+            // V5 membaca bahasa manusia, dan tiga frasa benda berurutan
+            // terbaca sebagai tiga orang — persis keluhannya. Lebih buruk
+            // lagi, pembukanya dipaku "stands ready" tanpa melihat pose
+            // yang dipilih, jadi satu prompt bisa menegaskan ada yang
+            // BERDIRI sekaligus ada yang DUDUK.
+            //
+            // Mode dua petinju sengaja tidak ikut berubah: di sana frasa
+            // bendanya justru yang membedakan siapa ("the blonde-haired
+            // boxer" lawan "the boxer on the right"), dan menggabungkannya
+            // akan menghapus satu-satunya penanda posisi yang dipunya.
+            $baris[] = self::adeganSendiri($sel, $a);
+        } else {
+            // ---- 1. adegan ----
+            $baris[] = self::adegan($sel, true);
 
-        // ---- 2. aksi: bagian yang paling untung dari kalimat ----
-        $baris[] = self::aksi($sel, $a, $b, $duo, $sebutan);
+            // ---- 2. aksi: bagian yang paling untung dari kalimat ----
+            $baris[] = self::aksi($sel, $a, $b, true, $sebutan);
+        }
 
         // ---- 2b. detail posisi di dalam aksi ----
         // Di sinilah kalimat paling menang atas tag: "down on one knee,
@@ -70,11 +89,15 @@ final class NaturalPrompt
         }
 
         // ---- 3. kondisi tiap petinju ----
-        foreach ([[$a, 'a'], [$b, 'b']] as [$o, $sisi]) {
-            if ($o !== null && $o['kondisi'] !== '') {
-                $baris[] = SeedanceBuilder::kalimat(
-                    ucfirst($sebutan[$sisi]) . ' is ' . $o['kondisi']
-                );
+        // Mode satu orang sudah membawanya di dalam kalimat pertama; kalau
+        // ditulis lagi di sini, frasa bendanya kembali dua.
+        if ($duo) {
+            foreach ([[$a, 'a'], [$b, 'b']] as [$o, $sisi]) {
+                if ($o !== null && $o['kondisi'] !== '') {
+                    $baris[] = SeedanceBuilder::kalimat(
+                        ucfirst($sebutan[$sisi]) . ' is ' . $o['kondisi']
+                    );
+                }
             }
         }
 
@@ -123,6 +146,39 @@ final class NaturalPrompt
      * disambung ke keterangan tempat:
      *   "in a makeshift ring set up" + "out in open desert"
      */
+    /**
+     * Satu petinju, satu kalimat.
+     *
+     * Pose, kondisi, dan tempat dirangkai mengelilingi SATU frasa benda
+     * alih-alih jadi tiga kalimat yang masing-masing punya subjek. "alone
+     * in the frame" ditulis terbuka karena di V5 itu keterangan yang
+     * dimengerti, dan ia bekerja lebih baik daripada tag "solo" yang
+     * menempel jauh di ekor prompt.
+     *
+     * Pose yang dipilih jadi kata kerjanya. "stands ready" cuma dipakai
+     * kalau memang tidak ada pose — bukan dipaku di depan lalu dibantah
+     * kalimat berikutnya.
+     */
+    private static function adeganSendiri(array $sel, array $a): string
+    {
+        $tempat = SeedanceBuilder::kalimatModul($sel['background_id'] ?? null, 'background', true);
+        $tempat = $tempat !== '' ? $tempat : 'in a boxing ring';
+
+        $ringId = PromptBuilder::resolveRing($sel);
+        $ring   = $ringId !== null ? SeedanceBuilder::kalimatModul($ringId, 'ring', true) : '';
+        $lokasi = $ring !== '' ? $ring . ' ' . $tempat : $tempat;
+
+        $pose = SeedanceBuilder::kalimatModul($sel['pose_id'] ?? null, 'pose', true);
+        $bagian = array_values(array_filter([
+            $pose !== '' ? $pose : 'stands ready',
+            trim((string)($a['kondisi'] ?? '')),
+        ]));
+
+        return SeedanceBuilder::kalimat(
+            'A lone boxer, alone in the frame, ' . implode(', ', $bagian) . ' ' . $lokasi
+        );
+    }
+
     private static function adegan(array $sel, bool $duo): string
     {
         $tempat = SeedanceBuilder::kalimatModul($sel['background_id'] ?? null, 'background', true);

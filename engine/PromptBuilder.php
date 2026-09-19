@@ -140,9 +140,18 @@ final class PromptBuilder
         $potong = self::slotTerpotong($sel, $allowNsfw);
         $char = self::person($sel, $allowNsfw, '', $items, $catatan, $potong);
         $items[] = self::tagItem(self::countTag($sel, $char, 1), 'count', 'jumlah orang');
-        if ($char !== null) {
-            $items[] = self::tagItem('solo', 'count', 'jumlah orang');
-        }
+        // 'solo' TIDAK bersyarat nama karakter. Mode satu petinju menurut
+        // definisinya satu orang, entah orangnya punya nama atau tidak —
+        // dan justru yang tanpa nama paling butuh jangkarnya, karena tidak
+        // ada tag karakter yang ikut memancang jumlahnya. Dulu 'solo' cuma
+        // ikut kalau karakternya berhasil dikenali, jadi prompt tanpa nama
+        // berangkat dengan "1girl" sendirian melawan prosa yang menyebut
+        // "boxer" tiga kali.
+        //
+        // Jalur "referensi jadi prompt" sudah memakai aturan yang benar
+        // sejak awal: ReversePrompt memasang 'solo' berdasarkan JUMLAH
+        // ORANG, bukan ada-tidaknya nama.
+        $items[] = self::tagItem('solo', 'count', 'jumlah orang');
 
         // pose
         self::addModule($sel['pose_id'] ?? null, 'pose', 'pose', $allowNsfw, $items);
@@ -909,13 +918,59 @@ final class PromptBuilder
         return [
             'items'          => $items,
             'blocks'         => self::groupByBlock($items),
-            'negative_items' => self::buildNegative($sel['negative_id'] ?? null),
+            'negative_items' => self::pagarJumlah(
+                self::buildNegative($sel['negative_id'] ?? null),
+                $sel
+            ),
             'removed'        => $result['removed'],
             'conflicts'      => $result['conflicts'],
             'unknown'        => $unknown,
             'characters'     => $chars,
             'catatan'        => $catatan,
         ];
+    }
+
+    /**
+     * Rem jumlah orang di prompt negatif.
+     *
+     * Daftar negatifnya selama ini murni soal MUTU — buram, jari lebih,
+     * wajah rusak — dan tidak satu pun menyinggung berapa orang yang boleh
+     * ada. Jadi satu-satunya yang menahan jumlah adalah tag "1girl" di
+     * sisi positif, melawan prosa V5 yang menyebut "boxer" berkali-kali.
+     * Yang kalah tag tunggalnya.
+     *
+     * Dipasang di sini, bukan di buildNegative(), karena buildNegative()
+     * dipakai tujuh pemanggil lain — termasuk jalur video dan jalur komik.
+     * Menyuntikkan "2girls" ke Undesired video itu efek samping yang tidak
+     * diminta siapa pun. finish() satu-satunya yang memang tahu modenya.
+     *
+     * Mode dua orang TIDAK dipagari dengan 'solo'. Tag itu tag ketiga
+     * terbanyak di seluruh kamus (hampir tujuh juta gambar), jadi
+     * menegasikannya adalah dorongan yang jauh lebih lebar daripada yang
+     * dibutuhkan — yang dijaga di sana cukup "jangan lebih dari dua".
+     */
+    private static function pagarJumlah(array $negatif, array $sel): array
+    {
+        $duo = ($sel['mode'] ?? 'single') === 'duo';
+        $pria = self::genderOrang($duo ? ($sel['a'] ?? []) : $sel, null) === 'male';
+
+        $pagar = $duo
+            ? ['3girls', '4girls', 'crowd']
+            : ($pria
+                ? ['2boys', 'multiple_boys', 'crowd', 'multiple_views']
+                : ['2girls', 'multiple_girls', '3girls', 'crowd', 'multiple_views']);
+
+        $sudah = array_column($negatif, 'name');
+
+        foreach ($pagar as $nama) {
+            if (in_array($nama, $sudah, true)) {
+                continue;
+            }
+
+            $negatif[] = self::tagItem($nama, 'negative', 'pagar jumlah orang');
+        }
+
+        return $negatif;
     }
 
     // =================================================================

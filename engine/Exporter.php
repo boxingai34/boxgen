@@ -241,12 +241,31 @@ final class Exporter
 
         // Siapa saja yang benar-benar ada. Orang pertama baru dihitung
         // sebagai "kotak sendiri" kalau memang ada orang kedua.
+        // Dua sumber, digabung — bukan salah satunya.
+        //
+        // Dulu kehadiran orang cuma ditebak dari bloknya (character_X atau
+        // outfit_X terisi). Tapi tag jumlah "2girls" dibuat dari $sel['mode'],
+        // sumber yang sama sekali berbeda — jadi mode dua petinju yang cuma
+        // diisi KONDISI menghasilkan prompt bertuliskan "2girls" dengan nol
+        // kotak karakter, dan kondisi orang kedua bocor ke Base sehingga
+        // berlaku untuk semua orang di gambar.
+        //
+        // Mode tetap dipakai sebagai tambahan, bukan pengganti: tanda tangan
+        // fungsi ini memberi $sel bawaan kosong, jadi pemanggil yang tidak
+        // mengirim mode akan diam-diam kembali ke nol kotak — memperkenalkan
+        // lagi bug yang sedang dibetulkan. Jalur c..f juga tetap hidup.
         $hadir = [];
+        $duo = ($sel['mode'] ?? '') === 'duo';
+
         foreach (self::ID_ORANG as $id) {
             if ($id === 'a') {
                 continue;
             }
-            if (!empty($blocks['character' . '_' . $id]) || !empty($blocks['outfit_' . $id])) {
+            if (($duo && $id === 'b')
+                || !empty($blocks['character_' . $id])
+                || !empty($blocks['outfit_' . $id])
+                || !empty($blocks['appearance_' . $id])
+                || !empty($blocks['condition_' . $id])) {
                 $hadir[] = $id;
             }
         }
@@ -298,11 +317,11 @@ final class Exporter
                 $items = array_merge($items, $blocks[$nama] ?? []);
             }
 
-            if ($items === []) {
-                continue;
-            }
-
-            $teks = self::format($items, 'novelai');
+            // Kotak yang kosong TIDAK dilewati. Melewatinya menggeser
+            // urutan barisan — NovelAI memakai urutan kotak untuk menentukan
+            // posisi kiri-ke-kanan — dan membuat jumlah kotak tidak lagi
+            // sama dengan tag jumlah yang sudah tertulis di Base.
+            $teks = $items === [] ? '' : self::format($items, 'novelai');
 
             // Kata polos di depan, menggantikan tag berangka yang tinggal
             // di base.
