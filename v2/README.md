@@ -79,11 +79,11 @@ tanpa disetel apa pun, dan tombol "Simpan" pertama membuat berkasnya.
 
 | Apa | Dari mana | Disimpan |
 | --- | --- | --- |
-| Daftar video terbaru | umpan Atom kanal YouTube | 1 jam |
+| Daftar video terbaru | tab "Videos" halaman kanal (umpan Atom dicoba dulu) | 1 jam |
 | Subscriber & total tayangan | halaman "about" kanal (`hl=en`) | 6 jam |
 | Pos Patreon terbaru | `patreon.com/api/posts` (publik) | 1 jam |
 | Jumlah patron / patron berbayar / pos | `patreon.com/api/campaigns/{id}` | 6 jam |
-| Galeri | umpan RSS galeri DeviantArt | 1 jam |
+| Galeri | API galeri DeviantArt (umpan RSS kalau kuncinya kosong) | 1 jam |
 
 Tiap sumber punya salinan terakhir yang berhasil, jadi sumber yang sedang
 mati tidak pernah mengosongkan bagian halaman.
@@ -95,13 +95,25 @@ menggantinya dengan angka terbaru. Kalau sumbernya tidak terbaca, dipakai
 Kartu di "tale of the tape" juga bisa disambungkan langsung ke salah satu
 angka itu lewat kolom pilihan di CMS.
 
-**Galeri DeviantArt.** Umpannya bekerja (judul, tautan, gambar kecil, dan
-penanda *adult* milik DeviantArt), tapi saklarnya **mati bawaan**: waktu
-diperiksa, seluruh karya terbaru di galeri ditandai *adult* oleh DeviantArt
-sendiri. Selama "ikutkan yang adult" tidak dicentang, umpan itu tidak
-menghasilkan apa-apa dan halaman depan memakai daftar gambar dari CMS.
-Instagram tidak punya jalan serupa — profilnya *restricted*, tidak ada umpan
-publik sama sekali.
+**Galeri DeviantArt.** Dua jalan, dicoba berurutan:
+
+1. **API resmi** (`gallery/all`), kalau `DEVIANTART_CLIENT_ID` dan
+   `DEVIANTART_CLIENT_SECRET` sudah diisi di `config.local.php`. Daftarkan
+   aplikasinya di <https://www.deviantart.com/developers/> — gratis, langsung
+   jadi. Alurnya `client_credentials`: aplikasinya bicara sebagai dirinya
+   sendiri, tidak mewakili akun siapa pun, jadi tidak ada yang perlu login.
+2. **Umpan RSS publik**, tanpa kunci apa pun.
+
+Yang kedua bekerja dari komputer sendiri tapi **tidak dari hosting**:
+penjaga bot DeviantArt menjawab 403 untuk alamat IP pusat data dan tidak
+berubah pikiran. Jadi di server, jalur API itu satu-satunya yang menyala.
+Halaman CMS menyebutkan sendiri lewat mana galerinya terbaca.
+
+Saklarnya tetap **mati bawaan**: waktu diperiksa, seluruh karya terbaru di
+galeri ditandai *adult* oleh DeviantArt sendiri. Selama "ikutkan yang adult"
+tidak dicentang, umpan itu tidak menghasilkan apa-apa dan halaman depan
+memakai daftar gambar dari CMS. Instagram tidak punya jalan serupa —
+profilnya *restricted*, tidak ada umpan publik sama sekali.
 
 **Menyegarkan lebih awal.** Halaman depan memperbarui dirinya sendiri waktu
 cache-nya kedaluwarsa; supaya yang menunggu adalah server dan bukan

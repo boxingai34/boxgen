@@ -24,6 +24,7 @@ const props = defineProps<{
     isi: any;
     unggahan: Array<{ nama: string; src: string; kb: number }>;
     gd: boolean;
+    deviantartApi: boolean;
 }>();
 
 // Salinan yang bisa disunting. JSON.parse(JSON.stringify) memutus
@@ -125,9 +126,13 @@ function periksaPatreon() {
 }
 
 function periksaDeviantart() {
-    return periksa(cekDeviant, route('cms.deviantart') + '?nama=' + encodeURIComponent(isi.gallery_feed.username), (j) =>
-        `${j.jumlah} karya terbaca, ${j.dewasa} di antaranya ditandai "adult" oleh DeviantArt.`,
-    );
+    return periksa(cekDeviant, route('cms.deviantart') + '?nama=' + encodeURIComponent(isi.gallery_feed.username), (j) => {
+        // Lewat mana bacanya ikut disebut: dari komputer sendiri RSS selalu
+        // bisa, dari hosting hampir tidak pernah — jadi "lewat RSS" di
+        // server berarti kuncinya belum dipakai, bukan berarti aman.
+        const jalan = j.sumber === 'api' ? 'lewat API resmi' : 'lewat umpan RSS';
+        return `${j.jumlah} karya terbaca ${jalan}, ${j.dewasa} di antaranya ditandai "adult" oleh DeviantArt.`;
+    });
 }
 
 // ------------------------------------------------------------ contoh
@@ -509,6 +514,20 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                         <Isian v-model="isi.gallery_feed.max" label="Jumlah karya" tipe="number" />
                     </div>
                     <label class="mt-2 flex items-center gap-2 text-sm"><input v-model="isi.gallery_feed.ikut_dewasa" type="checkbox" :class="centang" /> Ikutkan karya yang ditandai adult</label>
+
+                    <!-- Kuncinya tidak di sini tapi di config.local.php, dan
+                         perbedaannya besar: tanpa kunci, server hosting selalu
+                         ditolak DeviantArt walau di komputer sendiri lancar. -->
+                    <p v-if="!deviantartApi" class="mt-2 rounded-lg border border-border/70 bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground">
+                        Sekarang dibaca lewat umpan RSS publik. Itu bekerja dari komputer sendiri, tapi dari server hosting
+                        DeviantArt menolaknya dengan 403 — alamat IP pusat data. Untuk jalur resminya: daftarkan aplikasi di
+                        <a href="https://www.deviantart.com/developers/" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">deviantart.com/developers</a>
+                        (gratis, langsung jadi), lalu isi <code class="font-mono">DEVIANTART_CLIENT_ID</code> dan
+                        <code class="font-mono">DEVIANTART_CLIENT_SECRET</code> di <code class="font-mono">config.local.php</code>.
+                    </p>
+                    <p v-else class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                        Kunci aplikasi DeviantArt terpasang — galerinya diambil lewat API resmi, bukan umpan RSS.
+                    </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                         <button type="button" :class="tombolPeriksa" :disabled="cekDeviant.sibuk" @click="periksaDeviantart">
                             <LoaderCircle v-if="cekDeviant.sibuk" class="h-3.5 w-3.5 animate-spin" />

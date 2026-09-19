@@ -21,6 +21,9 @@ class DeviantartTerbaru
 {
     use MelaporGalat;
 
+    /** Daftar terakhir datang dari mana: 'api', 'rss', atau kosong. */
+    public static string $sumber = '';
+
     /**
      * @return list<array{judul:string,url:string,tanggal:string,thumb:string,dewasa:bool}>
      */
@@ -35,29 +38,30 @@ class DeviantartTerbaru
         $daftar = Cache::get($kunci);
 
         if (! is_array($daftar)) {
-            try {
-                $xml = self::klien()
-                    ->timeout(6)
-                    // DeviantArt sesekali menjawab 403 begitu saja dan
-                    // menerima permintaan yang sama sedetik kemudian —
-                    // sekali coba lagi terlalu cepat menyerah.
-                    ->retry(3, 500, throw: false)
-                    ->get('https://backend.deviantart.com/rss.xml', [
-                        'q'    => 'gallery:'.$nama,
-                        'type' => 'deviation',
-                    ])
-                    ->throw()
-                    ->body();
+            // Dua jalan, API resmi lebih dulu. Umpan RSS-nya lewat penjaga
+            // bot yang menolak alamat IP pusat data dengan 403 — dari
+            // komputer sendiri 200, dari hosting tidak pernah — sedangkan
+            // API memang disediakan untuk dipanggil dari server. Kalau
+            // kuncinya belum diisi, RSS tetap dicoba: di komputer sendiri
+            // ia bekerja, dan tidak semua orang mau mendaftar aplikasi.
+            $daftar = [];
+            self::$sumber = '';
 
-                $daftar = self::urai($xml);
-                if ($daftar === []) {
-                    throw new \RuntimeException('Umpan kosong');
-                }
+            if (self::siapApi()) {
+                $daftar = self::coba('Galeri DeviantArt (API)', fn () => self::dariApi($nama));
+                self::$sumber = $daftar === [] ? '' : 'api';
+            }
 
+            if ($daftar === []) {
+                $daftar = self::coba('Umpan galeri DeviantArt (RSS)', fn () => self::dariRss($nama));
+                self::$sumber = $daftar === [] ? '' : 'rss';
+            }
+
+            if ($daftar !== []) {
+                self::$galat = '';
                 Cache::put($kunci, $daftar, now()->addHour());
                 Cache::forever($kunci.':terakhir', $daftar);
-            } catch (Throwable $e) {
-                self::catatGagal('Umpan galeri DeviantArt', $e);
+            } else {
                 $terakhir = Cache::get($kunci.':terakhir');
                 $daftar = is_array($terakhir) ? $terakhir : [];
                 Cache::put($kunci, $daftar, now()->addMinutes(10));
@@ -69,6 +73,169 @@ class DeviantartTerbaru
         }
 
         return array_slice($daftar, 0, max(1, $maks));
+    }
+
+    /** Kunci aplikasinya sudah diisi? Dipakai CMS untuk menerangkan keadaan. */
+    public static function siapApi(): bool
+    {
+        return self::rahasia() !== [];
+    }
+
+    /**
+     * client_id dan client_secret dari deviantart.com/developers.
+     *
+     * Tempatnya config.local.php, bukan isi CMS: itu kunci, dan berkas itu
+     * memang yang di-gitignore dan tidak ikut ke mana-mana.
+     *
+     * @return array{0:string,1:string}|array{}
+     */
+    private static function rahasia(): array
+    {
+        $id = defined('DEVIANTART_CLIENT_ID') ? trim((string) DEVIANTART_CLIENT_ID) : '';
+        $rahasia = defined('DEVIANTART_CLIENT_SECRET') ? trim((string) DEVIANTART_CLIENT_SECRET) : '';
+
+        return $id === '' || $rahasia === '' ? [] : [$id, $rahasia];
+    }
+
+    /**
+     * Galeri lewat API resmi.
+     *
+     * gallery/all memulangkan seluruh galeri seseorang, terbaru dulu, dan
+     * menyebutkan sendiri mana yang is_mature — jadi penyaringnya tetap
+     * sama dengan jalur RSS. Satu halaman 24 karya; itu batas maksimal
+     * DeviantArt sendiri dan lebih dari cukup untuk kartu galeri.
+     */
+    private static function dariApi(string $nama): array
+    {
+        $jawab = self::klienApi()
+            ->timeout(12)
+            ->retry(2, 500, throw: false)
+            ->withToken(self::token())
+            ->get('https://www.deviantart.com/api/v1/oauth2/gallery/all', [
+                'username'       => $nama,
+                'limit'          => 24,
+                'offset'         => 0,
+                'mature_content' => 'true',
+            ])
+            ->throw()
+            ->json();
+
+        $hasil = $jawab['results'] ?? null;
+
+        if (! is_array($hasil) || $hasil === []) {
+            throw new \RuntimeException('Galerinya kosong menurut API');
+        }
+
+        $daftar = [];
+
+        foreach ($hasil as $karya) {
+            $url = trim((string) ($karya['url'] ?? ''));
+            if ($url === '') {
+                continue;
+            }
+
+            $daftar[] = [
+                'judul'   => trim((string) ($karya['title'] ?? '')),
+                'url'     => $url,
+                'tanggal' => isset($karya['published_time']) ? date('Y-m-d', (int) $karya['published_time']) : '',
+                'thumb'   => self::thumbApi($karya),
+                'dewasa'  => (bool) ($karya['is_mature'] ?? false),
+            ];
+        }
+
+        return $daftar;
+    }
+
+    /**
+     * Token aplikasi, bukan token pengguna.
+     *
+     * client_credentials artinya aplikasi ini bicara sebagai dirinya
+     * sendiri — tidak ada yang perlu login, dan tidak ada akun yang
+     * diwakili. Umurnya sejam; disimpan lebih pendek dua menit supaya tidak
+     * ada permintaan yang berangkat membawa token yang baru saja mati.
+     */
+    private static function token(): string
+    {
+        $rahasia = self::rahasia();
+
+        if ($rahasia === []) {
+            throw new \RuntimeException('DEVIANTART_CLIENT_ID/SECRET belum diisi di config.local.php');
+        }
+
+        $kunci = 'deviantart-token:'.md5($rahasia[0]);
+        $token = Cache::get($kunci);
+
+        if (is_string($token) && $token !== '') {
+            return $token;
+        }
+
+        $jawab = self::klienApi()
+            ->timeout(12)
+            ->retry(2, 500, throw: false)
+            ->asForm()
+            ->post('https://www.deviantart.com/oauth2/token', [
+                'grant_type'    => 'client_credentials',
+                'client_id'     => $rahasia[0],
+                'client_secret' => $rahasia[1],
+            ])
+            ->throw()
+            ->json();
+
+        $token = (string) ($jawab['access_token'] ?? '');
+
+        if ($token === '') {
+            throw new \RuntimeException('Token DeviantArt kosong — periksa client_id dan client_secret');
+        }
+
+        Cache::put($kunci, $token, now()->addSeconds(max(60, (int) ($jawab['expires_in'] ?? 3600) - 120)));
+
+        return $token;
+    }
+
+    /** Ukuran menengah: tajam di kartu galeri, tidak seberat berkas aslinya. */
+    private static function thumbApi(array $karya): string
+    {
+        $pilihan = '';
+        $lebar = 0;
+
+        foreach ((array) ($karya['thumbs'] ?? []) as $t) {
+            $l = (int) ($t['width'] ?? 0);
+            if ($l >= $lebar && $l <= 1200) {
+                $lebar = $l;
+                $pilihan = (string) ($t['src'] ?? '');
+            }
+        }
+
+        if ($pilihan !== '') {
+            return $pilihan;
+        }
+
+        return (string) ($karya['preview']['src'] ?? $karya['content']['src'] ?? '');
+    }
+
+    /** Umpan RSS publik — jalan lama, masih dipakai kalau kuncinya kosong. */
+    private static function dariRss(string $nama): array
+    {
+        $xml = self::klien()
+            ->timeout(6)
+            // DeviantArt sesekali menjawab 403 begitu saja dan menerima
+            // permintaan yang sama sedetik kemudian — sekali coba lagi
+            // terlalu cepat menyerah.
+            ->retry(3, 500, throw: false)
+            ->get('https://backend.deviantart.com/rss.xml', [
+                'q'    => 'gallery:'.$nama,
+                'type' => 'deviation',
+            ])
+            ->throw()
+            ->body();
+
+        $daftar = self::urai($xml);
+
+        if ($daftar === []) {
+            throw new \RuntimeException('Umpannya kosong');
+        }
+
+        return $daftar;
     }
 
     /** @return list<array{judul:string,url:string,tanggal:string,thumb:string,dewasa:bool}> */
@@ -134,6 +301,28 @@ class DeviantartTerbaru
             'Accept'          => 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
             'Accept-Language' => 'en-US,en;q=0.8',
             'Referer'         => 'https://www.deviantart.com/',
+        ]);
+
+        if (defined('CA_BUNDLE') && CA_BUNDLE !== '') {
+            $klien = $klien->withOptions(['verify' => CA_BUNDLE]);
+        }
+
+        return $klien;
+    }
+
+    /**
+     * Klien untuk API-nya.
+     *
+     * Di sini justru nama sendiri yang dipakai, bukan penyamaran peramban:
+     * permintaannya sudah membawa kunci aplikasi, jadi tidak ada penjaga
+     * bot yang perlu diyakinkan — dan kalau suatu saat ada yang perlu
+     * ditanyakan ke DeviantArt, permintaan ini bisa dikenali.
+     */
+    private static function klienApi()
+    {
+        $klien = Http::withHeaders([
+            'User-Agent' => 'BoxinGenerated-Landing/2.0 (+https://boxingenerated.com)',
+            'Accept'     => 'application/json',
         ]);
 
         if (defined('CA_BUNDLE') && CA_BUNDLE !== '') {

@@ -38,6 +38,10 @@ class CmsController extends Controller
             'isi'     => $isi,
             'unggahan' => $this->daftarUnggahan(),
             'gd'      => function_exists('imagewebp'),
+            // Umpan RSS DeviantArt ditolak dari alamat IP pusat data; kalau
+            // kunci aplikasinya belum diisi, halaman ini yang memberi tahu
+            // ke mana harus menaruhnya, bukan pesan galat sesudah gagal.
+            'deviantartApi' => DeviantartTerbaru::siapApi(),
         ]);
     }
 
@@ -214,14 +218,18 @@ class CmsController extends Controller
         if ($semua === []) {
             return response()->json([
                 'ok'    => false,
-                'error' => 'Umpannya tidak terbaca'
+                'error' => 'Galerinya tidak terbaca'
                     . (DeviantartTerbaru::$galat === '' ? '' : ' — ' . DeviantartTerbaru::$galat)
-                    . '. Pastikan nama penggunanya benar dan galerinya publik.',
+                    . '. ' . (DeviantartTerbaru::siapApi()
+                        ? 'Periksa nama penggunanya, dan pastikan galerinya publik.'
+                        : 'Umpan RSS-nya ditolak dari alamat IP server; isi DEVIANTART_CLIENT_ID '
+                            . 'dan DEVIANTART_CLIENT_SECRET di config.local.php supaya lewat API resmi.'),
             ], 422);
         }
 
         return response()->json([
             'ok'     => true,
+            'sumber' => DeviantartTerbaru::$sumber,
             'jumlah' => count($semua),
             'dewasa' => count($semua) - count($aman),
             'karya'  => $semua,

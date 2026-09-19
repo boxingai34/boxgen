@@ -72,18 +72,6 @@ class YoutubeTerbaru
         return array_slice($terakhir, 0, $maks);
     }
 
-    /** Jalan yang gagal tidak menghentikan jalan berikutnya, tapi tercatat. */
-    private static function coba(string $sumber, callable $jalan): array
-    {
-        try {
-            return $jalan();
-        } catch (Throwable $e) {
-            self::catatGagal($sumber, $e);
-
-            return [];
-        }
-    }
-
     /** Umpan Atom resmi: lima belas video terakhir berikut tanggalnya. */
     private static function dariUmpan(string $channelId): array
     {

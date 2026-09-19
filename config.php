@@ -239,6 +239,30 @@ defined('YTDLP_BIN')   || define('YTDLP_BIN', '');
 defined('REVERSE_URL_TIMEOUT')   || define('REVERSE_URL_TIMEOUT', 120);
 defined('REVERSE_MAX_URL_BYTES') || define('REVERSE_MAX_URL_BYTES', 200 * 1024 * 1024);
 
+// ---------------------------------------------------------------------
+// Galeri DeviantArt di halaman depan (v2).
+//
+// Halaman depan bisa mengambil karya terbaru dari galeri DeviantArt lewat
+// dua jalan. Umpan RSS publiknya tidak perlu kunci apa pun dan bekerja
+// dari komputer sendiri — tapi dari alamat IP pusat data (hosting mana
+// pun) penjaga botnya menjawab 403 dan tidak pernah berubah pikiran.
+//
+// API resminya memang untuk dipanggil dari server. Daftarkan aplikasi di
+// https://www.deviantart.com/developers/ (gratis, langsung jadi, tidak
+// ada persetujuan manual), lalu salin client_id dan client_secret-nya ke
+// config.local.php:
+//
+//     define('DEVIANTART_CLIENT_ID',     '12345');
+//     define('DEVIANTART_CLIENT_SECRET', 'abcdef...');
+//
+// Yang dipakai alur client_credentials: aplikasinya bicara sebagai dirinya
+// sendiri, tidak mewakili akun siapa pun, jadi tidak ada yang perlu login
+// dan tidak ada izin yang perlu diberikan ke akunmu. Kosong = jalur RSS
+// saja, seperti sebelumnya.
+// ---------------------------------------------------------------------
+defined('DEVIANTART_CLIENT_ID')     || define('DEVIANTART_CLIENT_ID', '');
+defined('DEVIANTART_CLIENT_SECRET') || define('DEVIANTART_CLIENT_SECRET', '');
+
 // Tag yang TIDAK PERNAH ikut ke prompt, walau memang terlihat di
 // referensinya. Bukan karena salah baca — pembacanya benar — tapi karena
 // modelnya menggambarnya jelek, jadi menyebutnya justru merugikan.

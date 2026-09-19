@@ -32,6 +32,24 @@ trait MelaporGalat
     }
 
     /**
+     * Jalan yang gagal tidak menghentikan jalan berikutnya, tapi tercatat.
+     *
+     * Dua layanan punya lebih dari satu cara mengambil hal yang sama —
+     * YouTube lewat umpan atau halaman kanal, DeviantArt lewat API atau
+     * RSS — dan pola "coba ini, kalau kosong coba itu" jadi sama persis.
+     */
+    protected static function coba(string $sumber, callable $jalan): array
+    {
+        try {
+            return $jalan();
+        } catch (Throwable $e) {
+            self::catatGagal($sumber, $e);
+
+            return [];
+        }
+    }
+
+    /**
      * Satu kalimat yang cukup untuk tahu harus mengubah apa.
      *
      * Bedanya penting: "dijawab HTTP 429" berarti sumbernya menolak alamat
