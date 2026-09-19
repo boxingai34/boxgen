@@ -59,7 +59,7 @@ function aktif(rute: string, persis: boolean): boolean {
         <!-- Merek -->
         <Link :href="route('dashboard')" class="block px-5 py-5">
             <Merek :merek="{ name: 'BoxinGenerated', logo_dark: '/img/logo-gelap.webp', logo_light: '/img/logo-terang.webp' }" tinggi="h-8" />
-            <span class="mt-1.5 block text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Prompt Studio</span>
+            <span class="mt-1.5 block text-xs uppercase tracking-[0.18em] text-muted-foreground">Prompt Studio</span>
         </Link>
 
         <nav class="mt-2 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
@@ -87,7 +87,7 @@ function aktif(rute: string, persis: boolean): boolean {
                 />
                 <span class="min-w-0">
                     <span class="block font-medium">{{ m.nama }}</span>
-                    <span class="block truncate text-[11px] text-muted-foreground">{{ m.ket }}</span>
+                    <span class="block truncate text-xs text-muted-foreground">{{ m.ket }}</span>
                 </span>
             </Link>
         </nav>
@@ -96,12 +96,12 @@ function aktif(rute: string, persis: boolean): boolean {
             <div class="tali mb-4" />
             <a
                 :href="route('home')"
-                class="flex items-center gap-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+                class="flex items-center gap-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
             >
                 <Globe class="h-3.5 w-3.5" />
                 Lihat halaman depan publik
             </a>
-            <p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+            <p class="mt-3 text-xs leading-relaxed text-muted-foreground">
                 Alat ini tertutup: untuk pemilik dan teman dekatnya saja.
             </p>
         </div>

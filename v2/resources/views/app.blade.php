@@ -24,6 +24,12 @@
             <link rel="preload" as="image" href="{{ $hero }}" fetchpriority="high">
         @endisset
 
+        {{-- Hurufnya dipasang sendiri, jadi alamatnya sudah pasti dan boleh
+             dimulai sebelum CSS-nya selesai dibaca. Tanpa ini, teks pertama
+             tergambar dengan huruf sistem lalu berganti — kedipan yang
+             kelihatan justru di kunjungan pertama. --}}
+        <link rel="preload" as="font" type="font/woff2" href="/fonts/geist-latin.woff2" crossorigin>
+
         <title inertia>{{ config('app.name', 'BoxinGenerated') }}</title>
 
         {{-- Favicon latarnya tembus supaya terbaca di bilah tab terang maupun

@@ -214,7 +214,7 @@ const isianKelas =
                         placeholder="Contoh:&#10;Eve vs Aphrodite di tengah colosseum, malam hari, ada penonton tapi tidak ada wasit.&#10;Eve gugup, Aphrodite mendominasi sejak awal…&#10;&#10;durasi: 3 menit 30 detik"
                         :class="[isianKelas, 'resize-y font-mono text-[13px] leading-relaxed']"
                     />
-                    <div class="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div class="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{{ cerita.length }} / 6000 huruf</span>
                         <span>Makin jelas urutannya, makin setia hasilnya.</span>
                     </div>
@@ -321,11 +321,11 @@ const isianKelas =
                             :key="a.no"
                             class="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2 text-sm"
                         >
-                            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-muted text-[11px] font-semibold tabular-nums">
+                            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-muted text-xs font-semibold tabular-nums">
                                 {{ a.no }}
                             </span>
                             <span class="min-w-0 flex-1 truncate">{{ a.judul }}</span>
-                            <span class="shrink-0 text-[11px] text-muted-foreground">
+                            <span class="shrink-0 text-xs text-muted-foreground">
                                 {{ a.detik }}s · {{ (a.langkah?.length || a.kejadian?.length || 0) }} langkah
                             </span>
                         </li>
@@ -366,7 +366,7 @@ const isianKelas =
                         >
                             <component :is="t.i" class="h-4 w-4" />
                             {{ t.n }}
-                            <span class="rounded-md bg-muted px-1.5 text-[11px] tabular-nums">{{ t.j }}</span>
+                            <span class="rounded-md bg-muted px-1.5 text-xs tabular-nums">{{ t.j }}</span>
                             <span
                                 v-if="tabAktif === t.k"
                                 class="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[hsl(var(--sorot))] to-[hsl(var(--sudut))]"
@@ -390,7 +390,7 @@ const isianKelas =
                                     </span>
                                     <span class="min-w-0 flex-1">
                                         <span class="block truncate text-sm font-medium">{{ k.judul }}</span>
-                                        <span class="block truncate text-[11px] text-muted-foreground">
+                                        <span class="block truncate text-xs text-muted-foreground">
                                             {{ k.mulai }}-{{ k.selesai }}s · {{ k.jenis }}
                                         </span>
                                     </span>
@@ -410,12 +410,12 @@ const isianKelas =
                                         <span
                                             v-for="u in k.urut"
                                             :key="u.nomor"
-                                            class="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[11px]"
+                                            class="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs"
                                         >
                                             Image {{ u.nomor }}: {{ u.nama }}
                                         </span>
                                     </p>
-                                    <pre class="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ k.prompt }}</pre>
+                                    <pre class="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">{{ k.prompt }}</pre>
                                 </div>
                             </details>
                         </template>
@@ -426,7 +426,7 @@ const isianKelas =
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h3 class="truncate text-sm font-medium">{{ c.nama }}</h3>
-                                        <p class="mt-0.5 text-[11px] text-muted-foreground">dipakai di klip {{ c.klip.join(', ') }}</p>
+                                        <p class="mt-0.5 text-xs text-muted-foreground">dipakai di klip {{ c.klip.join(', ') }}</p>
                                     </div>
                                     <button
                                         type="button"
@@ -437,7 +437,7 @@ const isianKelas =
                                         <Copy v-else class="h-3.5 w-3.5" />
                                     </button>
                                 </div>
-                                <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ c.prompt }}</pre>
+                                <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">{{ c.prompt }}</pre>
 
                                 <!-- Tokoh lewat NovelAI, bukan Gemini: penyaring
                                      ketelanjangan Gemini tidak bisa dimatikan, dan
@@ -462,7 +462,7 @@ const isianKelas =
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="min-w-0">
                                         <h3 class="truncate text-sm font-medium">{{ l.nama }}</h3>
-                                        <p class="mt-0.5 text-[11px] text-muted-foreground">dipakai di klip {{ l.klip.join(', ') }}</p>
+                                        <p class="mt-0.5 text-xs text-muted-foreground">dipakai di klip {{ l.klip.join(', ') }}</p>
                                     </div>
                                     <button
                                         type="button"
@@ -473,7 +473,7 @@ const isianKelas =
                                         <Copy v-else class="h-3.5 w-3.5" />
                                     </button>
                                 </div>
-                                <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ l.prompt }}</pre>
+                                <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">{{ l.prompt }}</pre>
 
                                 <!-- Latar di Gemini/OpenAI, yang jauh lebih rapi
                                      menggambar ruangan. Satu gambar per tempat,

@@ -32,7 +32,7 @@ function geser(i: number, arah: -1 | 1) {
     <div>
         <span class="mb-1.5 flex items-baseline justify-between gap-3">
             <span class="text-xs font-medium text-muted-foreground">{{ label }}</span>
-            <span v-if="ket" class="text-[11px] text-muted-foreground/70">{{ ket }}</span>
+            <span v-if="ket" class="text-xs text-muted-foreground/70">{{ ket }}</span>
         </span>
 
         <ul v-if="daftar.length" class="mb-2 space-y-1.5">

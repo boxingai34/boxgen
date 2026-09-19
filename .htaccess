@@ -64,7 +64,7 @@ Options -Indexes
     RewriteRule ^ - [F,L]
 
     RewriteCond %{DOCUMENT_ROOT}/v2/public/index.php -f
-    RewriteRule ^(build|img|uploads)/(.+)$ v2/public/$1/$2 [L]
+    RewriteRule ^(build|img|uploads|fonts)/(.+)$ v2/public/$1/$2 [L]
 
     # Berkas yang diminta browser dari akar domain. Ikonnya PNG —
     # favicon.ico tidak pernah dibuat, jadi aturan lama berakhir 404 di

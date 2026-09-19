@@ -77,7 +77,7 @@ function keluar() {
                     :href="route('profile.edit')"
                     class="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 transition-colors hover:border-[hsl(var(--sorot)/0.5)]"
                 >
-                    <span class="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))] text-[11px] font-bold text-white">
+                    <span class="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-[hsl(var(--sorot))] to-[hsl(var(--sudut))] text-xs font-bold text-white">
                         {{ user.nama.charAt(0).toUpperCase() }}
                     </span>
                     <span class="hidden text-xs font-medium sm:block">{{ user.nama }}</span>

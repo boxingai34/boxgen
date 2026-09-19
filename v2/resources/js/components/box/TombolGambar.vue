@@ -104,7 +104,7 @@ async function buat() {
             </a>
         </div>
 
-        <p v-if="pesan" class="mt-2 text-[11px] leading-relaxed" :class="galat ? 'text-destructive' : 'text-muted-foreground'">
+        <p v-if="pesan" class="mt-2 text-xs leading-relaxed" :class="galat ? 'text-destructive' : 'text-muted-foreground'">
             {{ pesan }}
         </p>
 
@@ -118,7 +118,7 @@ async function buat() {
                 :alt="alt"
                 class="max-h-[36rem] w-auto max-w-full rounded-xl border border-border/70 transition-colors group-hover:border-[hsl(var(--sorot)/0.6)]"
             />
-            <span class="mt-1 block text-[11px] text-muted-foreground">Klik gambarnya untuk melihat ukuran penuh.</span>
+            <span class="mt-1 block text-xs text-muted-foreground">Klik gambarnya untuk melihat ukuran penuh.</span>
         </a>
     </div>
 </template>

@@ -14,7 +14,7 @@ defineProps<{ en: string }>();
 <template>
     <div class="pointer-events-none hidden lg:block" aria-hidden="true">
         <div class="sticky top-1/2 flex -translate-y-1/2 flex-col items-center gap-3 text-muted-foreground/70">
-            <span class="text-[11px] uppercase tracking-[0.3em] text-[hsl(var(--sudut))] [writing-mode:vertical-rl]">{{ en }}</span>
+            <span class="text-xs uppercase tracking-[0.3em] text-[hsl(var(--sudut))] [writing-mode:vertical-rl]">{{ en }}</span>
             <span class="h-10 w-px bg-gradient-to-b from-[hsl(var(--sudut)/0.5)] to-transparent" />
         </div>
     </div>

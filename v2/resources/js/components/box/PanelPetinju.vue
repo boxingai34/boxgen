@@ -217,9 +217,9 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                     <button type="button" class="flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent" @mousedown.prevent="pilihKarakter(k)">
                         <span class="truncate">
                             {{ k.tampil }}
-                            <span v-if="k.seri" class="text-[11px] text-muted-foreground">· {{ k.seri }}</span>
+                            <span v-if="k.seri" class="text-xs text-muted-foreground">· {{ k.seri }}</span>
                         </span>
-                        <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">{{ k.jumlah.toLocaleString('id-ID') }}</span>
+                        <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{{ k.jumlah.toLocaleString('id-ID') }}</span>
                     </button>
                 </li>
             </ul>
@@ -240,13 +240,13 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                     <option value="female">Perempuan</option>
                     <option value="male">Laki-laki</option>
                 </select>
-                <span class="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                <span class="mt-1 block text-xs leading-relaxed text-muted-foreground">
                     Seluruh karakter masuk lewat impor massal dengan bawaan perempuan, karena Danbooru tidak menyediakan datanya. Pilih sendiri kalau salah.
                 </span>
             </label>
             <label class="flex items-start gap-2 pt-6 text-sm">
                 <input v-model="orang.mature" type="checkbox" class="mt-1 accent-[hsl(var(--sorot))]" />
-                <span>Dewasa (mature) <span class="block text-[11px] text-muted-foreground">Menambah <code>mature_female</code> / <code>mature_male</code>.</span></span>
+                <span>Dewasa (mature) <span class="block text-xs text-muted-foreground">Menambah <code>mature_female</code> / <code>mature_male</code>.</span></span>
             </label>
         </div>
 
@@ -263,13 +263,13 @@ function kelompok(tipe: string): Array<[string, any[]]> {
 
         <details class="mt-2 rounded-xl border border-border/70 p-3">
             <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Advanced — atur per bagian</summary>
-            <p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+            <p class="mt-2 text-xs leading-relaxed text-muted-foreground">
                 Terisi otomatis mengikuti tema di atas. Ubah yang mana pun untuk menimpanya, atau pakai tanpa memilih tema sama sekali.
             </p>
 
             <div v-for="[slot, label] in SLOT_PAKAIAN" :key="slot" class="mt-2 grid gap-2 sm:grid-cols-[1fr_9rem]">
                 <label class="block">
-                    <span class="mb-1 block text-[11px] text-muted-foreground">{{ label }}</span>
+                    <span class="mb-1 block text-xs text-muted-foreground">{{ label }}</span>
                     <select v-model="orang['outfit_' + slot + '_id']" :class="[isianKelas, 'h-9 py-0 text-xs']">
                         <option value="">— ikut tema —</option>
                         <option value="none">— tidak ada —</option>
@@ -279,7 +279,7 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                     </select>
                 </label>
                 <label class="block">
-                    <span class="mb-1 block text-[11px] text-muted-foreground">Warna</span>
+                    <span class="mb-1 block text-xs text-muted-foreground">Warna</span>
                     <select
                         v-model="orang['outfit_' + slot + '_color']"
                         :disabled="!warnaUntuk(slot).length"
@@ -292,7 +292,7 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 </label>
             </div>
 
-            <button type="button" class="mt-3 rounded-lg border border-dashed border-border px-3 py-1.5 text-[11px] transition-colors hover:border-[hsl(var(--sorot)/0.6)]" @click="kembaliKeTema">
+            <button type="button" class="mt-3 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs transition-colors hover:border-[hsl(var(--sorot)/0.6)]" @click="kembaliKeTema">
                 Kembalikan ke tema
             </button>
         </details>
@@ -310,13 +310,13 @@ function kelompok(tipe: string): Array<[string, any[]]> {
 
         <details class="mt-2 rounded-xl border border-border/70 p-3">
             <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Advanced — kondisi per bagian badan</summary>
-            <p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+            <p class="mt-2 text-xs leading-relaxed text-muted-foreground">
                 Terisi otomatis mengikuti tema kondisi di atas. Ubah yang mana pun untuk menimpanya.
             </p>
 
             <div class="mt-2 grid gap-2 sm:grid-cols-2">
                 <label v-for="[slot, label] in SLOT_KONDISI" :key="slot" class="block">
-                    <span class="mb-1 block text-[11px] text-muted-foreground">{{ label }}</span>
+                    <span class="mb-1 block text-xs text-muted-foreground">{{ label }}</span>
                     <select v-model="orang['cond_' + slot + '_id']" :class="[isianKelas, 'h-9 py-0 text-xs']">
                         <option value="">— ikut tema —</option>
                         <option value="none">— tidak ada —</option>
@@ -327,7 +327,7 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 </label>
             </div>
 
-            <button type="button" class="mt-3 rounded-lg border border-dashed border-border px-3 py-1.5 text-[11px] transition-colors hover:border-[hsl(var(--sorot)/0.6)]" @click="kembaliKeTemaKondisi">
+            <button type="button" class="mt-3 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs transition-colors hover:border-[hsl(var(--sorot)/0.6)]" @click="kembaliKeTemaKondisi">
                 Kembalikan ke tema
             </button>
         </details>

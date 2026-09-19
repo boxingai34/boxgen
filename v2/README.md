@@ -246,8 +246,10 @@ halaman, tidak butuh migrasi, dan mudah dicadangkan.
   inti prosesor ≤ 4, penghemat data menyala, atau sistem meminta gerak dikurangi.
 - Tema dan mode hemat dipasang di `<head>` sebelum halaman digambar, jadi tidak
   ada kedipan putih.
-- Tidak ada font dari internet; huruf Jepang memakai serif bawaan sistem
-  (Yu Mincho / Hiragino / Noto).
+- Hurufnya Geist Sans + Geist Mono, **dipasang sendiri** di `public/fonts`
+  (29 KB dan 23 KB, versi variabel) — tidak ada permintaan ke Google atau
+  CDN mana pun. Huruf Jepang tetap memakai serif bawaan sistem (Yu Mincho /
+  Hiragino / Noto).
 - Gambar sudah WebP dengan ukuran yang benar-benar dipakai, `loading="lazy"`,
   dan lebar/tinggi tertulis supaya tata letaknya tidak melompat. Skrip pihak
   ketiga (YouTube, X) tidak diunduh sebelum pengunjung memintanya.

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import IsianKarakter from '@/components/box/IsianKarakter.vue';
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
@@ -262,6 +263,61 @@ function tagOtot(s: any, kunci: string): string {
     return kunci === 'muscular' ? (s.sex === 'male' ? 'muscular_male' : 'muscular_female') : kunci;
 }
 
+/**
+ * Pakaian dikelompokkan, bukan diketik.
+ *
+ * Tag yang dipakai harus ada di kamus Danbooru — salah satu huruf saja dan
+ * tagnya dibuang diam-diam waktu prompt disusun. Semua yang di bawah ini
+ * sudah dicocokkan ke kamus, jadi apa pun yang dipilih pasti terpakai.
+ */
+const ATASAN = [
+    { nama: 'Tinju & olahraga', tag: ['sports_bra', 'athletic_leotard', 'gym_uniform', 'tank_top', 'crop_top', 'track_jacket', 'leotard', 'wrestling_outfit'] },
+    { nama: 'Pembalut dada', tag: ['sarashi', 'chest_sarashi', 'bandages'] },
+    { nama: 'Sehari-hari', tag: ['t-shirt', 'shirt', 'sleeveless_shirt', 'tube_top', 'camisole', 'undershirt', 'hoodie', 'jacket'] },
+    { nama: 'Renang & dalaman', tag: ['swimsuit', 'one-piece_swimsuit', 'bra'] },
+];
+
+const BAWAHAN = [
+    { nama: 'Tinju & olahraga', tag: ['boxing_shorts', 'gym_shorts', 'short_shorts', 'buruma', 'bike_shorts', 'dolphin_shorts', 'micro_shorts'] },
+    { nama: 'Latihan', tag: ['track_pants', 'sweatpants', 'leggings', 'yoga_pants'] },
+    { nama: 'Sehari-hari', tag: ['shorts', 'pants', 'jeans', 'skirt'] },
+    { nama: 'Dalaman', tag: ['panties', 'briefs', 'boxer_briefs', 'thong'] },
+];
+
+/** Nilai dari gambar yang belum ada di daftar tetap ditampilkan apa adanya. */
+function diLuarDaftar(daftar: Array<{ tag: string[] }>, nilai: string): boolean {
+    const v = String(nilai || '').trim();
+
+    return v !== '' && !daftar.some((g) => g.tag.includes(v));
+}
+
+/**
+ * Memar dan darah: lokasi yang dicentang, bukan diketik.
+ *
+ * Mesinnya membaca kata-kata ini untuk memilih tag yang tepat — "cheek"
+ * atau "jaw" jadi bruise_on_face, "eye" jadi bruised_eye, "nose" jadi
+ * nosebleed. Jadi daftarnya memang memakai kata Inggris yang dikenalinya.
+ */
+const MEMAR: Array<[string, string]> = [
+    ['left cheek', 'Pipi kiri'], ['right cheek', 'Pipi kanan'], ['jaw', 'Rahang'], ['forehead', 'Dahi'],
+    ['left eye', 'Mata kiri'], ['right eye', 'Mata kanan'], ['nose', 'Hidung'],
+    ['stomach', 'Perut'], ['ribs', 'Rusuk'], ['chest', 'Dada'], ['arm', 'Lengan'], ['shoulder', 'Bahu'], ['thigh', 'Paha'],
+];
+
+const DARAH: Array<[string, string]> = [
+    ['nose', 'Hidung'], ['mouth', 'Mulut'], ['lip', 'Bibir'],
+    ['brow', 'Alis'], ['cheek', 'Pipi'], ['forehead', 'Dahi'], ['face', 'Wajah'], ['chest', 'Dada'],
+];
+
+function punyaLokasi(daftar: string[] | undefined, nilai: string): boolean {
+    return (daftar ?? []).includes(nilai);
+}
+
+function ubahLokasi(s: any, kolom: 'bruises' | 'blood', nilai: string, nyala: boolean) {
+    const ada = (s.condition[kolom] ?? []).filter((x: string) => x !== nilai);
+    s.condition[kolom] = nyala ? [...ada, nilai] : ada;
+}
+
 function punyaOtot(s: any, kunci: string): boolean {
     return (s.body ?? []).includes(tagOtot(s, kunci));
 }
@@ -468,7 +524,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
             <div class="space-y-5">
                 <Kartu judul="1. Unggah referensi" :ket="siap ? 'Diproses di browser — yang terkirim cuma versi kecilnya.' : 'Profil AI vision belum punya kunci.'">
                     <template #alat>
-                        <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-muted-foreground">
+                        <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
                             {{ labelKuota }}
                         </span>
                     </template>
@@ -487,7 +543,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     >
                         <Upload class="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
                         <p class="text-sm"><strong>Seret gambar atau video ke sini</strong>, atau pilih berkasnya.</p>
-                        <p class="mt-1 text-[11px] text-muted-foreground">
+                        <p class="mt-1 text-xs text-muted-foreground">
                             JPG, PNG, WebP · MP4, WebM, MOV — atau tekan <kbd class="rounded border border-border px-1">Ctrl</kbd>+<kbd class="rounded border border-border px-1">V</kbd> untuk menempel gambar yang tersalin.
                         </p>
                         <input
@@ -506,7 +562,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <input v-model="alamat" type="text" maxlength="2000" placeholder="https://… alamat gambar atau berkas video" :class="isianKelas" @keydown.enter.prevent="ambilAlamat" />
                             <Tombol jenis="garis" :nonaktif="sedangProses || !alamat.trim()" @click="ambilAlamat">Ambil</Tombol>
                         </div>
-                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                             Untuk video, isi alamat berkasnya langsung (yang berakhiran <code>.mp4</code> atau <code>.webm</code>).
                         </p>
                     </div>
@@ -515,17 +571,17 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     <div v-if="referensi?.kind === 'video' || !referensi" class="mt-4">
                         <span class="mb-1.5 flex items-baseline justify-between text-xs font-medium text-muted-foreground">
                             <span>Frame yang diambil dari video</span>
-                            <span class="text-[11px]">{{ frame }} frame</span>
+                            <span class="text-xs">{{ frame }} frame</span>
                         </span>
                         <input v-model.number="frame" type="range" min="4" :max="maks.frame" step="1" class="w-full accent-[hsl(var(--sorot))]" />
-                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                             Diambil merata sepanjang durasi, plus satu lembar kontak 4×2 supaya pembacanya melihat urutannya sekaligus. Makin banyak frame, makin teliti — dan makin lama dibaca.
                         </p>
                     </div>
 
                     <!-- Pratinjau -->
                     <div v-if="referensi" class="mt-4 rounded-xl border border-border/70 p-3">
-                        <div class="mb-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                        <div class="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
                             <span class="truncate">
                                 {{ referensi.nama }} · {{ referensi.w }}×{{ referensi.h }}
                                 <template v-if="referensi.duration"> · {{ referensi.duration }} detik</template>
@@ -548,10 +604,10 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     <!-- Catatan untuk pembaca -->
                     <div class="mt-5 border-t border-border/60 pt-4">
                         <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
-                            Catatan untuk pembaca <span class="text-[11px] text-muted-foreground/70">opsional, maks {{ maks.hint }} huruf</span>
+                            Catatan untuk pembaca <span class="text-xs text-muted-foreground/70">opsional, maks {{ maks.hint }} huruf</span>
                         </span>
                         <textarea v-model="hint" rows="2" :maxlength="maks.hint" placeholder="misal: yang kiri itu Usagi, yang kanan Rei; ini ronde terakhir" :class="[isianKelas, 'resize-y']" />
-                        <p class="mt-1.5 text-[11px] text-muted-foreground">Dibaca model vision bersama gambarnya. Berguna untuk menyebut nama karakter yang tidak dikenalinya sendiri.</p>
+                        <p class="mt-1.5 text-xs text-muted-foreground">Dibaca model vision bersama gambarnya. Berguna untuk menyebut nama karakter yang tidak dikenalinya sendiri.</p>
                     </div>
 
                     <div class="mt-4 space-y-2">
@@ -578,7 +634,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                 <Kartu v-if="ekstrak" judul="2. Hasil pembacaan" ket="Semua kolom di bawah bisa dibetulkan sebelum promptnya disusun — pembacanya sering salah menebak nama karakter dan siapa yang memukul.">
                     <p v-if="ringkas" class="mb-3 rounded-xl border border-border/70 bg-card/60 px-3.5 py-2.5 text-sm leading-relaxed">{{ ringkas }}</p>
 
-                    <div v-if="validasi?.tag_ditolak?.length || validasi?.catatan?.length" class="mb-4 space-y-1.5 text-[11px] text-muted-foreground">
+                    <div v-if="validasi?.tag_ditolak?.length || validasi?.catatan?.length" class="mb-4 space-y-1.5 text-xs text-muted-foreground">
                         <p v-if="validasi.tag_ditolak?.length">
                             <span class="text-[hsl(var(--kanvas))]">Tag yang tidak ada di kamus dan dibuang:</span>
                             {{ validasi.tag_ditolak.join(', ') }}
@@ -607,12 +663,12 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 </select>
                             </label>
                             <label class="block">
-                                <span class="mb-1.5 block text-xs text-muted-foreground">Karakter</span>
-                                <input v-model="s.character" type="text" placeholder="misal: zenin_maki" :class="isianKelas" @change="gantiKarakter(s)" />
+                                <span class="mb-1.5 block text-xs font-medium text-[hsl(var(--sorot))]">Karakter</span>
+                                <IsianKarakter v-model="s.character" @pilih="gantiKarakter(s)" />
                             </label>
                         </div>
 
-                        <p v-if="s.ciri_dibuang" class="mt-2 text-[11px] leading-relaxed text-[hsl(var(--kanvas))]">
+                        <p v-if="s.ciri_dibuang" class="mt-2 text-xs leading-relaxed text-[hsl(var(--kanvas))]">
                             Karakter diganti jadi "{{ String(s.character).replace(/_/g, ' ') }}", jadi rambut, mata, dan ukuran dada dari gambar dibuang. Ciri asli karakter ini diambil dari kamus saat Susun Prompt ditekan.
                         </p>
 
@@ -621,7 +677,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             <select v-model="s.view" :class="isianKelas">
                                 <option v-for="[n, l] in PANDANG" :key="n" :value="n">{{ l }}</option>
                             </select>
-                            <span v-if="s.view_evidence" class="mt-1 block text-[11px] text-muted-foreground">{{ s.view_evidence }}</span>
+                            <span v-if="s.view_evidence" class="mt-1 block text-xs text-muted-foreground">{{ s.view_evidence }}</span>
                         </label>
 
                         <div class="mt-3 grid gap-3 sm:grid-cols-3">
@@ -646,7 +702,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <div class="mt-3">
                             <span class="mb-1.5 block text-xs text-muted-foreground">
                                 Bentuk otot
-                                <span class="text-[11px] text-muted-foreground/70">— mati bawaan; centang kalau memang mau</span>
+                                <span class="text-xs text-muted-foreground/70">— mati bawaan; centang kalau memang mau</span>
                             </span>
                             <div class="flex flex-wrap gap-x-5 gap-y-2">
                                 <label v-for="[k, l] in OTOT_PILIHAN" :key="k" class="flex items-center gap-2 text-sm">
@@ -658,7 +714,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     />
                                     {{ l }}
                                 </label>
-                                <span v-if="(s.otot_terbaca || []).length" class="text-[11px] text-muted-foreground">
+                                <span v-if="(s.otot_terbaca || []).length" class="text-xs text-muted-foreground">
                                     Dari gambarnya terbaca: {{ (s.otot_terbaca || []).map((t: string) => t.replace(/_/g, ' ')).join(', ') }}
                                 </span>
                             </div>
@@ -667,11 +723,23 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <div class="mt-3 grid gap-3 sm:grid-cols-4">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Atasan</span>
-                                <input v-model="s.attire.top" type="text" placeholder="sports_bra" :class="isianKelas" />
+                                <select v-model="s.attire.top" :class="isianKelas">
+                                    <option value="">— tidak disebut —</option>
+                                    <option v-if="diLuarDaftar(ATASAN, s.attire.top)" :value="s.attire.top">{{ String(s.attire.top).replace(/_/g, ' ') }} (dari gambar)</option>
+                                    <optgroup v-for="g in ATASAN" :key="g.nama" :label="g.nama">
+                                        <option v-for="t in g.tag" :key="t" :value="t">{{ t.replace(/_/g, ' ') }}</option>
+                                    </optgroup>
+                                </select>
                             </label>
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Bawahan</span>
-                                <input v-model="s.attire.bottom" type="text" placeholder="boxing_shorts" :class="isianKelas" />
+                                <select v-model="s.attire.bottom" :class="isianKelas">
+                                    <option value="">— tidak disebut —</option>
+                                    <option v-if="diLuarDaftar(BAWAHAN, s.attire.bottom)" :value="s.attire.bottom">{{ String(s.attire.bottom).replace(/_/g, ' ') }} (dari gambar)</option>
+                                    <optgroup v-for="g in BAWAHAN" :key="g.nama" :label="g.nama">
+                                        <option v-for="t in g.tag" :key="t" :value="t">{{ t.replace(/_/g, ' ') }}</option>
+                                    </optgroup>
+                                </select>
                             </label>
                             <label class="block">
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Sarung tangan</span>
@@ -700,25 +768,48 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     <option v-for="[n, l] in TINGKAT" :key="n" :value="Number(n)">{{ l }}</option>
                                 </select>
                             </label>
-                            <label class="block">
+                        </div>
+
+                        <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                            <div>
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Memar di</span>
-                                <input :value="(s.condition.bruises || []).join(', ')" type="text" placeholder="left cheek, stomach" :class="isianKelas" @change="s.condition.bruises = ($event.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean)" />
-                            </label>
-                            <label class="block">
+                                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                                    <label v-for="[n, l] in MEMAR" :key="n" class="flex items-center gap-1.5 text-[13px]">
+                                        <input
+                                            type="checkbox"
+                                            class="accent-[hsl(var(--sorot))]"
+                                            :checked="punyaLokasi(s.condition.bruises, n)"
+                                            @change="ubahLokasi(s, 'bruises', n, ($event.target as HTMLInputElement).checked)"
+                                        />
+                                        {{ l }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
                                 <span class="mb-1.5 block text-xs text-muted-foreground">Darah di</span>
-                                <input :value="(s.condition.blood || []).join(', ')" type="text" placeholder="nose, mouth" :class="isianKelas" @change="s.condition.blood = ($event.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean)" />
-                            </label>
+                                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                                    <label v-for="[n, l] in DARAH" :key="n" class="flex items-center gap-1.5 text-[13px]">
+                                        <input
+                                            type="checkbox"
+                                            class="accent-[hsl(var(--sorot))]"
+                                            :checked="punyaLokasi(s.condition.blood, n)"
+                                            @change="ubahLokasi(s, 'blood', n, ($event.target as HTMLInputElement).checked)"
+                                        />
+                                        {{ l }}
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Ciri & tag dari gambar -->
                         <div class="mt-4">
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Ciri &amp; tag dari gambar</span>
                             <div class="mb-2 flex flex-wrap gap-1.5">
-                                <span v-for="(c, j) in ciriSubjek(s)" :key="j" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px]">
+                                <span v-for="(c, j) in ciriSubjek(s)" :key="j" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-xs">
                                     {{ c.tag.replace(/_/g, ' ') }}
                                     <button type="button" class="text-muted-foreground transition-colors hover:text-destructive" @click="buangCiri(s, c.kolom, c.tag)"><X class="h-3 w-3" /></button>
                                 </span>
-                                <span v-if="!ciriSubjek(s).length" class="text-[11px] text-muted-foreground">Tidak ada.</span>
+                                <span v-if="!ciriSubjek(s).length" class="text-xs text-muted-foreground">Tidak ada.</span>
                             </div>
                             <div class="flex gap-2">
                                 <input v-model="s.tag_baru" type="text" placeholder="tambah tag, misal: blonde_hair" :class="[isianKelas, 'h-9 py-0']" @keydown.enter.prevent="tambahCiri(s)" />
@@ -741,7 +832,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     <div class="border-t border-border/60 pt-4">
                         <label class="block">
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
-                                Gaya visual <span class="text-[11px] text-muted-foreground/70">menggantikan gaya bacaan</span>
+                                Gaya visual <span class="text-xs text-muted-foreground/70">menggantikan gaya bacaan</span>
                             </span>
                             <select v-model="gayaId" :class="isianKelas">
                                 <option value="">— ikut referensi —</option>
@@ -749,7 +840,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     <option v-for="g in daftar" :key="g.id" :value="g.id">{{ g.nama }}{{ g.nsfw ? ' •' : '' }}</option>
                                 </optgroup>
                             </select>
-                            <span class="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+                            <span class="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
                                 Biarkan kosong kalau mau meniru gaya referensinya. Pilih salah satu kalau ingin wujudnya beda: gaya pilihanmu menggantikan gaya bacaan — tag medium dari gambar (anime coloring, realistic, 3d) dibuang, tidak dicampur, supaya keduanya tidak saling berkelahi.
                             </span>
                         </label>
@@ -757,7 +848,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_12rem]">
                             <label class="block">
                                 <span class="mb-1.5 block text-xs font-medium text-muted-foreground">
-                                    Tag artis <span class="text-[11px] text-muted-foreground/70">opsional, pisahkan dengan koma</span>
+                                    Tag artis <span class="text-xs text-muted-foreground/70">opsional, pisahkan dengan koma</span>
                                 </span>
                                 <input v-model="artis" type="text" :maxlength="maks.artis" placeholder="ketik nama artis, misal: dairi" :class="isianKelas" />
                             </label>
@@ -768,7 +859,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 </select>
                             </label>
                         </div>
-                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                             Satu nama artis mengubah garis, warna, dan proporsi sekaligus. Hanya nama yang ada di kamus Danbooru yang dipakai — sisanya dibuang dan dilaporkan.
                         </p>
                     </div>
@@ -776,8 +867,8 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     <!-- JSON mentah -->
                     <details class="mt-4 rounded-xl border border-border/70 p-3" @toggle="rawTerbuka = ($event.target as HTMLDetailsElement).open">
                         <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Advanced — JSON mentah hasil pembacaan</summary>
-                        <textarea v-model="rawTeks" rows="14" spellcheck="false" :class="[isianKelas, 'mt-2 resize-y font-mono text-[11px] leading-relaxed']" @input="rawDisunting = true" />
-                        <p class="mt-1.5 text-[11px] text-muted-foreground">
+                        <textarea v-model="rawTeks" rows="14" spellcheck="false" :class="[isianKelas, 'mt-2 resize-y font-mono text-xs leading-relaxed']" @input="rawDisunting = true" />
+                        <p class="mt-1.5 text-xs text-muted-foreground">
                             <template v-if="rawDisunting"><strong>Ini yang dikirim</strong> — kolom di atas diabaikan.</template>
                             <template v-else>Ikut isi kolom di atas. Begitu kamu mengetik di sini, yang dikirim yang ini.</template>
                         </p>
@@ -803,7 +894,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                 v-for="v in (adaNsfw ? ['sfw', 'nsfw'] : ['sfw'])"
                                 :key="v"
                                 type="button"
-                                class="rounded-lg border px-2.5 py-1 text-[11px] transition-colors"
+                                class="rounded-lg border px-2.5 py-1 text-xs transition-colors"
                                 :class="versi === v ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
                                 @click="versi = v as any"
                             >
@@ -820,7 +911,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                     </div>
 
                     <div v-else class="space-y-4">
-                        <p class="text-[11px] text-muted-foreground">
+                        <p class="text-xs text-muted-foreground">
                             NovelAI V5 · {{ hasil.mode === 'reverse_video' ? 'dari video' : 'dari gambar' }} · ≈ {{ hasil.token_estimate || 0 }} token
                             <span v-if="hasil.token_warning" class="text-[hsl(var(--kanvas))]"> · {{ hasil.token_warning }}</span>
                         </p>
@@ -843,7 +934,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             />
                             <KotakTeks judul="Undesired Content" :teks="keluaran.undesired || ''" :baris="3" sunting @update:teks="keluaran.undesired = $event" />
 
-                            <p class="text-[11px] leading-relaxed text-muted-foreground">
+                            <p class="text-xs leading-relaxed text-muted-foreground">
                                 Tiap kotak boleh kamu betulkan langsung di sini — yang terbaca di kotaknya itu juga yang dipakai tombol di bawah.
                                 Kalau mau ditempel sendiri ke NovelAI, urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
@@ -869,7 +960,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
 
                         <details v-if="hasil.tahap" class="rounded-xl border border-border/70 p-3">
                             <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Tahap yang dipakai</summary>
-                            <ul class="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                            <ul class="mt-2 space-y-1 text-xs text-muted-foreground">
                                 <li v-for="(t, nama) in hasil.tahap" :key="nama">
                                     <strong class="text-foreground/80">{{ nama }}</strong>
                                     — {{ (t as any)?.model || '—' }}
@@ -878,7 +969,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             </ul>
                         </details>
 
-                        <div v-if="hasil.notes && Object.keys(hasil.notes).length" class="space-y-1 text-[11px] text-muted-foreground">
+                        <div v-if="hasil.notes && Object.keys(hasil.notes).length" class="space-y-1 text-xs text-muted-foreground">
                             <p v-for="(isi, nama) in hasil.notes" :key="nama">
                                 <template v-if="Array.isArray(isi) && isi.length"><strong class="text-foreground/80">{{ nama }}:</strong> {{ isi.join(', ') }}</template>
                             </p>

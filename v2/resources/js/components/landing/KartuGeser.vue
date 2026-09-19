@@ -157,7 +157,7 @@ const dua = (n: number) => String(n).padStart(2, '0');
             />
             <span
                 v-if="badge"
-                class="pointer-events-none absolute left-4 top-4 rounded-md border border-[hsl(var(--sudut)/0.5)] bg-background/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sudut))]"
+                class="pointer-events-none absolute left-4 top-4 rounded-md border border-[hsl(var(--sudut)/0.5)] bg-background/80 px-2 py-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sudut))]"
             >
                 {{ badge }}
             </span>
@@ -200,7 +200,7 @@ const dua = (n: number) => String(n).padStart(2, '0');
                     @click="keIndeks(i)"
                 />
             </div>
-            <span class="ml-auto text-[11px] tabular-nums text-muted-foreground">{{ dua(kini + 1) }} / {{ dua(daftar.length) }}</span>
+            <span class="ml-auto text-xs tabular-nums text-muted-foreground">{{ dua(kini + 1) }} / {{ dua(daftar.length) }}</span>
         </div>
 
         <figcaption v-if="daftar[kini]?.caption" class="mt-2 text-xs text-muted-foreground">

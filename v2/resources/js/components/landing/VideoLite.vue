@@ -61,7 +61,7 @@ const thumb = `https://i.ytimg.com/vi/${props.id}/hqdefault.jpg`;
 
         <figcaption v-if="judul || tanggal" class="flex items-start justify-between gap-3 px-4 py-3">
             <span class="line-clamp-2 text-sm font-medium leading-snug">{{ judul || 'Watch on YouTube' }}</span>
-            <span v-if="tanggal" class="shrink-0 text-[11px] text-muted-foreground">{{ tanggal }}</span>
+            <span v-if="tanggal" class="shrink-0 text-xs text-muted-foreground">{{ tanggal }}</span>
         </figcaption>
     </figure>
 </template>

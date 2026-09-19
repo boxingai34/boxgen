@@ -202,7 +202,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                 </a>
                 <span v-if="kabar" class="flex items-center gap-1.5 text-xs text-[hsl(var(--sorot))]"><Check class="h-3.5 w-3.5" />{{ kabar }}</span>
                 <span v-if="galat" class="text-xs text-destructive">{{ galat }}</span>
-                <span v-if="!gd" class="ml-auto text-[11px] text-muted-foreground">GD tidak aktif: unggahan disimpan tanpa dikecilkan.</span>
+                <span v-if="!gd" class="ml-auto text-xs text-muted-foreground">GD tidak aktif: unggahan disimpan tanpa dikecilkan.</span>
             </div>
         </div>
 
@@ -211,12 +211,12 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             <p class="mb-1 font-medium text-foreground">Angka yang mengisi dirinya sendiri</p>
             <p>
                 Di teks mana pun, tulis
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{subs}</code>,
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{views}</code>,
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{patrons}</code>,
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{paid}</code>,
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{posts}</code>, atau
-                <code class="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground">{hari_ini}</code> —
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{subs}</code>,
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{views}</code>,
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{patrons}</code>,
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{paid}</code>,
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{posts}</code>, atau
+                <code class="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">{hari_ini}</code> —
                 halaman depan menggantinya dengan angka terbaru dari YouTube dan Patreon. Kalau sumbernya sedang tidak
                 terbaca, yang dipakai angka cadangan di bawah.
             </p>
@@ -248,11 +248,11 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                     <div class="border-t border-border/60 pt-4">
                         <span class="mb-1.5 flex items-baseline justify-between gap-3">
                             <span class="text-xs font-medium text-muted-foreground">Gambar di kartu geser</span>
-                            <span class="text-[11px] text-muted-foreground/70">{{ isi.hero.images.length }} / 10 · bisa digulir pengunjung</span>
+                            <span class="text-xs text-muted-foreground/70">{{ isi.hero.images.length }} / 10 · bisa digulir pengunjung</span>
                         </span>
                         <div v-for="(g, i) in isi.hero.images" :key="i" class="mb-3 rounded-xl border border-border/70 p-3">
                             <div class="mb-2 flex items-center gap-1.5">
-                                <span class="mr-auto text-[11px] text-muted-foreground">Fig. {{ String(i + 1).padStart(2, '0') }}</span>
+                                <span class="mr-auto text-xs text-muted-foreground">Fig. {{ String(i + 1).padStart(2, '0') }}</span>
                                 <KendaliBaris :i="i" :total="isi.hero.images.length" @geser="(a) => geser(isi.hero.images, i, a)" @hapus="hapus(isi.hero.images, i)" />
                             </div>
                             <Gambar v-model="g.src" label="Gambar (potret tegak paling pas)" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
@@ -282,7 +282,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             <Gambar v-model="isi.brand.logo_dark" label="Logo — tema gelap" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                             <Gambar v-model="isi.brand.logo_light" label="Logo — tema terang" :unggahan="unggahan" @diunggah="segarkanUnggahan" />
                         </div>
-                        <p class="text-[11px] text-muted-foreground">Kosongkan keduanya kalau mau kembali ke nama + cap kanji.</p>
+                        <p class="text-xs text-muted-foreground">Kosongkan keduanya kalau mau kembali ke nama + cap kanji.</p>
                         <DaftarTeks v-model="isi.marquee" label="Teks berjalan (ticker)" ket="boleh campur Jepang; yang Jepang otomatis diberi huruf serif" placeholder="A new bout every week" />
                     </div>
                 </Kartu>
@@ -388,7 +388,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                                     <RefreshCw v-else class="h-3.5 w-3.5" />
                                     Periksa kanal
                                 </button>
-                                <span v-if="cekYoutube.pesan" class="text-[11px]" :class="cekYoutube.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekYoutube.pesan }}</span>
+                                <span v-if="cekYoutube.pesan" class="text-xs" :class="cekYoutube.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekYoutube.pesan }}</span>
                             </div>
                             <ul v-if="cekYoutube.isi?.video?.length" class="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs">
                                 <li v-for="v in cekYoutube.isi.video" :key="v.id" class="flex items-center gap-2">
@@ -467,7 +467,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                                     <RefreshCw v-else class="h-3.5 w-3.5" />
                                     Periksa & lihat yang akan tampil
                                 </button>
-                                <span v-if="cekPatreon.pesan" class="text-[11px]" :class="cekPatreon.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekPatreon.pesan }}</span>
+                                <span v-if="cekPatreon.pesan" class="text-xs" :class="cekPatreon.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekPatreon.pesan }}</span>
                             </div>
                             <ul v-if="cekPatreon.isi?.pos?.length" class="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs">
                                 <li v-for="(p, i) in cekPatreon.isi.pos" :key="p.url" class="flex items-center gap-2">
@@ -501,7 +501,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                         <input v-model="isi.gallery_feed.on" type="checkbox" :class="centang" />
                         Ambil galeri otomatis dari DeviantArt
                     </label>
-                    <p class="mt-2 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <p class="mt-2 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
                         <TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--kanvas))]" />
                         <span>
                             Waktu ini diperiksa, <strong>semua</strong> karya terbaru di galerimu ditandai <em>adult</em> oleh DeviantArt sendiri —
@@ -518,7 +518,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                     <!-- Kuncinya tidak di sini tapi di config.local.php, dan
                          perbedaannya besar: tanpa kunci, server hosting selalu
                          ditolak DeviantArt walau di komputer sendiri lancar. -->
-                    <p v-if="!deviantartApi" class="mt-2 rounded-lg border border-border/70 bg-muted/30 p-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <p v-if="!deviantartApi" class="mt-2 rounded-lg border border-border/70 bg-muted/30 p-2 text-xs leading-relaxed text-muted-foreground">
                         Sekarang dibaca lewat umpan RSS publik. Itu bekerja dari komputer sendiri, tapi dari server hosting
                         DeviantArt menolaknya dengan 403 — alamat IP pusat data. Untuk jalur resminya: daftarkan aplikasi di
                         <a href="https://www.deviantart.com/developers/register" target="_blank" rel="noopener" class="underline underline-offset-2 hover:text-foreground">deviantart.com/developers/register</a>
@@ -526,7 +526,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                         lalu isi <code class="font-mono">DEVIANTART_CLIENT_ID</code> dan
                         <code class="font-mono">DEVIANTART_CLIENT_SECRET</code> di <code class="font-mono">config.local.php</code>.
                     </p>
-                    <p v-else class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <p v-else class="mt-2 text-xs leading-relaxed text-muted-foreground">
                         Kunci aplikasi DeviantArt terpasang — galerinya diambil lewat API resmi, bukan umpan RSS.
                     </p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
@@ -535,12 +535,12 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                             <RefreshCw v-else class="h-3.5 w-3.5" />
                             Periksa umpan
                         </button>
-                        <span v-if="cekDeviant.pesan" class="text-[11px]" :class="cekDeviant.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekDeviant.pesan }}</span>
+                        <span v-if="cekDeviant.pesan" class="text-xs" :class="cekDeviant.galat ? 'text-destructive' : 'text-muted-foreground'">{{ cekDeviant.pesan }}</span>
                     </div>
                     <div v-if="cekDeviant.isi?.karya?.length" class="mt-2 grid grid-cols-4 gap-1.5 sm:grid-cols-8 lg:grid-cols-12">
                         <a v-for="karya in cekDeviant.isi.karya" :key="karya.url" :href="karya.url" target="_blank" rel="noopener" class="group relative aspect-square overflow-hidden rounded-md border border-border" :title="karya.judul">
                             <img :src="karya.thumb" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async" />
-                            <span v-if="karya.dewasa" class="absolute inset-x-0 bottom-0 bg-background/85 text-center text-[9px] text-[hsl(var(--sudut))]">adult</span>
+                            <span v-if="karya.dewasa" class="absolute inset-x-0 bottom-0 bg-background/85 text-center text-[11px] text-[hsl(var(--sudut))]">adult</span>
                         </a>
                     </div>
                     <DaftarTeks v-model="isi.gallery_feed.skip" class="mt-3" label="Karya yang dilewati" ket="tempel alamat karyanya kalau ada satu-dua yang tidak mau ditampilkan" placeholder="https://www.deviantart.com/…" />
@@ -549,7 +549,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                 <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     <div v-for="(g, i) in isi.gallery" :key="i" class="rounded-xl border border-border/70 p-3">
                         <div class="mb-2 flex items-center gap-1.5">
-                            <span class="mr-auto text-[11px] text-muted-foreground">Fig. {{ String(i + 1).padStart(2, '0') }}</span>
+                            <span class="mr-auto text-xs text-muted-foreground">Fig. {{ String(i + 1).padStart(2, '0') }}</span>
                             <select v-model="g.kind" :class="[k, 'h-8 w-24 px-2 text-xs']">
                                 <option value="fighter">Fighter</option>
                                 <option value="bout">Bout</option>
@@ -571,7 +571,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                     <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-8 lg:grid-cols-12">
                         <div v-for="u in unggahan" :key="u.nama" class="group relative aspect-square overflow-hidden rounded-md border border-border" :title="`${u.nama} · ${u.kb} KB`">
                             <img :src="u.src" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async" />
-                            <button type="button" class="absolute inset-x-0 bottom-0 hidden items-center justify-center gap-1 bg-background/85 py-1 text-[10px] text-destructive group-hover:flex" @click="hapusUnggahan(u.nama)"><Trash2 class="h-3 w-3" /> hapus</button>
+                            <button type="button" class="absolute inset-x-0 bottom-0 hidden items-center justify-center gap-1 bg-background/85 py-1 text-[12px] text-destructive group-hover:flex" @click="hapusUnggahan(u.nama)"><Trash2 class="h-3 w-3" /> hapus</button>
                         </div>
                     </div>
                 </div>
@@ -581,7 +581,7 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                         <p class="text-xs font-medium text-muted-foreground">Instagram</p>
                         <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.instagram" type="checkbox" :class="centang" /> tampilkan pos yang disematkan</label>
                     </div>
-                    <p class="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+                    <p class="mb-3 text-xs leading-relaxed text-muted-foreground">
                         Tidak ada umpan profil tanpa API resmi, jadi galeri di atas yang mewakili Instagram. Pos bisa disematkan satu per satu — tapi akunmu ditandai
                         <em>restricted</em> oleh Instagram, jadi pengunjung yang tidak masuk Instagram mungkin cuma melihat kotak kosong. Karena itu bawaannya mati.
                     </p>

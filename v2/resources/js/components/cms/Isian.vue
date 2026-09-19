@@ -20,7 +20,7 @@ const kelas =
     <label class="block">
         <span class="mb-1.5 flex items-baseline justify-between gap-3">
             <span class="text-xs font-medium text-muted-foreground">{{ label }}</span>
-            <span v-if="ket" class="text-[11px] text-muted-foreground/70">{{ ket }}</span>
+            <span v-if="ket" class="text-xs text-muted-foreground/70">{{ ket }}</span>
         </span>
 
         <textarea

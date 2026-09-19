@@ -40,10 +40,10 @@ async function salinIni() {
         <div class="flex items-center justify-between gap-3 border-b border-border/60 px-3.5 py-2">
             <span class="text-xs font-medium">{{ judul }}</span>
             <span class="flex items-center gap-3">
-                <span class="text-[11px] tabular-nums text-muted-foreground">{{ jumlah }} huruf</span>
+                <span class="text-xs tabular-nums text-muted-foreground">{{ jumlah }} huruf</span>
                 <button
                     type="button"
-                    class="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
+                    class="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs transition-colors hover:border-[hsl(var(--sorot)/0.6)]"
                     @click="salinIni"
                 >
                     <Check v-if="tersalin" class="h-3 w-3 text-[hsl(var(--sorot))]" />
@@ -60,7 +60,7 @@ async function salinIni() {
             :rows="baris"
             :readonly="!sunting"
             spellcheck="false"
-            class="w-full resize-y bg-transparent px-3.5 py-2.5 font-mono text-[12px] leading-relaxed outline-none"
+            class="w-full resize-y bg-transparent px-3.5 py-2.5 font-mono text-[13px] leading-relaxed outline-none"
             :class="sunting ? 'focus:bg-background/40' : ''"
             @input="emit('update:teks', ($event.target as HTMLTextAreaElement).value)"
         />

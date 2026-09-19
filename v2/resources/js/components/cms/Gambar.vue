@@ -50,7 +50,7 @@ async function pilihBerkas(e: Event) {
         <div class="flex items-start gap-3">
             <div class="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40">
                 <img v-if="src" :src="src" alt="" class="h-full w-full object-cover" loading="lazy" decoding="async" />
-                <span v-else class="grid h-full w-full place-items-center text-[11px] text-muted-foreground">kosong</span>
+                <span v-else class="grid h-full w-full place-items-center text-xs text-muted-foreground">kosong</span>
                 <button
                     v-if="src"
                     type="button"
@@ -82,7 +82,7 @@ async function pilihBerkas(e: Event) {
                     </button>
                 </div>
 
-                <p v-if="galat" class="text-[11px] text-[hsl(var(--kanvas))]">{{ galat }}</p>
+                <p v-if="galat" class="text-xs text-[hsl(var(--kanvas))]">{{ galat }}</p>
 
                 <div v-if="pilihTerbuka" class="grid max-h-40 grid-cols-4 gap-1.5 overflow-y-auto rounded-lg border border-border p-1.5 sm:grid-cols-6">
                     <button

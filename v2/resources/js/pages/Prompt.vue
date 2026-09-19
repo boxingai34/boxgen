@@ -316,7 +316,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                 {{ l }}
             </button>
 
-            <span class="ml-auto flex gap-2 text-[11px] text-muted-foreground">
+            <span class="ml-auto flex gap-2 text-xs text-muted-foreground">
                 <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.tag.toLocaleString('id-ID') }} tag</span>
                 <span class="rounded-full border border-border/70 px-2.5 py-1">{{ jumlah.karakter.toLocaleString('id-ID') }} karakter</span>
             </span>
@@ -345,11 +345,11 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                                 Isi otomatis
                             </Tombol>
                         </div>
-                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <p class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                             <template v-if="aiSiap">AI hanya boleh memilih dari database — tag karangan otomatis dibuang.</template>
                             <template v-else>Fitur AI belum aktif. Isi <code>AI_API_KEY</code> di <code>config.local.php</code>. Tanpa itu pun semua pilihan di bawah tetap berfungsi.</template>
                         </p>
-                        <p v-if="aiNota" class="mt-1.5 text-[11px] text-[hsl(var(--sorot))]">{{ aiNota }}</p>
+                        <p v-if="aiNota" class="mt-1.5 text-xs text-[hsl(var(--sorot))]">{{ aiNota }}</p>
                     </div>
 
                     <!-- Petinju -->
@@ -436,7 +436,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         <label v-for="[tipe, label] in [['quality', 'Kualitas'], ['style', 'Gaya'], ['background', 'Latar'], ['lighting', 'Cahaya'], ['cam_distance', 'Jarak kamera'], ['cam_angle', 'Sudut kamera'], ['cam_effect', 'Efek kamera'], ['ring', 'Ring']]" :key="tipe" class="block">
                             <span class="mb-1.5 block text-xs text-muted-foreground">
                                 {{ label }}
-                                <span v-if="tipe === 'background' && latarSaran.length" class="text-[11px] text-[hsl(var(--sorot))]">· ada saran dari serinya</span>
+                                <span v-if="tipe === 'background' && latarSaran.length" class="text-xs text-[hsl(var(--sorot))]">· ada saran dari serinya</span>
                             </span>
                             <select v-model="pilih[tipe + '_id']" :class="isianKelas">
                                 <option value="">— tidak dipakai —</option>
@@ -473,16 +473,16 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                                 <button type="button" class="flex w-full items-baseline justify-between gap-3 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent" @mousedown.prevent="tambahTag(t.nama)">
                                     <span class="truncate">
                                         {{ t.tampil }}
-                                        <span v-if="t.label" class="text-[11px] text-muted-foreground">· {{ t.label }}</span>
-                                        <span v-if="!t.pasti" class="text-[11px] text-[hsl(var(--kanvas))]">· belum tersinkron</span>
+                                        <span v-if="t.label" class="text-xs text-muted-foreground">· {{ t.label }}</span>
+                                        <span v-if="!t.pasti" class="text-xs text-[hsl(var(--kanvas))]">· belum tersinkron</span>
                                     </span>
-                                    <span class="shrink-0 text-[11px] tabular-nums text-muted-foreground">{{ t.jumlah.toLocaleString('id-ID') }}</span>
+                                    <span class="shrink-0 text-xs tabular-nums text-muted-foreground">{{ t.jumlah.toLocaleString('id-ID') }}</span>
                                 </button>
                             </li>
                         </ul>
 
                         <div v-if="tagTambahan.length" class="mt-2 flex flex-wrap gap-1.5">
-                            <span v-for="t in tagTambahan" :key="t" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-[11px]">
+                            <span v-for="t in tagTambahan" :key="t" class="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-background px-2 py-1 text-xs">
                                 {{ t.replace(/_/g, ' ') }}
                                 <button type="button" class="text-muted-foreground transition-colors hover:text-destructive" @click="tagTambahan = tagTambahan.filter((x) => x !== t)"><X class="h-3 w-3" /></button>
                             </span>
@@ -491,7 +491,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
 
                     <label class="mt-4 flex items-start gap-2 text-sm">
                         <input v-model="trimImplied" type="checkbox" class="mt-1 accent-[hsl(var(--sorot))]" />
-                        <span>Buang tag yang sudah tersirat <span class="block text-[11px] text-muted-foreground">Misalnya <code>boxing_gloves</code> yang sudah dibawa temanya sendiri.</span></span>
+                        <span>Buang tag yang sudah tersirat <span class="block text-xs text-muted-foreground">Misalnya <code>boxing_gloves</code> yang sudah dibawa temanya sendiri.</span></span>
                     </label>
 
                     <div class="mt-5 flex flex-wrap gap-3">
@@ -519,7 +519,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                                 v-for="t in targetTampil"
                                 :key="t.nilai"
                                 type="button"
-                                class="rounded-lg border px-2.5 py-1 text-[11px] transition-colors"
+                                class="rounded-lg border px-2.5 py-1 text-xs transition-colors"
                                 :class="target === t.nilai ? 'border-[hsl(var(--sudut)/0.6)] text-foreground' : 'border-border/70 text-muted-foreground'"
                                 @click="target = t.nilai as any"
                             >
@@ -536,7 +536,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                     </div>
 
                     <div v-else class="space-y-4">
-                        <p class="text-[11px] text-muted-foreground">
+                        <p class="text-xs text-muted-foreground">
                             ≈ {{ hasil.token }} token
                             <span v-if="hasil.peringatan" class="text-[hsl(var(--kanvas))]"> · {{ hasil.peringatan }}</span>
                         </p>
@@ -547,7 +547,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         <template v-if="nai">
                             <KotakTeks judul="Base Prompt" :teks="nai.base || ''" :baris="4" />
                             <KotakTeks v-for="(c, i) in nai.characters || []" :key="i" :judul="c.label || `Character ${i + 1}`" :teks="c.prompt || ''" :baris="3" />
-                            <p class="text-[11px] leading-relaxed text-muted-foreground">
+                            <p class="text-xs leading-relaxed text-muted-foreground">
                                 Tempel tiap kotak ke kolomnya masing-masing di NovelAI. Urutan Character Prompt menentukan posisi: kiri ke kanan.
                             </p>
                         </template>
@@ -564,23 +564,23 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                             :muatan="muatanGambar"
                         />
 
-                        <div v-if="hasil.catatan?.length" class="space-y-1 text-[11px] text-muted-foreground">
+                        <div v-if="hasil.catatan?.length" class="space-y-1 text-xs text-muted-foreground">
                             <p v-for="(c, i) in hasil.catatan" :key="i">{{ c }}</p>
                         </div>
 
                         <details v-if="hasil.blok?.length" class="rounded-xl border border-border/70 p-3">
                             <summary class="cursor-pointer text-xs font-medium text-muted-foreground">Kenapa tag ini muncul</summary>
                             <div v-for="bl in hasil.blok" :key="bl.blok" class="mt-2">
-                                <p class="text-[11px] font-medium text-[hsl(var(--sudut))]">{{ bl.blok }}</p>
+                                <p class="text-xs font-medium text-[hsl(var(--sudut))]">{{ bl.blok }}</p>
                                 <div class="mt-1 flex flex-wrap gap-1">
-                                    <span v-for="t in bl.tag" :key="t.nama" class="rounded border border-border/60 px-1.5 py-0.5 text-[10px]" :title="t.dari || ''">
+                                    <span v-for="t in bl.tag" :key="t.nama" class="rounded border border-border/60 px-1.5 py-0.5 text-[12px]" :title="t.dari || ''">
                                         {{ t.tampil }}<span v-if="t.bobot !== 1" class="text-muted-foreground"> ×{{ t.bobot }}</span>
                                     </span>
                                 </div>
                             </div>
                         </details>
 
-                        <div v-if="hasil.nota" class="space-y-1 text-[11px] text-muted-foreground">
+                        <div v-if="hasil.nota" class="space-y-1 text-xs text-muted-foreground">
                             <p v-if="hasil.nota.tag_asing?.length"><strong class="text-foreground/80">Tag tidak dikenal:</strong> {{ hasil.nota.tag_asing.join(', ') }}</p>
                             <p v-if="hasil.nota.dibuang?.length"><strong class="text-foreground/80">Dibuang karena tersirat:</strong> {{ hasil.nota.dibuang.join(', ') }}</p>
                             <p v-if="hasil.nota.bentrok?.length"><strong class="text-foreground/80">Bentrok:</strong> {{ hasil.nota.bentrok.join(', ') }}</p>

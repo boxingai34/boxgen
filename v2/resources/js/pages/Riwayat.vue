@@ -156,7 +156,7 @@ function waktuPendek(w: string): string {
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <h3 class="truncate text-sm font-semibold tracking-tight">{{ r.judul }}</h3>
-                                <p class="mt-0.5 text-[11px] text-muted-foreground">
+                                <p class="mt-0.5 text-xs text-muted-foreground">
                                     {{ waktuPendek(r.waktu) }} · {{ r.mode }} · {{ r.target }}
                                 </p>
                             </div>
@@ -172,7 +172,7 @@ function waktuPendek(w: string): string {
 
                         <p class="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{{ r.cuplik || '—' }}</p>
 
-                        <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
                             <span class="rounded-md bg-muted px-2 py-0.5 tabular-nums">{{ r.token }} token</span>
                             <span v-if="r.ai" class="rounded-md border border-[hsl(var(--sorot)/0.4)] px-2 py-0.5 text-[hsl(var(--sorot))]">AI</span>
                             <span v-if="r.catatan" class="truncate text-muted-foreground">{{ r.catatan }}</span>
@@ -239,11 +239,11 @@ function waktuPendek(w: string): string {
                         class="mb-4 w-full rounded-xl border border-border/70 object-cover"
                     />
 
-                    <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ terpilih.output }}</pre>
+                    <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[13px] leading-relaxed">{{ terpilih.output }}</pre>
 
                     <div v-if="terpilih.negative" class="mt-3">
                         <p class="mb-1 text-xs font-medium text-muted-foreground">Negative</p>
-                        <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px]">{{ terpilih.negative }}</pre>
+                        <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[13px]">{{ terpilih.negative }}</pre>
                     </div>
 
                     <!-- Kuncinya id baris: pindah ke riwayat lain berarti
@@ -260,7 +260,7 @@ function waktuPendek(w: string): string {
                         :muatan="muatanGambar"
                     />
 
-                    <p v-if="tujuanGambar && terpilih.target === 'sd'" class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                    <p v-if="tujuanGambar && terpilih.target === 'sd'" class="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                         Prompt ini ditulis untuk Stable Diffusion. NovelAI tetap menggambarnya, tapi bobot seperti
                         <code class="font-mono">(tag:1.2)</code> dibacanya sebagai teks biasa, bukan penekanan.
                     </p>

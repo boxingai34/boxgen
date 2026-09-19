@@ -12,7 +12,24 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Instrument Sans', ...defaultTheme.fontFamily.sans],
+                sans: ['Geist', ...defaultTheme.fontFamily.sans],
+                mono: ['Geist Mono', ...defaultTheme.fontFamily.mono],
+            },
+
+            /**
+             * Satu tingkat lebih besar dari bawaan Tailwind.
+             *
+             * Halaman-halaman di sini padat kolom, dan ukuran bawaannya
+             * (12/14/16) membuat keterangan di bawah kolom jadi terlalu
+             * kecil untuk dibaca sambil bekerja. Tiap tingkat naik sekitar
+             * satu piksel, dan tinggi barisnya ikut supaya tidak jadi
+             * berdempetan.
+             */
+            fontSize: {
+                xs: ['0.8125rem', { lineHeight: '1.15rem' }],
+                sm: ['0.9375rem', { lineHeight: '1.4rem' }],
+                base: ['1.0625rem', { lineHeight: '1.6rem' }],
+                lg: ['1.1875rem', { lineHeight: '1.75rem' }],
             },
             borderRadius: {
                 lg: 'var(--radius)',

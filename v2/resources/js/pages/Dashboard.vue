@@ -104,14 +104,14 @@ function waktuPendek(w: string): string {
 
                 <ul v-if="terbaru.length" class="-my-1 divide-y divide-border/60">
                     <li v-for="r in terbaru" :key="r.id" class="flex items-start gap-3 py-3">
-                        <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border bg-muted/40 text-[10px] font-semibold uppercase">
+                        <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border bg-muted/40 text-[12px] font-semibold uppercase">
                             {{ r.target }}
                         </span>
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-medium">{{ r.judul }}</p>
                             <p class="truncate text-xs text-muted-foreground">{{ r.cuplik || '—' }}</p>
                         </div>
-                        <span class="shrink-0 text-[11px] text-muted-foreground">{{ waktuPendek(r.waktu) }}</span>
+                        <span class="shrink-0 text-xs text-muted-foreground">{{ waktuPendek(r.waktu) }}</span>
                     </li>
                 </ul>
 

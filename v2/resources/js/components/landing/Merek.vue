@@ -50,10 +50,10 @@ withDefaults(
         </template>
 
         <template v-else>
-            <span class="hanko !h-9 !min-w-9 text-[11px]" aria-hidden="true">拳</span>
+            <span class="hanko !h-9 !min-w-9 text-xs" aria-hidden="true">拳</span>
             <span class="leading-tight">
                 <span class="block text-[15px] font-semibold tracking-tight">{{ merek.name }}</span>
-                <span v-if="denganJp && merek.jp" class="jp block text-[10px] tracking-[0.22em] text-muted-foreground">{{ merek.jp }}</span>
+                <span v-if="denganJp && merek.jp" class="jp block text-[12px] tracking-[0.22em] text-muted-foreground">{{ merek.jp }}</span>
             </span>
         </template>
     </span>
