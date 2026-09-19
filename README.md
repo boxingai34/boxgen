@@ -70,17 +70,44 @@ Mau mengulang dari awal? Tambahkan `--reset`.
 | | Bawaan | Untuk apa |
 |---|---|---|
 | `TAG_MIN_POST_COUNT` | **1** | kamus tag — dipakai MESIN untuk memeriksa tag yang kamu ketik |
-| `CHAR_MIN_POST_COUNT` | **50** | daftar karakter & judul — menu yang dipilih MANUSIA |
+| `CHAR_MIN_POST_COUNT` | **10** | daftar karakter & judul — menu yang dipilih MANUSIA |
 
 Ambang kamus diturunkan dari 100 ke 1 supaya lengkap: karakter yang cuma
 punya belasan gambar pun dikenali, dan tag yang kamu ketik tidak lagi
 ditandai "tidak dikenal" padahal sebenarnya ada di Danbooru.
 
-Ambang karakter sengaja TIDAK ikut turun. Kamus boleh selengkap mungkin
+Ambang karakter tidak ikut turun sampai 1. Kamus boleh selengkap mungkin
 karena yang membacanya mesin, tapi daftar karakter itu menu yang kamu
-gulir sendiri — tanpa ambang terpisah, menurunkan ambang tag ke 1 ikut
-menyeret ratusan ribu tag karakter sekali-pakai ke dalamnya. Turunkan
-sendiri di `config.local.php` kalau memang mau karakter yang lebih obscure.
+gulir sendiri — di bawah 10 isinya mulai didominasi karakter sekali-pakai
+dan salah ketik yang terlanjur jadi tag.
+
+Dulu 50, dan itu terlalu tinggi: `polaris_(x-men)` punya 47 gambar, jadi
+ia tidak pernah muncul sama sekali — yang terbaca "karakternya tidak ada",
+bukan "karakternya jarang". Di 10, satu judul tampil utuh dengan pemeran
+sampingnya, dan yang langka tetap tenggelam ke bawah karena daftarnya
+diurutkan menurut jumlah gambar.
+
+Kalau `config.local.php` punya barisnya sendiri, itu yang menang — periksa
+di sana kalau ambangnya terasa tidak berubah.
+
+#### Menarik karakter di pita 10-99
+
+Kamus yang ditarik di ambang 100 tidak punya pita 10-99 sama sekali, jadi
+menurunkan ambangnya saja tidak cukup. Penarik khususnya:
+
+```bash
+C:\xampp2\php\php.exe tools\sync_karakter.php
+C:\xampp2\php\php.exe tools\import_characters.php
+```
+
+Yang pertama menarik kategori karakter dan judul saja — ±120 ribu tag,
+sekitar enam menit, bukan berjam-jam seperti `sync_danbooru.php` yang
+menelusuri seluruh kamus. Yang kedua memasukkannya ke tabel
+`characters`/`series` dan menyegarkan `series.char_count`.
+
+Jangan lupa `database/migrations/012_karakter_ambang_10.sql` lebih dulu di
+database yang sudah ada isinya — tanpa indeksnya, seratus ribu karakter
+membuat kotak pencarian makan lebih dari satu detik per ketikan.
 
 ### Berapa lama sekarang
 
