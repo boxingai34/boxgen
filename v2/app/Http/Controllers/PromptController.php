@@ -445,9 +445,17 @@ class PromptController extends Controller
             }
         }
 
+        // Judul ikut diminta, bukan cuma namanya.
+        //
+        // Nama karakter tidak unik: ada Nami di One Piece, di League of
+        // Legends, di Bokujou Monogatari, dan di empat judul lain. Tanpa
+        // judulnya, yang mencocokkan cuma bisa menebak — dan "dari anime
+        // one piece" yang sudah ditulis orangnya terbuang percuma karena
+        // tidak ada tempat menaruhnya.
         $fieldKarakter = $mode === 'duo'
-            ? '"karakter_a": null,' . "\n  " . '"karakter_b": null,'
-            : '"karakter_a": null,';
+            ? '"karakter_a": null,' . "\n  " . '"judul_a": null,' . "\n  "
+              . '"karakter_b": null,' . "\n  " . '"judul_b": null,'
+            : '"karakter_a": null,' . "\n  " . '"judul_a": null,';
 
         $system = <<<TXT
         Kamu asisten pemilih komponen untuk generator prompt gambar anime bertema tinju.
@@ -459,6 +467,12 @@ class PromptController extends Controller
         3. Untuk nama karakter, tulis apa adanya dalam bahasa Inggris/romaji
            (contoh: "maki zenin", "chun-li"). Jangan mengarang kalau user tidak
            menyebut karakter.
+        3b. Untuk "judul_a"/"judul_b", tulis judul anime/game/komik asal
+           karakter itu dalam bahasa Inggris (contoh: "one piece",
+           "jujutsu kaisen", "league of legends"). Isi walaupun user TIDAK
+           menyebutnya, kalau kamu memang tahu asalnya — nama karakter sering
+           dipakai di banyak judul, dan judul inilah yang membedakan.
+           Kalau benar-benar tidak tahu, isi null.
         4. Untuk "extra_tags", gunakan tag Danbooru berbahasa Inggris dengan
            underscore. Maksimal 6. Kalau ragu, kosongkan.
         5. Jangan menulis apa pun di luar JSON.
@@ -519,20 +533,53 @@ class PromptController extends Controller
             }
         }
 
-        // Nama karakter dicocokkan ulang ke kamus.
+        // Nama karakter dicocokkan ulang ke kamus, disaring judulnya.
         $karakterHilang = [];
-        foreach (['karakter_a' => 'character', 'karakter_b' => 'character_b'] as $dari => $ke) {
-            $pilihan[$ke] = null;
+        $catatanJudul = [];
+        $peta = [
+            'karakter_a' => ['ke' => 'character', 'judul' => 'judul_a'],
+            'karakter_b' => ['ke' => 'character_b', 'judul' => 'judul_b'],
+        ];
+
+        foreach ($peta as $dari => $p) {
+            $pilihan[$p['ke']] = null;
 
             if (empty($jawab[$dari]) || ! is_string($jawab[$dari])) {
                 continue;
             }
 
-            $cari = CharacterResolver::search(trim($jawab[$dari]), null, null, 1);
+            $nama = trim($jawab[$dari]);
+            $judul = isset($jawab[$p['judul']]) && is_string($jawab[$p['judul']])
+                ? trim($jawab[$p['judul']])
+                : '';
+
+            $seriId = $judul === '' ? null : self::seriDariNama($judul);
+            $cari = [];
+
+            if ($seriId !== null) {
+                $cari = CharacterResolver::search($nama, null, $seriId, 1);
+            }
+
+            // SARINGAN ITU KEMUDAHAN, BUKAN TEMBOK.
+            //
+            // Sebagian besar karakter memang belum punya judul tercatat, dan
+            // judul yang benar bisa saja belum terpasang ke orang yang
+            // dimaksud. Kalau saringannya mengosongkan hasil, yang dibuang
+            // saringannya — bukan karakternya.
+            if ($cari === []) {
+                if ($judul !== '') {
+                    $catatanJudul[] = $seriId === null
+                        ? "judul \"{$judul}\" tidak ada di kamus, jadi \"{$nama}\" dicari tanpa disaring"
+                        : "tidak ada \"{$nama}\" di \"{$judul}\", jadi dicari di seluruh kamus";
+                }
+
+                $cari = CharacterResolver::search($nama, null, null, 1);
+            }
+
             if ($cari !== []) {
-                $pilihan[$ke] = $cari[0]['booru_tag'];
+                $pilihan[$p['ke']] = $cari[0]['booru_tag'];
             } else {
-                $karakterHilang[] = $jawab[$dari];
+                $karakterHilang[] = $nama;
             }
         }
 
@@ -566,9 +613,28 @@ class PromptController extends Controller
                 'tag_ditolak'      => $tagDitolak,
                 'id_ditolak'       => $idDitolak,
                 'karakter_ditolak' => $karakterHilang,
+                'judul'            => $catatanJudul,
             ],
             'kuota'   => KuotaHarian::check('ai'),
         ]);
+    }
+
+    /**
+     * Judul yang disebut AI => id seri, atau null kalau tidak dikenal.
+     *
+     * Judul yang punya karakter didahulukan — itu sudah urusan
+     * seriesList(). Judul kosong tidak pernah berguna sebagai saringan:
+     * memakainya berarti menghapus seluruh daftarnya.
+     */
+    private static function seriDariNama(string $judul): ?int
+    {
+        foreach (CharacterResolver::seriesList(null, 10, $judul) as $s) {
+            if ((int) ($s['jumlah'] ?? 0) > 0) {
+                return (int) $s['id'];
+            }
+        }
+
+        return null;
     }
 
     /** Bagian yang dimiliki satu orang. */

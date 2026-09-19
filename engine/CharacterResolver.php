@@ -166,10 +166,20 @@ final class CharacterResolver
         // mengetik "maki" akan menampilkan "akemi_maki" sebelum "maki"
         // sendiri, karena a lebih dulu dari m. Jadi yang namanya DIAWALI
         // kata yang kamu ketik didahulukan, baru sisanya urut abjad.
-        $urut = 'c.name';
+        //
+        // NAMA YANG KEMBAR DIPECAH OLEH JUMLAH GAMBAR.
+        //
+        // Nama tampilan dibuat dengan membuang bagian dalam kurung, jadi
+        // nami_(one_piece), nami_(league), dan nami_(teranen) ketiganya
+        // bernama "Nami". Urut abjad tidak bisa membedakan apa pun di antara
+        // mereka — urutannya jadi terserah MySQL, dan yang mengambil hasil
+        // teratas (isi otomatis) mendapat yang mana saja. Nami One Piece
+        // punya 10.852 gambar, Nami League 354; yang lebih sering digambar
+        // hampir selalu yang dimaksud.
+        $urut = 'c.name, c.popularity DESC';
 
         if ($q !== '') {
-            $urut = '(c.booru_tag = ?) DESC, (c.booru_tag LIKE ?) DESC, (c.name LIKE ?) DESC, c.name';
+            $urut = '(c.booru_tag = ?) DESC, (c.booru_tag LIKE ?) DESC, (c.name LIKE ?) DESC, c.name, c.popularity DESC';
             $params[] = $tag;
             $params[] = $tag . '%';
             $params[] = $q . '%';

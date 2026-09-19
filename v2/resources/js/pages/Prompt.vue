@@ -175,7 +175,19 @@ async function isiOtomatis() {
             ...(jawab.nota?.karakter_ditolak || []).map((x: string) => `karakter "${x}" tidak ada di kamus`),
             ...(jawab.nota?.tag_ditolak || []).map((x: string) => `tag "${x}" tidak dikenal`),
         ];
-        aiNota.value = [jawab.alasan, buang.length ? 'Dibuang: ' + buang.join(', ') + '.' : ''].filter(Boolean).join(' ');
+        // Catatan judul terpisah dari "dibuang": tidak ada yang hilang di
+        // sini, cuma saringannya yang tidak terpakai — dan kalau tidak
+        // dikatakan, karakter yang meleset terlihat seperti pilihan yang
+        // disengaja.
+        const judul = (jawab.nota?.judul || []) as string[];
+
+        aiNota.value = [
+            jawab.alasan,
+            buang.length ? 'Dibuang: ' + buang.join(', ') + '.' : '',
+            judul.length ? judul.join('; ') + '.' : '',
+        ]
+            .filter(Boolean)
+            .join(' ');
     } catch (e: any) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal memanggil AI.';
     } finally {
