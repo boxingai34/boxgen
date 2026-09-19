@@ -105,9 +105,47 @@ sekitar enam menit, bukan berjam-jam seperti `sync_danbooru.php` yang
 menelusuri seluruh kamus. Yang kedua memasukkannya ke tabel
 `characters`/`series` dan menyegarkan `series.char_count`.
 
+Lalu judulnya dipasangkan — lihat bagian berikutnya.
+
 Jangan lupa `database/migrations/012_karakter_ambang_10.sql` lebih dulu di
 database yang sudah ada isinya — tanpa indeksnya, seratus ribu karakter
 membuat kotak pencarian makan lebih dari satu detik per ketikan.
+
+#### Memasangkan karakter ke judulnya
+
+Judul ditebak dari tanda kurung di nama tag: `ganyu_(genshin_impact)`
+jelas, `kuchiki_rukia` tidak. Yang tidak jelas ±72 ribu dari 101 ribu, dan
+karakter tanpa judul tidak pernah muncul waktu judulnya diketik di kotak
+penyaring — mengetik "bleach" cuma memulangkan lima nama.
+
+```bash
+C:\xampp2\php\php.exe tools\judul_karakter.php
+```
+
+Satu permintaan per judul, ±19.800 judul, sekitar lima setengah jam.
+Posisinya diingat di `series.chars_synced_at`, jadi berhenti di tengah
+lalu menjalankannya lagi MELANJUTKAN. Butuh migrasi `013` lebih dulu.
+
+### Kalau di hosting tidak ada akses baris perintah
+
+Ketiga alat di atas juga bisa dipanggil lewat browser, dan ketiganya
+memotong pekerjaannya sendiri supaya muat di batas waktu hosting:
+
+```
+https://situsmu.com/tools/sync_karakter.php?key=RAHASIA&halaman=20
+https://situsmu.com/tools/import_characters.php?key=RAHASIA&bagian=10
+https://situsmu.com/tools/judul_karakter.php?key=RAHASIA&batas=200
+```
+
+`RAHASIA` itu `SYNC_KEY` di `config.local.php`. Panggil berulang sampai
+masing-masing bilang selesai; posisinya diingat, jadi tiap panggilan
+melanjutkan, bukan mengulang.
+
+Urutannya wajib: `sync_karakter` sampai habis, baru `import_characters`
+sampai habis, baru `judul_karakter`. `import_characters` sendiri menolak
+memulai tahap karakternya sebelum tahap judulnya tuntas — kalau peta
+judulnya masih separuh, karakter yang judulnya belum sempat masuk akan
+tercatat tanpa judul, diam-diam, dan tidak pernah diperiksa ulang.
 
 ### Berapa lama sekarang
 

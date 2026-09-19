@@ -122,6 +122,39 @@ const BUKAN_JUDUL = [
     'crossover',
 ];
 
+/**
+ * Menulis, dan mencoba lagi kalau bentrok kuncian.
+ *
+ * Deadlock bukan kerusakan — itu cara MySQL menyelesaikan dua transaksi
+ * yang saling menunggu: salah satunya dibatalkan dan DIHARAPKAN mencoba
+ * lagi. Alat ini tidak memakai transaksi, jadi mengulang satu pernyataan
+ * saja sudah benar dan aman. (Di dalam transaksi itu keliru — MySQL
+ * menggulung balik SELURUH transaksinya, bukan satu pernyataan.)
+ *
+ * Tanpa ini, pekerjaan lima setengah jam mati di bentrok pertama yang
+ * lewat. Dan itu betul-betul terjadi, di judul ke-429, waktu importer
+ * kebetulan jalan di tabel yang sama.
+ */
+function tulis(string $sql, array $params = []): PDOStatement
+{
+    for ($coba = 1; ; $coba++) {
+        try {
+            return Database::run($sql, $params);
+        } catch (PDOException $e) {
+            // Nomor aslinya ada di errorInfo[1], bukan di getCode():
+            // 1213 deadlock, 1205 menunggu kuncian terlalu lama.
+            $kode = (int) ($e->errorInfo[1] ?? 0);
+
+            if (($kode !== 1213 && $kode !== 1205) || $coba >= 5) {
+                throw $e;
+            }
+
+            say("  (bentrok kuncian, mencoba lagi {$coba}/4)");
+            sleep($coba);
+        }
+    }
+}
+
 function say(string $m): void
 {
     echo $m . PHP_EOL;
@@ -287,7 +320,7 @@ while (true) {
         // punya judul — termasuk yang dikurasi tangan — tidak pernah
         // tersentuh.
         $ph = implode(',', array_fill(0, count($calon), '?'));
-        $st = Database::run(
+        $st = tulis(
             'UPDATE characters SET series_id = ?
               WHERE series_id IS NULL AND booru_tag IN (' . $ph . ')',
             array_merge([(int) $judul['id']], $calon)
@@ -296,7 +329,7 @@ while (true) {
         $dipasang += $pasang;
     }
 
-    Database::run('UPDATE series SET chars_synced_at = NOW() WHERE id = ?', [(int) $judul['id']]);
+    tulis('UPDATE series SET chars_synced_at = NOW() WHERE id = ?', [(int) $judul['id']]);
 
     // char_count disegarkan berkala, bukan cuma di akhir.
     //
@@ -310,7 +343,7 @@ while (true) {
     // karakter, dan menjalankannya dua puluh ribu kali lebih mahal daripada
     // pekerjaan yang dilayaninya.
     if ($ke % 200 === 0) {
-        Database::run(
+        tulis(
             'UPDATE series s SET char_count =
                 (SELECT COUNT(*) FROM characters c WHERE c.series_id = s.id AND c.is_active = 1)'
         );
@@ -344,7 +377,7 @@ while (true) {
 
 // char_count ikut disegarkan: karakter yang barusan dipasangkan membuat
 // judulnya tidak kosong lagi, dan judul kosong ditaruh di bawah daftar.
-Database::run(
+tulis(
     'UPDATE series s SET char_count =
         (SELECT COUNT(*) FROM characters c WHERE c.series_id = s.id AND c.is_active = 1)'
 );
