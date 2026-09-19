@@ -181,6 +181,38 @@ if (!$adaExec || !is_dir($akar . '/.git')) {
     }
 
     catat('Berkas dianggap sudah ditarik oleh webhook bawaan panel hosting.');
+
+    // YANG BERUBAH DIBACA DARI KIRIMAN GITHUB, BUKAN DARI GIT.
+    //
+    // Jalur satunya memakai `git diff` untuk tahu apakah seeder perlu jalan.
+    // Di sini git tidak bisa dipanggil sama sekali — tapi kiriman GitHub
+    // sendiri sudah memuat daftar berkas yang berubah di tiap commit, dan
+    // itu jawaban yang sama persis tanpa perlu memanggil apa pun.
+    //
+    // Tanpa ini seeder jalan di SETIAP push, termasuk push yang cuma
+    // menyentuh Vue atau README. Seeder menulis ulang tabel modul dan
+    // menyapu kamus satu juta tag; menjalankannya untuk perubahan yang
+    // tidak menyentuh data itu kerja yang jawabannya sudah diketahui, dan
+    // ia mengganggu tabel yang sedang dibaca pengunjung.
+    if ($tandaTgn !== '' && is_array($data ?? null)) {
+        $sentuhData = false;
+
+        foreach ($data['commits'] ?? [] as $c) {
+            foreach (array_merge($c['added'] ?? [], $c['modified'] ?? [], $c['removed'] ?? []) as $f) {
+                if (str_starts_with((string)$f, 'database/data/')) {
+                    $sentuhData = true;
+                    break 2;
+                }
+            }
+        }
+
+        if (!$sentuhData) {
+            catat('Tidak ada perubahan di database/data/, seeder tidak perlu jalan.');
+            catat('SELESAI.');
+            selesai();
+        }
+    }
+
     jalankanSeeder();
     selesai();
 }

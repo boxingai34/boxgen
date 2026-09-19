@@ -623,6 +623,44 @@ Setelah ditambahkan, GitHub langsung mengirim satu **ping**. Buka tab
 | **403** tanda tangan tidak cocok | Secret di GitHub beda dengan `DEPLOY_SECRET` |
 | **503** | `DEPLOY_SECRET` masih kosong di server |
 | **500** bukan hasil git clone | website diupload manual, ulangi langkah 3 |
+
+### Kalau hosting mematikan exec()
+
+Banyak hosting melarang PHP memanggil program luar. `deploy.php` akan
+mengatakannya sendiri:
+
+```
+Mode seeder saja (exec() dimatikan hosting ini).
+```
+
+Artinya ia **tidak bisa menarik berkas** — git tidak bisa dipanggil dari
+sana. Tapi ia tetap bisa mengerjakan bagian yang satunya, dan panel
+hosting biasanya bisa mengerjakan bagian yang tidak bisa dilakukannya.
+Jadi tugasnya dibagi dua, dan **keduanya didaftarkan sebagai webhook di
+repo yang sama**:
+
+| Webhook | Dari mana | Tugasnya |
+|---|---|---|
+| URL auto-deployment panel hosting | halaman GIT di hPanel/cPanel | menarik berkas dari GitHub |
+| `https://situsmu.com/tools/deploy.php` | dibuat sendiri, langkah 5 di atas | memasukkan perubahan data ke database |
+
+Kalau cuma yang pertama yang terdaftar — dan ini gejala yang paling
+membingungkan — **berkasnya selalu baru tapi databasenya tidak pernah
+berubah**. Kode terbaru sudah ada di server, katalognya tidak. Dari luar
+terlihat seperti deploy yang gagal separuh, padahal yang kurang cuma satu
+webhook.
+
+Tandanya jelas kalau dicek: di server `SELECT COUNT(*) FROM modules`
+tertinggal dari yang ada di `database/data/`. Jalankan sekali dengan
+tangan untuk menambalnya:
+
+```
+https://situsmu.com/tools/deploy.php?key=SYNC_KEY
+```
+
+Panggilan bertangan seperti itu SELALU menjalankan seeder. Yang dari
+GitHub tidak: ia membaca daftar berkas di kiriman push, dan melewatinya
+kalau tidak ada yang menyentuh `database/data/`.
 | **501** shell_exec dimatikan | lihat catatan di bawah |
 
 Mau mencoba tanpa menunggu push? Buka langsung di browser:
