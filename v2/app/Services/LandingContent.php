@@ -182,7 +182,13 @@ class LandingContent
         $t = trim((string) $nilai);
         $t = mb_substr($t, 0, str_contains($kunci, 'body') ? 4000 : 500);
 
-        if (preg_match('/url|link|src|image$/i', $kunci) && $t !== '') {
+        // "logo" ikut dijaga sejak sekarang. Kunci logo_dark dan logo_light
+        // tidak mengandung url/link/src dan tidak berakhiran image, jadi
+        // selama ini keduanya lolos tanpa diperiksa sama sekali — cuma
+        // dipangkas 500 huruf. Di <img src> dampaknya kecil, tapi nilainya
+        // akan dipakai juga di mask-image: url(...) untuk logo berputar, dan
+        // di dalam CSS nilai yang tidak diperiksa itu jalan masuk.
+        if (preg_match('/url|link|src|logo|image$/i', $kunci) && $t !== '') {
             // Tautan luar harus http(s); tautan dalam harus mulai dari /.
             if (! preg_match('~^(https?://|/(?!/)|#)~i', $t)) {
                 return '';
