@@ -109,8 +109,52 @@ return [
 // =====================================================================
 // SLOT: TANGAN
 // =====================================================================
+// BENTUK SARUNG TINJU TIDAK PUNYA TAG DI DANBOORU.
+//
+// Yang ada cuma `boxing_gloves` (4.581 gambar). Tidak ada velcro, tidak ada
+// lace-up, tidak ada strap — sudah dicari di seluruh kamus. Jadi bentuknya
+// dibedakan dengan kata biasa, sama seperti `masterpiece` dan
+// `dramatic_lighting` yang juga bukan tag booru tapi dimengerti modelnya.
+//
+// Sengaja cuma dua kata pembeda per bentuk. Menumpuk lima akan melawan
+// `boxing_gloves` sendiri, dan yang menang di prompt padat itu tag yang
+// paling sering muncul di data latihnya — bukan yang paling banyak.
 'outfit_hand' => [
-    ['slug' => 'boxing-gloves',  'name' => 'Boxing Gloves',   'name_id' => 'Sarung tinju',   'tags' => ['boxing_gloves' => 1.2]],
+    // Bawaannya sengaja bentuk latihan: bulat, gempal, manset velcro lebar.
+    // Itu yang paling sering terlihat di sasana dan di atas ring amatir,
+    // dan tema pakaian mana pun yang memanggil 'boxing-gloves' ikut
+    // mendapatkannya tanpa harus memilih apa-apa.
+    ['slug' => 'boxing-gloves',  'name' => 'Boxing Gloves',   'name_id' => 'Sarung tinju',   'tags' => ['boxing_gloves' => 1.2, 'puffy_rounded_gloves', 'wide_velcro_wrist_strap']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-latihan',  'name' => 'Sparring Gloves',   'name_id' => 'Sarung latihan',
+     'description' => 'Besar dan bulat, manset velcro lebar. Yang dipakai sehari-hari di sasana.',
+     'tags' => ['boxing_gloves' => 1.2, 'puffy_rounded_sparring_gloves', 'wide_velcro_wrist_strap']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-bertali',  'name' => 'Lace-up Gloves',    'name_id' => 'Sarung bertali',
+     'description' => 'Pergelangan diikat tali — sarung pertandingan resmi.',
+     'tags' => ['boxing_gloves' => 1.2, 'lace-up_boxing_gloves', 'laced_wrist_cuff']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-tanding',  'name' => 'Competition Gloves', 'name_id' => 'Sarung tanding',
+     'description' => 'Lebih kecil dan padat daripada sarung latihan.',
+     'tags' => ['boxing_gloves' => 1.2, 'compact_competition_gloves', 'laced_wrist_cuff']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-manset-panjang', 'name' => 'Long Cuff Gloves', 'name_id' => 'Sarung manset panjang',
+     'description' => 'Manset menutup separuh lengan bawah, kepalannya lebih ramping.',
+     'tags' => ['boxing_gloves' => 1.2, 'elbow_gloves', 'long_cuff_boxing_gloves']],
+
+
+    ['category' => 'sarung', 'slug' => 'sarung-kulit-klasik', 'name' => 'Vintage Leather Gloves', 'name_id' => 'Sarung kulit klasik',
+     'description' => 'Kulit cokelat usang, kecil, bertali. Gaya tinju lama.',
+     'tags' => ['boxing_gloves', 'vintage_leather_boxing_gloves', 'worn_brown_leather']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-mengilap', 'name' => 'Glossy Gloves',     'name_id' => 'Sarung mengilap',
+     'description' => 'Sintetis licin yang memantulkan lampu ring.',
+     'tags' => ['boxing_gloves' => 1.2, 'glossy_boxing_gloves', 'shiny_synthetic_leather']],
+
+    ['category' => 'sarung', 'slug' => 'sarung-besar',    'name' => 'Oversized Gloves',  'name_id' => 'Sarung kebesaran',
+     'description' => 'Sengaja dilebihkan — bulat besar seperti bantal.',
+     'tags' => ['boxing_gloves' => 1.3, 'oversized_puffy_gloves', 'huge_rounded_mitts']],
+
     ['slug' => 'hand-wraps',     'name' => 'Hand Wraps',      'name_id' => 'Perban tangan',  'tags' => ['hand_wraps']],
     ['slug' => 'bandaged-hand',  'name' => 'Bandaged Hand',   'name_id' => 'Tangan diperban','tags' => ['bandaged_hand']],
     ['slug' => 'fingerless',     'name' => 'Fingerless Gloves','name_id'=> 'Sarung jari terbuka','tags' => ['fingerless_gloves']],
