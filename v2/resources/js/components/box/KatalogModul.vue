@@ -16,7 +16,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
  * yang sedang disorot.
  */
 type Modul = {
-    id: number;
+    id: number | string;
     nama: string;
     kategori?: string;
     ket?: string;
@@ -27,18 +27,24 @@ type Modul = {
 const props = withDefaults(
     defineProps<{
         modul: Modul[];
-        terpilih: number | '' | null;
+        terpilih: number | string | '' | null;
         judul: string;
         /** Teks pilihan kosong; kosongkan kalau modulnya wajib dipilih. */
         kosong?: string;
+        /**
+         * Pilihan lain yang bukan modul — misalnya "— tidak ada —" di slot
+         * pakaian, yang artinya berbeda dari "— ikut tema —" dan karena itu
+         * tidak bisa diwakili satu tombol kosong saja.
+         */
+        khusus?: Array<{ nilai: string; label: string }>;
     }>(),
-    { kosong: '— tidak dipakai —' },
+    { kosong: '— tidak dipakai —', khusus: () => [] },
 );
 
-const emit = defineEmits<{ (e: 'pilih', id: number | ''): void }>();
+const emit = defineEmits<{ (e: 'pilih', id: number | string): void }>();
 
 const buka = ref(false);
-const disorot = ref<number | null>(null);
+const disorot = ref<number | string | null>(null);
 
 const terpilihObj = computed(() => props.modul.find((m) => m.id === props.terpilih) ?? null);
 const adaContoh = computed(() => props.modul.filter((m) => m.contoh).length);
@@ -59,7 +65,7 @@ function sumber(m: Modul): string {
     return (disorot.value === m.id && m.gerak ? m.gerak : m.contoh) ?? '';
 }
 
-function pilih(id: number | '') {
+function pilih(id: number | string) {
     emit('pilih', id);
     buka.value = false;
 }
@@ -111,15 +117,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                     </button>
                 </div>
 
-                <button
-                    v-if="kosong"
-                    type="button"
-                    class="mb-4 rounded-lg border px-3 py-1.5 text-xs transition-colors"
-                    :class="terpilih === '' || terpilih === null ? 'border-[hsl(var(--sorot))] text-foreground' : 'border-border text-muted-foreground hover:border-[hsl(var(--sorot)/0.6)]'"
-                    @click="pilih('')"
-                >
-                    {{ kosong }}
-                </button>
+                <div class="mb-4 flex flex-wrap gap-2">
+                    <button
+                        v-if="kosong"
+                        type="button"
+                        class="rounded-lg border px-3 py-1.5 text-xs transition-colors"
+                        :class="terpilih === '' || terpilih === null ? 'border-[hsl(var(--sorot))] text-foreground' : 'border-border text-muted-foreground hover:border-[hsl(var(--sorot)/0.6)]'"
+                        @click="pilih('')"
+                    >
+                        {{ kosong }}
+                    </button>
+                    <button
+                        v-for="k in khusus"
+                        :key="k.nilai"
+                        type="button"
+                        class="rounded-lg border px-3 py-1.5 text-xs transition-colors"
+                        :class="terpilih === k.nilai ? 'border-[hsl(var(--sorot))] text-foreground' : 'border-border text-muted-foreground hover:border-[hsl(var(--sorot)/0.6)]'"
+                        @click="pilih(k.nilai)"
+                    >
+                        {{ k.label }}
+                    </button>
+                </div>
 
                 <div v-for="k in berkelompok" :key="k.nama" class="mb-6">
                     <h3 v-if="k.nama" class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>

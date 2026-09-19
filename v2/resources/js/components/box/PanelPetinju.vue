@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import KatalogModul from '@/components/box/KatalogModul.vue';
 import { kirim } from '@/lib/kirim';
 import { ChevronDown, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -46,7 +47,11 @@ const saran = ref<any[]>([]);
 const sedangCari = ref(false);
 const saranTerbuka = ref(false);
 
+// Dua penunda terpisah: yang satu menunggu ketikan judul, yang satu
+// menunggu ketikan nama. Satu penunda bersama membuat keduanya saling
+// membatalkan — mengetik judul menghapus pencarian nama yang sedang jalan.
 let jeda: number | undefined;
+let jedaCari: number | undefined;
 
 async function muatSeri() {
     try {
@@ -325,12 +330,12 @@ function kelompok(tipe: string): Array<[string, any[]]> {
         <!-- ============ PAKAIAN ============ -->
         <label class="mt-4 block">
             <span class="mb-1.5 block text-xs text-muted-foreground">Tema pakaian</span>
-            <select v-model="orang.outfit_id" :class="isianKelas" @change="temaBerubah">
-                <option value="">— tidak dipakai —</option>
-                <optgroup v-for="[kat, daftar] in kelompok('outfit')" :key="kat" :label="kat || 'lainnya'">
-                    <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
-                </optgroup>
-            </select>
+            <KatalogModul
+                :modul="modul.outfit || []"
+                :terpilih="orang.outfit_id === '' ? '' : Number(orang.outfit_id)"
+                judul="Tema pakaian"
+                @pilih="orang.outfit_id = $event; temaBerubah()"
+            />
         </label>
 
         <details class="mt-2 rounded-xl border border-border/70 p-3">
@@ -342,13 +347,14 @@ function kelompok(tipe: string): Array<[string, any[]]> {
             <div v-for="[slot, label] in SLOT_PAKAIAN" :key="slot" class="mt-2 grid gap-2 sm:grid-cols-[1fr_9rem]">
                 <label class="block">
                     <span class="mb-1 block text-xs text-muted-foreground">{{ label }}</span>
-                    <select v-model="orang['outfit_' + slot + '_id']" :class="[isianKelas, 'h-9 py-0 text-xs']">
-                        <option value="">— ikut tema —</option>
-                        <option value="none">— tidak ada —</option>
-                        <optgroup v-for="[kat, daftar] in kelompok('outfit_' + slot)" :key="kat" :label="kat || 'lainnya'">
-                            <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}</option>
-                        </optgroup>
-                    </select>
+                    <KatalogModul
+                        :modul="modul['outfit_' + slot] || []"
+                        :terpilih="orang['outfit_' + slot + '_id'] === '' || orang['outfit_' + slot + '_id'] === 'none' ? orang['outfit_' + slot + '_id'] : Number(orang['outfit_' + slot + '_id'])"
+                        :judul="label"
+                        kosong="— ikut tema —"
+                        :khusus="[{ nilai: 'none', label: '— tidak ada —' }]"
+                        @pilih="orang['outfit_' + slot + '_id'] = $event"
+                    />
                 </label>
                 <label class="block">
                     <span class="mb-1 block text-xs text-muted-foreground">Warna</span>
@@ -372,12 +378,12 @@ function kelompok(tipe: string): Array<[string, any[]]> {
         <!-- ============ KONDISI ============ -->
         <label class="mt-4 block">
             <span class="mb-1.5 block text-xs text-muted-foreground">Kondisi</span>
-            <select v-model="orang.condition_id" :class="isianKelas">
-                <option value="">— tidak dipakai —</option>
-                <optgroup v-for="[kat, daftar] in kelompok('condition')" :key="kat" :label="kat || 'lainnya'">
-                    <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
-                </optgroup>
-            </select>
+            <KatalogModul
+                :modul="modul.condition || []"
+                :terpilih="orang.condition_id === '' ? '' : Number(orang.condition_id)"
+                judul="Kondisi"
+                @pilih="orang.condition_id = $event"
+            />
         </label>
 
         <details class="mt-2 rounded-xl border border-border/70 p-3">
@@ -389,13 +395,14 @@ function kelompok(tipe: string): Array<[string, any[]]> {
             <div class="mt-2 grid gap-2 sm:grid-cols-2">
                 <label v-for="[slot, label] in SLOT_KONDISI" :key="slot" class="block">
                     <span class="mb-1 block text-xs text-muted-foreground">{{ label }}</span>
-                    <select v-model="orang['cond_' + slot + '_id']" :class="[isianKelas, 'h-9 py-0 text-xs']">
-                        <option value="">— ikut tema —</option>
-                        <option value="none">— tidak ada —</option>
-                        <optgroup v-for="[kat, daftar] in kelompok('cond_' + slot)" :key="kat" :label="kat || 'lainnya'">
-                            <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}</option>
-                        </optgroup>
-                    </select>
+                    <KatalogModul
+                        :modul="modul['cond_' + slot] || []"
+                        :terpilih="orang['cond_' + slot + '_id'] === '' || orang['cond_' + slot + '_id'] === 'none' ? orang['cond_' + slot + '_id'] : Number(orang['cond_' + slot + '_id'])"
+                        :judul="label"
+                        kosong="— ikut tema —"
+                        :khusus="[{ nilai: 'none', label: '— tidak ada —' }]"
+                        @pilih="orang['cond_' + slot + '_id'] = $event"
+                    />
                 </label>
             </div>
 
