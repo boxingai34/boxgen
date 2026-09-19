@@ -12,9 +12,12 @@ import { computed } from 'vue';
  * bersebelahan, lalu hasilnya di sampingnya), 264 piksel itu yang
  * menentukan muat atau tidak.
  *
- * Lebarnya tetap dibatasi 1800 piksel. Tanpa batas, di layar ultrawide
- * baris teks jadi begitu panjang sampai mata kehilangan awal baris
- * berikutnya — lebar itu bukan selalu keuntungan.
+ * Lebarnya TIDAK dibatasi. Batas lebar melindungi baris teks panjang dari
+ * jadi terlalu lebar untuk dibaca — tapi halaman ini bukan artikel,
+ * melainkan papan isian: yang memenuhinya kolom-kolom sempit bersebelahan,
+ * dan tiap piksel yang disisakan di kiri-kanan berarti satu kolom lagi
+ * yang tidak muat. Kotak teks panjangnya sendiri yang dibatasi, di
+ * tempatnya masing-masing.
  */
 defineProps<{ judul: string; anak?: string }>();
 
@@ -31,7 +34,7 @@ const kunciHalaman = computed(() => halaman.url.split('?')[0]);
             Sengaja sependek itu — transisi yang terasa "mahal" justru
             membuat aplikasi terasa lambat, bukan mewah.
         -->
-        <main class="mx-auto max-w-[1800px] px-4 py-5 sm:px-6">
+        <main class="px-4 py-5 sm:px-5">
             <Transition name="halaman" mode="out-in">
                 <div :key="kunciHalaman">
                     <slot />

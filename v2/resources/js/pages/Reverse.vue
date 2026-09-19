@@ -1364,8 +1364,8 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
         <!-- Bilah tindakan menempel di dasar layar: kartu isiannya berubah
              tinggi mengikuti hasil bacaannya, jadi tombol di kakinya
              berpindah-pindah dan harus dicari tiap kali. -->
-        <div class="sticky bottom-0 z-30 -mx-5 mt-2 border-t border-border/60 bg-background/90 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-            <div class="mx-auto flex max-w-[1800px] flex-wrap items-center gap-3">
+        <div class="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
+            <div class="flex flex-wrap items-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedangSusun || !ekstrak" @click="susun">
                     <LoaderCircle v-if="sedangSusun" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />
