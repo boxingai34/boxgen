@@ -61,8 +61,11 @@ return [
     // antaranya yang tidak bekerja lebih buruk lagi.
     ['category' => 'terbuka',  'slug' => 'topless',       'name' => 'Topless',         'name_id' => 'Topless',
      'is_nsfw' => 1,
+     // nipples ikut karena topless_female sendirian sering dijawab dengan
+     // lengan, rambut, atau sudut yang kebetulan menutupi dadanya: tagnya
+     // terpenuhi, tapi yang terlihat tetap tertutup.
      'description' => 'Tag "topless" polos tidak ada; yang benar topless_female.',
-     'tags' => ['topless_female']],
+     'tags' => ['topless_female' => 1.1, 'nipples']],
     ['category' => 'terbuka',  'slug' => 'pasties',       'name' => 'Pasties',         'name_id' => 'Penutup puting', 'is_nsfw' => 1, 'tags' => ['pasties']],
     ['category' => 'terbuka',  'slug' => 'covered-nipples','name' => 'Covered Nipples','name_id' => 'Puting tertutup','is_nsfw' => 1, 'tags' => ['covered_nipples']],
 ],
@@ -94,7 +97,10 @@ return [
     ['category' => 'terbuka', 'slug' => 'thong',         'name' => 'Thong',         'name_id' => 'Thong',          'is_nsfw' => 1, 'tags' => ['thong']],
     ['category' => 'terbuka', 'slug' => 'microskirt',    'name' => 'Microskirt',    'name_id' => 'Rok super mini', 'is_nsfw' => 1, 'tags' => ['microskirt']],
     ['category' => 'terbuka', 'slug' => 'no-panties',    'name' => 'No Panties',    'name_id' => 'Tanpa dalaman',  'is_nsfw' => 1, 'tags' => ['no_panties']],
-    ['category' => 'terbuka', 'slug' => 'bottomless',    'name' => 'Bottomless',    'name_id' => 'Tanpa bawahan',  'is_nsfw' => 1, 'tags' => ['bottomless']],
+    // pussy ikut karena bottomless sendirian sering dijawab dengan sudut
+    // atau tangan yang kebetulan menutupi — tagnya terpenuhi tanpa ada yang
+    // benar-benar terlihat.
+    ['category' => 'terbuka', 'slug' => 'bottomless',    'name' => 'Bottomless',    'name_id' => 'Tanpa bawahan',  'is_nsfw' => 1, 'tags' => ['bottomless' => 1.1, 'pussy']],
 ],
 
 // =====================================================================

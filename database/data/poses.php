@@ -61,8 +61,13 @@ return [
      'tags' => ['uppercut' => 1.2, 'punching', 'arm_up', 'from_below', 'speed_lines']],
     ['category' => 'serang', 'slug' => 'body-shot', 'name' => 'Body Shot', 'name_id' => 'Pukulan badan',
      'sort_order' => 5,
-     'description' => 'Memakai stomach_punch — tag khusus pukulan ke perut.',
-     'tags' => ['stomach_punch' => 1.2, 'punching', 'leaning_forward', 'motion_lines']],
+     // stomach_punch dicabut: di Danbooru tag itu menandai orang yang KENA
+     // pukulan perut, bukan yang melepaskannya. Di kartu berisi satu orang
+     // saja, artinya modelnya menggambar dia yang terpukul — kebalikan dari
+     // nama posenya. Sasaran pukulan memang bukan urusan pose; itu tinggal
+     // di modul interaksi, satu-satunya tempat yang tahu ada lawannya.
+     'description' => 'Pukulan yang dilepaskan ke arah badan lawan, bukan pukulan yang diterima.',
+     'tags' => ['punching' => 1.2, 'punching_viewer', 'leaning_forward', 'foreshortening', 'motion_lines']],
     ['category' => 'serang', 'slug' => 'punch-to-camera', 'name' => 'Memukul ke Kamera', 'name_id' => 'Meninju ke arah kamera',
      'sort_order' => 6,
      'description' => 'Tag punching_viewer khusus untuk pukulan yang mengarah ke penonton.',
@@ -124,8 +129,12 @@ return [
      'tags' => ['face-to-face' => 1.2, 'eye_contact', 'facing_another', 'confrontation']],
 
     ['category' => 'awal', 'slug' => 'glove-touch', 'sub' => 'sub_lokasi', 'action' => 'holding_hands', 'name' => 'Adu Sarung Tinju', 'name_id' => 'Menyentuhkan sarung',
+     // boxing_gloves cuma bilang mereka BERSARUNG, bukan bahwa sarungnya
+     // bersentuhan — dan dua petinju bersarung yang berdiri berhadapan itu
+     // isi kartu "Saling berhadapan", bukan kartu ini. fist_bump yang
+     // membawa sentuhannya.
      'sort_order' => 2, 'sentence' => 'the two boxers touch gloves before the fight',
-     'tags' => ['facing_another', 'boxing_gloves' => 1.1, 'eye_contact']],
+     'tags' => ['fist_bump' => 1.3, 'boxing_gloves' => 1.1, 'facing_another', 'eye_contact']],
 
     ['category' => 'awal', 'slug' => 'circling', 'sub' => 'sub_lokasi', 'action' => 'fighting_stance', 'name' => 'Saling Mengitari', 'name_id' => 'Berputar mengukur jarak',
      'sort_order' => 3, 'sentence' => 'both fighters circle each other, measuring distance',
@@ -220,11 +229,19 @@ return [
 
     // ---- jarak dekat ----
     ['category' => 'dekat', 'slug' => 'clinch', 'sub' => 'sub_lokasi', 'action' => 'hug', 'name' => 'Clinch', 'name_id' => 'Saling mengunci',
+     // Clinch itu berpelukan sambil bertinju: dada bertemu dada, lengan
+     // melingkari leher atau punggung lawan. "holding_another's_arm"
+     // sendirian cuma memegang lengan — dua orang berdiri berdekatan, dan
+     // itu tidak terbaca sebagai mengunci.
      'sort_order' => 1, 'sentence' => 'the fighters lock together in a clinch',
-     'tags' => ['holding_another\'s_arm', 'facing_another', 'heavy_breathing']],
+     'tags' => ['hug' => 1.2, 'arms_around_neck', 'facing_another', 'heavy_breathing']],
 
     ['category' => 'dekat', 'slug' => 'headlock', 'sub' => 'sub_lokasi', 'action' => 'headlock', 'name' => 'Headlock', 'name_id' => 'Kuncian kepala',
-     'sort_order' => 2, 'tags' => ['headlock' => 1.2, 'wrestling']],
+     // headlock cuma 715 gambar di Danbooru — terlalu sepi untuk berdiri
+     // sendiri, dan modelnya jatuh ke "dua orang berdiri berdekatan" lagi.
+     // arm_around_neck yang memberi tahu lengannya ke mana.
+     'sort_order' => 2, 'sentence' => 'one fighter locks the other\'s head under her arm',
+     'tags' => ['headlock' => 1.3, 'arm_around_neck' => 1.1, 'wrestling']],
 
     ['category' => 'dekat', 'slug' => 'grappling', 'sub' => 'sub_lokasi', 'action' => 'wrestling', 'name' => 'Bergumul', 'name_id' => 'Saling bergumul',
      'sort_order' => 3, 'tags' => ['wrestling' => 1.1, 'grabbing_another\'s_hair', 'fighting']],

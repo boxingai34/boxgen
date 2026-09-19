@@ -52,13 +52,34 @@ class ContohModul extends Command
      * kelelahan. Ciri yang ditulis di sini yang menjaga wajahnya bertahan;
      * benih tetap di resepnya menjaga sisanya.
      */
-    private const MODEL = '1girl, solo, mature female, short brown hair, brown eyes, topless female';
+    private const MODEL_ORANG = '1girl, solo, mature female, short brown hair, brown eyes';
+
+    private const MODEL = self::MODEL_ORANG . ', topless female';
+
+    /**
+     * Seragam petinju yang dipakai di seluruh katalog pose.
+     *
+     * Warnanya dikunci untuk alasan yang sama dengan wajahnya: tiga puluh
+     * kartu dengan celana biru, merah muda, dan ungu membuat mata sibuk
+     * membedakan baju, padahal yang sedang dibandingkan gerakannya.
+     */
+    private const SERAGAM = 'red boxing gloves, black sports bra, black boxing shorts, boxing boots';
+
+    /**
+     * Benih tetap untuk katalog yang ingin satu orang yang sama.
+     *
+     * Ciri yang ditulis di MODEL sudah menjaga rambut dan matanya; benih
+     * ini yang menjaga sisanya — bentuk wajah, warna kulit, potongan poni —
+     * yang tidak ada namanya di daftar tag mana pun.
+     */
+    private const BENIH = 20260919;
 
     private const RESEP = [
         'pose' => [
-            'adegan' => '1girl, solo, female boxer, mature female, boxing gloves, sports bra, boxing shorts, '
+            'adegan' => self::MODEL_ORANG . ', female boxer, ' . self::SERAGAM . ', '
                 . 'full body, boxing ring, ring ropes, spotlight, indoors, anime coloring, masterpiece, best quality',
             'rasio' => '3:4',
+            'benih' => self::BENIH,
         ],
         // Dua tipe tempat ini digambar TANPA orang, dan didorong kuat ke arah
         // ilustrasi: tanpa dorongan itu NovelAI memulangkan foto ruangan yang
@@ -157,7 +178,7 @@ class ContohModul extends Command
                 . 'bare shoulders, simple background, grey background, anime coloring, '
                 . 'masterpiece, best quality',
             'rasio' => '1:1',
-            'benih' => 20260919,
+            'benih' => self::BENIH,
         ],
         'cond_eyes' => [
             'adegan' => '1girl, solo, mature female, portrait, close-up, eye focus, face, '
@@ -189,10 +210,20 @@ class ContohModul extends Command
                 . 'simple background, grey background, anime coloring, masterpiece, best quality',
             'rasio' => '1:1',
         ],
+        // "Badan" di sini berarti perut, dan perut tidak terlihat di potret
+        // yang memuat wajah — di kartu 512 piksel wajah selalu menang
+        // perhatian. Jadi bingkainya dipotong ke batang tubuh dan kepalanya
+        // dibuang dari bingkai; atasannya dilepas supaya memar, keringat,
+        // dan perban di kulit tidak tertutup baju.
+        //
+        // Yang dilepas cuma di GAMBAR CONTOHNYA. Modulnya sendiri tidak
+        // pernah membawa tag topless ke prompt yang kamu susun.
         'cond_body' => [
-            'adegan' => '1girl, solo, female boxer, mature female, upper body, torso, front view, '
-                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'adegan' => self::MODEL . ', nipples, breasts, toned, cropped torso, stomach, navel, '
+                . 'midriff, head out of frame, close-up, front view, simple background, grey background, '
+                . 'anime coloring, masterpiece, best quality',
             'rasio' => '1:1',
+            'benih' => self::BENIH,
         ],
         'cond_clothes' => [
             'adegan' => '1girl, solo, female boxer, mature female, upper body, clothing focus, front view, '
@@ -381,6 +412,36 @@ class ContohModul extends Command
      */
     private const BERSLOT = ['outfit', 'condition'];
 
+    /**
+     * Bingkai tambahan untuk kartu yang resep tipenya tidak cukup.
+     *
+     * Dua kasus saja, dan keduanya soal ARAH atau BATAS BINGKAI — hal yang
+     * tidak punya nama di kamus tag, jadi tidak bisa dititipkan ke modulnya.
+     * Ini cuma memengaruhi gambar contohnya; prompt yang kamu susun tidak
+     * pernah melihat daftar ini.
+     */
+    private const ADEGAN_KHUSUS = [
+        // Tanpa ini, "Pukulan badan" digambar sebagai orang yang berdiri
+        // biasa: tag punching sendirian tidak memberi tahu ke mana.
+        'pose/body-shot' => ['tambah' => 'throwing a low body punch toward the viewer, '
+            . 'fist closest to the camera, aiming below the chest, twisting the hips into the shot'],
+        // Katalog badan dipotong ke batang tubuh, dan kaki tidak ada di
+        // sana. Satu kartu ini dibingkai ULANG ke pahanya — ditambahkan
+        // saja tidak cukup, karena "cropped torso" dan "legs" saling
+        // membantah dan yang menang tidak bisa ditebak.
+        // Tiga kartu interaksi yang bentuknya tidak punya nama di kamus
+        // tag, jadi harus dikatakan dengan kalimat biasa.
+        'interaction/glove-touch' => ['tambah' => 'the two boxers touching their boxing gloves together, '
+            . 'gloves meeting in the centre of the frame, close to each other, before the bell'],
+        'interaction/clinch' => ['tambah' => 'the two boxers clinching chest to chest, '
+            . 'arms wrapped around each other, heads side by side, leaning on one another'],
+        'interaction/headlock' => ['tambah' => 'one boxer holding the other\'s head clamped under her arm, '
+            . 'the trapped boxer bent forward at the waist'],
+        'cond_body/bandaged-leg' => ['ganti' => self::MODEL . ', nipples, toned, lower body, thighs, '
+            . 'legs, knees, cropped, head out of frame, close-up, front view, simple background, '
+            . 'grey background, anime coloring, masterpiece, best quality'],
+    ];
+
     private const TANPA_ISI = [
         'bare-hands' => [
             'positif' => 'bare hands, clenched fists',
@@ -467,7 +528,9 @@ class ContohModul extends Command
                         [$tag, $tolakTambahan] = $this->tagGambar($t, (int) $m['id']);
                     }
 
-                    $minta = $resep['adegan'] . ', ' . $tag;
+                    $khusus = self::ADEGAN_KHUSUS["{$t}/{$slug}"] ?? [];
+                    $minta = ($khusus['ganti'] ?? $resep['adegan']) . ', ' . $tag
+                        . (isset($khusus['tambah']) ? ', ' . $khusus['tambah'] : '');
                     $tolak = self::HINDARI
                         // Dibaca dari SELURUH yang diminta, bukan dari tag
                         // modulnya saja: resep kondisi menaruh "topless
@@ -579,7 +642,11 @@ class ContohModul extends Command
         $pakai = [];
 
         foreach (self::BENTROK as $kata => $dibantah) {
-            if ($kata === 'nsfw' ? $dewasa : array_intersect($punya, $dibantah) !== []) {
+            // Payung "nsfw" mundur karena dua sebab: modulnya memang
+            // bertanda dewasa, ATAU yang diminta sudah jelas telanjang.
+            // Sebab kedua yang dulu terlewat, dan itu membuat resep yang
+            // menaruh "topless female" di adegannya tetap dilawan.
+            if (array_intersect($punya, $dibantah) !== [] || ($kata === 'nsfw' && $dewasa)) {
                 continue;
             }
 
