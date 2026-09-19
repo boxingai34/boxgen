@@ -334,9 +334,19 @@ const targetTampil = TARGET.filter((t) => t.tampil);
             </span>
         </div>
 
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-            <!-- ============================ KIRI: SUSUN ============================ -->
-            <div class="space-y-5">
+        <!-- Satu kolom, kartu bertumpuk, selebar halaman.
+             ==================================================================
+             Dulu dua kolom: kolom kiri sempit berisi SELURUH isian, kolom
+             kanan lebar berisi hasilnya. Akibatnya isiannya jadi menara —
+             mengisi detail petinju kedua berarti menggulir jauh ke bawah,
+             lalu kembali ke atas untuk melihat hasilnya — sementara kolom
+             kanan berdiri hampir kosong menunggu.
+             Sekarang isiannya memakai seluruh lebar, jadi yang tadinya
+             bertumpuk bisa berdiri bersebelahan, dan tingginya turun
+             drastis. Tombol Generate ikut ke bilah yang menempel di dasar
+             layar, jadi tidak perlu dicari. -->
+        <div class="mx-auto max-w-6xl">
+            <div class="space-y-5 pb-24">
                 <Kartu judul="1. Susun" ket="Pilih seperlunya — yang dikosongkan tidak ikut ke prompt.">
                     <!-- Acak duduk di kepala kartunya, bukan di kaki bersama
                          Generate. Keduanya tombol besar bersebelahan di bawah,
@@ -375,8 +385,11 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         <p v-if="aiNota" class="mt-1.5 text-xs text-[hsl(var(--sorot))]">{{ aiNota }}</p>
                     </div>
 
-                    <!-- Petinju -->
-                    <div class="space-y-4">
+                    <!-- Dua petinju berdiri bersebelahan, bukan bertumpuk:
+                         itu yang paling banyak memangkas tinggi halaman,
+                         dan membandingkan A dengan B jadi mungkin tanpa
+                         menggulir. -->
+                    <div class="grid gap-4" :class="mode === 'duo' ? 'lg:grid-cols-2' : ''">
                         <PanelPetinju
                             :judul="mode === 'single' ? 'Petinju' : 'Petinju A'"
                             :modul="modul"
@@ -455,7 +468,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
 
                 <!-- Gambarnya -->
                 <Kartu judul="Gambarnya" ket="Kualitas, gaya, tempat, kamera, dan cahaya.">
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <label v-for="[tipe, label] in [['quality', 'Kualitas'], ['style', 'Gaya'], ['background', 'Latar'], ['lighting', 'Cahaya'], ['cam_distance', 'Jarak kamera'], ['cam_angle', 'Sudut kamera'], ['cam_effect', 'Efek kamera'], ['ring', 'Ring']]" :key="tipe" class="block">
                             <span class="mb-1.5 block text-xs text-muted-foreground">
                                 {{ label }}
@@ -524,20 +537,11 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         <span>Buang tag yang sudah tersirat <span class="block text-xs text-muted-foreground">Misalnya <code>boxing_gloves</code> yang sudah dibawa temanya sendiri.</span></span>
                     </label>
 
-                    <div class="mt-5 flex flex-wrap gap-3">
-                        <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
-                            <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
-                            <Sparkles v-else class="h-4 w-4" />
-                            {{ sedang ? 'Menyusun…' : 'Generate Prompt' }}
-                        </Tombol>
-                    </div>
-
                     <p v-if="galat" class="mt-3 text-xs text-destructive">{{ galat }}</p>
                 </Kartu>
-            </div>
 
-            <!-- ============================ KANAN: HASIL ============================ -->
-            <div ref="panelHasil" class="space-y-5">
+                <!-- ============================ HASIL ============================ -->
+                <div ref="panelHasil" class="scroll-mt-4">
                 <Kartu judul="2. Hasil">
                     <template v-if="hasil" #alat>
                         <div class="flex flex-wrap gap-1.5">
@@ -633,6 +637,31 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         </div>
                     </div>
                 </Kartu>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bilah tindakan yang menempel di dasar layar.
+             ==================================================================
+             Tombol Generate dulu duduk di kaki kartu isian — dan kartu itu
+             berubah tinggi mengikuti apa yang sedang kamu isi, jadi letak
+             tombolnya berpindah-pindah dan harus dicari tiap kali. Menempel
+             di bawah, ia selalu di tempat yang sama dan selalu terjangkau,
+             berapa pun panjang isiannya. -->
+        <div class="sticky bottom-0 z-30 -mx-5 mt-2 border-t border-border/60 bg-background/90 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+            <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+                <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
+                    <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
+                    <Sparkles v-else class="h-4 w-4" />
+                    {{ sedang ? 'Menyusun…' : 'Generate Prompt' }}
+                </Tombol>
+                <Tombol jenis="garis" :nonaktif="sedang" @click="acak">
+                    <Dices class="h-4 w-4" />
+                    Acak
+                </Tombol>
+                <span v-if="hasil" class="ml-auto text-xs text-muted-foreground">
+                    ≈ {{ hasil.token }} token
+                </span>
             </div>
         </div>
     </AppLayout>

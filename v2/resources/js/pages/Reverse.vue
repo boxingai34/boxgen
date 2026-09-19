@@ -776,9 +776,12 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
     <Head title="Dari Gambar/Video" />
 
     <AppLayout judul="Dari Gambar/Video" anak="Kamu beri gambar atau video, halaman ini yang menebak isinya, lalu menyusunnya jadi prompt yang setia pada referensinya.">
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
-            <!-- ======================= KIRI: UNGGAH & PEMBACAAN ======================= -->
-            <div class="space-y-5">
+        <!-- Satu kolom, kartu bertumpuk, selebar halaman. Dua kolom membuat
+             kolom kiri jadi menara isian sementara kolom kanan berdiri hampir
+             kosong menunggu — dan mengisi detail petinju kedua berarti
+             menggulir jauh, lalu kembali ke atas untuk melihat hasilnya. -->
+        <div class="mx-auto max-w-6xl">
+            <div class="space-y-5 pb-24">
                 <Kartu judul="1. Unggah referensi" :ket="siap ? 'Diproses di browser — yang terkirim cuma versi kecilnya.' : 'Profil AI vision belum punya kunci.'">
                     <template #alat>
                         <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
@@ -1258,18 +1261,10 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         <Tombol v-if="rawDisunting" jenis="sunyi" ukuran="kecil" class="mt-2" @click="rawDisunting = false; segarkanRaw()">Batalkan suntingan JSON</Tombol>
                     </details>
 
-                    <div class="mt-5">
-                        <Tombol ukuran="besar" :nonaktif="sedangSusun" @click="susun">
-                            <LoaderCircle v-if="sedangSusun" class="h-4 w-4 animate-spin" />
-                            <Sparkles v-else class="h-4 w-4" />
-                            {{ sedangSusun ? 'Menyusun…' : 'Susun Prompt' }}
-                        </Tombol>
-                    </div>
                 </Kartu>
-            </div>
 
-            <!-- ======================= KANAN: PROMPT ======================= -->
-            <div ref="panelHasil" class="space-y-5">
+                <!-- ======================= PROMPT ======================= -->
+                <div ref="panelHasil" class="scroll-mt-4">
                 <Kartu judul="3. Prompt">
                     <template v-if="hasil" #alat>
                         <div class="flex gap-1.5">
@@ -1359,6 +1354,22 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                         </div>
                     </div>
                 </Kartu>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bilah tindakan menempel di dasar layar: kartu isiannya berubah
+             tinggi mengikuti hasil bacaannya, jadi tombol di kakinya
+             berpindah-pindah dan harus dicari tiap kali. -->
+        <div class="sticky bottom-0 z-30 -mx-5 mt-2 border-t border-border/60 bg-background/90 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+            <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+                <Tombol ukuran="besar" :nonaktif="sedangSusun || !ekstrak" @click="susun">
+                    <LoaderCircle v-if="sedangSusun" class="h-4 w-4 animate-spin" />
+                    <Sparkles v-else class="h-4 w-4" />
+                    {{ sedangSusun ? 'Menyusun…' : 'Susun Prompt' }}
+                </Tombol>
+                <span v-if="!ekstrak" class="text-xs text-muted-foreground">Baca referensinya dulu.</span>
+                <span v-if="lapor" class="ml-auto text-xs text-muted-foreground">{{ lapor }}</span>
             </div>
         </div>
     </AppLayout>

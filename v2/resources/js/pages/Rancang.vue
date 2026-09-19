@@ -212,9 +212,21 @@ const isianKelas =
     <Head title="Rancang Pertandingan" />
 
     <AppLayout judul="Rancang Pertandingan" anak="Dari cerita jadi papan klip, lengkap dengan gambar acuannya.">
+        <!-- Halaman ini SENGAJA tetap dua kolom, beda dengan Prompt Generator
+             dan Dari Gambar/Video.
+             ==================================================================
+             Di sana kolom kirinya menara isian yang harus digulir; di sini
+             isinya cuma satu kotak cerita, tiga pilihan, dan dua tombol —
+             semuanya muat satu layar. Yang panjang justru kolom KANANNYA,
+             berisi prompt tiap klip. Menumpuknya jadi satu kolom akan
+             menjauhkan ceritanya dari hasilnya, padahal membandingkan
+             keduanya itu seluruh pekerjaan di halaman ini.
+             Yang ditambahkan: kolom kiri ikut menempel waktu kolom kanan
+             digulir, jadi ceritanya tetap terbaca sambil memeriksa klip
+             nomor dua belas. -->
         <div class="grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
             <!-- ============================ KIRI: ISIAN ============================ -->
-            <div class="space-y-5">
+            <div class="space-y-5 xl:sticky xl:top-4 xl:self-start">
                 <Kartu v-reveal judul="Jalan ceritanya" ket="Bahasa Indonesia biasa. Sebutkan durasinya di dalam cerita.">
                     <textarea
                         v-model="cerita"

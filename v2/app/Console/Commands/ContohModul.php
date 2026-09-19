@@ -158,6 +158,27 @@ class ContohModul extends Command
         // Dari samping, bukan dari depan: ikat kepala, bando, dan pelindung
         // kepala semuanya melingkari kepala, dan dari depan yang terlihat
         // cuma garis tipis di dahi. Dari samping bentuknya utuh.
+        // Rambut dipotret dari belakang-samping: kuncir, kepang, dan sanggul
+        // semuanya ada di BELAKANG kepala, dan dari depan yang terlihat cuma
+        // poni. Wajahnya sengaja dibiarkan setengah terlihat supaya kartunya
+        // tetap terbaca sebagai orang, bukan sebagai potongan rambut.
+        //
+        // Warnanya dikunci cokelat untuk semua kartu: yang dibandingkan di
+        // katalog ini tatanannya, dan rambut pirang di sebelah rambut hitam
+        // membuat mata membandingkan warna lebih dulu.
+        // Panjangnya sengaja TIDAK disebut di sini — beda dengan katalog lain
+        // yang memakai MODEL_ORANG utuh. "short brown hair" akan melawan
+        // kepang dan sanggul yang memang butuh rambut panjang, dan melawan
+        // "dicukur habis" dari arah sebaliknya. Tiap tag gaya yang menentukan
+        // panjangnya sendiri; yang dikunci cuma warnanya.
+        'hair_style' => [
+            'adegan' => '1girl, solo, mature female, brown hair, brown eyes, '
+                . 'upper body, from behind, looking back, '
+                . 'head and shoulders, hair focus, simple background, white background, '
+                . 'anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+            'benih' => self::BENIH,
+        ],
         'outfit_head' => [
             'adegan' => self::MODEL_ORANG . ', portrait, head and shoulders, close-up, from side, profile, '
                 . 'simple background, white background, anime coloring, masterpiece, best quality',
