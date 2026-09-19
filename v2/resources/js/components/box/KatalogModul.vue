@@ -147,7 +147,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                     </button>
                 </div>
 
-                <div v-for="k in berkelompok" :key="k.nama" class="mb-6">
+                <!-- Belum satu pun punya contoh: dinding kotak "belum ada
+                     contoh" tidak memberi tahu apa pun, dan lebih lambat
+                     dibaca daripada daftar namanya. Begitu contohnya ada,
+                     bentuknya kembali jadi kisi gambar sendirinya. -->
+                <template v-if="adaContoh === 0">
+                    <div v-for="k in berkelompok" :key="'t' + k.nama" class="mb-5">
+                        <h3 v-if="k.nama" class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                v-for="m in k.isi"
+                                :key="m.id"
+                                type="button"
+                                class="rounded-lg border px-3 py-1.5 text-sm transition-colors"
+                                :class="terpilih === m.id ? 'border-[hsl(var(--sorot))] text-foreground' : 'border-border/70 text-muted-foreground hover:border-[hsl(var(--sorot)/0.6)] hover:text-foreground'"
+                                :title="m.ket"
+                                @click="pilih(m.id)"
+                            >
+                                {{ m.nama }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <div v-for="k in (adaContoh === 0 ? [] : berkelompok)" :key="k.nama" class="mb-6">
                     <h3 v-if="k.nama" class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>
                     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                         <button

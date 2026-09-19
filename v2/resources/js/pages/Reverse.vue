@@ -416,6 +416,155 @@ const DADA = [
     ['ikut', 'Ikuti referensi'], ['rata', 'Rata'], ['kecil', 'Kecil'], ['sedang', 'Sedang'],
     ['besar', 'Besar'], ['sangat', 'Sangat besar'],
 ];
+
+/**
+ * Ekspresi dipecah per bagian wajah, bukan satu kolom ketikan.
+ *
+ * Dua alasan. Pertama ejaan: tag yang dipakai harus persis ada di kamus
+ * Danbooru, dan salah satu huruf saja membuatnya dibuang diam-diam waktu
+ * prompt disusun — "gritted_teeth", "black_eye", "swirl_eyes", dan
+ * "shocked" semuanya terdengar benar dan semuanya tidak ada. Seluruh
+ * daftar di bawah sudah dicocokkan ke kamus satu per satu.
+ *
+ * Kedua, wajah itu bukan satu hal. Satu petinju bisa sekaligus bermata
+ * berputar, beralis berkerut, dan bergigi terkatup — tiga bagian yang
+ * berdiri sendiri. Satu kolom ketikan menyembunyikan itu; enam kolom
+ * membuat pertanyaannya jelas satu per satu, dan tiap bagian cuma boleh
+ * dijawab sekali sehingga tidak ada dua tag yang saling membantah.
+ *
+ * Luka tidak ada di sini: memar dan darah sudah punya kolom lokasinya
+ * sendiri di bawah, dan mengulangnya berarti dua tempat yang bisa
+ * berbeda isinya.
+ */
+const EKSPRESI: Array<{ label: string; tag: Array<[string, string]> }> = [
+    {
+        label: 'Mata',
+        tag: [
+            ['rolling_eyes', 'Mata berputar ke atas'], ['empty_eyes', 'Mata kosong'],
+            ['crazy_eyes', 'Mata liar'], ['wide-eyed', 'Mata membelalak'],
+            ['narrowed_eyes', 'Mata menyipit'], ['half-closed_eyes', 'Mata setengah tertutup'],
+            ['one_eye_closed', 'Sebelah mata tertutup'], ['closed_eyes', 'Kedua mata tertutup'],
+            ['constricted_pupils', 'Pupil mengecil (kaget)'], ['dilated_pupils', 'Pupil membesar'],
+            ['glaring', 'Menatap tajam'], ['bags_under_eyes', 'Kantung mata'],
+            ['ringed_eyes', 'Lingkar hitam di mata'], ['tearing_up', 'Mata berkaca-kaca'],
+            ['tears', 'Air mata'], ['crying_with_eyes_open', 'Menangis dengan mata terbuka'],
+            ['x_x', 'Mata jadi silang (pingsan)'], ['@_@', 'Mata berpusar (pusing)'],
+            ['>_<', 'Mata terpejam keras'], ['o_o', 'Mata membulat'],
+        ],
+    },
+    {
+        label: 'Alis',
+        tag: [
+            ['furrowed_brow', 'Alis berkerut'], ['v-shaped_eyebrows', 'Alis menukik (marah)'],
+            ['raised_eyebrows', 'Alis terangkat'],
+        ],
+    },
+    {
+        label: 'Mulut & gigi',
+        tag: [
+            ['clenched_teeth', 'Gigi terkatup rapat'], ['teeth', 'Gigi terlihat'],
+            ['upper_teeth_only', 'Hanya gigi atas'], ['sharp_teeth', 'Gigi tajam'],
+            ['open_mouth', 'Mulut terbuka'], ['closed_mouth', 'Mulut tertutup'],
+            ['parted_lips', 'Bibir sedikit terbuka'], ['gaping', 'Mulut menganga'],
+            ['screaming', 'Menjerit'], ['shouting', 'Berteriak'],
+            ['grimace', 'Meringis'], ['frown', 'Cemberut'], ['pout', 'Manyun'],
+            ['grin', 'Menyeringai'], ['evil_grin', 'Seringai jahat'], ['smirk', 'Senyum miring'],
+            ['wavy_mouth', 'Mulut bergelombang'], ['tongue_out', 'Lidah terjulur'],
+            ['biting', 'Menggigit'], ['drooling', 'Meneteskan liur'], ['saliva', 'Air liur'],
+            ['mouth_guard', 'Pelindung mulut'],
+        ],
+    },
+    {
+        label: 'Pipi & hidung',
+        tag: [
+            ['blush', 'Pipi merona'], ['nose_blush', 'Hidung merona'],
+            ['shaded_face', 'Wajah tertutup bayangan'], ['nosebleed', 'Mimisan'],
+        ],
+    },
+    {
+        label: 'Napas & tenaga',
+        tag: [
+            ['heavy_breathing', 'Napas berat'], ['exhausted', 'Kehabisan tenaga'],
+            ['trembling', 'Gemetar'], ['sweat', 'Berkeringat'],
+            ['sweatdrop', 'Butir keringat'], ['flying_sweatdrops', 'Keringat berhamburan'],
+        ],
+    },
+    {
+        label: 'Perasaan',
+        tag: [
+            ['determined', 'Bertekad'], ['serious', 'Serius'], ['angry', 'Marah'],
+            ['scowl', 'Cemberut galak'], ['confident', 'Percaya diri'], ['smug', 'Sombong'],
+            ['pain', 'Kesakitan'], ['wince', 'Meringis kesakitan'], ['scared', 'Ketakutan'],
+            ['surprised', 'Terkejut'], ['dizzy', 'Pusing'],
+            ['unconscious', 'Tidak sadarkan diri'], ['fainting', 'Pingsan'],
+        ],
+    },
+];
+
+const EKSPRESI_SEMUA = EKSPRESI.flatMap((g) => g.tag.map(([t]) => t));
+
+/**
+ * Satu grup ekspresi jadi bentuk yang dimengerti katalog.
+ *
+ * Namanya diambil dari label Indonesianya, bukan dari tagnya: "rolling
+ * eyes" tidak memberi tahu apa pun kepada yang belum tahu, sedangkan
+ * "mata berputar ke atas" memberi tahu semuanya. Tagnya tetap terkirim
+ * apa adanya — yang berubah cuma yang terbaca di layar.
+ */
+function katalogEkspresi(grup: Array<[string, string]>, label: string) {
+    return grup.map(([tag, nama]) => ({
+        id: tag,
+        nama,
+        kategori: label,
+        ket: tag.replace(/_/g, ' '),
+        contoh: props.contoh?.ekspresi?.[tag] ?? null,
+    }));
+}
+
+/** Isi kolom ekspresi jadi daftar tag berbentuk baku (pakai garis bawah). */
+function ekspresiDaftar(s: any): string[] {
+    return String(s.expression || '')
+        .split(/[,;]+/)
+        .map((t) => t.trim().replace(/ /g, '_'))
+        .filter(Boolean);
+}
+
+function ekspresiTerpilih(s: any, grup: Array<[string, string]>): string {
+    const punya = grup.map(([t]) => t);
+
+    return ekspresiDaftar(s).find((t) => punya.includes(t)) ?? '';
+}
+
+/**
+ * Menukar jawaban satu bagian wajah tanpa menyentuh bagian yang lain.
+ *
+ * Yang dibuang cuma tag milik grup ini; tag bagian lain dan apa pun yang
+ * kamu ketik sendiri tetap di tempatnya.
+ */
+function ekspresiPilih(s: any, grup: Array<[string, string]>, nilai: string) {
+    const punya = grup.map(([t]) => t);
+    const sisa = ekspresiDaftar(s).filter((t) => !punya.includes(t));
+
+    s.expression = (nilai ? [...sisa, nilai] : sisa).join(', ');
+}
+
+/** Yang diketik sendiri — apa pun yang bukan milik salah satu katalog. */
+function ekspresiLain(s: any): string {
+    return ekspresiDaftar(s)
+        .filter((t) => !EKSPRESI_SEMUA.includes(t))
+        .map((t) => t.replace(/_/g, ' '))
+        .join(', ');
+}
+
+function ekspresiLainIsi(s: any, teks: string) {
+    const dari = ekspresiDaftar(s).filter((t) => EKSPRESI_SEMUA.includes(t));
+    const lain = teks
+        .split(/[,;]+/)
+        .map((t) => t.trim().replace(/ /g, '_'))
+        .filter(Boolean);
+
+    s.expression = [...dari, ...lain].join(', ');
+}
 const SARUNG = [
     ['boxing_gloves', 'Sarung tinju'], ['mma_gloves', 'Sarung MMA'],
     ['bandaged_hands', 'Perban tangan'], ['none', 'Tidak ada'],
@@ -842,10 +991,36 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             </label>
                         </div>
 
-                        <label class="mt-3 block">
-                            <span class="mb-1.5 block text-xs text-muted-foreground">Ekspresi</span>
-                            <input v-model="s.expression" type="text" placeholder="clenched teeth, determined" :class="isianKelas" />
-                        </label>
+                        <div class="mt-3 rounded-xl border border-border/60 p-3">
+                            <span class="mb-2 block text-xs font-medium text-muted-foreground">
+                                Ekspresi
+                                <span class="font-normal text-muted-foreground/70">— per bagian wajah; kosongkan yang tidak perlu</span>
+                            </span>
+
+                            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                <label v-for="g in EKSPRESI" :key="g.label" class="block">
+                                    <span class="mb-1.5 block text-xs text-muted-foreground">{{ g.label }}</span>
+                                    <KatalogModul
+                                        :modul="katalogEkspresi(g.tag, g.label)"
+                                        :terpilih="ekspresiTerpilih(s, g.tag)"
+                                        :judul="g.label"
+                                        kosong="— tidak diatur —"
+                                        @pilih="ekspresiPilih(s, g.tag, String($event))"
+                                    />
+                                </label>
+                            </div>
+
+                            <label class="mt-3 block">
+                                <span class="mb-1.5 block text-xs text-muted-foreground">Ekspresi lain (ketik sendiri)</span>
+                                <input
+                                    :value="ekspresiLain(s)"
+                                    type="text"
+                                    placeholder="tag lain, pisahkan dengan koma"
+                                    :class="isianKelas"
+                                    @change="ekspresiLainIsi(s, ($event.target as HTMLInputElement).value)"
+                                />
+                            </label>
+                        </div>
 
                         <div class="mt-3 rounded-xl border border-border/60 p-3">
                             <span class="mb-2 block text-xs font-medium text-muted-foreground">

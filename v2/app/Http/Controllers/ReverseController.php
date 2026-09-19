@@ -367,13 +367,30 @@ class ReverseController extends Controller
      *
      * @return array<string, array<string, string>>
      */
+    /**
+     * Nama berkas untuk tag yang tidak bisa jadi nama berkas.
+     *
+     * Lima tag ekspresi berbentuk emotikon — x_x, @_@, >_<, +_+, o_o —
+     * dan tiga di antaranya memakai huruf yang dilarang Windows di nama
+     * berkas. Jadi berkasnya bernama lain, dan peta ini yang
+     * mengembalikannya ke tag aslinya waktu dibaca.
+     */
+    private const NAMA_BERKAS = [
+        'mata-silang'    => 'x_x',
+        'mata-pusar'     => '@_@',
+        'mata-terpejam'  => '>_<',
+        'mata-berbinar'  => '+_+',
+        'mata-bulat'     => 'o_o',
+    ];
+
     private static function contohPilihan(): array
     {
         $keluar = [];
 
-        foreach (['view', 'bentuk', 'dada', 'otot', 'sarung', 'atasan_tag', 'bawahan_tag'] as $tipe) {
+        foreach (['view', 'bentuk', 'dada', 'otot', 'sarung', 'atasan_tag', 'bawahan_tag', 'ekspresi'] as $tipe) {
             foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
-                $keluar[$tipe][pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
+                $nama = pathinfo($berkas, PATHINFO_FILENAME);
+                $keluar[$tipe][self::NAMA_BERKAS[$nama] ?? $nama] = '/img/modul/'.$tipe.'/'.basename($berkas);
             }
         }
 
