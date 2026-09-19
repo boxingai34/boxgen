@@ -143,7 +143,7 @@ const contoh = {
     tier: { name: '', price: '$', benefit: '', highlight: false, show: true },
     galeri: { src: '', alt: '', caption: '', link: '', kind: 'fighter' },
     gambarHero: { src: '', alt: '', caption: '' },
-    sosial: { key: 'lainnya', label: '', handle: '', url: '', highlight: false, description: '', meta: '' },
+    sosial: { key: 'other', label: '', handle: '', url: '', highlight: false, description: '', meta: '' },
 };
 
 const kitSemua = [
@@ -579,22 +579,22 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                 <div class="mt-5 border-t border-border/60 pt-4">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <p class="text-xs font-medium text-muted-foreground">Instagram</p>
-                        <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.instagram" type="checkbox" :class="centang" /> tampilkan pos yang disematkan</label>
+                        <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.instagram" type="checkbox" :class="centang" /> show embedded posts</label>
                     </div>
                     <p class="mb-3 text-xs leading-relaxed text-muted-foreground">
-                        Tidak ada umpan profil tanpa API resmi, jadi galeri di atas yang mewakili Instagram. Pos bisa disematkan satu per satu — tapi akunmu ditandai
-                        <em>restricted</em> oleh Instagram, jadi pengunjung yang tidak masuk Instagram mungkin cuma melihat kotak kosong. Karena itu bawaannya mati.
+                        There is no profile feed without the official API, so the gallery above stands in for Instagram. Posts can be embedded one by one — but your account is marked
+                        <em>restricted</em> by Instagram, so visitors who are not signed in to Instagram may only see an empty box. That is why this is off by default.
                     </p>
                     <div class="grid gap-3 sm:grid-cols-2">
                         <Isian v-model="isi.instagram.handle" label="Handle (without @)" />
                         <Isian v-model="isi.instagram.url" label="Profile link" tipe="url" />
                     </div>
-                    <DaftarTeks v-model="isi.instagram.embeds" class="mt-3" label="Pos yang disematkan" ket="https://www.instagram.com/p/…/" placeholder="https://www.instagram.com/p/XXXXXXXXX/" />
+                    <DaftarTeks v-model="isi.instagram.embeds" class="mt-3" label="Embedded posts" ket="https://www.instagram.com/p/…/" placeholder="https://www.instagram.com/p/XXXXXXXXX/" />
                 </div>
             </Kartu>
 
             <!-- ============ 06 RONDE ============ -->
-            <Kartu judul="06 · Tiga ronde (proses)" ket="Bagaimana satu video dibuat, tiga langkah.">
+            <Kartu judul="06 · Three rounds (process)" ket="How one video gets made, in three steps.">
                 <template #alat>
                     <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.rounds" type="checkbox" :class="centang" /> show</label>
                 </template>
@@ -605,19 +605,19 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                     </div>
                     <Isian v-model="isi.rounds.body" label="Intro text" />
                     <div>
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Ronde</span>
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Rounds</span>
                         <div v-for="(r, i) in isi.rounds.items" :key="i" class="mb-2 rounded-xl border border-border/70 p-2.5">
                             <div class="flex flex-wrap items-center gap-1.5">
                                 <input v-model="r.tag" placeholder="R1" :class="[k, 'w-16']" />
                                 <input v-model="r.title" placeholder="Weigh-in" :class="[k, 'min-w-[10rem] flex-1']" />
                                 <KendaliBaris :i="i" :total="isi.rounds.items.length" @geser="(a) => geser(isi.rounds.items, i, a)" @hapus="hapus(isi.rounds.items, i)" />
                             </div>
-                            <textarea v-model="r.body" rows="2" placeholder="Apa yang terjadi di ronde ini" :class="[k, 'mt-1.5 h-auto w-full resize-y py-2 leading-relaxed']" />
+                            <textarea v-model="r.body" rows="2" placeholder="What happens in this round" :class="[k, 'mt-1.5 h-auto w-full resize-y py-2 leading-relaxed']" />
                         </div>
-                        <button type="button" :class="tombolTambah" @click="tambah(isi.rounds.items, contoh.ronde)"><Plus class="h-3.5 w-3.5" /> Tambah ronde</button>
+                        <button type="button" :class="tombolTambah" @click="tambah(isi.rounds.items, contoh.ronde)"><Plus class="h-3.5 w-3.5" /> Add round</button>
                     </div>
                     <div>
-                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Perlengkapan yang ditampilkan</span>
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Gear shown</span>
                         <div class="flex flex-wrap gap-x-4 gap-y-2">
                             <label v-for="[kunci, nama] in kitSemua" :key="kunci" class="flex items-center gap-1.5 text-sm">
                                 <input type="checkbox" :checked="kitAda(kunci)" :class="centang" @change="kitUbah(kunci, ($event.target as HTMLInputElement).checked)" />
@@ -629,31 +629,31 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
             </Kartu>
 
             <!-- ============ 07 X ============ -->
-            <Kartu judul="07 · Sudut ring (X)" ket="Linimasa resminya dimuat waktu pengunjung sampai ke bagiannya, bukan saat halaman dibuka.">
+            <Kartu judul="07 · Ring corner (X)" ket="The official timeline loads when a visitor reaches that section, not when the page opens.">
                 <template #alat>
                     <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.x" type="checkbox" :class="centang" /> show</label>
                 </template>
                 <div class="space-y-4">
                     <div class="grid gap-3 sm:grid-cols-[10rem_1fr]">
                         <Isian v-model="isi.x.eyebrow" label="Small label" />
-                        <Isian v-model="isi.x.heading" label="Heading" ket="tampil di dalam tanda kutip" />
+                        <Isian v-model="isi.x.heading" label="Heading" ket="shown inside quotation marks" />
                     </div>
                     <Isian v-model="isi.x.body" label="Intro text" tipe="textarea" :baris="2" />
                     <div class="grid gap-3 sm:grid-cols-2">
                         <Isian v-model="isi.x.cta" label="Button label" />
-                        <Isian v-model="isi.x.meta" label="Keterangan angka" />
+                        <Isian v-model="isi.x.meta" label="Stat line" />
                         <Isian v-model="isi.x.handle" label="Handle (without @)" />
                         <Isian v-model="isi.x.url" label="Profile link" tipe="url" />
                     </div>
                     <label class="flex items-start gap-2 text-sm">
                         <input v-model="isi.x.show_timeline" type="checkbox" :class="[centang, 'mt-1']" />
-                        <span>Sematkan linimasa <span class="text-xs text-muted-foreground">(kalau akunnya ditandai sensitif, X sering menolak menampilkannya — kartu tautan tetap tampil sebagai cadangan)</span></span>
+                        <span>Embed the timeline <span class="text-xs text-muted-foreground">(if the account is marked sensitive, X often refuses to show it — the link card still appears as a fallback)</span></span>
                     </label>
                 </div>
             </Kartu>
 
             <!-- ============ 08 TAUTAN ============ -->
-            <Kartu judul="08 · Tautan" ket="Urutannya mengikuti daftar ini. Yang disorot tampil sebagai kartu besar di atas." class="xl:col-span-2">
+            <Kartu judul="08 · Links" ket="The order follows this list. Highlighted ones appear as big cards at the top." class="xl:col-span-2">
                 <template #alat>
                     <label class="flex items-center gap-2 text-xs"><input v-model="isi.sections.socials" type="checkbox" :class="centang" /> show</label>
                 </template>
@@ -666,28 +666,28 @@ const tombolPeriksa = 'inline-flex h-8 items-center gap-1.5 rounded-lg border bo
                 <div class="grid gap-3 lg:grid-cols-2">
                     <div v-for="(s, i) in isi.socials" :key="i" class="rounded-xl border border-border/70 p-3">
                         <div class="mb-2 flex flex-wrap items-center gap-1.5">
-                            <input v-model="s.key" placeholder="kunci" :class="[kMono, 'w-28']" />
-                            <input v-model="s.label" placeholder="Nama" :class="[k, 'min-w-[8rem] flex-1']" />
-                            <label class="flex shrink-0 items-center gap-1.5 text-xs"><input v-model="s.highlight" type="checkbox" :class="centang" /> sorot</label>
+                            <input v-model="s.key" placeholder="key" :class="[kMono, 'w-28']" />
+                            <input v-model="s.label" placeholder="Name" :class="[k, 'min-w-[8rem] flex-1']" />
+                            <label class="flex shrink-0 items-center gap-1.5 text-xs"><input v-model="s.highlight" type="checkbox" :class="centang" /> highlight</label>
                             <KendaliBaris :i="i" :total="isi.socials.length" @geser="(a) => geser(isi.socials, i, a)" @hapus="hapus(isi.socials, i)" />
                         </div>
                         <div class="grid gap-2 sm:grid-cols-2">
                             <input v-model="s.handle" placeholder="@handle" :class="[k, 'h-8 text-xs']" />
                             <input v-model="s.url" placeholder="https://…" :class="[k, 'h-8 text-xs']" />
-                            <input v-model="s.description" placeholder="Keterangan singkat" :class="[k, 'h-8 text-xs']" />
-                            <input v-model="s.meta" placeholder="Angka — boleh {patrons}, {subs}" :class="[k, 'h-8 text-xs']" />
+                            <input v-model="s.description" placeholder="Short description" :class="[k, 'h-8 text-xs']" />
+                            <input v-model="s.meta" placeholder="Stat — {patrons}, {subs} allowed" :class="[k, 'h-8 text-xs']" />
                         </div>
                     </div>
                 </div>
-                <button type="button" :class="[tombolTambah, 'mt-3']" @click="tambah(isi.socials, contoh.sosial)"><Plus class="h-3.5 w-3.5" /> Tambah tautan</button>
+                <button type="button" :class="[tombolTambah, 'mt-3']" @click="tambah(isi.socials, contoh.sosial)"><Plus class="h-3.5 w-3.5" /> Add link</button>
             </Kartu>
 
             <!-- ============ KAKI ============ -->
-            <Kartu judul="Kaki halaman" class="xl:col-span-2">
+            <Kartu judul="Footer" class="xl:col-span-2">
                 <div class="grid gap-3 sm:grid-cols-3">
-                    <Isian v-model="isi.footer.line" label="Kalimat penutup" />
-                    <Isian v-model="isi.footer.copyright" label="Hak cipta" />
-                    <Isian v-model="isi.footer.note" label="Catatan / disclaimer" ket="boleh pakai {hari_ini}" />
+                    <Isian v-model="isi.footer.line" label="Closing line" />
+                    <Isian v-model="isi.footer.copyright" label="Copyright" />
+                    <Isian v-model="isi.footer.note" label="Note / disclaimer" ket="{hari_ini} may be used" />
                 </div>
             </Kartu>
         </div>
