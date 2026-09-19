@@ -87,6 +87,108 @@ class ContohModul extends Command
                 . 'boxing ring, spotlight, indoors, anime coloring, masterpiece, best quality',
             'rasio' => '16:9',
         ],
+
+        // ---------------------------------------------------------------
+        // PAKAIAN
+        //
+        // Kecuali temanya, semuanya dipotong rapat ke bagian yang sedang
+        // dipilih dan latarnya dibuang. Kartu "Atasan" yang menampilkan
+        // seluruh petinju di dalam ring menyembunyikan justru atasannya:
+        // di 512 piksel yang tersisa cuma sosok kecil berpakaian sesuatu.
+        // ---------------------------------------------------------------
+        'outfit' => [
+            'adegan' => '1girl, solo, female boxer, mature female, full body, standing, front view, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '3:4',
+        ],
+        'outfit_top' => [
+            'adegan' => '1girl, solo, mature female, upper body, close-up, clothing focus, front view, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'outfit_bottom' => [
+            'adegan' => '1girl, solo, mature female, lower body, hips, thighs, close-up, clothing focus, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'outfit_hand' => [
+            'adegan' => '1girl, solo, mature female, hands up, hands focus, close-up, cropped, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'outfit_foot' => [
+            'adegan' => '1girl, solo, mature female, feet, legs, feet focus, close-up, cropped, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'outfit_head' => [
+            'adegan' => '1girl, solo, mature female, portrait, head, close-up, front view, '
+                . 'simple background, white background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+
+        // ---------------------------------------------------------------
+        // KONDISI
+        //
+        // Sama alasannya: memar di pipi cuma terbaca kalau wajahnya memenuhi
+        // bingkai. Yang tentang badan dan pakaian tetap setengah badan,
+        // karena di situlah tandanya terlihat.
+        // ---------------------------------------------------------------
+        'condition' => [
+            'adegan' => '1girl, solo, female boxer, mature female, upper body, front view, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_eyes' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, eye focus, face, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_gaze' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, eye focus, face, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_cheek' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, face, cheek, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_nose' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, face, nose, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_mouth' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, face, mouth, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_expr' => [
+            'adegan' => '1girl, solo, mature female, portrait, close-up, face, expressive, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_body' => [
+            'adegan' => '1girl, solo, female boxer, mature female, upper body, torso, front view, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+        'cond_clothes' => [
+            'adegan' => '1girl, solo, female boxer, mature female, upper body, clothing focus, front view, '
+                . 'simple background, grey background, anime coloring, masterpiece, best quality',
+            'rasio' => '1:1',
+        ],
+
+        // Interaksi butuh DUA orang dan butuh ringnya — yang ditunjukkan
+        // hubungan antar petinju, bukan sepotong badan.
+        'interaction' => [
+            'adegan' => '2girls, female boxers, mature female, boxing gloves, sports bra, boxing shorts, '
+                . 'boxing ring, ring ropes, spotlight, indoors, full body, wide shot, '
+                . 'anime coloring, masterpiece, best quality',
+            'rasio' => '16:9',
+            'duo' => true,
+        ],
     ];
 
     private const HINDARI = 'low quality, worst quality, bad anatomy, bad hands, extra fingers, '
@@ -160,7 +262,15 @@ class ContohModul extends Command
                             'undesired'  => self::HINDARI
                                 . (! empty($resep['sendiri'])
                                     ? ', 1girl, solo, person, people, character, photorealistic, realistic, 3d, photo'
-                                    : ''),
+                                    : '')
+                                // Yang dipotong rapat gampang sekali berubah
+                                // jadi potret seluruh badan lagi; latar dan
+                                // pemandangan ikut ditolak supaya bingkainya
+                                // benar-benar tinggal bagian yang dipilih.
+                                . (str_contains((string) $resep['adegan'], 'close-up')
+                                    ? ', full body, scenery, detailed background, crowd, audience'
+                                    : '')
+                                . (! empty($resep['duo']) ? '' : ', 2girls, multiple girls'),
                         ],
                         ['rasio' => $resep['rasio']]
                     );

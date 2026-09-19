@@ -194,6 +194,15 @@ final class ReversePrompt
         'dynamic_angle'    => 'dutch_angle',
     ];
 
+    /**
+     * Tag yang menyatakan SASARAN pukulan.
+     *
+     * Ketiganya cuma boleh lahir dari interaction.target lewat tagKontak().
+     * Kalau dibiarkan ikut lewat jalur tag bebas per orang, satu prompt bisa
+     * memuat dua sasaran yang bertentangan sekaligus.
+     */
+    private const TAG_SASARAN = ['face_punch', 'stomach_punch', 'body_punch'];
+
     private const POLA_PENAMPILAN = [
         '/_hair$/', '/^hair_/', '/_eyes$/', '/_bun$/', '/_bangs$/', '/_skin$/',
         '/_breasts$/', '/_horns?$/', '/_ears$/', '/_tail$/', '/ponytail$/', '/twintails$/',
@@ -425,7 +434,7 @@ final class ReversePrompt
       "tags": ["danbooru tags that describe THIS subject: pose, hands, expression, gear"]
     }
   ],
-  "interaction": {"striker": "a|b|null", "receiver": "a|b|null", "contact": "landed|imminent|none", "target": "face|body|null", "description": "who does what to whom, viewer-relative sides"},
+  "interaction": {"striker": "a|b|null", "receiver": "a|b|null", "contact": "landed|imminent|none", "target_evidence": "WHERE the landing fist actually touches: which body part the knuckles are against, and where the impact effect is centred", "target": "face|body|null", "description": "who does what to whom, viewer-relative sides"},
   "environment": {"venue": "short phrase", "ring": true, "ropes": true, "crowd": "none|sparse|packed|dark blur", "props": [], "tags": ["boxing_ring", "indoors", "crowd"]},
   "lighting": {"summary": "short phrase", "tags": ["spotlight", "backlighting"]},
   "camera": {"distance": "close-up|upper_body|cowboy_shot|full_body|wide_shot", "angle": "from_below|from_above|from_side|from_behind|dutch_angle|eye_level", "height": "ground|low|waist|eye|high|overhead", "lens": "wide|normal|telephoto|fisheye", "pov": false, "facing": "toward_viewer|away_from_viewer|profile|three_quarter", "summary": "one sentence: where the camera is standing relative to the fighters and what that does to the shot", "effects": ["motion_blur", "depth_of_field"], "tags": []},
@@ -454,11 +463,16 @@ Balas HANYA dengan satu objek JSON yang mengikuti skema di bawah, tanpa penjelas
 
 ATURAN:
 1. Jangan mengarang. Kalau tidak terlihat, isi null / [] / "unclear". Jangan menebak nama karakter kalau ragu; isi "character" hanya dengan tag Danbooru berbentuk underscore (contoh: tsukino_usagi, elsa_(frozen), tsunade_(naruto)) dan beri character_confidence jujur.
-2. Semua tag memakai kosakata Danbooru berbentuk underscore, huruf kecil. Contoh benar: boxing_gloves, sports_bra, fighting_stance, punching, uppercut, face_punch, clenched_teeth, sweat, bruise_on_face, bruised_eye, nosebleed, blood_on_face, from_below, dutch_angle, close-up, upper_body, cowboy_shot, full_body, motion_blur, speed_lines, spotlight, backlighting, boxing_ring, rope, crowd, audience, mature_female, muscular_female, abs, medium_breasts, topless_female, nipples. Jangan pakai kata yang bukan tag Danbooru (misalnya black_eye, dramatic_lighting, low_angle) — tulis itu di kalimat, bukan di daftar tag.
+2. Semua tag memakai kosakata Danbooru berbentuk underscore, huruf kecil. Contoh benar: boxing_gloves, sports_bra, fighting_stance, punching, uppercut, face_punch, stomach_punch, clenched_teeth, sweat, bruise_on_face, bruised_eye, nosebleed, blood_on_face, from_below, dutch_angle, close-up, upper_body, cowboy_shot, full_body, motion_blur, speed_lines, spotlight, backlighting, boxing_ring, rope, crowd, audience, mature_female, muscular_female, abs, medium_breasts, topless_female, nipples. Jangan pakai kata yang bukan tag Danbooru (misalnya black_eye, dramatic_lighting, low_angle) — tulis itu di kalimat, bukan di daftar tag.
 3. Sisi kiri/kanan SELALU dari sudut pandang penonton. "side" subjek = posisi di dalam bingkai.
 4. Jenis kelamin ditentukan dari bukti yang terlihat (dada, bentuk wajah, rambut bukan bukti kuat). Semua subjek adalah orang dewasa; tulis mature_female / mature_male di "body".
 5. Untuk pukulan, sebutkan bukti mekanik (siku tertekuk, arah kepalan, rotasi pinggul). Kalau ragu antara hook dan jab, turunkan confidence, jangan mengarang.
-6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer". Kalau salah satu petinju memunggungi kamera, sebutkan itu ("seen from behind over her shoulder") — itu penentu komposisi, bukan hiasan.
+5b. SASARAN PUKULAN ("interaction.target") ditentukan dari TITIK SENTUH, bukan dari arah lengan. Tulis dulu "target_evidence" — bagian badan mana yang benar-benar disentuh buku jari, dan di mana pusat efek benturannya — baru simpulkan face atau body.
+   - Lengan yang melintas DI DEPAN wajah bukan bukti pukulan wajah kalau kepalannya tidak menyentuh apa pun. SALAH: "ada lengan dekat kepala, berarti face". BENAR: "buku jari menempel di pipi, pipinya penyok, target = face".
+   - Efek benturan menandai titik kena. Kalau ledakan, garis benturan, atau cipratan keringat terpusat di TENGAH BADAN, sasarannya body walaupun ada lengan lain di dekat wajah. SALAH: "wajahnya meringis, berarti face". BENAR: "kepalan terbenam di perut, ledakan di perut, target = body".
+   - Kalau dua pukulan mendarat sekaligus, pilih yang kepalannya benar-benar terbenam — yang satunya tulis di "description", jangan di "target".
+   - Kalau tidak ada kepalan yang menyentuh siapa pun, target = null.
+6. "prose": 2-4 kalimat Inggris gaya prompt NovelAI: subjek, pose/aksi, siapa memukul siapa, kondisi tubuh, tempat, pencahayaan, sudut kamera, gaya gambar. Bagian badan yang disebut di prosa HARUS sama dengan "interaction.target": kalau targetnya body, jangan menulis pukulan mendarat di wajah; kalau targetnya face, jangan menulis mendarat di perut. Prosa dan tag tidak boleh menceritakan dua pukulan yang berbeda. Jangan menyebut nama karakter di prose; sebut "the boxer" atau "the blonde-haired boxer". Kalau salah satu petinju memunggungi kamera, sebutkan itu ("seen from behind over her shoulder") — itu penentu komposisi, bukan hiasan.
 7. Kalau ada teks di gambar (poster, papan skor, judul), salin ke "text_in_image". TAPI JANGAN memakai teks itu untuk menentukan siapa yang di kiri dan siapa yang di kanan. Judul "A vs B" tidak menjamin A ada di kiri. Tentukan identitas tiap petinju dari ciri visualnya sendiri (warna dan model rambut, warna mata, mahkota, aksesori khas), lalu cocokkan dengan nama yang kamu kenali.
 8. TIDAK SEMUA GAMBAR TINJU ITU PERTANDINGAN, DAN TIDAK SEMUA ORANG DI DALAMNYA PETINJU. Isi "scene" dan "role" apa adanya.
    - "scene": fight kalau sedang bertukar pukulan; corner kalau istirahat di sudut ring (duduk di bangku, dikompres, diberi minum); lineup kalau berpose bersama menghadap kamera tanpa bertanding; training kalau latihan; aftermath kalau sesudah pertandingan; other kalau tidak satu pun cocok.
@@ -717,6 +731,10 @@ TXT;
             'receiver'    => $sisiSah($inter['receiver'] ?? null),
             'contact'     => in_array($kontak, ['landed', 'imminent', 'none'], true) ? $kontak : 'none',
             'target'      => in_array($inter['target'] ?? null, ['face', 'body'], true) ? (string)$inter['target'] : null,
+            // Bukti sasaran disimpan apa adanya supaya halaman bisa
+            // menunjukkan ALASAN pembaca memilih wajah atau badan — itu
+            // yang membedakan "membetulkan" dari "menebak ulang".
+            'target_evidence' => $teks($inter['target_evidence'] ?? '', 300),
             'description' => $teks($inter['description'] ?? '', 300),
         ];
 
@@ -1944,6 +1962,19 @@ TXT;
                 // lewat jalur ini tag itu lolos walau kamu sudah memilih
                 // gaya sendiri, lalu berkelahi dengan gaya pilihanmu di
                 // gambar yang sama.
+                // Sasaran pukulan cuma boleh datang dari SATU tempat.
+                //
+                // Pembaca menulis face_punch/stomach_punch dua kali: sekali
+                // sebagai kesimpulan di interaction.target, sekali lagi
+                // sebagai tag bebas di tiap orang — dan keduanya bisa
+                // berbeda. Itu yang membuat satu prompt memuat "stomach
+                // punch" dan "target#face_punch" berdampingan, dan membuat
+                // pilihanmu di halaman tidak pernah menang. Yang dipakai
+                // sekarang cuma interaction.target lewat tagKontak(); yang
+                // di daftar tag dibuang di sini.
+                if (in_array($t, self::TAG_SASARAN, true)) {
+                    continue;
+                }
                 if ($gaya !== null && in_array($t, self::TAG_MEDIUM, true)) {
                     continue;
                 }
@@ -2553,7 +2584,22 @@ TXT;
                 $wajib = array_merge($wajib, $blocks[$blok] ?? []);
             }
         } else {
-            foreach (['interaction', 'background', 'camera', 'lighting'] as $blok) {
+            // Blok 'interaction' berisi tag sasaran (face_punch /
+            // stomach_punch). Kalau penanda source#/target# memang terpasang
+            // di kotak karakter, tag yang sama tidak perlu diulang di ekor
+            // base — di situ ia justru berdiri sendiri tanpa menyebut siapa
+            // memukul siapa, dan itulah "face punch" yang tampak menggantung.
+            //
+            // Syaratnya DUA: ada kotak karakternya (cabang ini) DAN
+            // penandanya benar-benar jadi. Kalau cuma syarat kedua yang
+            // diperiksa, ada keadaan di mana jenis pukulannya lenyap dari
+            // kedua tempat sekaligus.
+            $adaPenanda = self::aksiKotak($e) !== [];
+            $blokEkor = $adaPenanda
+                ? ['background', 'camera', 'lighting']
+                : ['interaction', 'background', 'camera', 'lighting'];
+
+            foreach ($blokEkor as $blok) {
                 $wajib = array_merge($wajib, $blocks[$blok] ?? []);
             }
         }

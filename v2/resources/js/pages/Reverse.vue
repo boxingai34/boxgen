@@ -371,11 +371,41 @@ const striker = computed({
         inter.receiver = v && lawan ? lawan.id : null;
         if (!v) {
             inter.contact = 'none';
+            // Sasarannya disimpan, bukan dibuang: memilih "tidak ada yang
+            // memukul" sebentar lalu kembali tidak boleh menghapus pilihan
+            // yang sudah kamu betulkan.
+            inter.target_simpan = inter.target ?? inter.target_simpan ?? null;
             inter.target = null;
+        } else if (! inter.target && inter.target_simpan) {
+            inter.target = inter.target_simpan;
         }
         ekstrak.value.interaction = inter;
     },
 });
+
+/**
+ * Sasaran pukulan — kolom yang menentukan face_punch atau stomach_punch.
+ *
+ * Nilai ini satu-satunya sumber tag sasaran di seluruh prompt: ia yang
+ * menjadi face_punch/stomach_punch di kotak karakter lewat penanda
+ * source#/target#. Sebelumnya tidak pernah punya kolom sama sekali, jadi
+ * tebakan pembaca tidak pernah bisa dibetulkan — itu sebabnya sebuah
+ * pukulan perut bisa keluar sebagai "face punch" dan tidak ada yang bisa
+ * dilakukan selain menyunting JSON mentah.
+ */
+const sasaranPukul = computed({
+    get: () => ekstrak.value?.interaction?.target ?? '',
+    set: (v: string) => {
+        if (! ekstrak.value) return;
+        const inter = ekstrak.value.interaction && typeof ekstrak.value.interaction === 'object' ? ekstrak.value.interaction : {};
+        inter.target = v || null;
+        inter.target_simpan = v || null;
+        ekstrak.value.interaction = inter;
+    },
+});
+
+/** Alasan pembaca memilih wajah atau badan, kalau ia menuliskannya. */
+const buktiSasaran = computed(() => String(ekstrak.value?.interaction?.target_evidence ?? '').trim());
 
 /**
  * Kamu mengganti karakter yang sudah dikenali pembaca.
@@ -866,6 +896,22 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                             </option>
                             <option value="">Tidak ada yang memukul</option>
                         </select>
+                    </label>
+
+                    <!-- Muncul hanya kalau memang ada yang memukul. Inilah
+                         kolom yang menentukan face_punch atau stomach_punch
+                         di seluruh prompt — sebelumnya tidak pernah ada, dan
+                         tebakan pembaca tidak pernah bisa dibetulkan. -->
+                    <label v-if="striker" class="mb-4 block">
+                        <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Kena di mana?</span>
+                        <select v-model="sasaranPukul" :class="isianKelas">
+                            <option value="face">Wajah — jadi tag face punch</option>
+                            <option value="body">Badan / perut — jadi tag stomach punch</option>
+                            <option value="">Tidak jelas — cukup "punching"</option>
+                        </select>
+                        <span v-if="buktiSasaran" class="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
+                            Pembacanya melihat: {{ buktiSasaran }}
+                        </span>
                     </label>
 
                     <!-- Gaya visual: sesudah pembacaan, karena menggantikannya -->

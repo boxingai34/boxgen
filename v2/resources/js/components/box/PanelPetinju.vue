@@ -61,18 +61,39 @@ async function muatSeri() {
     }
 }
 
-watch([kategori, seriCari], () => {
+/**
+ * Judul yang diketik dicocokkan sendiri ke kamus.
+ *
+ * Dulu ada daftar pilihan terpisah untuk memilih judulnya. Sekarang cukup
+ * diketik: yang pertama cocok itulah yang dipakai menyaring, dan kalau
+ * tidak ada yang cocok daftarnya tidak disaring sama sekali — bukan jadi
+ * kosong. Judul yang salah ketik tidak boleh menghilangkan semua karakter.
+ */
+const seriTerpilih = computed(() => daftarSeri.value[0] ?? null);
+
+watch(seriCari, () => {
     window.clearTimeout(jeda);
     jeda = window.setTimeout(muatSeri, 220);
 });
 
-watch([cari, kategori, seriId], () => {
-    window.clearTimeout(jeda);
-    jeda = window.setTimeout(cariKarakter, 220);
+watch([cari, seriCari, daftarSeri], () => {
+    window.clearTimeout(jedaCari);
+    jedaCari = window.setTimeout(cariKarakter, 220);
 });
 
+/**
+ * Semua yang cocok, bukan tiga puluh teratas.
+ *
+ * Batas bawaan endpointnya 30, dan itu yang membuat karakter yang dicari
+ * kadang tidak muncul walau namanya benar. Daftarnya sendiri bergulir, jadi
+ * panjangnya tidak mengganggu — yang mengganggu justru kalau yang dicari
+ * tidak ada di dalamnya.
+ */
 async function cariKarakter() {
-    if (cari.value.trim().length < 1 && kategori.value === '' && seriId.value === '') {
+    const kata = cari.value.trim();
+    const seri = seriTerpilih.value?.id ?? '';
+
+    if (kata.length < 1 && seri === '') {
         saran.value = [];
 
         return;
@@ -82,9 +103,9 @@ async function cariKarakter() {
     try {
         const alamat =
             route('prompt.karakter') +
-            '?q=' + encodeURIComponent(cari.value.trim()) +
-            '&semesta=' + encodeURIComponent(kategori.value) +
-            '&series_id=' + encodeURIComponent(String(seriId.value));
+            '?limit=60' +
+            '&q=' + encodeURIComponent(kata) +
+            '&series_id=' + encodeURIComponent(String(seri));
 
         const jawab = await kirim<any>(alamat, undefined, 'GET');
         saran.value = jawab.hasil || [];
@@ -182,23 +203,23 @@ function kelompok(tipe: string): Array<[string, any[]]> {
         <h3 class="mb-3 text-sm font-semibold tracking-tight text-[hsl(var(--sudut))]">{{ judul }}</h3>
 
         <!-- ============ SIAPA ORANGNYA ============ -->
-        <div class="grid gap-3 sm:grid-cols-2">
-            <label class="block">
-                <span class="mb-1.5 block text-xs text-muted-foreground">Kategori</span>
-                <select v-model="kategori" :class="isianKelas">
-                    <option value="">Semua kategori</option>
-                    <option v-for="u in semesta" :key="u.nama" :value="u.nama">{{ u.nama }} ({{ u.jumlah }})</option>
-                </select>
-            </label>
-            <label class="block">
-                <span class="mb-1.5 block text-xs text-muted-foreground">Judul</span>
-                <input v-model="seriCari" type="text" placeholder="ketik judul, misal: street, touhou…" :class="[isianKelas, 'mb-1.5']" />
-                <select v-model="seriId" :class="isianKelas">
-                    <option value="">Semua judul</option>
-                    <option v-for="s in daftarSeri" :key="s.id" :value="s.id">{{ s.name }}</option>
-                </select>
-            </label>
-        </div>
+        <!-- Judulnya satu kolom ketik saja, tanpa kategori dan tanpa daftar
+             pilihan. Dua kolom itu dulu menyaring daftar karakter, tapi
+             menyaring bukan yang dicari orang di sini: yang dicari nama
+             karakternya, dan judul cuma dipakai kalau namanya kebetulan
+             dipakai di beberapa judul. -->
+        <label class="block">
+            <span class="mb-1.5 block text-xs text-muted-foreground">
+                Judul <span class="text-xs text-muted-foreground/70">opsional — mempersempit daftar karakter di bawah</span>
+            </span>
+            <input v-model="seriCari" type="text" placeholder="misal: street fighter, touhou, genshin" :class="isianKelas" />
+            <span v-if="seriCari.trim() !== '' && seriTerpilih" class="mt-1 block text-xs text-muted-foreground">
+                Menyaring ke <strong class="text-foreground">{{ seriTerpilih.name }}</strong>.
+            </span>
+            <span v-else-if="seriCari.trim().length >= 2" class="mt-1 block text-xs text-[hsl(var(--kanvas))]">
+                Judul itu tidak ada di kamus; daftar karakternya tidak disaring.
+            </span>
+        </label>
 
         <div class="relative mt-3">
             <span class="mb-1.5 block text-xs text-muted-foreground">Karakter</span>
