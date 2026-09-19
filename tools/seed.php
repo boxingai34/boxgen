@@ -265,12 +265,22 @@ if ($namaArtis !== []) {
 }
 say('Gaya gambar          : ' . count($styleMap));
 
+// Dua berkas, satu daftar. outfits.php ditulis tangan dan tiap tagnya
+// punya catatan; pakaian_tambahan.php hasil sisiran kamus dan isinya
+// seragam. Digabung DULU baru disimpan — saveModules() membuang modul yang
+// slugnya tidak ada di daftar yang dikirim, jadi memanggilnya dua kali akan
+// menghapus batch yang pertama.
 $outfitData = dataFile('outfits');
+$outfitPlus = dataFile('pakaian_tambahan');
 $slotMaps = [];
 foreach (['outfit_top', 'outfit_bottom', 'outfit_hand', 'outfit_foot', 'outfit_head'] as $slotType) {
-    $slotMaps[$slotType] = saveModules($slotType, $outfitData[$slotType]);
+    $slotMaps[$slotType] = saveModules(
+        $slotType,
+        array_merge($outfitData[$slotType], $outfitPlus[$slotType] ?? [])
+    );
 }
-$outfitMap = saveModules('outfit', $outfitData['outfit']);
+$temaSemua = array_merge($outfitData['outfit'], $outfitPlus['outfit'] ?? []);
+$outfitMap = saveModules('outfit', $temaSemua);
 say('Potongan pakaian     : ' . array_sum(array_map('count', $slotMaps)));
 say('Tema pakaian         : ' . count($outfitMap));
 
@@ -284,7 +294,7 @@ $slotToType = [
 ];
 
 $jumlahDefault = 0;
-foreach ($outfitData['outfit'] as $tema) {
+foreach ($temaSemua as $tema) {
     $presetId = $outfitMap[$tema['slug']];
     Database::run('DELETE FROM module_defaults WHERE preset_module_id = ?', [$presetId]);
 

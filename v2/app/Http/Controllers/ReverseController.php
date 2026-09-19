@@ -418,14 +418,27 @@ class ReverseController extends Controller
             $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
         }
 
+        // Satu query untuk seluruh slot, bukan satu per modul: sejak daftar
+        // pakaian disisir dari kamus, slot atasan berisi seratus lebih
+        // modul — dan seratus query kecil di tiap kunjungan halaman jauh
+        // lebih mahal daripada satu query yang mengembalikan semuanya.
+        $tagPertama = [];
+        foreach (Database::all(
+            "SELECT mt.module_id, t.name
+               FROM module_tags mt
+               JOIN tags t ON t.id = mt.tag_id
+               JOIN modules m ON m.id = mt.module_id
+              WHERE m.type = ? AND m.is_active = 1
+                AND (mt.is_optional IS NULL OR mt.is_optional = 0)
+              ORDER BY mt.module_id, mt.sort_order, mt.id",
+            [$tipe]
+        ) as $r) {
+            $tagPertama[(int) $r['module_id']] ??= (string) $r['name'];
+        }
+
         $keluar = [];
         foreach ($modul as $m) {
-            $tag = Database::value(
-                'SELECT t.name FROM module_tags mt JOIN tags t ON t.id = mt.tag_id
-                 WHERE mt.module_id = ? AND (mt.is_optional IS NULL OR mt.is_optional = 0)
-                 ORDER BY mt.sort_order, mt.id LIMIT 1',
-                [(int) $m['id']]
-            );
+            $tag = $tagPertama[(int) $m['id']] ?? null;
 
             if ($tag === null || $tag === '') {
                 continue;
