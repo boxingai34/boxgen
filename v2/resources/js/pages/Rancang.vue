@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
+import TombolGambar from '@/components/box/TombolGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim, kirimUlang, salin } from '@/lib/kirim';
 import { Head } from '@inertiajs/vue3';
@@ -21,12 +22,24 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 const props = defineProps<{
     gaya: Array<{ id: number; nama: string }>;
     tersimpan: Array<{ id: number; title: string; created_at: string }>;
+    gambar: { latar: boolean; tokoh: boolean };
 }>();
 
 // ---------------------------------------------------------------- isian
 const cerita = ref('');
 const target = ref<'wan' | 'seedance25'>('wan');
 const rasio = ref('16:9');
+
+/**
+ * Bentuk bawaan tombol "Buat gambarnya" untuk latar.
+ *
+ * Kartu tokoh selalu potret — itu lembar acuan satu orang berdiri, bukan
+ * adegan. Latarnya ikut rasio videonya, karena gambar itu memang jadi
+ * ruangan tempat klipnya berlangsung.
+ */
+const bentukLatar = computed<'9:16' | '1:1' | '16:9'>(() =>
+    rasio.value === '9:16' ? '9:16' : rasio.value === '1:1' ? '1:1' : '16:9',
+);
 const gayaId = ref<number | null>(props.gaya[0]?.id ?? null);
 
 // --------------------------------------------------------------- keadaan
@@ -425,6 +438,21 @@ const isianKelas =
                                     </button>
                                 </div>
                                 <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ c.prompt }}</pre>
+
+                                <!-- Tokoh lewat NovelAI, bukan Gemini: penyaring
+                                     ketelanjangan Gemini tidak bisa dimatikan, dan
+                                     kartu acuan ini memang setengah telanjang.
+                                     Kotaknya sudah terpisah base/karakter dari
+                                     mesinnya, jadi tidak ada yang dirakit ulang. -->
+                                <TombolGambar
+                                    v-if="gambar.tokoh && c.bagian?.base"
+                                    class="mt-3"
+                                    :alamat="route('gambar.tokoh')"
+                                    label="Buat gambarnya (NovelAI)"
+                                    :alt="c.nama"
+                                    bentuk="3:4"
+                                    :muatan="() => ({ bagian: c.bagian })"
+                                />
                             </article>
                         </template>
 
@@ -446,6 +474,20 @@ const isianKelas =
                                     </button>
                                 </div>
                                 <pre class="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px] leading-relaxed">{{ l.prompt }}</pre>
+
+                                <!-- Latar di Gemini/OpenAI, yang jauh lebih rapi
+                                     menggambar ruangan. Satu gambar per tempat,
+                                     dipakai ulang di semua klip yang menyebutnya —
+                                     itu yang membuat ruangannya tidak berubah
+                                     bentuk antar potongan. -->
+                                <TombolGambar
+                                    v-if="gambar.latar"
+                                    class="mt-3"
+                                    :alamat="route('gambar.latar')"
+                                    :alt="l.nama"
+                                    :bentuk="bentukLatar"
+                                    :muatan="() => ({ prompt: l.prompt })"
+                                />
                             </article>
                         </template>
                     </div>

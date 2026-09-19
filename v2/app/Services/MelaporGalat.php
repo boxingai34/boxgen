@@ -42,7 +42,13 @@ trait MelaporGalat
     private static function sebab(Throwable $e): string
     {
         if ($e instanceof RequestException) {
-            return 'dijawab HTTP ' . $e->response->status() . ' oleh sumbernya';
+            // Kalimat pertama badan jawabannya ikut dibawa: "403" saja tidak
+            // memberi tahu siapa yang menolak. Halaman penjaga bot menyebut
+            // dirinya sendiri di situ, dan begitu juga proxy hosting.
+            $badan = trim((string) preg_replace('/\s+/', ' ', strip_tags($e->response->body())));
+
+            return 'dijawab HTTP ' . $e->response->status() . ' oleh sumbernya'
+                . ($badan === '' ? '' : ' — "' . mb_substr($badan, 0, 100) . '"');
         }
 
         $pesan = trim((string) preg_replace('/\s+/', ' ', $e->getMessage()));

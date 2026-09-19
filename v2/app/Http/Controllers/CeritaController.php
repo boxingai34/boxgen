@@ -29,6 +29,9 @@ class CeritaController extends Controller
         $userId = (int) $request->user()->id;
 
         return Inertia::render('Rancang', [
+            // Tombol "Buat gambarnya" cuma muncul untuk penyedia yang memang
+            // sudah disetel — tokoh di NovelAI, latar di Gemini/OpenAI.
+            'gambar' => GambarController::status(),
             // Gaya anime berwarna didahulukan. Urutan bawaan dari database
             // menaruh "Rasa Berserk" di depan — tinta hitam putih, dan itu
             // yang kepilih sendiri kalau tidak diapa-apakan.

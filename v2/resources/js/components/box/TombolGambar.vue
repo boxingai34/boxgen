@@ -24,13 +24,14 @@ const props = withDefaults(
         label?: string;
         alt?: string;
         /** Bentuk bawaan: tokoh itu berdiri, latar itu ruangan. */
-        bentuk?: '3:4' | '16:9' | '1:1';
+        bentuk?: '3:4' | '9:16' | '16:9' | '1:1';
     }>(),
     { label: 'Buat gambarnya', alt: 'Hasil', bentuk: '3:4' },
 );
 
 const BENTUK = [
     { nilai: '3:4', label: 'Potret' },
+    { nilai: '9:16', label: 'Tegak' },
     { nilai: '16:9', label: 'Lanskap' },
     { nilai: '1:1', label: 'Persegi' },
 ] as const;
@@ -107,6 +108,17 @@ async function buat() {
             {{ pesan }}
         </p>
 
-        <img v-if="gambar" :src="gambar" :alt="alt" class="mt-3 w-full rounded-xl border border-border/70" />
+        <!-- Pratinjau sengaja kecil: hasilnya cuma untuk memastikan gambarnya
+             benar, bukan untuk dilihat lama-lama, dan kotak setinggi layar
+             mendorong prompt yang sedang dibaca keluar dari pandangan.
+             Ukuran penuhnya sejauh satu klik. -->
+        <a v-if="gambar" :href="gambar" target="_blank" rel="noopener" class="group mt-3 block">
+            <img
+                :src="gambar"
+                :alt="alt"
+                class="max-h-64 w-auto max-w-full rounded-xl border border-border/70 transition-colors group-hover:border-[hsl(var(--sorot)/0.6)]"
+            />
+            <span class="mt-1 block text-[11px] text-muted-foreground">Klik gambarnya untuk melihat ukuran penuh.</span>
+        </a>
     </div>
 </template>

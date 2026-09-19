@@ -123,9 +123,17 @@ class DeviantartTerbaru
 
     private static function klien()
     {
+        // Nama sendiri yang jujur sudah cukup dari jaringan rumahan, tapi
+        // dari alamat IP pusat data DeviantArt membalas 403 begitu saja.
+        // Yang bisa diubah dari sini cuma penampakan permintaannya, jadi
+        // permintaannya dibuat serupa peramban yang membuka umpan: UA
+        // lengkap, jenis isi yang diminta, dan asal tautannya.
         $klien = Http::withHeaders([
-            'User-Agent'      => 'BoxinGenerated-Landing/2.0 (+https://boxingenerated.com)',
+            'User-Agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                . '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Accept'          => 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
             'Accept-Language' => 'en-US,en;q=0.8',
+            'Referer'         => 'https://www.deviantart.com/',
         ]);
 
         if (defined('CA_BUNDLE') && CA_BUNDLE !== '') {
