@@ -278,12 +278,27 @@ while (true) {
         // gagalnya beruntun, yang salah bukan judulnya — berhenti supaya
         // tidak menghantam Danbooru ribuan kali dengan permintaan yang
         // sama-sama gagal.
-        if ($gagal >= 5) {
-            say('Lima kegagalan beruntun. Berhenti.');
+        //
+        // JEDANYA NAIK, TIDAK TETAP.
+        //
+        // Dulu lima kali gagal dengan jeda lima detik: menyerah setelah
+        // dua puluh lima detik. Danbooru sempat mati beberapa menit di
+        // tengah jalan, dan pekerjaan lima jam ikut berhenti di judul
+        // ke-995 padahal yang perlu dilakukan cuma menunggu. Sekarang
+        // jedanya 5, 15, 45, 120, lalu 300 detik — delapan menit sebelum
+        // menyerah, cukup untuk gangguan sesaat, masih berhenti kalau
+        // yang salah memang bukan waktunya.
+        $jeda = [5, 15, 45, 120, 300];
+
+        if ($gagal > count($jeda)) {
+            say(count($jeda) . ' kegagalan beruntun dalam ' . array_sum($jeda) . ' detik. Berhenti.');
+            say('Posisinya tersimpan — jalankan lagi kalau sumbernya sudah pulih.');
             break;
         }
 
-        sleep(5);
+        $tunggu = $jeda[$gagal - 1];
+        say("  (menunggu {$tunggu} detik, percobaan {$gagal}/" . count($jeda) . ')');
+        sleep($tunggu);
 
         continue;
     }
