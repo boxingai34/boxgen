@@ -11,7 +11,7 @@ import { GalatKirim, kirim, kirimUlang } from '@/lib/kirim';
 import { proses, type Referensi } from '@/lib/referensi';
 import { Head } from '@inertiajs/vue3';
 import { Eye, Image as IkonGambar, LoaderCircle, Plus, Sparkles, Upload, X } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 
 /**
  * Dari Gambar/Video — kebalikan Prompt Generator.
@@ -126,6 +126,7 @@ const versi = ref<'sfw' | 'nsfw'>('sfw');
 
 const zona = ref<HTMLElement | null>(null);
 const berkasInput = ref<HTMLInputElement | null>(null);
+const panelHasil = ref<HTMLElement | null>(null);
 
 // Profil vision harus punya kunci; sebelum itu tombol utamanya mati —
 // lebih baik menunggu daripada mengirim gambar ke profil yang kosong.
@@ -371,6 +372,34 @@ function ubahOtot(s: any, kunci: string, nyala: boolean) {
     s.body = (s.body ?? []).filter((x: string) => x !== t);
     if (nyala) s.body.push(t);
 }
+
+/**
+ * Centang otot yang sudah dijanjikan nama bentuk badannya.
+ *
+ * Label pilihannya berbunyi "Berotot (muscular + abs)" — tapi centangnya
+ * tidak ikut berubah, jadi yang benar-benar terkirim tetap tanpa otot dan
+ * memilih bentuk badan terasa tidak berpengaruh sama sekali. Sekarang
+ * bentuknya yang menyetel centangnya.
+ *
+ * "Ikuti referensi" sengaja tidak menyetel apa pun: ia bukan bentuk badan,
+ * melainkan keputusan untuk tidak memutuskan.
+ */
+const OTOT_BENTUK: Record<string, string[]> = {
+    berotot: ['muscular', 'abs'],
+    kencang: ['toned'],
+    biasa: [],
+    ramping: [],
+    berisi: [],
+};
+
+function pilihBentuk(s: any, v: string) {
+    s.bentuk = v || 'ikut';
+
+    const mau = OTOT_BENTUK[s.bentuk];
+    if (! mau) return;
+
+    for (const [k] of OTOT_PILIHAN) ubahOtot(s, k, mau.includes(k));
+}
 const PANDANG = [
     ['toward_viewer', 'Wajah menghadap kamera'],
     ['three_quarter', 'Miring (tiga perempat)'],
@@ -415,8 +444,14 @@ const striker = computed({
             // yang sudah kamu betulkan.
             inter.target_simpan = inter.target ?? inter.target_simpan ?? null;
             inter.target = null;
-        } else if (! inter.target && inter.target_simpan) {
-            inter.target = inter.target_simpan;
+        } else {
+            // Tanpa baris ini, memilih pemukul di sini tidak selalu berbekas:
+            // kalau pembacanya menyimpulkan contact "none", penanda
+            // source#/target# tidak pernah dipasang, dan yang tersisa cuma
+            // tag "punching" di kedua kotak — arah pukulannya lalu ditebak
+            // model, bukan ditentukan pilihanmu.
+            if (inter.contact === 'none' || ! inter.contact) inter.contact = 'landed';
+            if (! inter.target && inter.target_simpan) inter.target = inter.target_simpan;
         }
         ekstrak.value.interaction = inter;
     },
@@ -586,6 +621,16 @@ async function susun() {
         hasil.value = jawab;
         versi.value = jawab.outputs?.nsfw ? 'nsfw' : 'sfw';
         kuota.value = jawab.quota ?? kuota.value;
+
+        // Tombolnya di dasar kolom kiri, hasilnya di puncak kolom kanan —
+        // jadi sesudah menekan, yang baru saja dibuat justru berada di luar
+        // layar. Halaman yang ikut pindah sendiri menghemat satu gulir yang
+        // harus dilakukan tiap kali, setiap kali.
+        await nextTick();
+        panelHasil.value?.scrollIntoView({
+            behavior: document.documentElement.dataset.hemat === '1' ? 'auto' : 'smooth',
+            block: 'start',
+        });
     } catch (e: any) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun promptnya.';
     } finally {
@@ -782,7 +827,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     :terpilih="s.bentuk === 'ikut' ? '' : s.bentuk"
                                     judul="Bentuk badan"
                                     kosong="— ikuti referensi —"
-                                    @pilih="s.bentuk = $event || 'ikut'"
+                                    @pilih="pilihBentuk(s, String($event))"
                                 />
                             </label>
                             <label class="block">
@@ -830,7 +875,8 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     :modul="berkatalogTag('atasan_tag', ATASAN)"
                                     :terpilih="s.attire.top || ''"
                                     judul="Atasan"
-                                    kosong="— tidak disebut —"
+                                    kosong="— ikuti referensi —"
+                                    :khusus="[{ nilai: s.sex === 'male' ? 'topless_male' : 'topless_female', label: '— tanpa atasan —' }]"
                                     @pilih="s.attire.top = $event"
                                 />
                             </label>
@@ -840,7 +886,8 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                                     :modul="berkatalogTag('bawahan_tag', BAWAHAN)"
                                     :terpilih="s.attire.bottom || ''"
                                     judul="Bawahan"
-                                    kosong="— tidak disebut —"
+                                    kosong="— ikuti referensi —"
+                                    :khusus="[{ nilai: 'bottomless', label: '— tanpa bawahan —' }]"
                                     @pilih="s.attire.bottom = $event"
                                 />
                             </label>
@@ -1052,7 +1099,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
             </div>
 
             <!-- ======================= KANAN: PROMPT ======================= -->
-            <div class="space-y-5">
+            <div ref="panelHasil" class="space-y-5">
                 <Kartu judul="3. Prompt">
                     <template v-if="hasil" #alat>
                         <div class="flex gap-1.5">

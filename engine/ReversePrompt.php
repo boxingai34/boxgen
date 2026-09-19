@@ -130,6 +130,39 @@ final class ReversePrompt
     private const PENUTUP_ATAS = [
         'sports_bra', 'tank_top', 'crop_top', 'shirt', 'bikini_top', 'bra', 't-shirt',
         'sleeveless_shirt', 'bikini', 'tube_top', 'jacket', 'hoodie', 'swimsuit',
+        'chest_sarashi', 'sarashi', 'camisole', 'bandeau', 'leotard', 'gym_shirt',
+        'white_shirt', 'serafuku', 'school_uniform', 'gym_uniform', 'one-piece_swimsuit',
+        'bikini_top_only', 'string_bikini', 'micro_bikini',
+    ];
+
+    /**
+     * Tag yang artinya "tidak memakai atasan".
+     *
+     * Dipakai membuang sisa bacaan telanjang begitu kamu memilih atasan
+     * sendiri. Tanpa daftar ini satu prompt bisa memuat chest sarashi dan
+     * topless female sekaligus, dan yang menang tinggal urutan.
+     */
+    private const TELANJANG_ATAS = [
+        'topless_female', 'topless_male', 'bare_pectorals', 'nude', 'completely_nude',
+        'breasts', 'bare_breasts', 'nipples', 'nipple',
+    ];
+
+    /** Sama, untuk bawahan. */
+    private const TELANJANG_BAWAH = [
+        'bottomless', 'nude', 'completely_nude', 'no_panties',
+    ];
+
+    /** Kata kerja memukul: cuma sah di kotak yang dapat penanda source#. */
+    private const TAG_MEMUKUL = ['punching', 'uppercut', 'kicking'];
+
+    /** Kata kerja kena pukul: cuma sah di kotak yang dapat penanda target#. */
+    private const TAG_KENA = ['punched'];
+
+    /** Tag penutup bawah — satu tubuh cuma boleh memakai satu. */
+    private const PENUTUP_BAWAH = [
+        'boxing_shorts', 'shorts', 'short_shorts', 'dolphin_shorts', 'bike_shorts',
+        'panties', 'thong', 'g-string', 'bikini_bottom_only', 'swim_briefs', 'buruma',
+        'skirt', 'miniskirt', 'pants', 'leggings', 'sarong', 'briefs', 'boxer_briefs',
     ];
 
     /**
@@ -1371,7 +1404,9 @@ TXT;
         }
 
         if (!$adaNsfw) {
-            $tahap['nsfw']['alasan'] = 'Tidak ada ketelanjangan di referensinya, jadi tidak ada yang perlu dikembalikan.';
+            $tahap['nsfw']['alasan'] = 'Tidak ada yang telanjang lagi — entah referensinya memang berpakaian, '
+                                     . 'atau kamu sudah memakaikan atasan/bawahan ke semuanya. Versi setia tidak '
+                                     . 'punya apa pun untuk dikembalikan.';
         } elseif (!$mauNsfw) {
             $tahap['nsfw']['alasan'] = 'Kamu mematikan pilihan "Versi setia (NSFW)".';
         }
@@ -1572,10 +1607,20 @@ TXT;
         ));
     }
 
+    /**
+     * Masih ada yang telanjang SESUDAH kamu memakaikan pakaian?
+     *
+     * Ini yang memutuskan versi setia (NSFW) dibuat atau tidak. Kalau
+     * referensinya topless lalu kamu pakaikan sarashi ke keduanya, versi
+     * setia tidak punya apa pun untuk dikembalikan — yang keluar cuma
+     * salinan kedua dari versi aman. Tapi kalau atas atau bawah salah satu
+     * petinju masih terbuka, pilihannya tetap ada.
+     */
     private static function adaKetelanjangan(array $e): bool
     {
         foreach ($e['subjects'] as $s) {
-            if (!empty($s['nudity']['topless']) || !empty($s['nudity']['bottomless'])) {
+            $pk = self::keadaanPakaian($s);
+            if ($pk['atas'] || $pk['bawah']) {
                 return true;
             }
         }
@@ -1952,6 +1997,11 @@ TXT;
                     $tambah($t, $blokPose, $dari . ': aksi');
                 }
             }
+            // Dihitung sekali, bukan per tag: keduanya menyisir seluruh
+            // interaksi, dan daftar tag bebas bisa panjang.
+            $peran = self::peranKotak($s['id'], $e);
+            $pakai = self::keadaanPakaian($s);
+
             foreach ($s['tags'] as $t) {
                 if (in_array($t, self::TAG_NSFW, true) && !$nsfw) {
                     continue;
@@ -1976,6 +2026,16 @@ TXT;
                     continue;
                 }
                 if ($gaya !== null && in_array($t, self::TAG_MEDIUM, true)) {
+                    continue;
+                }
+                // Pakaian yang kalah dari pilihanmu di kolom atasan/bawahan.
+                // Jalur inilah yang dulu menyelundupkan "boxing shorts" ke
+                // prompt yang bawahannya sudah kamu ganti jadi thong.
+                if (self::bentrokPakaian($t, $pakai)) {
+                    continue;
+                }
+                // Dan kata kerja yang membantah penanda source#/target#.
+                if (self::searahPenanda([$t], $peran) === []) {
                     continue;
                 }
                 if (self::penampilan($t)) {
@@ -2119,12 +2179,124 @@ TXT;
         return false;
     }
 
+    /**
+     * Pakaian yang BENAR-BENAR dipilih di kolom atasan/bawahan.
+     *
+     * Mengembalikan '' kalau isinya kosong, "none", atau justru nama
+     * ketelanjangan — jadi pemanggilnya cukup bertanya "ada isinya?".
+     */
+    private static function pakaianDipilih(string $nilai): string
+    {
+        $t = strtolower(trim(str_replace([' ', '-'], ['_', '_'], $nilai)));
+        if ($t === '' || preg_match('/^(none|no_top|no_bottom|nothing|nude|naked|bare)/', $t) === 1) {
+            return '';
+        }
+        if (in_array($t, self::TELANJANG_ATAS, true) || in_array($t, self::TELANJANG_BAWAH, true)) {
+            return '';
+        }
+
+        return $nilai;
+    }
+
+    /**
+     * Telanjang atau tidak, SESUDAH pilihanmu di kolom pakaian dihitung.
+     *
+     * Bacaan "topless" datang dari gambar; kolom atasan datang darimu. Yang
+     * bisa kamu ubah cuma yang kedua, jadi yang kedua yang menang — kalau
+     * tidak, mengganti atasan jadi chest sarashi tidak pernah terlihat di
+     * hasilnya dan yang keluar tetap topless female, berdampingan dengan
+     * sarashi yang baru saja kamu pilih.
+     *
+     * @return array{atas:bool, bawah:bool, tagAtas:string, tagBawah:string}
+     */
+    private static function keadaanPakaian(array $s): array
+    {
+        $top    = (string)($s['attire']['top'] ?? '');
+        $bottom = (string)($s['attire']['bottom'] ?? '');
+        $atas   = self::pakaianDipilih($top);
+        $bawah  = self::pakaianDipilih($bottom);
+
+        return [
+            // Tiga keadaan, bukan dua: kolom kosong berarti "ikut gambarnya",
+            // nama pakaian berarti berpakaian, dan "tanpa atasan" berarti
+            // telanjang walaupun gambarnya tidak. Yang ketiga itu pilihan
+            // yang sengaja diambil, jadi ia menang atas bacaan gambar sama
+            // seperti nama pakaian menang.
+            'atas'     => self::pilihTelanjang($top, self::TELANJANG_ATAS)
+                       || (!empty($s['nudity']['topless']) && $atas === ''),
+            'bawah'    => self::pilihTelanjang($bottom, self::TELANJANG_BAWAH)
+                       || (!empty($s['nudity']['bottomless']) && $bawah === ''),
+            'tagAtas'  => $atas,
+            'tagBawah' => $bawah,
+        ];
+    }
+
+    /**
+     * Isinya memang "tidak memakai apa-apa"?
+     *
+     * Kolom kosong TIDAK dihitung — kosong artinya belum dijawab, dan
+     * menyamakannya dengan telanjang berarti tiap kolom yang tidak disentuh
+     * ikut membuka baju orangnya.
+     *
+     * @param array<int,string> $daftar
+     */
+    private static function pilihTelanjang(string $nilai, array $daftar): bool
+    {
+        $t = strtolower(trim(str_replace([' ', '-'], ['_', '_'], $nilai)));
+        if ($t === '') {
+            return false;
+        }
+
+        return in_array($t, $daftar, true)
+            || preg_match('/^(none|no_top|no_bottom|nothing|nude|naked|bare)/', $t) === 1;
+    }
+
+    /**
+     * Tag pakaian yang bertabrakan dengan pilihanmu.
+     *
+     * Satu tubuh cuma punya satu atasan dan satu bawahan, tapi tag bisa
+     * datang dari empat tempat sekaligus: kolom pilihan, daftar "lainnya",
+     * kalimat verbatim, dan tag bebas per orang. Itulah kenapa satu prompt
+     * bisa memuat thong dan boxing shorts berbarengan — bukan karena ada
+     * yang salah baca, tapi karena tidak ada yang pernah memutuskan siapa
+     * yang menang. Yang menang pilihanmu; sisanya dibuang di sini.
+     *
+     * Kalau kamu belum memilih apa-apa, tidak ada yang dibuang — bacaan
+     * gambar masih satu-satunya sumber, dan membuangnya berarti
+     * mengosongkan pakaian yang memang terlihat di referensinya.
+     *
+     * @param array{atas:bool, bawah:bool, tagAtas:string, tagBawah:string} $pk
+     */
+    private static function bentrokPakaian(string $t, array $pk): bool
+    {
+        if ($pk['tagAtas'] !== '') {
+            if (in_array($t, self::TELANJANG_ATAS, true)) {
+                return true;
+            }
+            if (in_array($t, self::PENUTUP_ATAS, true) && $t !== $pk['tagAtas']) {
+                return true;
+            }
+        }
+
+        if ($pk['tagBawah'] !== '') {
+            if (in_array($t, self::TELANJANG_BAWAH, true)) {
+                return true;
+            }
+            if (in_array($t, self::PENUTUP_BAWAH, true) && $t !== $pk['tagBawah']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** @return array<int, array{0:string,1:float}> [tag, bobot] */
     private static function tagPakaian(array $s, bool $nsfw): array
     {
         $out = [];
         $a   = $s['attire'];
-        $topless = !empty($s['nudity']['topless']);
+        $pk  = self::keadaanPakaian($s);
+        $topless = $pk['atas'];
 
         // atasan
         if ($topless && $nsfw) {
@@ -2140,19 +2312,24 @@ TXT;
         } elseif ($topless) {
             // versi aman: penutup sopan yang paling dekat dengan gaya tinju
             $out[] = [$s['sex'] === 'male' ? 'topless_male' : 'sports_bra', 1.0];
-        } elseif ($a['top'] !== '' && !preg_match('/^(none|no top|nothing)/', $a['top'])) {
-            foreach (self::validasiTag([$a['top']])[0] as $t) {
+        } elseif ($pk['tagAtas'] !== '') {
+            foreach (self::validasiTag([$pk['tagAtas']])[0] as $t) {
                 $out[] = [$t, 1.0];
             }
         }
 
         // bawahan
-        if (!empty($s['nudity']['bottomless']) && $nsfw) {
+        if ($pk['bawah'] && $nsfw) {
             $out[] = ['bottomless', 1.0];
-        } elseif ($a['bottom'] !== '') {
-            foreach (self::validasiTag([$a['bottom']])[0] as $t) {
+        } elseif ($pk['tagBawah'] !== '') {
+            foreach (self::validasiTag([$pk['tagBawah']])[0] as $t) {
                 $out[] = [$t, 1.0];
             }
+        } elseif ($pk['bawah']) {
+            // Versi aman butuh sesuatu di sana. Celana tinju itu penutup
+            // paling netral untuk adegan ini — sama perannya dengan
+            // sports_bra di atas.
+            $out[] = ['boxing_shorts', 1.0];
         }
 
         // sarung tinju + warna
@@ -2190,6 +2367,9 @@ TXT;
                 if ($topless && $nsfw && in_array($t, self::PENUTUP_ATAS, true)) {
                     continue;
                 }
+                if (self::bentrokPakaian($t, $pk)) {
+                    continue;
+                }
                 $out[] = [$t, 1.0];
             }
         }
@@ -2202,10 +2382,13 @@ TXT;
         if ($kalimat !== '') {
             $sudah = array_column($out, 0);
             foreach (self::tagDariKalimat($kalimat) as $t) {
-                if (!in_array($t, $sudah, true)
-                    && !(in_array($t, self::PENUTUP_ATAS, true) && !empty($s['nudity']['topless']))) {
-                    $out[] = [$t, 1.0];
+                if (in_array($t, $sudah, true) || self::bentrokPakaian($t, $pk)) {
+                    continue;
                 }
+                if (in_array($t, self::PENUTUP_ATAS, true) && $topless) {
+                    continue;
+                }
+                $out[] = [$t, 1.0];
             }
         }
 
@@ -2332,6 +2515,22 @@ TXT;
         return self::validasiTag($out)[0];
     }
 
+    /**
+     * Peran kotak ini menurut penanda aksi: 'source', 'target', atau ''.
+     *
+     * '' berarti memang tidak ada penanda yang dipasang — entah tidak ada
+     * yang memukul, entah cuma ada satu orang di gambarnya.
+     */
+    private static function peranKotak(string $id, array $e): string
+    {
+        $aksi = self::aksiKotak($e);
+        if (!isset($aksi[$id])) {
+            return '';
+        }
+
+        return str_starts_with($aksi[$id], 'source#') ? 'source' : 'target';
+    }
+
     private static function tagAksi(array $s, array $e): array
     {
         $out = [];
@@ -2369,7 +2568,36 @@ TXT;
         if ($e['interaction']['receiver'] === $s['id'] && $e['interaction']['contact'] === 'landed') {
             $out[] = 'punched';
         }
-        return self::validasiTag($out)[0];
+
+        return self::validasiTag(self::searahPenanda($out, self::peranKotak($s['id'], $e)))[0];
+    }
+
+    /**
+     * Buang kata kerja yang membantah penanda source#/target# kotak ini.
+     *
+     * Pembaca gambar mengisi action.type untuk TIAP orang secara terpisah,
+     * dan di adegan saling serang ia kerap menulis "punching" untuk
+     * keduanya. Kotak yang jadi sasaran lalu berisi "punching" sekaligus
+     * "target#stomach_punch" — dua perintah yang bertolak belakang, dan
+     * yang menang bukan pilihanmu melainkan tebakan model. Itu yang membuat
+     * "Petinju B memukul" berakhir sebagai gambar A yang memukul B.
+     *
+     * Penandanya yang dipercaya, karena cuma penanda yang mengikuti kolom
+     * "Siapa yang memukul?" di halaman. Tanpa penanda (satu orang, atau
+     * tidak ada yang memukul) tidak ada yang dibuang.
+     *
+     * @param array<int,string> $tag
+     * @return array<int,string>
+     */
+    private static function searahPenanda(array $tag, string $peran): array
+    {
+        if ($peran === '') {
+            return $tag;
+        }
+
+        $buang = $peran === 'target' ? self::TAG_MEMUKUL : self::TAG_KENA;
+
+        return array_values(array_filter($tag, static fn(string $t): bool => !in_array($t, $buang, true)));
     }
 
     /**

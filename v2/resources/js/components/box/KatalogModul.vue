@@ -47,6 +47,14 @@ const buka = ref(false);
 const disorot = ref<number | string | null>(null);
 
 const terpilihObj = computed(() => props.modul.find((m) => m.id === props.terpilih) ?? null);
+/**
+ * Pilihan khusus juga harus terbaca di tombolnya.
+ *
+ * Tanpa ini, memilih "— tanpa atasan —" membuat tombolnya menulis "—
+ * tidak disebut —": dua keadaan yang artinya berlawanan tampil sama, dan
+ * satu-satunya cara tahu mana yang aktif adalah membuka katalognya lagi.
+ */
+const khususObj = computed(() => props.khusus.find((k) => k.nilai === props.terpilih) ?? null);
 const adaContoh = computed(() => props.modul.filter((m) => m.contoh).length);
 
 const berkelompok = computed(() => {
@@ -97,7 +105,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
         <span v-else class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted/40 text-xs text-muted-foreground">—</span>
 
         <span class="min-w-0 flex-1">
-            <span class="block truncate text-sm">{{ terpilihObj?.nama ?? kosong }}</span>
+            <span class="block truncate text-sm">{{ terpilihObj?.nama ?? khususObj?.label ?? kosong }}</span>
             <span class="block truncate text-xs text-muted-foreground">{{ judul }} · {{ adaContoh }} bercontoh</span>
         </span>
 
