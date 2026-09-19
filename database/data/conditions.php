@@ -301,23 +301,37 @@ return [
      'sort_order' => 1, 'tags' => ['torn_clothes' => 1.1]],
     ['category' => 'rusak', 'slug' => 'loose', 'name' => 'Longgar', 'name_id' => 'Pakaian melorot',
      'sort_order' => 2, 'tags' => ['loose_clothes']],
+    // Pakaian terbuka tanpa apa pun yang terlihat di baliknya cuma jaket
+    // yang tidak dikancingkan. Yang dimaksud: bajunya terbuka dan kulitnya
+    // kelihatan — tapi berhenti di situ, bukan sampai topless. Larangan
+    // "topless" sengaja tetap berlaku untuk modul ini.
     ['category' => 'rusak', 'slug' => 'open', 'name' => 'Terbuka', 'name_id' => 'Pakaian terbuka',
-     'sort_order' => 3, 'tags' => ['open_clothes']],
+     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['open_clothes' => 1.1, 'open_shirt', 'cleavage']],
 
     ['category' => 'lepas', 'slug' => 'strap-slip', 'name' => 'Tali Melorot Sebelah', 'name_id' => 'Tali bahu turun',
      'sort_order' => 1, 'tags' => ['strap_slip' => 1.1]],
     ['category' => 'lepas', 'slug' => 'off-shoulder', 'name' => 'Bahu Terbuka', 'name_id' => 'Melorot ke bahu',
      'sort_order' => 2, 'tags' => ['off_shoulder', 'bare_shoulders']],
+    // strap_slip dicabut dari sini: ia sudah jadi seluruh isi "Tali bahu
+    // turun" di atas, dan selama keduanya memakainya, dua kartu berturut-
+    // turut di katalog memang tidak bisa dibedakan. Yang membedakan
+    // "nyaris terlepas" bukan talinya, melainkan bajunya yang sudah
+    // melorot dan tinggal menunggu jatuh.
     ['category' => 'lepas', 'slug' => 'almost-off', 'name' => 'Hampir Lepas', 'name_id' => 'Nyaris terlepas',
-     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['wardrobe_malfunction' => 1.2, 'strap_slip']],
+     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['wardrobe_malfunction' => 1.2, 'clothes_down', 'sideboob']],
     ['category' => 'lepas', 'slug' => 'lifted', 'name' => 'Tersingkap', 'name_id' => 'Pakaian tersingkap',
      'sort_order' => 4, 'is_nsfw' => 1, 'tags' => ['clothes_lift']],
     ['category' => 'lepas', 'slug' => 'pulled', 'name' => 'Ditarik', 'name_id' => 'Pakaian ditarik',
      'sort_order' => 5, 'is_nsfw' => 1, 'tags' => ['clothes_pull']],
+    // clothing_aside sendirian tidak menggambarkan apa pun di potret dada:
+    // di Danbooru tag itu hampir selalu tentang bawahan yang digeser. Yang
+    // dimaksud di sini pakaian atas yang digeser sampai satu sisi terbuka,
+    // dan itu harus dikatakan.
     ['category' => 'lepas', 'slug' => 'aside', 'name' => 'Digeser', 'name_id' => 'Pakaian disingkirkan',
-     'sort_order' => 6, 'is_nsfw' => 1, 'tags' => ['clothing_aside']],
+     'sort_order' => 6, 'is_nsfw' => 1, 'tags' => ['clothing_aside' => 1.1, 'bra_pull', 'one_breast_out']],
+    // "Separuh terbuka" yang tetap tertutup rapat bukan separuh apa pun.
     ['category' => 'lepas', 'slug' => 'partial', 'name' => 'Setengah Terlepas', 'name_id' => 'Separuh terbuka',
-     'sort_order' => 7, 'is_nsfw' => 1, 'tags' => ['partially_undressed']],
+     'sort_order' => 7, 'is_nsfw' => 1, 'tags' => ['partially_undressed' => 1.1, 'breast_slip']],
     ['category' => 'lepas', 'slug' => 'undressing', 'name' => 'Sedang Dilepas', 'name_id' => 'Sedang membuka baju',
      'sort_order' => 8, 'is_nsfw' => 1, 'tags' => ['undressing']],
 ],

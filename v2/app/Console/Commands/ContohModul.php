@@ -29,6 +29,8 @@ class ContohModul extends Command
     protected $signature = 'modul:contoh
         {--tipe= : tipe modul, dipisah koma (wajib)}
         {--ulang : gambar ulang yang sudah ada}
+        {--hanya= : slug tertentu saja, dipisah koma}
+        {--lihat : cuma tampilkan promptnya, jangan menggambar}
         {--batas=0 : berhenti sesudah sekian gambar (0 = tanpa batas)}';
 
     protected $description = 'Gambar satu contoh untuk tiap modul pose/latar/cahaya/kamera/ring';
@@ -291,9 +293,58 @@ class ContohModul extends Command
         ],
     ];
 
+    /** Ditolak selalu — ini soal mutu gambarnya, bukan soal isinya. */
     private const HINDARI = 'low quality, worst quality, bad anatomy, bad hands, extra fingers, '
-        . 'missing fingers, deformed face, wrong proportions, blurry, watermark, signature, text, '
-        . 'nsfw, nude, topless';
+        . 'missing fingers, deformed face, wrong proportions, blurry, watermark, signature, text';
+
+    /**
+     * Larangan yang kadang membantah modul yang sedang digambar.
+     *
+     * Tiga kata ini dulu selalu ikut — termasuk waktu menggambar contoh
+     * untuk "Tanding topless" dan "Tanpa bawahan". Jadi satu prompt yang
+     * sama meminta dan melarang hal yang sama, dan yang menang selalu
+     * larangannya: dua kartu itu keluar tetap berpakaian, persis
+     * kebalikan dari namanya.
+     *
+     * Yang dicabut BUKAN ketiganya sekaligus, melainkan hanya kata yang
+     * benar-benar dibantah oleh tag modulnya. "Pakaian terbuka" tetap
+     * dilarang jadi topless — yang diminta bajunya terbuka, bukan tidak
+     * ada bajunya — sedangkan "Tanding topless" mencabut larangan itu dan
+     * cuma itu. Saklar hidup-mati per modul akan mencabut ketiganya
+     * bersamaan, dan setengah katalog ini pelan-pelan berubah telanjang.
+     *
+     * kata larangan => tag yang membantahnya
+     */
+    private const BENTROK = [
+        'topless' => [
+            'topless_female', 'topless_male', 'bare_pectorals', 'completely_nude', 'nude',
+            'breasts_out', 'one_breast_out', 'nipple_slip', 'breast_slip', 'partially_undressed',
+            'bra_lift', 'bra_pull', 'sports_bra_lift', 'clothing_aside', 'undressing',
+            'wardrobe_malfunction', 'clothes_down', 'sideboob', 'underboob',
+        ],
+        'nude' => [
+            'completely_nude', 'nude', 'bottomless', 'topless_female', 'topless_male',
+            'breasts_out', 'one_breast_out', 'nipple_slip',
+        ],
+        // nsfw itu payung, bukan benda: yang menandainya baris modulnya.
+        'nsfw' => [],
+    ];
+
+    /**
+     * Slot yang artinya "tidak memakai apa-apa" harus DIKATAKAN.
+     *
+     * Modul bare-hands sengaja tidak punya tag — di prompt sungguhan
+     * ketiadaan tag memang berarti tidak ada sarung. Tapi contoh di sini
+     * digambar dari adegan yang bilang "female boxer", dan petinju tanpa
+     * perintah apa pun digambar bersarung tinju. Jadi khusus untuk
+     * menggambar, ketiadaannya perlu diminta secara terbuka.
+     */
+    private const TANPA_ISI = [
+        'bare-hands' => [
+            'positif' => 'bare hands, clenched fists',
+            'negatif' => 'boxing gloves, gloves, mittens, hand wraps',
+        ],
+    ];
 
     public function handle(): int
     {
@@ -305,13 +356,15 @@ class ContohModul extends Command
             return self::FAILURE;
         }
 
-        if (! GambarAi::siapTokoh()) {
+        if (! $this->option('lihat') && ! GambarAi::siapTokoh()) {
             $this->error('AI_TOKOH_MODEL / AI_TOKOH_API_KEY belum diisi di config.local.php.');
 
             return self::FAILURE;
         }
 
         $batas = (int) $this->option('batas');
+        $hanya = array_values(array_filter(array_map('trim', explode(',', (string) $this->option('hanya')))));
+        $intip = (bool) $this->option('lihat');
         $jadi = 0;
         $lewat = 0;
         $gagal = [];
@@ -333,6 +386,14 @@ class ContohModul extends Command
             }
 
             $modul = $this->daftar($t);
+
+            // Menggambar ulang satu-dua kartu yang salah tidak boleh berarti
+            // menggambar ulang seluruh tipenya: tiap gambar itu satu jatah
+            // NovelAI, dan jatah itu milik orang lain.
+            if ($hanya !== []) {
+                $modul = array_values(array_filter($modul, static fn (array $m): bool => in_array((string) $m['slug'], $hanya, true)));
+            }
+
             $this->info(count($modul) . " pilihan bertipe {$t}");
 
             foreach ($modul as $ke => $m) {
@@ -344,7 +405,9 @@ class ContohModul extends Command
 
                 $slug = (string) $m['slug'];
 
-                if (! $this->option('ulang')
+                // Waktu cuma mengintip, yang sudah ada justru yang paling
+                // ingin dibaca — itu yang hasilnya salah.
+                if (! $intip && ! $this->option('ulang')
                     && (is_file("{$folder}/{$slug}.png") || is_file("{$folder}/{$slug}.webp"))) {
                     $lewat++;
 
@@ -355,27 +418,38 @@ class ContohModul extends Command
                 $this->line("  [{$nomor}/" . count($modul) . "] {$t}/{$slug} — " . ($m['name_id'] ?: $m['name']));
 
                 try {
-                    $tag = isset($m['tag_tetap'])
-                        ? (string) $m['tag_tetap']
-                        : implode(', ', $this->tagModul((int) $m['id']));
+                    if (isset($m['tag_tetap'])) {
+                        $tag = (string) $m['tag_tetap'];
+                        $tolakTambahan = '';
+                    } else {
+                        [$tag, $tolakTambahan] = $this->tagGambar($t, (int) $m['id']);
+                    }
+
+                    $minta = $resep['adegan'] . ', ' . $tag;
+                    $tolak = self::HINDARI
+                        . self::larangan($tag, ! empty($m['is_nsfw']))
+                        . ($tolakTambahan !== '' ? ', ' . $tolakTambahan : '')
+                        . (! empty($resep['sendiri'])
+                            ? ', 1girl, solo, person, people, character, photorealistic, realistic, 3d, photo'
+                            : '')
+                        // Yang dipotong rapat gampang sekali berubah jadi
+                        // potret seluruh badan lagi; latar dan pemandangan
+                        // ikut ditolak supaya bingkainya benar-benar tinggal
+                        // bagian yang dipilih.
+                        . (str_contains((string) $resep['adegan'], 'close-up')
+                            ? ', full body, scenery, detailed background, crowd, audience'
+                            : '')
+                        . (! empty($resep['duo']) ? '' : ', 2girls, multiple girls');
+
+                    if ($intip) {
+                        $this->line('       minta : ' . $minta);
+                        $this->line('       tolak : ' . $tolak);
+
+                        continue;
+                    }
 
                     $g = GambarAi::tokoh(
-                        [
-                            'base'       => $resep['adegan'] . ', ' . $tag,
-                            'characters' => [],
-                            'undesired'  => self::HINDARI
-                                . (! empty($resep['sendiri'])
-                                    ? ', 1girl, solo, person, people, character, photorealistic, realistic, 3d, photo'
-                                    : '')
-                                // Yang dipotong rapat gampang sekali berubah
-                                // jadi potret seluruh badan lagi; latar dan
-                                // pemandangan ikut ditolak supaya bingkainya
-                                // benar-benar tinggal bagian yang dipilih.
-                                . (str_contains((string) $resep['adegan'], 'close-up')
-                                    ? ', full body, scenery, detailed background, crowd, audience'
-                                    : '')
-                                . (! empty($resep['duo']) ? '' : ', 2girls, multiple girls'),
-                        ],
+                        ['base' => $minta, 'characters' => [], 'undesired' => $tolak],
                         ['rasio' => $resep['rasio']]
                     );
 
@@ -438,6 +512,80 @@ class ContohModul extends Command
         }
 
         return PromptBuilder::listModules($tipe, ALLOW_NSFW);
+    }
+
+    /**
+     * Larangan dewasa yang masih sah untuk modul ini.
+     *
+     * Dibaca dari tag yang benar-benar dipakai, bukan dari niat: kalau
+     * suatu hari sebuah modul diberi tag breasts_out, larangan "topless"
+     * akan mundur sendiri tanpa ada yang perlu mengingat untuk mencabutnya.
+     */
+    private static function larangan(string $tag, bool $dewasa): string
+    {
+        $punya = array_map(
+            static fn (string $t): string => str_replace(' ', '_', trim($t)),
+            explode(',', $tag)
+        );
+
+        $pakai = [];
+
+        foreach (self::BENTROK as $kata => $dibantah) {
+            if ($kata === 'nsfw' ? $dewasa : array_intersect($punya, $dibantah) !== []) {
+                continue;
+            }
+
+            $pakai[] = $kata;
+        }
+
+        return $pakai === [] ? '' : ', ' . implode(', ', $pakai);
+    }
+
+    /**
+     * Tag yang menggambarkan satu modul, berikut yang harus ditolak.
+     *
+     * Untuk kebanyakan tipe ini cuma tag modulnya sendiri. Tema pakaian
+     * lain: ia hampir tidak punya tag sendiri karena cara kerjanya MENGISI
+     * slot atasan/bawahan/tangan/kaki/kepala, dan slot-slot itulah yang
+     * membawa tagnya.
+     *
+     * Membaca module_tags saja berarti empat tema — tarung jalanan, tanpa
+     * sarung, tanding topless, tanpa bawahan — digambar dari resep dasar
+     * belaka: tidak ada satu pun tag yang membedakan mereka satu sama
+     * lain, dan tidak ada yang memakai sarung tinju walaupun tiap tema
+     * kecuali "tanpa sarung" memang sudah memakainya di datanya.
+     *
+     * @return array{0:string,1:string} [tag, yang ditolak]
+     */
+    private function tagGambar(string $tipe, int $modulId): array
+    {
+        $tag = $this->tagModul($modulId);
+
+        if ($tipe !== 'outfit') {
+            return [implode(', ', $tag), ''];
+        }
+
+        $tolak = [];
+
+        foreach (PromptBuilder::outfitDefaults($modulId) as $slotModulId) {
+            $slug = (string) Database::value('SELECT slug FROM modules WHERE id = ?', [$slotModulId]);
+
+            if (isset(self::TANPA_ISI[$slug])) {
+                $tag[]   = self::TANPA_ISI[$slug]['positif'];
+                $tolak[] = self::TANPA_ISI[$slug]['negatif'];
+
+                continue;
+            }
+
+            foreach ($this->tagModul($slotModulId) as $t) {
+                $tag[] = $t;
+            }
+        }
+
+        return [
+            implode(', ', array_values(array_unique(array_filter($tag)))),
+            implode(', ', $tolak),
+        ];
     }
 
     /** @return list<string> */

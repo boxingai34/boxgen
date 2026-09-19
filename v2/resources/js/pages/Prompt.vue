@@ -396,15 +396,15 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                     </div>
 
                     <template v-else>
-                        <label class="mt-4 block">
+                        <div class="mt-4">
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Interaksi</span>
-                            <select v-model="pilih.interaction_id" :class="isianKelas">
-                                <option value="">— tidak dipakai —</option>
-                                <optgroup v-for="[kat, daftar] in kelompok('interaction')" :key="kat" :label="kat || 'lainnya'">
-                                    <option v-for="m in daftar" :key="m.id" :value="m.id">{{ m.nama }}{{ m.nsfw ? ' •' : '' }}</option>
-                                </optgroup>
-                            </select>
-                        </label>
+                            <KatalogModul
+                                :modul="modul.interaction || []"
+                                :terpilih="pilih.interaction_id === '' ? '' : Number(pilih.interaction_id)"
+                                judul="Interaksi"
+                                @pilih="pilih.interaction_id = $event"
+                            />
+                        </div>
 
                         <div v-if="adaArah" class="mt-3 rounded-xl border border-border/70 p-3">
                             <span class="mb-2 block text-xs font-medium text-muted-foreground">
