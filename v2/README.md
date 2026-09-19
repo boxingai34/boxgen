@@ -257,8 +257,8 @@ halaman, tidak butuh migrasi, dan mudah dicadangkan.
 ## Kalau mau dinaikkan ke hosting
 
 Tujuannya: `domain.com/` = halaman depan, `domain.com/generator` = generator.
-Nama domainnya bebas (fbxgenerate.com sekarang, boxingenerated.com nanti) —
-cukup ganti `APP_URL`.
+Nama domainnya bebas — kodenya tidak pernah menyebut satu nama pun kecuali
+lewat `APP_URL`.
 
 1. `npm run build` lalu commit `public/build`.
 2. Di server, masuk ke folder `v2`, lalu
@@ -307,3 +307,29 @@ di `v2/storage/logs/laravel.log`.
 
 `../config.local.php` (kunci API dan setelan database) tetap dipakai dari
 aplikasi lama, jadi tidak perlu disalin ulang.
+
+## Kalau pindah nama domain
+
+Domain tidak bisa diganti namanya — yang ada cuma mendaftarkan yang baru lalu
+mengarahkannya ke hosting yang sama. Yang lama sebaiknya dipertahankan
+setahun lagi dan dialihkan ke yang baru, supaya tautan yang sudah beredar
+tidak mati.
+
+Di sisi kode cuma ada satu tempat yang benar-benar menentukan, yaitu `.env`
+di server:
+
+```
+APP_URL=https://domain-baru.com
+LEGACY_URL=https://domain-baru.com
+```
+
+lalu `php artisan config:cache` supaya yang tersimpan ikut berubah. Tag
+`canonical`, Open Graph, dan manifest mengikuti sendiri. Yang perlu diperiksa
+di luar repo ini: alamat pengalihan di aplikasi DeviantArt
+(`/developers/apps`), dan pengalihan 301 dari domain lama — lewat hPanel, atau
+di `.htaccess` paling atas:
+
+```apache
+RewriteCond %{HTTP_HOST} ^(www\.)?domain-lama\.com$ [NC]
+RewriteRule ^(.*)$ https://domain-baru.com/$1 [R=301,L]
+```
