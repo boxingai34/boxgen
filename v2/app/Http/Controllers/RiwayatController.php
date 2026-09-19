@@ -19,6 +19,9 @@ class RiwayatController extends Controller
         $daftar = Riwayat::daftar($userId, $halaman, $cari);
 
         return Inertia::render('Riwayat', [
+            // Prompt lama boleh langsung digambar lagi dari panel sampingnya,
+            // jadi halaman ini perlu tahu penyedia mana yang siap.
+            'bisaGambar' => GambarController::status(),
             'daftar' => [
                 'items' => collect($daftar['items'])->map(fn (array $r) => [
                     'id'      => (int) $r['id'],

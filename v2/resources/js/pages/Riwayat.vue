@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
+import TombolGambar from '@/components/box/TombolGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim, salin } from '@/lib/kirim';
 import { Head, router } from '@inertiajs/vue3';
 import { Check, Copy, Search, Trash2, X } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     daftar: {
@@ -26,6 +27,7 @@ const props = defineProps<{
         jumlahHalaman: number;
     };
     cari: string;
+    bisaGambar: { latar: boolean; tokoh: boolean };
 }>();
 
 const kataCari = ref(props.cari);
@@ -33,6 +35,46 @@ const terpilih = ref<any>(null);
 const memuat = ref(false);
 const tersalin = ref(false);
 const galat = ref('');
+
+/**
+ * Ke mana prompt tersimpan ini dikirim kalau mau digambar lagi.
+ *
+ * Targetnya ikut tersimpan di tiap baris, dan itu yang menentukan: keluaran
+ * kalimat (gemini) ke pembuat gambar latar, sisanya ke NovelAI. Yang
+ * tersimpan cuma prompt datar — kotak base/karakter terpisah tidak ikut ke
+ * riwayat — jadi seluruhnya dikirim sebagai base, persis seperti menempelnya
+ * sendiri ke kolom pertama NovelAI.
+ */
+const tujuanGambar = computed(() => {
+    if (!terpilih.value) return null;
+
+    if (terpilih.value.target === 'gemini') {
+        return props.bisaGambar.latar
+            ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: '1:1' as const }
+            : null;
+    }
+
+    return props.bisaGambar.tokoh
+        ? { alamat: route('gambar.tokoh'), label: 'Buat gambarnya (NovelAI)', bentuk: '3:4' as const }
+        : null;
+});
+
+/** Dibaca saat diklik, jadi selalu baris yang sedang terbuka. */
+function muatanGambar(): Record<string, unknown> {
+    const it = terpilih.value ?? {};
+
+    if (it.target === 'gemini') {
+        return { prompt: it.output || '' };
+    }
+
+    return {
+        bagian: {
+            base: it.output || '',
+            characters: [],
+            undesired: it.negative || '',
+        },
+    };
+}
 
 function telusuri() {
     router.get(route('riwayat'), { q: kataCari.value || undefined }, { preserveState: true, replace: true });
@@ -203,6 +245,25 @@ function waktuPendek(w: string): string {
                         <p class="mb-1 text-xs font-medium text-muted-foreground">Negative</p>
                         <pre class="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 font-mono text-[12px]">{{ terpilih.negative }}</pre>
                     </div>
+
+                    <!-- Kuncinya id baris: pindah ke riwayat lain berarti
+                         tombolnya lahir baru, tidak membawa gambar dan pesan
+                         milik prompt sebelumnya. -->
+                    <TombolGambar
+                        v-if="tujuanGambar"
+                        :key="terpilih.id"
+                        class="mt-3"
+                        :alamat="tujuanGambar.alamat"
+                        :label="tujuanGambar.label"
+                        :bentuk="tujuanGambar.bentuk"
+                        :alt="terpilih.judul || 'Hasil'"
+                        :muatan="muatanGambar"
+                    />
+
+                    <p v-if="tujuanGambar && terpilih.target === 'sd'" class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        Prompt ini ditulis untuk Stable Diffusion. NovelAI tetap menggambarnya, tapi bobot seperti
+                        <code class="font-mono">(tag:1.2)</code> dibacanya sebagai teks biasa, bukan penekanan.
+                    </p>
                 </Kartu>
             </aside>
         </div>
