@@ -780,8 +780,9 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
              kolom kiri jadi menara isian sementara kolom kanan berdiri hampir
              kosong menunggu — dan mengisi detail petinju kedua berarti
              menggulir jauh, lalu kembali ke atas untuk melihat hasilnya. -->
-        <div class="mx-auto max-w-6xl">
-            <div class="space-y-5 pb-24">
+        <div>
+            <div class="grid gap-5 pb-24 2xl:grid-cols-2 2xl:items-start">
+                <div class="space-y-5">
                 <Kartu judul="1. Unggah referensi" :ket="siap ? 'Diproses di browser — yang terkirim cuma versi kecilnya.' : 'Profil AI vision belum punya kunci.'">
                     <template #alat>
                         <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
@@ -1264,7 +1265,9 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
                 </Kartu>
 
                 <!-- ======================= PROMPT ======================= -->
-                <div ref="panelHasil" class="scroll-mt-4">
+                </div>
+
+                <div ref="panelHasil" class="scroll-mt-[160px] 2xl:sticky 2xl:top-[152px]">
                 <Kartu judul="3. Prompt">
                     <template v-if="hasil" #alat>
                         <div class="flex gap-1.5">
@@ -1362,7 +1365,7 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
              tinggi mengikuti hasil bacaannya, jadi tombol di kakinya
              berpindah-pindah dan harus dicari tiap kali. -->
         <div class="sticky bottom-0 z-30 -mx-5 mt-2 border-t border-border/60 bg-background/90 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-            <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+            <div class="mx-auto flex max-w-[1800px] flex-wrap items-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedangSusun || !ekstrak" @click="susun">
                     <LoaderCircle v-if="sedangSusun" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />

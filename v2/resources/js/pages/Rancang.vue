@@ -226,7 +226,7 @@ const isianKelas =
              nomor dua belas. -->
         <div class="grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
             <!-- ============================ KIRI: ISIAN ============================ -->
-            <div class="space-y-5 xl:sticky xl:top-4 xl:self-start">
+            <div class="space-y-5 xl:sticky xl:top-[152px] xl:self-start">
                 <Kartu v-reveal judul="Jalan ceritanya" ket="Bahasa Indonesia biasa. Sebutkan durasinya di dalam cerita.">
                     <textarea
                         v-model="cerita"

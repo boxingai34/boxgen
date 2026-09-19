@@ -345,8 +345,9 @@ const targetTampil = TARGET.filter((t) => t.tampil);
              bertumpuk bisa berdiri bersebelahan, dan tingginya turun
              drastis. Tombol Generate ikut ke bilah yang menempel di dasar
              layar, jadi tidak perlu dicari. -->
-        <div class="mx-auto max-w-6xl">
-            <div class="space-y-5 pb-24">
+        <div>
+            <div class="grid gap-5 pb-24 2xl:grid-cols-2 2xl:items-start">
+                <div class="space-y-5">
                 <Kartu judul="1. Susun" ket="Pilih seperlunya — yang dikosongkan tidak ikut ke prompt.">
                     <!-- Acak duduk di kepala kartunya, bukan di kaki bersama
                          Generate. Keduanya tombol besar bersebelahan di bawah,
@@ -540,8 +541,19 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                     <p v-if="galat" class="mt-3 text-xs text-destructive">{{ galat }}</p>
                 </Kartu>
 
-                <!-- ============================ HASIL ============================ -->
-                <div ref="panelHasil" class="scroll-mt-4">
+                <!-- ============================ HASIL ============================
+                     Sejajar dengan isiannya HANYA di layar sangat lebar
+                     (2xl, 1536 piksel ke atas). Di bawah itu ia turun ke
+                     bawah — dua kolom di layar 1440 membuat masing-masing
+                     tinggal 700 piksel, dan dua petinju bersebelahan tidak
+                     muat di dalamnya. Yang tadinya masalah kembali lagi,
+                     cuma pindah tempat.
+
+                     Menempel sendiri waktu isiannya digulir, jadi hasilnya
+                     tidak pernah hilang dari pandangan. -->
+                </div>
+
+                <div ref="panelHasil" class="scroll-mt-[160px] 2xl:sticky 2xl:top-[152px]">
                 <Kartu judul="2. Hasil">
                     <template v-if="hasil" #alat>
                         <div class="flex flex-wrap gap-1.5">
@@ -649,7 +661,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
              di bawah, ia selalu di tempat yang sama dan selalu terjangkau,
              berapa pun panjang isiannya. -->
         <div class="sticky bottom-0 z-30 -mx-5 mt-2 border-t border-border/60 bg-background/90 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-            <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+            <div class="mx-auto flex max-w-[1800px] flex-wrap items-center gap-3">
                 <Tombol ukuran="besar" :nonaktif="sedang" @click="susun">
                     <LoaderCircle v-if="sedang" class="h-4 w-4 animate-spin" />
                     <Sparkles v-else class="h-4 w-4" />
