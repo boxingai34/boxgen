@@ -24,6 +24,35 @@ export class GalatKirim extends Error {
     }
 }
 
+/**
+ * Kalimat untuk jawaban yang bukan JSON.
+ *
+ * Tiga sebab yang paling sering, dan ketiganya butuh tindakan berbeda:
+ * sesi yang kedaluwarsa (muat ulang), permintaan yang kelamaan lalu
+ * diputus server (coba lagi, biasanya lebih cepat karena jawaban AI-nya
+ * sudah tersimpan), dan galat PHP (perlu dibaca lognya). Jadi statusnya
+ * disebut, dan sepotong isinya ikut dibawa.
+ */
+function pesanBukanJson(mentah: string, status: number): string {
+    const bersih = mentah
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const petunjuk =
+        status === 419 || status === 401
+            ? ' Sesimu tampaknya sudah kedaluwarsa — muat ulang halaman lalu masuk lagi.'
+            : status === 504 || status === 524 || status === 408
+              ? ' Server memutusnya karena kelamaan. Tekan sekali lagi: biasanya jauh lebih cepat, karena jawaban AI yang sudah jadi tersimpan di server.'
+              : '';
+
+    return (
+        `Server membalas bukan JSON (HTTP ${status}).` +
+        petunjuk +
+        (bersih === '' ? ' Badannya kosong.' : ` Isinya: ${bersih.length > 300 ? bersih.slice(0, 300) + ' …' : bersih}`)
+    );
+}
+
 export async function kirim<T = any>(alamat: string, isi?: unknown, metode: 'GET' | 'POST' | 'DELETE' = 'POST'): Promise<T> {
     const jawab = await fetch(alamat, {
         method: metode,
@@ -37,11 +66,18 @@ export async function kirim<T = any>(alamat: string, isi?: unknown, metode: 'GET
         body: isi === undefined ? undefined : JSON.stringify(isi),
     });
 
+    // Badannya dibaca sebagai teks dulu, baru diurai. Kalau yang datang
+    // bukan JSON, isinya justru yang paling berharga: halaman galat Apache,
+    // batas waktu LiteSpeed, atau peringatan PHP yang tercetak duluan —
+    // semuanya menyebutkan sebabnya sendiri. Membuangnya dan cuma berkata
+    // "bukan JSON" membuat orang menebak-nebak.
+    const mentah = await jawab.text();
+
     let data: any = null;
     try {
-        data = await jawab.json();
+        data = JSON.parse(mentah);
     } catch {
-        throw new GalatKirim('Server membalas bukan JSON. Coba muat ulang halaman.', jawab.status);
+        throw new GalatKirim(pesanBukanJson(mentah, jawab.status), jawab.status);
     }
 
     if (!jawab.ok || data?.ok === false) {
@@ -115,7 +151,7 @@ export async function unggahBerkas<T = any>(alamat: string, nama: string, berkas
             try {
                 j = JSON.parse(xhr.responseText);
             } catch {
-                gagal(new GalatKirim('Server membalas bukan JSON.', xhr.status));
+                gagal(new GalatKirim(pesanBukanJson(xhr.responseText || '', xhr.status), xhr.status));
                 return;
             }
             if (xhr.status >= 200 && xhr.status < 300 && j?.ok !== false) {

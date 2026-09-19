@@ -4,7 +4,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
 import KotakTeks from '@/components/box/KotakTeks.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { GalatKirim, kirim } from '@/lib/kirim';
+import { GalatKirim, kirim, kirimUlang } from '@/lib/kirim';
 import { proses, type Referensi } from '@/lib/referensi';
 import { Head } from '@inertiajs/vue3';
 import { Eye, Image as IkonGambar, LoaderCircle, Plus, Sparkles, Upload, X } from 'lucide-vue-next';
@@ -50,6 +50,23 @@ const ekstrak = ref<any>(null);
 const ringkas = ref('');
 const validasi = ref<any>(null);
 const kuota = ref<any>(props.status?.quota ?? null);
+
+/**
+ * Lencana jatah harian.
+ *
+ * REVERSE_DAILY_LIMIT_PER_IP = 0 artinya tanpa batas, dan mesinnya menandai
+ * itu dengan limit 0 dan sisa -1. Ditulis apa adanya jadi "sisa -1/0" —
+ * terbaca seperti ada yang rusak, padahal justru sebaliknya.
+ */
+const labelKuota = computed(() => {
+    const k = kuota.value;
+    if (!k) return '';
+
+    const batas = Number(k.limit ?? 0);
+    if (k.unlimited || batas <= 0) return 'jatah harian: tanpa batas';
+
+    return `sisa ${k.sisa ?? k.remaining ?? '?'}/${batas}`;
+});
 
 const gayaId = ref<number | ''>('');
 const artis = ref('');
@@ -167,13 +184,22 @@ async function baca() {
     lapor.value = 'Membaca referensinya… biasanya 15–60 detik.';
 
     try {
-        const jawab = await kirim<any>(route('reverse.baca'), {
-            kind: referensi.value.kind,
-            images: referensi.value.images.map(({ data, mime, t, w, h }) => ({ data, mime, t, w, h })),
-            sheet: referensi.value.sheet,
-            duration: referensi.value.duration,
-            hint: hint.value,
-        });
+        // kirimUlang, bukan kirim: membaca referensi memanggil model vision
+        // dan bisa lewat satu menit, sedangkan hosting memutus sambungan
+        // sekitar situ. PHP di server tetap menyelesaikannya dan jawaban
+        // AI-nya tersimpan di ai_cache, jadi permintaan kedua dengan isi
+        // yang sama biasanya langsung jadi — tanpa token terbuang dua kali.
+        const jawab = await kirimUlang<any>(
+            route('reverse.baca'),
+            {
+                kind: referensi.value.kind,
+                images: referensi.value.images.map(({ data, mime, t, w, h }) => ({ data, mime, t, w, h })),
+                sheet: referensi.value.sheet,
+                duration: referensi.value.duration,
+                hint: hint.value,
+            },
+            { lapor: (teks) => (lapor.value = teks) },
+        );
 
         pasangEkstrak(jawab);
     } catch (e: any) {
@@ -393,8 +419,8 @@ const ukuran = (b: number) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : 
             <div class="space-y-5">
                 <Kartu judul="1. Unggah referensi" :ket="siap ? 'Diproses di browser — yang terkirim cuma versi kecilnya.' : 'Profil AI vision belum punya kunci.'">
                     <template #alat>
-                        <span v-if="kuota" class="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-muted-foreground">
-                            sisa {{ kuota.sisa ?? kuota.remaining ?? '?' }}/{{ kuota.limit }}
+                        <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {{ labelKuota }}
                         </span>
                     </template>
 
