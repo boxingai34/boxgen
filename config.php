@@ -328,8 +328,16 @@ defined('TAG_MIN_POST_COUNT')  || define('TAG_MIN_POST_COUNT', 1);
 // Tanpa ambang sendiri, menurunkan ambang tag ke 1 ikut menyeret ratusan
 // ribu tag karakter sekali-pakai ke dalam menunya.
 //
-// Turunkan sendiri kalau memang mau karakter yang lebih obscure.
-defined('CHAR_MIN_POST_COUNT') || define('CHAR_MIN_POST_COUNT', 50);
+// Diturunkan 50 -> 10. Di 50, karakter seperti polaris_(x-men) (47 gambar)
+// tidak pernah muncul di menu, dan dari sisi pemakainya itu terbaca sebagai
+// "karakternya tidak ada" — bukan "karakternya jarang". Di 10, satu judul
+// tampil utuh dengan pemeran sampingnya, dan yang langka tetap tenggelam ke
+// bawah karena daftarnya diurutkan menurut jumlah gambar.
+//
+// Turunkan lagi kalau memang mau yang lebih obscure. Di bawah 10 isinya
+// mulai didominasi karakter sekali-pakai dan salah ketik yang terlanjur
+// jadi tag.
+defined('CHAR_MIN_POST_COUNT') || define('CHAR_MIN_POST_COUNT', 10);
 defined('SYNC_KEY')            || define('SYNC_KEY', 'ganti-kunci-ini');
 
 // Update lewat GitHub (tools/deploy.php)

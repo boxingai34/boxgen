@@ -224,6 +224,21 @@ while (true) {
 
 $pdo->commit();
 
+// series.char_count diisi ulang di sini, bukan dihitung waktu dropdown
+// judul dibuka. Ini satu-satunya tempat jumlahnya bisa berubah banyak, dan
+// sekali UPDATE di sini menggantikan satu LEFT JOIN + GROUP BY di setiap
+// permintaan — hampir satu detik, tiap kali halaman dibuka.
+say('');
+say('Menyegarkan jumlah karakter per judul...');
+Database::run(
+    'UPDATE series s SET char_count =
+        (SELECT COUNT(*) FROM characters c WHERE c.series_id = s.id AND c.is_active = 1)'
+);
+say('  ' . number_format((int)Database::value('SELECT COUNT(*) FROM series WHERE char_count > 0'))
+    . ' judul punya karakter, '
+    . number_format((int)Database::value('SELECT COUNT(*) FROM series WHERE char_count = 0'))
+    . ' masih kosong.');
+
 say('');
 say('===========================================');
 say('Karakter baru        : ' . number_format($baru));

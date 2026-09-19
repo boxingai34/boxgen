@@ -18,10 +18,9 @@ import { teksLanding } from '@/lib/teksLanding';
 const props = withDefaults(
     defineProps<{
         gambar: Array<{ src: string; alt?: string; caption?: string }>;
-        badge?: string;
         tegak?: string;
     }>(),
-    { badge: '', tegak: '' },
+    { tegak: '' },
 );
 
 const emit = defineEmits<{ (e: 'grid'): void }>();
@@ -63,13 +62,6 @@ const jumlah = computed(() => props.gambar.filter((g) => g && g.src).length);
                 :class="[n % 2 ? 'left-2.5' : 'right-2.5', n < 3 ? 'top-2.5' : 'bottom-2.5']"
                 aria-hidden="true"
             />
-            <span
-                v-if="badge"
-                class="pointer-events-none absolute left-4 top-4 rounded-md border border-[hsl(var(--sudut)/0.5)] bg-background/80 px-2 py-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sudut))]"
-            >
-                {{ badge }}
-            </span>
-
             <!-- tali ring melintasi bawah plat -->
             <div class="tali-ring pointer-events-none absolute inset-x-0 bottom-6 opacity-80" aria-hidden="true" />
 
@@ -83,9 +75,5 @@ const jumlah = computed(() => props.gambar.filter((g) => g && g.src).length);
                 {{ t('grid') }} ({{ String(jumlah).padStart(2, '0') }})
             </span>
         </button>
-
-        <figcaption v-if="utama.caption" class="mt-2 text-xs text-muted-foreground">
-            Fig. 01 — {{ utama.caption }}
-        </figcaption>
     </figure>
 </template>

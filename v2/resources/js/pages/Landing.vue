@@ -258,7 +258,7 @@ const karyaGrid = computed(() => {
 
                     <!-- Kartu potret yang bisa digulir -->
                     <div class="plat-bungkus relative mx-auto w-full max-w-sm lg:col-span-5 lg:max-w-none">
-                        <KartuSampul :gambar="isi.hero.images" :badge="isi.hero.badge" :tegak="isi.hero.jp_vertical" @grid="gridBuka = true" />
+                        <KartuSampul :gambar="isi.hero.images" :tegak="isi.hero.jp_vertical" @grid="gridBuka = true" />
                     </div>
                 </div>
             </section>
@@ -543,9 +543,6 @@ const karyaGrid = computed(() => {
                                 decoding="async"
                                 class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.04]"
                             />
-                            <span class="absolute left-2.5 top-2.5 rounded-md bg-background/80 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-[0.16em]">
-                                {{ g.kind === 'bout' ? t('tanding') : t('petinju') }}
-                            </span>
                             <figcaption class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent px-3 pb-2.5 pt-8 text-xs">
                                 <span class="text-[hsl(var(--kanvas))]">{{ t('gambar_no', { n: dua(i + 1) }) }}</span> — {{ g.caption }}
                             </figcaption>

@@ -83,8 +83,17 @@ CREATE TABLE IF NOT EXISTS `series` (
   `universe`  VARCHAR(60) DEFAULT NULL,    -- anime|disney|game|cartoon
   `booru_tag`  VARCHAR(190) DEFAULT NULL,  -- contoh: jujutsu_kaisen
   `post_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  -- Jumlah karakter aktif di judul ini. Disimpan, bukan dihitung.
+  --
+  -- Dropdown judul butuh angka ini untuk menaruh judul yang kosong di
+  -- bawah — judul tanpa karakter tidak pernah berguna sebagai saringan.
+  -- Menghitungnya dengan LEFT JOIN + GROUP BY makan hampir satu detik di
+  -- seratus ribu karakter, padahal angkanya cuma berubah waktu
+  -- tools/import_characters.php dijalankan. Di situlah ia diisi ulang.
+  `char_count` INT UNSIGNED NOT NULL DEFAULT 0,
   UNIQUE KEY `uq_series_slug` (`slug`),
-  KEY `idx_series_pop` (`universe`, `post_count`)
+  KEY `idx_series_pop` (`universe`, `post_count`),
+  KEY `idx_series_isi` (`char_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------
@@ -113,7 +122,15 @@ CREATE TABLE IF NOT EXISTS `characters` (
   KEY `idx_char_active` (`is_active`, `popularity`),
   KEY `idx_char_source` (`source`),
   KEY `idx_char_name` (`name`),
-  KEY `idx_char_booru` (`booru_tag`)
+  KEY `idx_char_booru` (`booru_tag`),
+  -- Indeks penutup untuk pencarian "%kata%".
+  --
+  -- LIKE dengan bintang di depan tidak bisa memakai indeks untuk MELOMPAT,
+  -- jadi barisnya memang harus dibaca semua. Tapi ketiga kolom yang
+  -- dibutuhkan ada di indeks ini, jadi yang dibaca indeksnya saja — bukan
+  -- seratus ribu baris penuh dari tabelnya. Di 101 ribu karakter selisihnya
+  -- 1.200 ms jadi 440 ms.
+  KEY `idx_char_cari` (`is_active`, `booru_tag`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------

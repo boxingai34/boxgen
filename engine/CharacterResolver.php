@@ -98,16 +98,60 @@ final class CharacterResolver
         $offset = max(0, min($offset, 5000));
         $q = trim($q);
 
-        // Sejak tools/import_characters.php dijalankan, SELURUH karakter sudah
-        // ada di tabel characters. Jadi cukup cari di situ — tidak perlu lagi
-        // menyisir tabel tags yang berisi 76 ribu baris.
+        // DUA TAHAP: AWALAN DULU, BARU POTONGAN TENGAH.
+        //
+        // Pencarian sebenarnya "%kata%" — supaya mengetik "men" menemukan
+        // polaris_(x-men). Tapi bintang di depan berarti indeks tidak bisa
+        // dipakai untuk melompat, jadi seratus ribu baris dibaca semua. Waktu
+        // tabelnya masih dua puluh ribu itu tidak terasa; di seratus ribu, satu
+        // ketikan makan lebih dari satu detik — dan kotak ini mencari setiap
+        // kali ada huruf baru.
+        //
+        // Hampir selalu yang diketik orang itu AWAL nama: "pol" untuk polaris.
+        // Awalan bisa memakai indeks dan selesai dalam hitungan milidetik. Jadi
+        // yang dicoba dulu awalannya; potongan tengah cuma dijalankan kalau
+        // awalan tidak memenuhi layar. Hasil akhirnya persis sama, yang berbeda
+        // cuma berapa sering jalur mahalnya terpakai.
+        //
+        // Halaman kedua dan seterusnya (offset > 0) langsung ke jalur lengkap:
+        // menggabungkan dua daftar yang dipotong di tempat berbeda bisa
+        // melewatkan baris, dan itu jauh lebih mahal daripada satu detik.
+        if ($q !== '' && $offset === 0) {
+            $cepat = self::cari($q, $universe, $seriesId, $limit, 0, true);
+
+            if (count($cepat) >= $limit) {
+                return $cepat;
+            }
+        }
+
+        return self::cari($q, $universe, $seriesId, $limit, $offset, false);
+    }
+
+    /**
+     * Satu jalan pencarian.
+     *
+     * @param bool $awalanSaja true = "kata%" (bisa pakai indeks, milidetik),
+     *                         false = "%kata%" (harus baca semua, ratusan ms)
+     * @return array<int,array<string,mixed>>
+     */
+    private static function cari(
+        string $q,
+        ?string $universe,
+        ?int $seriesId,
+        int $limit,
+        int $offset,
+        bool $awalanSaja
+    ): array {
         $where  = ['c.is_active = 1'];
         $params = [];
 
+        $tag = str_replace(' ', '_', mb_strtolower($q));
+
         if ($q !== '') {
+            $depan = $awalanSaja ? '' : '%';
             $where[]  = '(c.booru_tag LIKE ? OR c.name LIKE ?)';
-            $params[] = '%' . str_replace(' ', '_', mb_strtolower($q)) . '%';
-            $params[] = '%' . $q . '%';
+            $params[] = $depan . $tag . '%';
+            $params[] = $depan . $q . '%';
         }
 
         if ($seriesId !== null) {
@@ -126,8 +170,8 @@ final class CharacterResolver
 
         if ($q !== '') {
             $urut = '(c.booru_tag = ?) DESC, (c.booru_tag LIKE ?) DESC, (c.name LIKE ?) DESC, c.name';
-            $params[] = str_replace(' ', '_', mb_strtolower($q));
-            $params[] = str_replace(' ', '_', mb_strtolower($q)) . '%';
+            $params[] = $tag;
+            $params[] = $tag . '%';
             $params[] = $q . '%';
         }
 
@@ -208,20 +252,27 @@ final class CharacterResolver
         // Kedua yang namanya DIAWALI kata itu: "street" harus memunculkan
         // "Street Fighter" di atas, bukan "Downtown Street Brawl".
         $urut = $cari !== ''
-            ? '(COUNT(c.id) > 0) DESC, (s.name LIKE ?) DESC, s.name'
+            ? '(s.char_count > 0) DESC, (s.name LIKE ?) DESC, s.name'
             : 's.name';
 
         if ($cari !== '') {
             $params[] = $cari . '%';
         }
 
+        // char_count DISIMPAN, tidak dihitung di sini.
+        //
+        // Dulu ini LEFT JOIN ke characters dengan GROUP BY. Di dua puluh ribu
+        // karakter itu selesai seketika; di seratus ribu, sekali membuka
+        // halaman makan hampir satu detik hanya untuk mengisi satu dropdown.
+        // Angkanya sendiri jarang berubah — cuma waktu import_characters.php
+        // dijalankan — jadi menghitungnya ulang tiap permintaan itu kerja yang
+        // jawabannya sudah diketahui. Yang mengisinya: import_characters.php,
+        // di ujung jalannya.
         return Database::all(
             "SELECT s.id, s.name, s.booru_tag, s.universe, s.post_count,
-                    COUNT(c.id) AS jumlah
+                    s.char_count AS jumlah
                FROM series s
-               LEFT JOIN characters c ON c.series_id = s.id AND c.is_active = 1
              {$sql}
-             GROUP BY s.id, s.name, s.booru_tag, s.universe, s.post_count
              ORDER BY {$urut}
              LIMIT {$limit}",
             $params
@@ -315,6 +366,12 @@ final class CharacterResolver
                 }
                 $sid = self::seriesId($r['name']);
                 Database::run('UPDATE characters SET series_id = ? WHERE id = ?', [$sid, $charId]);
+                // char_count ikut naik di sini. Kalau tidak, judul yang baru
+                // saja ditemukan tetap tercatat kosong sampai
+                // import_characters.php dijalankan lagi — dan judul kosong
+                // ditaruh di bawah, jadi judul yang barusan dipakai orang
+                // justru tenggelam.
+                Database::run('UPDATE series SET char_count = char_count + 1 WHERE id = ?', [$sid]);
                 $tagId = TagResolver::getOrCreate($r['name'], 3);
                 self::simpanTag($charId, $tagId, 'identity', 1);
                 break;
