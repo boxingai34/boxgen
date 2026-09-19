@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BilahKatalog from '@/components/box/BilahKatalog.vue';
+import { pakaiKatalog } from '@/lib/katalog';
 import { ChevronDown, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -57,17 +59,7 @@ const terpilihObj = computed(() => props.modul.find((m) => m.id === props.terpil
 const khususObj = computed(() => props.khusus.find((k) => k.nilai === props.terpilih) ?? null);
 const adaContoh = computed(() => props.modul.filter((m) => m.contoh).length);
 
-const berkelompok = computed(() => {
-    const peta = new Map<string, Modul[]>();
-
-    for (const m of props.modul) {
-        const k = m.kategori || '';
-        if (! peta.has(k)) peta.set(k, []);
-        peta.get(k)!.push(m);
-    }
-
-    return [...peta.entries()].map(([nama, isi]) => ({ nama, isi }));
-});
+const { cari, kategoriAktif, urut, kategori, hasil, berkelompok } = pakaiKatalog<Modul>(() => props.modul);
 
 function sumber(m: Modul): string {
     return (disorot.value === m.id && m.gerak ? m.gerak : m.contoh) ?? '';
@@ -125,6 +117,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                     </button>
                 </div>
 
+                <BilahKatalog
+                    v-model:cari="cari"
+                    v-model:kategori-aktif="kategoriAktif"
+                    v-model:urut="urut"
+                    :kategori="kategori"
+                    :jumlah="hasil.length"
+                    :total="modul.length"
+                />
+
                 <div class="mb-4 flex flex-wrap gap-2">
                     <button
                         v-if="kosong"
@@ -169,6 +170,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                         </div>
                     </div>
                 </template>
+
+                <p v-if="hasil.length === 0" class="py-10 text-center text-sm text-muted-foreground">
+                    Tidak ada yang cocok dengan "{{ cari }}".
+                </p>
 
                 <div v-for="k in (adaContoh === 0 ? [] : berkelompok)" :key="k.nama" class="mb-6">
                     <h3 v-if="k.nama" class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>

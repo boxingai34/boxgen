@@ -201,34 +201,34 @@ return [
     ['category' => 'lelah', 'slug' => 'drenched', 'name' => 'Basah Kuyup', 'name_id' => 'Banjir keringat',
      'sort_order' => 2, 'tags' => ['sweat' => 1.2, 'wet', 'steam']],
     ['category' => 'lelah', 'slug' => 'exhausted', 'name' => 'Kehabisan Tenaga', 'name_id' => 'Kelelahan',
-     'sort_order' => 3, 'tags' => ['exhausted', 'sweat']],
+     'sort_order' => 3, 'tags' => ['heavy_breathing' => 1.2, 'steaming_body', 'sweat']],
     ['category' => 'lelah', 'slug' => 'trembling', 'name' => 'Gemetar', 'name_id' => 'Badan gemetar',
      'sort_order' => 4, 'tags' => ['trembling']],
 
     ['category' => 'luka', 'slug' => 'bruise', 'name' => 'Memar', 'name_id' => 'Lebam',
-     'sort_order' => 1, 'tags' => ['bruise' => 1.1]],
+     'sort_order' => 1, 'tags' => ['bruise' => 1.3, 'bruise_on_chest', 'bruise_on_stomach', 'bruise_on_arm', 'battle_damage']],
     ['category' => 'luka', 'slug' => 'cuts', 'name' => 'Luka Sayat', 'name_id' => 'Tergores',
-     'sort_order' => 2, 'tags' => ['cuts']],
+     'sort_order' => 2, 'tags' => ['cuts' => 1.2, 'scratches', 'blood_on_arm', 'blood_on_chest', 'blood']],
     ['category' => 'luka', 'slug' => 'injury', 'name' => 'Cedera', 'name_id' => 'Cedera',
-     'sort_order' => 3, 'tags' => ['injury']],
+     'sort_order' => 3, 'tags' => ['bandages' => 1.2, 'bandaged_chest', 'injury']],
     ['category' => 'luka', 'slug' => 'bleeding', 'name' => 'Berdarah', 'name_id' => 'Berdarah',
      'sort_order' => 4, 'tags' => ['blood' => 1.1, 'blood_on_body']],
     ['category' => 'luka', 'slug' => 'bruise-blood', 'name' => 'Memar + Berdarah', 'name_id' => 'Babak belur',
-     'sort_order' => 5, 'tags' => ['bruise' => 1.2, 'blood', 'injury']],
+     'sort_order' => 5, 'tags' => ['bruise' => 1.2, 'blood', 'blood_splatter', 'injury', 'bruise_on_chest']],
 
     ['category' => 'perawatan', 'slug' => 'bandaged-arm', 'name' => 'Lengan Diperban', 'name_id' => 'Perban di lengan',
      'sort_order' => 1, 'tags' => ['bandaged_arm']],
     ['category' => 'perawatan', 'slug' => 'bandaged-leg', 'name' => 'Kaki Diperban', 'name_id' => 'Perban di kaki',
-     'sort_order' => 2, 'tags' => ['bandaged_leg']],
+     'sort_order' => 2, 'tags' => ['bandaged_leg' => 1.2, 'bandaged_knee']],
     ['category' => 'perawatan', 'slug' => 'bandaged-full', 'name' => 'Perban di Mana-mana', 'name_id' => 'Banyak perban',
      'sort_order' => 3, 'tags' => ['bandaged_arm', 'bandaged_leg', 'bandaged_neck']],
     ['category' => 'perawatan', 'slug' => 'stitches', 'name' => 'Dijahit', 'name_id' => 'Luka jahitan',
      'sort_order' => 4, 'tags' => ['stitches']],
 
     ['category' => 'bekas', 'slug' => 'scar', 'name' => 'Bekas Luka', 'name_id' => 'Bekas luka lama',
-     'sort_order' => 1, 'tags' => ['scar']],
+     'sort_order' => 1, 'tags' => ['scar' => 1.2, 'scar_on_chest', 'scar_on_arm', 'multiple_scars']],
     ['category' => 'bekas', 'slug' => 'burn', 'name' => 'Bekas Bakar', 'name_id' => 'Bekas luka bakar',
-     'sort_order' => 2, 'tags' => ['burn_scar']],
+     'sort_order' => 2, 'tags' => ['burn_scar' => 1.3, 'scar_on_chest', 'scar_on_arm']],
     ['category' => 'bekas', 'slug' => 'dirty', 'name' => 'Kotor Berdebu', 'name_id' => 'Kotor',
      'sort_order' => 3, 'tags' => ['dirty']],
 ],
@@ -289,7 +289,7 @@ return [
 // =====================================================================
 'cond_clothes' => [
     ['category' => 'basah', 'slug' => 'wet', 'name' => 'Basah', 'name_id' => 'Pakaian basah',
-     'sort_order' => 1, 'tags' => ['wet_clothes' => 1.1]],
+     'sort_order' => 1, 'tags' => ['wet_clothes' => 1.1, 'wet_shirt', 'wet_hair', 'water_drop']],
     ['category' => 'basah', 'slug' => 'wet-through', 'name' => 'Basah Menerawang', 'name_id' => 'Basah sampai menerawang',
      'sort_order' => 2, 'is_nsfw' => 1, 'tags' => ['wet_clothes' => 1.2, 'see-through_clothes']],
     ['category' => 'basah', 'slug' => 'dirty', 'name' => 'Kotor', 'name_id' => 'Pakaian kotor',
@@ -300,7 +300,7 @@ return [
     ['category' => 'rusak', 'slug' => 'torn', 'name' => 'Robek', 'name_id' => 'Pakaian sobek',
      'sort_order' => 1, 'tags' => ['torn_clothes' => 1.1]],
     ['category' => 'rusak', 'slug' => 'loose', 'name' => 'Longgar', 'name_id' => 'Pakaian melorot',
-     'sort_order' => 2, 'tags' => ['loose_clothes']],
+     'sort_order' => 2, 'tags' => ['oversized_clothes' => 1.3, 'oversized_shirt', 'baggy_clothes', 'sleeves_past_wrists']],
     // Pakaian terbuka tanpa apa pun yang terlihat di baliknya cuma jaket
     // yang tidak dikancingkan. Yang dimaksud: bajunya terbuka dan dadanya
     // terbuka — breasts_out sekaligus yang mencabut larangan "topless"
@@ -311,16 +311,16 @@ return [
     ['category' => 'lepas', 'slug' => 'strap-slip', 'name' => 'Tali Melorot Sebelah', 'name_id' => 'Tali bahu turun',
      'sort_order' => 1, 'tags' => ['strap_slip' => 1.1]],
     ['category' => 'lepas', 'slug' => 'off-shoulder', 'name' => 'Bahu Terbuka', 'name_id' => 'Melorot ke bahu',
-     'sort_order' => 2, 'tags' => ['off_shoulder', 'bare_shoulders']],
+     'sort_order' => 2, 'tags' => ['off_shoulder' => 1.2, 'off-shoulder_shirt', 'bare_shoulders', 'collarbone']],
     // strap_slip dicabut dari sini: ia sudah jadi seluruh isi "Tali bahu
     // turun" di atas, dan selama keduanya memakainya, dua kartu berturut-
     // turut di katalog memang tidak bisa dibedakan. Yang membedakan
     // "nyaris terlepas" bukan talinya, melainkan bajunya yang sudah
     // melorot dan tinggal menunggu jatuh.
     ['category' => 'lepas', 'slug' => 'almost-off', 'name' => 'Hampir Lepas', 'name_id' => 'Nyaris terlepas',
-     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['wardrobe_malfunction' => 1.2, 'clothes_down', 'sideboob']],
+     'sort_order' => 3, 'is_nsfw' => 1, 'tags' => ['wardrobe_malfunction' => 1.2, 'sideboob', 'strapless', 'taut_clothes']],
     ['category' => 'lepas', 'slug' => 'lifted', 'name' => 'Tersingkap', 'name_id' => 'Pakaian tersingkap',
-     'sort_order' => 4, 'is_nsfw' => 1, 'tags' => ['clothes_lift']],
+     'sort_order' => 4, 'is_nsfw' => 1, 'tags' => ['clothes_lift' => 1.1, 'shirt_lift', 'navel', 'midriff']],
     ['category' => 'lepas', 'slug' => 'pulled', 'name' => 'Ditarik', 'name_id' => 'Pakaian ditarik',
      'sort_order' => 5, 'is_nsfw' => 1, 'tags' => ['clothes_pull']],
     // clothing_aside sendirian tidak menggambarkan apa pun di potret dada:
@@ -331,7 +331,7 @@ return [
      'sort_order' => 6, 'is_nsfw' => 1, 'tags' => ['clothing_aside' => 1.1, 'bra_pull', 'one_breast_out']],
     // "Separuh terbuka" yang tetap tertutup rapat bukan separuh apa pun.
     ['category' => 'lepas', 'slug' => 'partial', 'name' => 'Setengah Terlepas', 'name_id' => 'Separuh terbuka',
-     'sort_order' => 7, 'is_nsfw' => 1, 'tags' => ['partially_undressed' => 1.1, 'breast_slip']],
+     'sort_order' => 7, 'is_nsfw' => 1, 'tags' => ['open_shirt' => 1.1, 'bra' => 1.1, 'unbuttoned']],
     ['category' => 'lepas', 'slug' => 'undressing', 'name' => 'Sedang Dilepas', 'name_id' => 'Sedang membuka baju',
      'sort_order' => 8, 'is_nsfw' => 1, 'tags' => ['undressing']],
 ],

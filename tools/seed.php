@@ -158,7 +158,14 @@ function saveModule(string $type, array $m): int
 function saveModules(string $type, array $list): array
 {
     $map = [];
+    $ke = 0;
     foreach ($list as $m) {
+        // Urutan di berkas jadi urutan di katalog, kecuali entrinya memang
+        // menyebut sort_order sendiri. Tanpa ini semuanya bernilai 0, dan
+        // urutan kelompok jatuh ke abjad — "Kasual" selalu di atas
+        // "Terbuka" hanya karena K lebih dulu dari T, dan memindahkannya
+        // tidak bisa dilakukan dengan cara apa pun selain menamainya ulang.
+        $m['sort_order'] ??= ++$ke * 10;
         $map[$m['slug']] = saveModule($type, $m);
     }
 

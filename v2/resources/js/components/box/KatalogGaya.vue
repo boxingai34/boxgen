@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BilahKatalog from '@/components/box/BilahKatalog.vue';
+import { pakaiKatalog } from '@/lib/katalog';
 import { ChevronDown, X } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -21,17 +23,7 @@ const emit = defineEmits<{ (e: 'pilih', id: number | ''): void }>();
 
 const buka = ref(false);
 
-const berkelompok = computed(() => {
-    const peta = new Map<string, Gaya[]>();
-
-    for (const g of props.gaya) {
-        const k = g.kategori || 'Lainnya';
-        if (! peta.has(k)) peta.set(k, []);
-        peta.get(k)!.push(g);
-    }
-
-    return [...peta.entries()].map(([nama, isi]) => ({ nama, isi }));
-});
+const { cari, kategoriAktif, urut, kategori, hasil, berkelompok } = pakaiKatalog<Gaya>(() => props.gaya);
 
 const adaContoh = computed(() => props.gaya.filter((g) => g.contoh).length);
 
@@ -110,6 +102,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                     </button>
                 </div>
 
+                <BilahKatalog
+                    v-model:cari="cari"
+                    v-model:kategori-aktif="kategoriAktif"
+                    v-model:urut="urut"
+                    :kategori="kategori"
+                    :jumlah="hasil.length"
+                    :total="gaya.length"
+                />
+
                 <button
                     type="button"
                     class="mb-4 rounded-lg border px-3 py-1.5 text-xs transition-colors"
@@ -119,8 +120,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', tombolEsc));
                     — ikut referensi (tanpa gaya) —
                 </button>
 
+                <p v-if="hasil.length === 0" class="py-10 text-center text-sm text-muted-foreground">
+                    Tidak ada gaya yang cocok dengan "{{ cari }}".
+                </p>
+
                 <div v-for="k in berkelompok" :key="k.nama" class="mb-6">
-                    <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>
+                    <h3 v-if="k.nama" class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ k.nama }}</h3>
                     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                         <button
                             v-for="g in k.isi"

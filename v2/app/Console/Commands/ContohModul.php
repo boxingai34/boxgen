@@ -155,10 +155,14 @@ class ContohModul extends Command
                 . 'simple background, white background, anime coloring, masterpiece, best quality',
             'rasio' => '1:1',
         ],
+        // Dari samping, bukan dari depan: ikat kepala, bando, dan pelindung
+        // kepala semuanya melingkari kepala, dan dari depan yang terlihat
+        // cuma garis tipis di dahi. Dari samping bentuknya utuh.
         'outfit_head' => [
-            'adegan' => '1girl, solo, mature female, portrait, head, close-up, front view, '
+            'adegan' => self::MODEL_ORANG . ', portrait, head and shoulders, close-up, from side, profile, '
                 . 'simple background, white background, anime coloring, masterpiece, best quality',
             'rasio' => '1:1',
+            'benih' => self::BENIH,
         ],
 
         // ---------------------------------------------------------------
@@ -431,8 +435,11 @@ class ContohModul extends Command
         // membantah dan yang menang tidak bisa ditebak.
         // Tiga kartu interaksi yang bentuknya tidak punya nama di kamus
         // tag, jadi harus dikatakan dengan kalimat biasa.
-        'interaction/glove-touch' => ['tambah' => 'the two boxers touching their boxing gloves together, '
-            . 'gloves meeting in the centre of the frame, close to each other, before the bell'],
+        // Bidikan lebar membuat sentuhannya cuma beberapa piksel di tengah
+        // kartu, dan yang menang perhatian justru papan iklan di belakangnya.
+        'interaction/glove-touch' => ['tambah' => 'upper body, close-up on the two gloves meeting, '
+            . 'the boxers leaning in toward each other, gloves touching in the centre of the frame, '
+            . 'nothing behind them but the ring'],
         'interaction/clinch' => ['tambah' => 'the two boxers clinching chest to chest, '
             . 'arms wrapped around each other, heads side by side, leaning on one another'],
         'interaction/headlock' => ['tambah' => 'one boxer holding the other\'s head clamped under her arm, '

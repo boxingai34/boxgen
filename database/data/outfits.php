@@ -32,7 +32,10 @@ return [
     ['category' => 'olahraga', 'slug' => 'bodysuit',      'name' => 'Bodysuit',        'name_id' => 'Bodysuit',       'tags' => ['bodysuit']],
 
     ['category' => 'kasual',   'slug' => 't-shirt',       'name' => 'T-Shirt',         'name_id' => 'Kaos',           'tags' => ['t-shirt']],
-    ['category' => 'kasual',   'slug' => 'shirt',         'name' => 'Shirt',           'name_id' => 'Kemeja',         'tags' => ['shirt']],
+    // shirt polos itu payung 2,9 juta gambar yang memuat kaus, kemeja,
+    // jersey, dan apa pun berlengan — hasilnya kaus ketat biasa, bukan
+    // kemeja. collared_shirt yang benar-benar berarti berkerah berkancing.
+    ['category' => 'kasual',   'slug' => 'shirt',         'name' => 'Shirt',           'name_id' => 'Kemeja',         'tags' => ['collared_shirt' => 1.1, 'dress_shirt']],
     ['category' => 'kasual',   'slug' => 'open-shirt',    'name' => 'Open Shirt',      'name_id' => 'Kemeja terbuka', 'tags' => ['open_shirt']],
     ['category' => 'kasual',   'slug' => 'hoodie',        'name' => 'Hoodie',          'name_id' => 'Hoodie',         'tags' => ['hoodie']],
     ['category' => 'kasual',   'slug' => 'jacket',        'name' => 'Jacket',          'name_id' => 'Jaket',          'tags' => ['jacket']],
@@ -121,9 +124,17 @@ return [
 // SLOT: KAKI
 // =====================================================================
 'outfit_foot' => [
-    ['slug' => 'boxing-boots', 'name' => 'Boots',    'name_id' => 'Sepatu bot',   'tags' => ['boots']],
-    ['slug' => 'sneakers',     'name' => 'Sneakers', 'name_id' => 'Sepatu kets',  'tags' => ['sneakers']],
+    // Danbooru tidak punya "boxing_boots"; 'boots' polos dijawab sepatu bot
+    // berhak tinggi. Yang membentuk sepatu tinju adalah TALINYA yang
+    // menjulur sampai betis: lace-up_boots (38.065) + knee_boots (83.722).
+    ['slug' => 'boxing-boots', 'name' => 'Boxing Boots', 'name_id' => 'Sepatu tinju', 'tags' => ['lace-up_boots' => 1.2, 'knee_boots', 'boots']],
+    ['slug' => 'combat-boots', 'name' => 'Combat Boots', 'name_id' => 'Sepatu bot lapangan', 'tags' => ['combat_boots' => 1.2, 'lace-up_boots']],
+    ['slug' => 'boots',        'name' => 'Boots',    'name_id' => 'Sepatu bot',   'tags' => ['boots']],
+    ['slug' => 'sneakers',     'name' => 'Sneakers', 'name_id' => 'Sepatu kets',  'tags' => ['sneakers' => 1.1, 'high_tops']],
     ['slug' => 'shoes',        'name' => 'Shoes',    'name_id' => 'Sepatu',       'tags' => ['shoes']],
+    ['slug' => 'shin-guards',  'name' => 'Shin Guards','name_id' => 'Pelindung tulang kering', 'tags' => ['shin_guards' => 1.2, 'bandaged_leg']],
+    ['slug' => 'ankle-wrap',   'name' => 'Ankle Wrap','name_id' => 'Perban pergelangan kaki', 'tags' => ['ankle_wrap' => 1.2, 'bandaged_leg']],
+    ['slug' => 'ankle-socks',  'name' => 'Ankle Socks','name_id' => 'Kaus kaki pendek', 'tags' => ['ankle_socks']],
     ['slug' => 'socks-only',   'name' => 'Kaus Kaki','name_id' => 'Kaus kaki saja','tags' => ['socks']],
     ['slug' => 'kneehighs',    'name' => 'Kneehighs','name_id' => 'Kaus kaki selutut','tags' => ['kneehighs']],
     ['slug' => 'thighhighs',   'name' => 'Thighhighs','name_id'=> 'Stoking paha', 'tags' => ['thighhighs']],
@@ -134,8 +145,14 @@ return [
 // SLOT: KEPALA
 // =====================================================================
 'outfit_head' => [
-    ['slug' => 'headgear',   'name' => 'Headgear',   'name_id' => 'Pelindung kepala', 'tags' => ['headgear']],
-    ['slug' => 'mouth-guard','name' => 'Mouth Guard','name_id' => 'Pelindung gigi',   'tags' => ['mouth_guard']],
+    // Danbooru tidak punya tag khusus pelindung kepala tinju; "headgear"
+    // adalah payung untuk apa pun yang menempel di kepala, termasuk visor
+    // fiksi ilmiah — dan itu yang keluar. Bentuk tinjunya dijelaskan dengan
+    // kalimat di resep gambar contohnya (ADEGAN_KHUSUS di ContohModul).
+    ['slug' => 'headgear',   'name' => 'Headgear',   'name_id' => 'Pelindung kepala', 'tags' => ['headgear' => 1.2]],
+    // "Pelindung gigi" dibuang dari slot kepala: tagnya mouth_guard cuma
+    // 240 gambar di seluruh Danbooru — terlalu sepi untuk menghasilkan apa
+    // pun selain masker biasa, dan itu memang yang keluar di katalognya.
     ['slug' => 'headband',   'name' => 'Headband',   'name_id' => 'Ikat kepala',      'tags' => ['headband']],
     ['slug' => 'sweatband',  'name' => 'Sweatband',  'name_id' => 'Ikat keringat',    'tags' => ['sweatband']],
     ['slug' => 'hairband',   'name' => 'Hairband',   'name_id' => 'Bando',            'tags' => ['hairband']],
@@ -218,7 +235,7 @@ return [
     ['category' => 'terbuka', 'slug' => 'robek', 'name' => 'Pakaian Robek', 'name_id' => 'Baju sobek',
      'sort_order' => 8, 'is_nsfw' => 1,
      'description' => 'Cocok dipadukan dengan kondisi ronde akhir.',
-     'tags' => ['torn_clothes' => 1.1, 'wardrobe_malfunction'],
+     'tags' => ['torn_clothes' => 1.3, 'underboob', 'sideboob'],
      'defaults' => ['top' => 'sports-bra', 'bottom' => 'boxing-shorts', 'hand' => 'boxing-gloves']],
 ],
 

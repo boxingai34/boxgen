@@ -144,7 +144,7 @@ return [
      'intensity' => 1, 'sort_order' => 1, 'tags' => ['serious', 'confident']],
 
     ['category' => 'bertingkat', 'slug' => 'warmed-up', 'defaults' => ['body' => 'sweat', 'cheek' => 'blush-light'], 'name' => 'Mulai Panas', 'name_id' => 'Mulai berkeringat',
-     'intensity' => 2, 'sort_order' => 2, 'tags' => ['sweat', 'light_blush']],
+     'intensity' => 2, 'sort_order' => 2, 'tags' => ['sweat' => 1.2, 'shiny_skin', 'light_blush', 'parted_lips']],
 
     ['category' => 'bertingkat', 'slug' => 'light-fatigue', 'defaults' => ['body' => 'sweat', 'cheek' => 'blush', 'mouth' => 'breathing'], 'name' => 'Mulai Lelah', 'name_id' => 'Napas mulai berat',
      'intensity' => 3, 'sort_order' => 3, 'tags' => ['sweat', 'light_blush', 'heavy_breathing']],
@@ -153,7 +153,7 @@ return [
      'intensity' => 4, 'sort_order' => 4, // Slot pipi diisi memar, bukan plester. Petinju tidak menempelkan
      // plester di tengah ronde — plester itu dipasang SEBELUM bertanding.
      // Ini satu-satunya tema yang dulu memunculkan plester tanpa diminta.
-     'tags' => ['sweat', 'heavy_breathing', 'messy_hair']],
+     'tags' => ['sweat', 'bruise_on_face' => 1.3, 'bruise', 'injury', 'furrowed_brow', 'messy_hair']],
 
     ['category' => 'bertingkat', 'slug' => 'moderate-damage', 'defaults' => ['eyes' => 'half-closed', 'cheek' => 'bruise', 'nose' => 'nosebleed', 'mouth' => 'clenched', 'body' => 'bruise'], 'name' => 'Luka Sedang', 'name_id' => 'Mulai babak belur',
      'intensity' => 6, 'sort_order' => 5, 'tags' => ['sweat' => 1.1, 'bruise', 'blood_on_face', 'messy_hair', 'clenched_teeth']],
@@ -161,15 +161,15 @@ return [
     ['category' => 'bertingkat', 'slug' => 'bloodied', 'defaults' => ['eyes' => 'bruised', 'cheek' => 'blood', 'nose' => 'nosebleed', 'mouth' => 'blood', 'body' => 'bruise-blood', 'expr' => 'pain'], 'name' => 'Berdarah', 'name_id' => 'Berdarah',
      'intensity' => 7, 'sort_order' => 6, 'tags' => ['blood_on_face' => 1.1, 'nosebleed', 'bruise', 'sweat', 'wince']],
 
-    ['category' => 'bertingkat', 'slug' => 'heavy-fatigue', 'defaults' => ['eyes' => 'half-one-closed', 'cheek' => 'bruise', 'mouth' => 'breathing', 'body' => 'exhausted'], 'name' => 'Nyaris Tumbang', 'name_id' => 'Hampir KO',
+    ['category' => 'bertingkat', 'slug' => 'heavy-fatigue', 'defaults' => ['eyes' => 'half-closed', 'cheek' => 'blood', 'mouth' => 'breathing', 'body' => 'exhausted'], 'name' => 'Nyaris Tumbang', 'name_id' => 'Hampir KO',
      // torn_clothes SENGAJA tidak ditulis di sini. Tema ini sudah
      // mengisi slot pakaian dengan 'torn' lewat defaults di atas, jadi
      // menuliskannya lagi membuatnya muncul TANPA BISA DIMATIKAN —
      // baju robek ikut keluar walau slot pakaiannya diganti utuh.
-     'intensity' => 9, 'sort_order' => 7, 'tags' => ['exhausted', 'bruise' => 1.2, 'heavy_breathing', 'half-closed_eyes']],
+     'intensity' => 9, 'sort_order' => 7, 'tags' => ['exhausted', 'bruise' => 1.2, 'blood_on_face', 'nosebleed', 'heavy_breathing', 'half-closed_eyes', 'looking_down']],
 
-    ['category' => 'bertingkat', 'slug' => 'knocked-out', 'defaults' => ['eyes' => 'xx', 'cheek' => 'blood', 'nose' => 'nosebleed', 'body' => 'bruise-blood', 'expr' => 'dazed'], 'name' => 'Pingsan', 'name_id' => 'Tak sadarkan diri',
-     'intensity' => 10, 'sort_order' => 8, 'tags' => ['unconscious' => 1.2, 'empty_eyes', 'blood_on_face', 'bruise']],
+    ['category' => 'bertingkat', 'slug' => 'knocked-out', 'defaults' => ['eyes' => 'closed', 'cheek' => 'blood', 'nose' => 'nosebleed', 'body' => 'bruise-blood'], 'name' => 'Pingsan', 'name_id' => 'Tak sadarkan diri',
+     'intensity' => 10, 'sort_order' => 8, 'tags' => ['closed_eyes' => 1.2, 'drooling', 'head_tilt', 'blood_on_face', 'bruise']],
 
     // ---- variasi lepas ----
     ['category' => 'lepas', 'slug' => 'sweaty', 'name' => 'Basah Keringat', 'name_id' => 'Penuh keringat',
@@ -177,7 +177,7 @@ return [
     ['category' => 'lepas', 'slug' => 'bandaged', 'name' => 'Diperban', 'name_id' => 'Banyak perban',
      'sort_order' => 2, 'tags' => ['bandaged_arm', 'bandaged_leg', 'bandaid_on_face']],
     ['category' => 'lepas', 'slug' => 'scarred', 'name' => 'Berbekas Luka', 'name_id' => 'Punya bekas luka',
-     'sort_order' => 3, 'tags' => ['scar']],
+     'sort_order' => 3, 'tags' => ['scar_across_eye' => 1.2, 'scar_on_cheek', 'scar_on_face', 'multiple_scars']],
     ['category' => 'lepas', 'slug' => 'angry', 'name' => 'Murka', 'name_id' => 'Marah',
      'sort_order' => 4, 'tags' => ['angry' => 1.1, 'clenched_teeth', 'scowl']],
     ['category' => 'lepas', 'slug' => 'confident-smirk', 'name' => 'Menyeringai', 'name_id' => 'Senyum sinis',
