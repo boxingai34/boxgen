@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
+import KatalogGaya from '@/components/box/KatalogGaya.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -20,7 +21,7 @@ import {
 import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps<{
-    gaya: Array<{ id: number; nama: string }>;
+    gaya: Array<{ id: number; nama: string; kategori: string; ket: string; contoh: string | null }>;
     tersimpan: Array<{ id: number; title: string; created_at: string }>;
     gambar: { latar: boolean; tokoh: boolean };
 }>();
@@ -41,6 +42,15 @@ const bentukLatar = computed<'9:16' | '1:1' | '16:9'>(() =>
     rasio.value === '9:16' ? '9:16' : rasio.value === '1:1' ? '1:1' : '16:9',
 );
 const gayaId = ref<number | null>(props.gaya[0]?.id ?? null);
+
+/**
+ * Katalog memulangkan '' untuk "tanpa gaya", tapi rancangan video selalu
+ * punya gaya — yang pertama di daftar dipakai sebagai gantinya.
+ */
+function pilihGaya(id: number | '') {
+    gayaId.value = id === '' ? (props.gaya[0]?.id ?? null) : id;
+    susunUlang();
+}
 
 // --------------------------------------------------------------- keadaan
 const tahap = ref<'diam' | 'membaca' | 'menyusun'>('diam');
@@ -239,9 +249,7 @@ const isianKelas =
 
                         <label class="block sm:col-span-2">
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Gaya gambar</span>
-                            <select v-model="gayaId" :class="isianKelas" @change="susunUlang">
-                                <option v-for="g in gaya" :key="g.id" :value="g.id">{{ g.nama }}</option>
-                            </select>
+                            <KatalogGaya :gaya="gaya" :terpilih="gayaId ?? ''" @pilih="pilihGaya" />
                         </label>
                     </div>
 

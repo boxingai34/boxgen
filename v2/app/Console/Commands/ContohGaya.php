@@ -75,7 +75,14 @@ class ContohGaya extends Command
             $slug = (string) $m['slug'];
             $tujuan = $folder . '/' . $slug . '.png';
 
-            if (is_file($tujuan) && ! $this->option('ulang')) {
+            // PNG-nya cuma bentuk sementara: sesudah dikecilkan jadi WebP,
+            // yang asli dihapus. Jadi yang menentukan "sudah ada" bukan PNG
+            // melainkan salah satu dari keduanya — kalau cuma PNG yang
+            // diperiksa, seluruh katalog digambar ulang tiap kali perintah
+            // ini dijalankan, dan itu puluhan gambar yang terbuang.
+            $sudahAda = is_file($tujuan) || is_file($folder . '/' . $slug . '.webp');
+
+            if ($sudahAda && ! $this->option('ulang')) {
                 $lewat++;
 
                 continue;

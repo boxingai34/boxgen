@@ -35,11 +35,18 @@ class CeritaController extends Controller
             // Gaya anime berwarna didahulukan. Urutan bawaan dari database
             // menaruh "Rasa Berserk" di depan — tinta hitam putih, dan itu
             // yang kepilih sendiri kalau tidak diapa-apakan.
+            // Gambar contohnya menumpang milik gaya gambar: hampir semua gaya
+            // video lahir berpasangan dengan gaya gambar bernama sama plus
+            // awalan "v-" (lihat database/data/gaya_anime.php). Jadi yang
+            // perlu digambar sendiri cuma yang tidak punya pasangan.
             'gaya' => collect(PromptBuilder::listModules('video_style', ALLOW_NSFW))
                 ->map(fn (array $m) => [
-                    'id'   => (int) $m['id'],
-                    'nama' => $m['name_id'] ?: $m['name'],
-                    'slug' => (string) $m['slug'],
+                    'id'       => (int) $m['id'],
+                    'nama'     => $m['name_id'] ?: $m['name'],
+                    'slug'     => (string) $m['slug'],
+                    'kategori' => (string) ($m['category'] ?? ''),
+                    'ket'      => (string) ($m['description'] ?? ''),
+                    'contoh'   => self::contohGaya((string) $m['slug']),
                 ])
                 ->sortBy(fn (array $m) => $m['slug'] === 'v-anime-violet' ? 0 : 1)
                 ->values(),
@@ -51,6 +58,30 @@ class CeritaController extends Controller
                 ->limit(12)
                 ->get(),
         ]);
+    }
+
+    /**
+     * Berkas contoh untuk satu gaya video, kalau ada.
+     *
+     * Gaya video "v-anime-ippo" memakai contoh milik gaya gambar
+     * "anime-ippo" — keduanya memang menggambarkan wujud yang sama, cuma
+     * satu ditulis sebagai tag dan satu sebagai kalimat. Yang lahir asli
+     * sebagai gaya video (wan-modern, retro-90, hitam-putih) punya
+     * foldernya sendiri.
+     */
+    private static function contohGaya(string $slug): ?string
+    {
+        $calon = str_starts_with($slug, 'v-')
+            ? [public_path('img/gaya/'.substr($slug, 2).'.webp') => '/img/gaya/'.substr($slug, 2).'.webp']
+            : [public_path('img/gaya-video/'.$slug.'.webp') => '/img/gaya-video/'.$slug.'.webp'];
+
+        foreach ($calon as $berkas => $alamat) {
+            if (is_file($berkas)) {
+                return $alamat;
+            }
+        }
+
+        return null;
     }
 
     /**

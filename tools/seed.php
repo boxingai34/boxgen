@@ -235,7 +235,8 @@ say("Judul terklasifikasi : {$jumlahSeri}");
 // saveModules() membuang modul yang slugnya tidak ada di daftar yang dikirim,
 // jadi memanggilnya dua kali akan menghapus batch yang pertama.
 $gayaAnime = dataFile('gaya_anime');
-$styleMap  = saveModules('style', array_merge(dataFile('styles'), $gayaAnime['style']));
+$gayaGame  = dataFile('gaya_game_kartun');
+$styleMap  = saveModules('style', array_merge(dataFile('styles'), $gayaAnime['style'], $gayaGame['style']));
 
 // Nama artis yang belum pernah ditarik dari Danbooru masuk ke kamus sebagai
 // tag biasa (kategori 0) waktu modulnya disimpan. Padahal kategorinya yang
@@ -590,7 +591,7 @@ $videoData = dataFile('video');
 
 // Gaya visual dan cara pukulan digambarkan — dua-duanya hasil membedah
 // video rujukan frame demi frame, bukan tebakan.
-$wanGaya = count(saveModules('video_style',  array_merge($videoData['video_style'], $gayaAnime['video_style'])))
+$wanGaya = count(saveModules('video_style',  array_merge($videoData['video_style'], $gayaAnime['video_style'], $gayaGame['video_style'])))
          + count(saveModules('video_impact', $videoData['video_impact']));
 say('Gaya video Wan       : ' . $wanGaya);
 
