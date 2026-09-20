@@ -78,10 +78,27 @@ function pruneLinks(string $table, string $ownerCol, int $ownerId, array $keepTa
  */
 function saveModule(string $type, array $m): int
 {
-    $id = Database::value(
-        'SELECT id FROM modules WHERE type = ? AND slug = ?',
+    $baris = Database::one(
+        'SELECT id, dikunci_at FROM modules WHERE type = ? AND slug = ?',
         [$type, $m['slug']]
     );
+
+    // MODUL YANG DISUNTING TANGAN TIDAK DISENTUH.
+    //
+    // Selama berkas data satu-satunya sumber, menimpa apa pun yang ada di
+    // database itu benar. Begitu isinya bisa disunting lewat CMS,
+    // sumbernya jadi dua — dan yang kalah selalu yang disunting tangan,
+    // karena seeder jalan tiap deploy dan menghapusnya tanpa memberi tahu
+    // siapa pun.
+    //
+    // Idnya tetap dikembalikan supaya pemanggilnya memasukkannya ke daftar
+    // slug yang dipertahankan. Kalau tidak, pembersih di saveModules()
+    // justru MENGHAPUS modul yang barusan dilindungi.
+    if ($baris !== null && $baris['dikunci_at'] !== null) {
+        return (int) $baris['id'];
+    }
+
+    $id = $baris['id'] ?? null;
 
     $fields = [
         $m['category'] ?? null,

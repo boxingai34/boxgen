@@ -2,7 +2,7 @@
 import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Clapperboard, Gauge, Globe, History, Image, LayoutDashboard, LogOut, Moon, PenLine, Sparkles, Sun, UserRound, Wrench } from 'lucide-vue-next';
+import { Clapperboard, Gauge, Globe, History, Image, LayoutDashboard, LibraryBig, LogOut, Moon, PenLine, Sparkles, Sun, UserRound, Wrench } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
 /**
@@ -42,6 +42,7 @@ const menu = computed(() => {
 
     if (admin.value) {
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
+        dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
     }
 
     return dasar;

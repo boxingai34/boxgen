@@ -184,10 +184,20 @@ CREATE TABLE IF NOT EXISTS `modules` (
   `action_tag` varchar(60) DEFAULT NULL,
   `is_nsfw` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  -- Kapan modul ini terakhir disimpan lewat CMS. NULL = masih dikelola
+  -- berkas data.
+  --
+  -- Seeder MENIMPA modul beserta seluruh tagnya tiap kali jalan, dan itu
+  -- benar selama berkas datanya satu-satunya sumber. Begitu isinya bisa
+  -- disunting lewat CMS, sumbernya jadi dua — dan yang kalah selalu yang
+  -- disunting tangan, karena deploy berikutnya menghapusnya tanpa
+  -- memberi tahu siapa pun. Yang terkunci dilewati utuh.
+  `dikunci_at` timestamp NULL DEFAULT NULL,
   `sort_order` smallint(6) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_module` (`type`,`slug`),
-  KEY `idx_type_cat` (`type`,`category`,`sort_order`)
+  KEY `idx_type_cat` (`type`,`category`,`sort_order`),
+  KEY `idx_mod_kunci` (`dikunci_at`)
 ) ENGINE=InnoDB AUTO_INCREMENT=428 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------

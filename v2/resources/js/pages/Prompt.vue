@@ -84,6 +84,20 @@ const galat = ref('');
 const hasil = ref<any>(null);
 const panelHasil = ref<HTMLElement | null>(null);
 const tombolGambar = ref<{ buat: () => Promise<void> } | null>(null);
+/**
+ * Prompt yang gambarnya sudah pernah diminta otomatis.
+ *
+ * Jatah NovelAI itu terbatas — sekitar 190 gambar per hari. Menekan
+ * Generate Prompt beberapa kali sambil menyetel pilihan itu wajar, dan
+ * kalau tiap tekanan menembak satu gambar, jatah sehari habis dalam satu
+ * sore tanpa ada yang sadar sampai layarnya bilang nol.
+ *
+ * Jadi yang otomatis cuma gambar PERTAMA untuk tiap prompt yang benar-
+ * benar berbeda. Mengulang prompt yang sama dengan benih lain tetap bisa
+ * — tombol "Generate ulang" ada di kotaknya, dan itu tekanan yang
+ * disengaja, bukan efek samping.
+ */
+const promptTergambar = ref('');
 // Bawaannya NovelAI, bukan Stable Diffusion: tombol SD-nya disembunyikan
 // (lihat TARGET di bawah), dan target yang tidak punya tombol tidak bisa
 // ditinggalkan kalau ia juga yang kepilih duluan.
@@ -224,7 +238,7 @@ async function susun() {
             block: 'start',
         });
 
-        // Gambarnya langsung diminta, tanpa menunggu ditekan lagi.
+        // Gambarnya langsung diminta — tapi cuma sekali per prompt.
         //
         // TIDAK di-await: menyusun prompt selesai dalam sekejap,
         // menggambar makan lima sampai tiga puluh detik. Menunggunya
@@ -233,7 +247,11 @@ async function susun() {
         //
         // Galatnya ditangani kotak gambarnya sendiri, jadi yang di
         // sini cuma menjaga agar penolakan tidak lolos ke konsol.
-        void tombolGambar.value?.buat().catch(() => {});
+        const sidik = keluaran.value?.prompt || '';
+        if (sidik !== '' && sidik !== promptTergambar.value) {
+            promptTergambar.value = sidik;
+            void tombolGambar.value?.buat().catch(() => {});
+        }
     } catch (e: any) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun prompt.';
     } finally {

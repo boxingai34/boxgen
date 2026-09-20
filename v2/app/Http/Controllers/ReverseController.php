@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use AiClient;
+use App\Services\GambarModul;
 use Database;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -417,10 +418,7 @@ class ReverseController extends Controller
             return [];
         }
 
-        $contoh = [];
-        foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
-            $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
-        }
+        $contoh = GambarModul::peta($tipe);
 
         // Satu query untuk seluruh slot, bukan satu per modul: sejak daftar
         // pakaian disisir dari kamus, slot atasan berisi seratus lebih
@@ -465,9 +463,8 @@ class ReverseController extends Controller
         $keluar = [];
 
         foreach (['view', 'bentuk', 'dada', 'otot', 'sarung', 'atasan_tag', 'bawahan_tag', 'ekspresi'] as $tipe) {
-            foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
-                $nama = pathinfo($berkas, PATHINFO_FILENAME);
-                $keluar[$tipe][self::NAMA_BERKAS[$nama] ?? $nama] = '/img/modul/'.$tipe.'/'.basename($berkas);
+            foreach (GambarModul::peta($tipe) as $nama => $alamat) {
+                $keluar[$tipe][self::NAMA_BERKAS[$nama] ?? $nama] = $alamat;
             }
         }
 

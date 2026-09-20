@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use AiClient;
+use App\Services\GambarModul;
 use CharacterResolver;
 use Database;
 use Exporter;
@@ -47,14 +48,10 @@ class PromptController extends Controller
     private function modul(): array
     {
         $ambil = function (string $tipe): array {
-            // Gambar contoh tiap modul (dibuat `php artisan modul:contoh`)
-            // dibaca sekali sebagai daftar per tipe, bukan diperiksa satu per
-            // satu: tujuh ratus modul berarti tujuh ratus kali menyentuh disk
-            // untuk pertanyaan yang jawabannya sama sepanjang hari.
-            $contoh = [];
-            foreach (glob(public_path('img/modul/'.$tipe.'/*.webp')) ?: [] as $berkas) {
-                $contoh[pathinfo($berkas, PATHINFO_FILENAME)] = '/img/modul/'.$tipe.'/'.basename($berkas);
-            }
+            // Gambar contoh tiap modul. Yang diunggah lewat CMS menang atas
+            // yang digambar `php artisan modul:contoh` — alasannya, dan
+            // kenapa dibaca sekali per tipe, ada di GambarModul.
+            $contoh = GambarModul::peta($tipe);
 
             // Gaya punya foldernya sendiri, lengkap dengan versi bergeraknya.
             $gerak = [];

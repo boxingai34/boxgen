@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
+use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
@@ -76,6 +77,14 @@ Route::prefix('generator')->group(function () {
             Route::get('youtube', [CmsController::class, 'youtube'])->name('cms.youtube');
             Route::get('patreon', [CmsController::class, 'patreon'])->name('cms.patreon');
             Route::get('deviantart', [CmsController::class, 'deviantart'])->name('cms.deviantart');
+
+            // ---- Master katalog: menyunting modul tanpa menyentuh berkas data ----
+            Route::get('katalog', [KatalogController::class, 'halaman'])->name('cms.katalog');
+            Route::get('katalog/daftar', [KatalogController::class, 'daftar'])->name('cms.katalog.daftar');
+            Route::post('katalog/simpan', [KatalogController::class, 'simpan'])->name('cms.katalog.simpan');
+            Route::post('katalog/buka', [KatalogController::class, 'bukaKunci'])->name('cms.katalog.buka');
+            Route::post('katalog/gambar', [KatalogController::class, 'gambar'])->name('cms.katalog.gambar');
+            Route::delete('katalog/gambar', [KatalogController::class, 'hapusGambar'])->name('cms.katalog.gambar.hapus');
         });
     });
 
