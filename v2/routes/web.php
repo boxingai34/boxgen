@@ -4,6 +4,7 @@ use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PromptController;
@@ -52,6 +53,10 @@ Route::prefix('generator')->group(function () {
         Route::get('ubah', [UbahController::class, 'halaman'])->name('ubah');
         Route::post('ubah/ambil', [UbahController::class, 'ambil'])->name('ubah.ambil');
         Route::post('ubah/terapkan', [UbahController::class, 'terapkan'])->name('ubah.terapkan');
+
+        // ---- FemBox Reference (lembar acuan petinju wanita, NovelAI V5) ----
+        Route::get('fembox', [FemboxController::class, 'halaman'])->name('fembox');
+        Route::post('fembox/susun', [FemboxController::class, 'susun'])->name('fembox.susun');
 
         // ---- Buat gambarnya (prompt langsung digambar) ----
         Route::post('gambar/tokoh', [GambarController::class, 'tokoh'])->name('gambar.tokoh');

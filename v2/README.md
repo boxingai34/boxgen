@@ -144,6 +144,7 @@ Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 | `/generator/prompt` | Prompt Generator — prompt gambar dari pilihan |
 | `/generator/reverse` | Dari Gambar/Video — referensi jadi prompt |
 | `/generator/ubah` | Ubah Prompt — metadata gambar NovelAI, karakternya diganti |
+| `/generator/fembox` | FemBox Reference — lembar acuan petinju wanita untuk NovelAI V5 |
 | `/generator/rancang`, `/generator/riwayat`, `/generator/akun`, `/generator/alat-lama` | Generator |
 | `/generator/login`, `/generator/register`, `/generator/logout` | Masuk / daftar |
 | `/generator/cms` | CMS halaman depan (admin) |
@@ -156,7 +157,8 @@ mengganti awalan cukup di `routes/web.php`.
 
 ```
 app/Http/Controllers/     LandingController (halaman depan), CmsController, CeritaController (rancang),
-                          RiwayatController, DashboardController, AkunController, UbahController (ubah prompt)
+                          RiwayatController, DashboardController, AkunController, UbahController (ubah prompt),
+                          FemboxController (lembar acuan FemBox)
 app/Http/Middleware/      HanyaAdmin — alias 'admin' (bootstrap/app.php)
 app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + angka kanal),
                           PatreonTerbaru (pos + jumlah patron), DeviantartTerbaru (umpan galeri),
@@ -363,6 +365,48 @@ cuma dengan titipan `setelan` (ukuran, seed, langkah, guidance, sampler,
 model) supaya angka dari metadata gambar aslinya dipulangkan apa adanya.
 Tanpa itu gambar V4.5 yang digambar ulang dengan bawaan V5 memulangkan orang
 yang berbeda walau promptnya sama kata per kata.
+
+### FemBox Reference
+
+Lembar acuan (reference sheet) petinju wanita untuk NovelAI V5. Per karakter
+cukup tiga isian — anime, nama, tema pakaian tinju — atau tempel daftarnya
+sekaligus (`Anime | Nama | Tema`, satu baris per karakter). Keluarannya tiga
+kotak siap tempel: Base Prompt, Character 1 Prompt, Undesired Content.
+
+**Model menyerahkan bahan, kode yang merangkai.** `engine/FemboxReferensi.php`
+meminta model JSON berisi ciri canon, umur canon, potongan pakaian, empat
+warna palet, ekspresi, dan detail close-up. Tata letak lembarnya (depan,
+belakang, samping, ekspresi, detail, palet) ditulis kode di `base()`, jadi
+karakter pertama dan kelima puluh keluar dengan susunan yang sama. Empat tata
+letak: lengkap, turnaround, lembar ekspresi, pose tinju.
+
+**Aturan studio ditegakkan dua kali** — sebagai aturan di pesan sistem, lalu
+sebagai saringan sesudah model menjawab (`saring()`): atasan satu lapis (jaket,
+coat, cape disapu), wajib sarung tinju tanpa hand wraps, lembar bersih tanpa
+luka/perban/keringat, warna dari tema anime-nya, rambut panjang boleh diikat
+(pendek tetap pendek), tanpa ketelanjangan. Katalognya tanpa modul NSFW.
+
+**Pagar umur.** Karakter yang di canon belum 18 tahun tidak dibuat sexy, apa
+pun temanya. Model menilai umurnya (ragu = belum dewasa); `dewasa()` lalu
+menimbang ulang dari teks umurnya sendiri ("high school student, 16" menang
+atas `"dewasa": true`). Lembar yang tertahan disapu dari kata yang menyeksikan
+dan diberi pakaian atlet tertutup — tidak ada "dijadikan dewasa".
+
+**Kamus dulu, model kemudian.** Tag karakter dicari lewat
+`UbahPrompt::kandidatKarakter()` (atau dipilih langsung di "Lanjutan"), dan
+ciri penampilannya dari kamus ikut dipasang. Tanpa memanggil Danbooru, supaya
+antrean panjang tidak menunggu dua puluh detik per karakter.
+
+**Antreannya di browser.** Tiap karakter satu permintaan `fembox.susun`,
+bergiliran — satu lembar 15–60 detik, dan sepuluh lembar sekaligus pasti
+diputus proxy di detik ke-60. Gambar juga bergiliran lewat `gambar.tokoh`
+(NovelAI menolak permintaan bersamaan). Seed dibuat di browser karena server
+tidak memulangkannya. Daftar dan prompt yang sudah jadi disimpan di
+`localStorage`; gambarnya tidak.
+
+Modelnya rantai yang sama dengan Ubah Prompt (`ubah` → `nsfw` → `nsfw2` →
+`polish`); kalau `AI_FEMBOX_MODEL` disetel di `config.local.php`, profil itu
+dicoba paling awal. Riwayatnya tersimpan dengan mode `fembox`.
 
 ## Keputusan yang perlu diingat
 
