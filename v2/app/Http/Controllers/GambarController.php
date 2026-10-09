@@ -51,8 +51,71 @@ class GambarController extends Controller
         }
 
         return $this->gambar(
-            fn () => GambarAi::tokoh($bagian, ['rasio' => (string) $request->input('rasio', '3:4')])
+            fn () => GambarAi::tokoh($bagian, [
+                'rasio' => (string) $request->input('rasio', '3:4'),
+            ] + $this->setelan($request))
         );
+    }
+
+    /**
+     * Setelan NovelAI yang boleh dititipkan halaman.
+     *
+     * Hanya dipakai halaman Ubah Prompt, yang menggambar ulang gambar
+     * yang sudah ada: ukuran, benih, langkah, dan guidance miliknya harus
+     * dipulangkan apa adanya, kalau tidak yang keluar gambar lain dengan
+     * prompt yang sama. Halaman lain tidak mengirim apa-apa dan tetap
+     * memakai angka bawaan mesin.
+     *
+     * Batasnya dipasang di sini, bukan di mesin: yang datang dari browser
+     * selalu dianggap bisa salah, dan langkah 200 berarti satu permintaan
+     * yang menggantung semenit lebih.
+     */
+    private function setelan(Request $request): array
+    {
+        $s = $request->input('setelan');
+        if (! is_array($s)) {
+            return [];
+        }
+
+        $keluar = [];
+
+        $batas = [
+            'lebar'       => [64, 1536],
+            'tinggi'      => [64, 1536],
+            'langkah'     => [1, 50],
+            'skala'       => [0, 10],
+            'rescale'     => [0, 1],
+            'kekuatan_uc' => [0, 2],
+            'benih'       => [0, 4294967295],
+        ];
+
+        foreach ($batas as $kunci => [$min, $maks]) {
+            if (isset($s[$kunci]) && is_numeric($s[$kunci])) {
+                $keluar[$kunci] = max($min, min($maks, $s[$kunci] + 0));
+            }
+        }
+
+        foreach (['sampler', 'jadwal'] as $kunci) {
+            $nilai = trim((string) ($s[$kunci] ?? ''));
+            // Nama sampler diteruskan apa adanya ke NovelAI — daftarnya
+            // milik mereka dan bertambah tiap versi — tapi hanya yang
+            // berbentuk nama, bukan kalimat.
+            if ($nilai !== '' && preg_match('/^[a-z0-9_]{1,40}$/i', $nilai) === 1) {
+                $keluar[$kunci] = $nilai;
+            }
+        }
+
+        // Versi model boleh dipilih, tapi hanya di antara model NovelAI:
+        // gambar V4.5 yang digambar ulang dengan V5 memulangkan orang yang
+        // berbeda walau promptnya sama kata per kata. Polanya dibatasi ke
+        // awalan mereka supaya kolom ini tidak bisa dipakai menembak model
+        // lain dengan kunci kita.
+        $model = trim((string) ($s['model'] ?? ''));
+        if ($model !== '' && preg_match('/^nai-diffusion-[a-z0-9-]{1,30}$/', $model) === 1) {
+            $keluar['model'] = $model;
+        }
+
+        return $keluar;
     }
 
     public function latar(Request $request): Response|JsonResponse

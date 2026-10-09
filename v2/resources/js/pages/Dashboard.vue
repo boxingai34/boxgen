@@ -4,7 +4,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { hitungNaik } from '@/lib/gerak';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ArrowRight, Clapperboard, Clock3, FileText, History, Sparkles, Wrench } from 'lucide-vue-next';
+import { ArrowRight, Clapperboard, Clock3, FileText, History, Replace, Sparkles, Wrench } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 
 const props = defineProps<{
@@ -32,6 +32,12 @@ const pintasan = [
         ikon: Clapperboard,
         rute: 'rancang',
         utama: true,
+    },
+    {
+        judul: 'Ubah Prompt',
+        isi: 'Gambar NovelAI yang sudah jadi, karakternya diganti tanpa mengubah adegannya.',
+        ikon: Replace,
+        rute: 'ubah',
     },
     { judul: 'Riwayat', isi: 'Prompt yang pernah jadi, bisa dibuka dan dipakai lagi.', ikon: History, rute: 'riwayat' },
     { judul: 'Alat lain', isi: 'Generator tag, dari gambar/video, dari komik.', ikon: Wrench, rute: 'alat-lama' },

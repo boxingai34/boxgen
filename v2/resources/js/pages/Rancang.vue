@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import IsianManual from '@/components/box/IsianManual.vue';
 import Kartu from '@/components/box/Kartu.vue';
 import KatalogGaya from '@/components/box/KatalogGaya.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import TombolGambar from '@/components/box/TombolGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim, kirimUlang, salin } from '@/lib/kirim';
+import { manualBaru, manualDari, type Manual } from '@/lib/manual';
 import { Head } from '@inertiajs/vue3';
 import {
     AlertTriangle,
@@ -22,12 +24,25 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps<{
     gaya: Array<{ id: number; nama: string; kategori: string; ket: string; contoh: string | null }>;
+    /** Katalog tema pakaian — daftar yang sama dengan Prompt Generator. */
+    pakaian: Array<{ id: number; nama: string; kategori: string; ket: string; contoh: string | null }>;
+    cara: Array<{ nilai: string; label: string }>;
     tersimpan: Array<{ id: number; title: string; created_at: string }>;
     gambar: { latar: boolean; tokoh: boolean };
 }>();
 
 // ---------------------------------------------------------------- isian
 const cerita = ref('');
+
+/**
+ * Isian manual — lihat IsianManual.vue untuk alasannya ada.
+ *
+ * Dikirim ke DUA jalur: ke rancang.baca sebagai petunjuk buat pembacanya,
+ * dan ke rancang.susun sebagai penimpa. Yang kedua yang menentukan, jadi
+ * mengganti tema pakaian sesudah ceritanya terbaca cukup menyusun ulang —
+ * gratis, tidak memanggil AI.
+ */
+const manual = ref<Manual>(manualBaru());
 const target = ref<'wan' | 'seedance25'>('wan');
 const rasio = ref('16:9');
 
@@ -42,6 +57,21 @@ const bentukLatar = computed<'9:16' | '1:1' | '16:9'>(() =>
     rasio.value === '9:16' ? '9:16' : rasio.value === '1:1' ? '1:1' : '16:9',
 );
 const gayaId = ref<number | null>(props.gaya[0]?.id ?? null);
+
+/**
+ * Punya plat acuan rupa untuk diunggah bersama klipnya?
+ *
+ * Keterangan gaya bertulis ("kartun 3D hangat, kulit bercahaya lembut")
+ * sering kalah melawan kebiasaan modelnya sendiri, dan rupa yang keluar
+ * jadi berbeda tiap generasi. Satu gambar yang memperlihatkan rupa yang
+ * kamu mau jauh lebih mengikat daripada kalimat apa pun.
+ *
+ * Yang dinyalakan di sini cuma PEMESANAN NOMORNYA: mesin menambahkan satu
+ * nomor gambar paling belakang, menulis jangkarnya di prompt, dan
+ * mencantumkannya di daftar urutan unggah. Gambarnya sendiri kamu yang
+ * siapkan dan unggah — mesin ini tidak membuatnya.
+ */
+const gayaAcuan = ref(false);
 
 /**
  * Katalog memulangkan '' untuk "tanpa gaya", tapi rancangan video selalu
@@ -108,7 +138,7 @@ async function bacaLaluRancang() {
     try {
         const baca = await kirimUlang<any>(
             route('rancang.baca'),
-            { cerita: cerita.value, detik_total: 0 },
+            { cerita: cerita.value, detik_total: Number(manual.value.durasi) || 0, manual: manual.value },
             { lapor: (t) => (kabarSambungan.value = t) },
         );
         ekstrak.value = baca.ekstrak;
@@ -133,15 +163,32 @@ async function susun() {
         target: target.value,
         rasio: rasio.value,
         gaya_id: gayaId.value,
+        gaya_acuan: gayaAcuan.value,
+        manual: manual.value,
     });
 
     hasil.value = jawab;
     tabAktif.value = 'klip';
 }
 
-/** Ganti target/gaya tanpa membaca ulang — menyusun ulang tidak memanggil AI. */
+/**
+ * Ganti target, gaya, atau isian manual tanpa membaca ulang.
+ *
+ * Menyusun ulang tidak memanggil AI, jadi boleh sesering apa pun. Yang
+ * datang selagi satu penyusunan masih jalan DIANTREKAN, bukan dibuang:
+ * memilih tema pakaian dari katalog yang masih terbuka sementara
+ * penyusunan sebelumnya belum pulang akan membuat pilihan terakhirnya
+ * hilang dari hasil — terlihat persis seperti katalognya tidak bekerja.
+ */
+let antre = false;
+
 async function susunUlang() {
-    if (!ekstrak.value || sedang.value) return;
+    if (!ekstrak.value) return;
+    if (sedang.value) {
+        antre = true;
+        return;
+    }
+
     tahap.value = 'menyusun';
     galat.value = '';
     try {
@@ -150,6 +197,10 @@ async function susunUlang() {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal menyusun ulang.';
     } finally {
         tahap.value = 'diam';
+        if (antre) {
+            antre = false;
+            void susunUlang();
+        }
     }
 }
 
@@ -160,7 +211,16 @@ async function simpan() {
         const jawab = await kirim<any>(route('rancang.simpan'), {
             cerita: cerita.value,
             ekstrak: ekstrak.value,
-            opsi: { target: target.value, rasio: rasio.value, gaya_id: gayaId.value },
+            // Isian manual ikut tersimpan, bukan hasil timpaannya: yang
+            // disimpan tetap BAHAN, jadi rancangan lama ikut membaik
+            // sendiri waktu mesinnya diperbaiki.
+            opsi: {
+                target: target.value,
+                rasio: rasio.value,
+                gaya_id: gayaId.value,
+                gaya_acuan: gayaAcuan.value,
+                manual: manual.value,
+            },
             hasil: hasil.value ?? {},
         });
         pesanSimpan.value = jawab.pesan;
@@ -179,12 +239,24 @@ async function buka(id: number) {
         if (jawab.opsi?.target) target.value = jawab.opsi.target;
         if (jawab.opsi?.rasio) rasio.value = jawab.opsi.rasio;
         if (jawab.opsi?.gaya_id) gayaId.value = jawab.opsi.gaya_id;
+        // Dibaca tanpa penjaga "kalau ada", tidak seperti tiga di atasnya:
+        // false itu nilai yang sah dan harus ikut dipulihkan. Rancangan
+        // lama yang belum punya kunci ini memulangkan undefined, dan itu
+        // memang harus jadi false.
+        gayaAcuan.value = jawab.opsi?.gaya_acuan === true;
+        manual.value = manualDari(jawab.opsi?.manual);
         await susun();
     } catch (e) {
         galat.value = e instanceof GalatKirim ? e.message : 'Gagal membuka rancangan.';
     } finally {
         tahap.value = 'diam';
     }
+}
+
+/** Kosongkan seluruh isian manual, lalu susun ulang tanpa timpaan apa pun. */
+function kosongkanManual() {
+    manual.value = manualBaru();
+    susunUlang();
 }
 
 // --------------------------------------------------------------- salinan
@@ -263,6 +335,24 @@ const isianKelas =
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Gaya gambar</span>
                             <KatalogGaya :gaya="gaya" :terpilih="gayaId ?? ''" @pilih="pilihGaya" />
                         </label>
+
+                        <label class="flex cursor-pointer items-start gap-2.5 sm:col-span-2">
+                            <input
+                                v-model="gayaAcuan"
+                                type="checkbox"
+                                class="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
+                                @change="susunUlang"
+                            />
+                            <span class="text-xs leading-relaxed">
+                                <span class="font-medium">Aku punya gambar acuan gaya</span>
+                                <span class="mt-0.5 block text-muted-foreground">
+                                    Satu gambar yang rupanya mau ditiru — pencahayaan, bayangan, dan
+                                    tingkat detailnya. Mesin memesan satu nomor gambar paling belakang
+                                    untuknya, jadi nomor gambar tokoh dan latarmu tidak bergeser.
+                                    Gambarnya kamu siapkan sendiri.
+                                </span>
+                            </span>
+                        </label>
                     </div>
 
                     <div class="mt-5 flex flex-wrap gap-3">
@@ -280,6 +370,26 @@ const isianKelas =
 
                     <p v-if="pesanSimpan" class="mt-3 text-xs text-[hsl(var(--sorot))]">{{ pesanSimpan }}</p>
                 </Kartu>
+
+                <!-- Isian manual.
+                     ==========================================================
+                     Ditaruh SESUDAH kotak cerita dan tertutup sendiri, bukan
+                     di atasnya. Jalan masuk halaman ini tetap satu: tempel
+                     ceritanya, tekan satu tombol. Kartu belasan isian yang
+                     terbuka lebar di atas kotak cerita akan membuatnya
+                     terlihat seperti formulir wajib, padahal seluruhnya
+                     opsional — dan yang tidak memakainya tidak kehilangan
+                     apa-apa. -->
+                <IsianManual
+                    v-reveal="40"
+                    v-model="manual"
+                    :pakaian="pakaian"
+                    :cara="cara"
+                    :nonaktif="sedang"
+                    :terpakai="hasil?.manual ?? []"
+                    @ubah="susunUlang"
+                    @kosongkan="kosongkanManual"
+                />
 
                 <!-- Sedang berjalan -->
                 <Kartu v-if="sedang" judul="Sedang dikerjakan">
@@ -530,6 +640,10 @@ const isianKelas =
                             <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                                 Tempel ceritanya di sebelah kiri, lalu tekan <strong>Baca &amp; Rancang</strong>. Hasilnya
                                 muncul di sini: prompt tiap klip, kartu acuan tokoh, dan prompt latarnya.
+                            </p>
+                            <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
+                                Yang tidak mau ditebak — siapa tokohnya, di mana, pakaiannya — isi sendiri di
+                                <strong>Isian manual</strong>. Sisanya tetap dibaca dari ceritamu.
                             </p>
                         </div>
                     </div>

@@ -613,6 +613,13 @@ TXT;
             $urut[$nl] = ['nomor' => $nl, 'nama' => 'LATAR ARENA'];
         }
 
+        // Nomornya sudah dipesan di rencananya; daftar ini yang memberitahu
+        // urutan unggahnya. Lihat Cerita::urutAcuan() untuk alasan panjangnya.
+        $ng = (int)($rencana['nomor_gaya'] ?? 0);
+        if ($ng > 0) {
+            $urut[$ng] = ['nomor' => $ng, 'nama' => 'GAYA — plat acuan rupa'];
+        }
+
         ksort($urut);
 
         return array_values($urut);
@@ -1847,24 +1854,58 @@ TXT;
         return 'Scene: ' . implode(' ', $b);
     }
 
-    private static function tambahAnimasi(string $prompt, string $latar = ''): string
+    /**
+     * Paragraf kadens animasi, dipasang di ekor tiap prompt klip.
+     *
+     * Publik karena jalur Rancangan Pertandingan memakainya juga. Dulu cuma
+     * dipakai di sini, dan klip dari cerita keluar tanpa satu kalimat pun
+     * soal waktu geraknya — model video defaultnya menggerakkan semuanya
+     * rata, dan hasilnya halus tapi terasa CGI, bukan animasi gambar tangan.
+     * Yang membuatnya terbaca sebagai anime justru kadens yang TIDAK rata:
+     * pose ditahan on twos, lalu penuh dua tiga frame persis di pukulannya.
+     */
+    public static function tambahAnimasi(string $prompt, string $latar = ''): string
     {
         if (trim($prompt) === '') {
             return $prompt;
         }
 
+        // PARAGRAF INI MENGATUR WAKTU, BUKAN RUPA.
+        //
+        // Dulu dibuka dengan "this is hand-drawn Japanese animation" dan
+        // ditutup dengan "cel-shaded flat colour with hard shadow edges
+        // throughout". Keduanya menyebut MEDIUM, dan medium itu sudah
+        // ditentukan kalimat gaya di baris pertama prompt — kalimat yang
+        // dipilih orangnya sendiri dari katalog.
+        //
+        // Katalognya penuh gaya yang bukan anime gambar tangan: kartun 3D
+        // Disney, Spider-Verse, Genshin, Honkai, Simpsons, Berserk yang
+        // tinta hitam putih, Ghibli yang cat air. Untuk semua itu dua
+        // kalimat di atas bukan penguat, melainkan lawan — dan prompt yang
+        // menyuruh "3D cartoon, soft subsurface-lit skin" di awal lalu
+        // "cel-shaded flat colour throughout" di akhir cuma bisa menang
+        // separuh. Yang menang berganti-ganti tiap generasi, jadi gaya
+        // yang dipilih jadi undian.
+        //
+        // Efek yang tersisa — impact frame, speed line, smear, antisipasi,
+        // hair lag — semuanya soal waktu dan berlaku di medium mana pun;
+        // animasi 3D Genshin memakai semuanya. Kalimat penutupnya sengaja
+        // menyerahkan rupa kembali ke kalimat gaya, supaya paragraf ini
+        // tidak pernah lagi bisa membajaknya.
         return rtrim($prompt)
             . ($latar === '' ? '' : "\n\n" . $latar)
             . "\n\n"
-            . 'Animation craft: this is hand-drawn Japanese animation, not filmed footage. '
-            . 'Time the movement unevenly — hold poses on twos while they circle, then burst into '
-            . 'full framerate for two or three frames on every punch. Put a single white impact frame '
-            . 'on each clean connection, radiating speed lines from the point of contact, and let the '
-            . 'fastest part of a swing become a smear frame rather than a sharp arm. Sweat flies off '
-            . 'in discrete droplets, not a spray. Keep strong anticipation before each punch and heavy '
-            . 'follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded '
-            . 'flat colour with hard shadow edges throughout; no motion blur on the characters '
-            . 'themselves, only on the background during fast camera moves.';
+            . 'Animation craft: this is animation, not filmed footage, and the timing is what '
+            . 'matters here. Time the movement unevenly — hold poses on twos while they circle, '
+            . 'then burst into full framerate for two or three frames on every punch. Put a single '
+            . 'impact frame on each clean connection, radiating speed lines from the point of '
+            . 'contact, and let the fastest part of a swing become a smear frame rather than a '
+            . 'sharp arm. Sweat flies off in discrete droplets, not a spray. Keep strong '
+            . 'anticipation before each punch and heavy follow-through after it, with hair and '
+            . 'flesh lagging a frame behind the bone. Everything in this paragraph is about timing '
+            . 'only: the rendering style — line, shading, colour and texture — stays exactly as '
+            . 'described in the first sentence of this prompt and in any style reference image '
+            . 'listed above, and nothing here overrides it.';
     }
 
     private static function namaKartu(string $id, int $tahap): string

@@ -118,6 +118,19 @@ final class Cerita
                    . ' detik. Pakai angka itu, jangan menebak sendiri.';
         }
 
+        // Isian manual dari halaman ikut masuk ke sini SEBAGAI PETUNJUK,
+        // bukan sebagai pengganti. Menimpanya belakangan saja (lihat
+        // terapkanManual) sudah menjamin hasilnya benar, tapi pembaca yang
+        // tidak tahu nama tokohnya menulis adegan untuk "petinju berambut
+        // pirang" — dan begitu namanya ditimpa belakangan, kalimat
+        // langkahnya tidak menyebut nama itu di mana pun. Jadi isianmu
+        // disebutkan sejak awal supaya ceritanya dibaca dengan nama,
+        // tempat, dan akhir yang sudah kamu tentukan.
+        $arahan = self::arahanManual((array)($petunjuk['manual'] ?? []));
+        if ($arahan !== '') {
+            $user .= "\n\n" . $arahan;
+        }
+
         // ---- tahap 1: apa yang terjadi ----
         [$jawaban, $profil] = self::tanyaBerantai(
             self::promptSistem(), $user, ['max_tokens' => 8000, 'temperature' => 0.3], $catatan
@@ -205,6 +218,7 @@ final class Cerita
 {
   "judul": "short title for this fight, in Indonesian",
   "durasi_detik": 210,
+  "detik_per_klip": 0,
   "waktu": {
     "mulai": "01:00",
     "keterangan": "one English phrase for the time of day and what it does to the light, naming only light sources that belong in that place, e.g. 'the middle of the night, one warm lamp in a dark room'"
@@ -277,6 +291,10 @@ ATURAN:
 1. SEMUA NILAI JSON DALAM BAHASA INGGRIS, kecuali "judul" tiap adegan dan "judul" utama yang boleh bahasa Indonesia, dan nilai pilihan ("jenis", "arah", "tipe", "penonton") yang ditulis persis seperti di skema. Prompt videonya nanti dibaca oleh Wan dan Seedance, bukan oleh manusia.
 
 2. DURASI. Kalau ceritanya menyebut panjang videonya ("buat video 3 menit 30 detik", "durasi: 3 menit 30 detik"), ubah jadi detik dan taruh di "durasi_detik" — 3 menit 30 detik = 210. Jangan tertukar dengan lama kejadian DI DALAM cerita: "pertandingan berlangsung 30 menit" itu waktu cerita, bukan panjang video. Kalau tidak disebut sama sekali, pakai 120.
+
+2b. PANJANG TIAP KLIP. Ini BERBEDA dari durasi, dan sering disebut di kalimat terpisah: "buat 1 clip nya 30 detik", "1 klip 10 detik", "tiap potongan 15 detik". Ubah jadi detik dan taruh di "detik_per_klip". Kalau tidak disebut sama sekali, isi 0 — artinya mesin yang menentukan sendiri. Jangan mengarang angka dari durasi: "3 menit, 6 adegan" TIDAK berarti klipnya 30 detik.
+
+   Kalau kamu mengisi "detik_per_klip", DETIK TIAP ADEGAN HARUS KELIPATAN angka itu, dan jumlah seluruh adegan tetap sama dengan "durasi_detik". Video 90 detik dengan klip 30 detik berarti tiga adegan 30 detik, atau dua adegan (60 + 30) — bukan enam adegan 15 detik. Gabungkan kejadian yang berdekatan sampai muat, jangan memaksakan satu adegan untuk tiap kejadian kecil.
 
 3. WAKTU. Kalau ceritanya menyebut jam ("pukul 1 malam") atau bagian hari ("malam hari"), isi "waktu.mulai" dan jadikan "waktu.keterangan" kalimat tentang cahayanya. Tiap adegan juga punya "waktu" sendiri; kalau ceritanya menyebut lompatan ("setelah 30 menit"), majukan jamnya. Ini yang menentukan pencahayaan seluruh video, jadi jangan dikosongkan kalau ada petunjuknya. Sumber cahaya yang kamu sebut harus sumber cahaya yang memang ada di tempat itu.
 
@@ -856,6 +874,13 @@ TXT;
         }
         $durasi = min(1800, $durasi);   // 30 menit, batas yang masuk akal
 
+        // Panjang tiap klip, kalau ceritamu memintanya. Dibatasi ke atas
+        // oleh MAKS_DETIK_KLIP: model video tidak bisa diminta satu
+        // potongan yang lebih panjang dari itu, dan angka yang lolos ke
+        // sana cuma akan dipotong diam-diam di tempat lain.
+        $perKlip = (int)($j['detik_per_klip'] ?? 0);
+        $perKlip = $perKlip > 0 ? min(Pertandingan::MAKS_DETIK_KLIP, max(3, $perKlip)) : 0;
+
         // ---- pemain ----
         $cast    = [];
         $kunciId = [];
@@ -1143,8 +1168,14 @@ TXT;
         $lat = $lokasi[array_key_first($lokasi)];
 
         return [
-            'judul'        => $teks($j['judul'] ?? '', 120),
-            'durasi_detik' => $durasi,
+            'judul'          => $teks($j['judul'] ?? '', 120),
+            'durasi_detik'   => $durasi,
+            // 0 = tidak diminta, mesin yang menentukan. Dibawa di dalam
+            // ekstrak supaya rancangan yang dibuka lagi tetap memakai
+            // panjang klip yang dulu kamu minta — kalau cuma jadi opsi
+            // sesaat, membuka rancangan lama diam-diam mengembalikannya
+            // ke bawaan.
+            'detik_per_klip' => $perKlip,
             'waktu' => [
                 'mulai'      => $teks($j['waktu']['mulai'] ?? '', 12),
                 'keterangan' => $teks($j['waktu']['keterangan'] ?? '', 200),
@@ -1164,6 +1195,352 @@ TXT;
         ];
     }
 
+    // =================================================================
+    // Isian manual
+    // =================================================================
+
+    /*
+     * DUA TEMPAT, DAN KEDUANYA PERLU.
+     *
+     * Isian manual dipakai sekali sebagai PETUNJUK waktu ceritanya dibaca
+     * (arahanManual), sekali lagi sebagai PENIMPA sesudah dibaca
+     * (terapkanManual).
+     *
+     * Petunjuk saja tidak cukup: model boleh saja mengabaikannya, dan
+     * pilihan yang kadang-kadang dipatuhi itu lebih buruk daripada tidak
+     * ada pilihan sama sekali — tidak ada cara tahu mana yang terpakai
+     * tanpa membaca empat puluh prompt satu per satu.
+     *
+     * Penimpa saja juga tidak cukup. Pembaca yang tidak tahu nama tokohnya
+     * menulis langkah untuk "the blonde fighter"; begitu namanya ditimpa
+     * belakangan, jangkar "Image 1 is Eve" tidak tersambung ke satu pun
+     * kalimat shot, dan model video menggambar dua orang berbeda.
+     */
+
+    /** Isian manual jadi kalimat perintah untuk pembacanya. Kosong kalau tidak ada. */
+    private static function arahanManual(array $m): string
+    {
+        if ($m === []) {
+            return '';
+        }
+
+        $teks = static fn($v, int $b = 200): string => is_scalar($v) ? trim(mb_substr((string)$v, 0, $b)) : '';
+
+        $baris = [];
+
+        foreach (array_slice(is_array($m['petinju'] ?? null) ? array_values($m['petinju']) : [], 0, 2) as $i => $p) {
+            if (!is_array($p)) {
+                continue;
+            }
+            $bagian = [];
+            if (($v = $teks($p['nama'] ?? '', 60)) !== '')      { $bagian[] = 'namanya ' . $v; }
+            if (($v = $teks($p['karakter'] ?? '', 120)) !== '') { $bagian[] = 'tag karakternya ' . $v; }
+            if (($v = $teks($p['seri'] ?? '', 120)) !== '')     { $bagian[] = 'dari ' . $v; }
+            if (($v = $teks($p['sex'] ?? '', 10)) !== '')       { $bagian[] = $v === 'male' ? 'laki-laki' : 'perempuan'; }
+            if (($v = $teks($p['fisik'] ?? '', 120)) !== '')    { $bagian[] = $v; }
+            if (($v = $teks($p['pakaian'] ?? '', 200)) !== '')  { $bagian[] = 'memakai ' . $v; }
+            if ($bagian !== []) {
+                $baris[] = '- Petinju ' . ($i + 1) . ': ' . implode(', ', $bagian) . '.';
+            }
+        }
+
+        $tp     = is_array($m['tempat'] ?? null) ? $m['tempat'] : [];
+        $tempat = [];
+        if (($v = $teks($tp['nama'] ?? '', 60)) !== '')     { $tempat[] = $v; }
+        if (($v = $teks($tp['isi'] ?? '', 200)) !== '')     { $tempat[] = $v; }
+        if (($v = $teks($tp['rincian'] ?? '', 400)) !== '') { $tempat[] = $v; }
+        if ($tempat !== []) {
+            $baris[] = '- Seluruh pertandingan terjadi di: ' . implode(' — ', $tempat)
+                     . '. Jangan memindahkannya ke tempat lain.';
+        }
+
+        $namaPenonton = ['none' => 'tidak ada sama sekali', 'sparse' => 'sedikit dan berjarak', 'packed' => 'penuh sesak'];
+        $pen = $teks($tp['penonton'] ?? '', 10);
+        if (isset($namaPenonton[$pen])) {
+            $baris[] = '- Penontonnya ' . $namaPenonton[$pen] . '.';
+        }
+
+        $waktu = is_array($m['waktu'] ?? null) ? $m['waktu'] : [];
+        if (($v = $teks($waktu['mulai'] ?? '', 12)) !== '') {
+            $baris[] = '- Mulai pukul ' . $v . '.';
+        }
+        if (($v = $teks($waktu['keterangan'] ?? '', 200)) !== '') {
+            $baris[] = '- Cahaya dan suasana waktunya: ' . $v;
+        }
+
+        // Panjang klip disebut sebagai KETENTUAN ADEGAN, bukan sekadar
+        // angka. Pembaca yang cuma tahu angkanya tetap memotong ceritanya
+        // jadi adegan 8-20 detik, dan adegan yang tidak kelipatan panjang
+        // klip selalu berakhir dengan klip yang lebih pendek dari yang
+        // kamu minta.
+        $perKlip = (int)($m['detik_per_klip'] ?? 0);
+        if ($perKlip > 0) {
+            $baris[] = '- Tiap klip ' . $perKlip . ' detik. Buat detik tiap adegan jadi kelipatan '
+                . $perKlip . ', dan jumlahnya tetap sama dengan durasi videonya.';
+        }
+
+        $menang = $teks($m['pemenang'] ?? '', 4);
+        if ($menang === '1' || $menang === '2') {
+            $baris[] = '- Yang menang Petinju ' . $menang . '. Susun ceritanya supaya benar-benar berakhir begitu.';
+        }
+        $cara = $teks($m['cara'] ?? '', 20);
+        if (isset(Pertandingan::CARA[$cara])) {
+            $baris[] = '- Cara selesainya: ' . Pertandingan::CARA[$cara];
+        }
+
+        if ($baris === []) {
+            return '';
+        }
+
+        return "KETENTUAN YANG SUDAH DITETAPKAN — pakai apa adanya, jangan menebak ulang, "
+             . "dan pakai nama yang disebut di sini di SETIAP kalimat langkah:\n" . implode("\n", $baris);
+    }
+
+    /**
+     * Satu tema pakaian dari katalog jadi tag dan kalimatnya.
+     *
+     * Katalog yang sama dengan Prompt Generator, jadi apa pun yang
+     * ditambahkan lewat Admin langsung bisa dipakai di sini juga. Temanya
+     * sendiri punya tag ("boxing", "bikini") dan menunjuk lima slot
+     * potongan — atasan, bawahan, tangan, kaki, kepala — dan yang
+     * dikumpulkan tag dari keduanya, karena tema tanpa slotnya cuma
+     * menghasilkan satu kata yang tidak menggambarkan apa pun.
+     *
+     * @return array{nama:string, verbatim:string, tags:string[]}|null
+     */
+    public static function temaPakaian(int $id, bool $nsfw = true): ?array
+    {
+        $tema = PromptBuilder::loadModule($id, $nsfw, 'outfit');
+        if ($tema === null) {
+            return null;
+        }
+
+        $tag    = [];
+        $pungut = static function (array $mod) use (&$tag): void {
+            foreach (is_array($mod['tags'] ?? null) ? $mod['tags'] : [] as $t) {
+                $n = TagResolver::normalize((string)($t['name'] ?? ''));
+                if ($n !== '') {
+                    $tag[$n] = true;
+                }
+            }
+        };
+
+        $pungut($tema);
+        foreach (PromptBuilder::outfitDefaults($id) as $slot => $modulId) {
+            $tipe = PromptBuilder::OUTFIT_SLOTS[$slot] ?? null;
+            if ($tipe === null) {
+                continue;
+            }
+            $mod = PromptBuilder::loadModule((int)$modulId, $nsfw, $tipe);
+            if ($mod !== null) {
+                $pungut($mod);
+            }
+        }
+
+        // Kalimatnya milik temanya sendiri ("wearing professional boxing
+        // gear"), karena itu yang ditulis orang, bukan mesin. Tema yang
+        // belum punya kalimat dirangkai dari nama tagnya — kurang enak
+        // dibaca, tapi jauh lebih baik daripada jangkar tanpa pakaian.
+        $kalimat = trim((string)($tema['sentence'] ?? ''));
+        if ($kalimat === '' && $tag !== []) {
+            $kalimat = 'wearing ' . implode(', ', array_map(
+                static fn(string $t): string => str_replace('_', ' ', $t), array_keys($tag)
+            ));
+        }
+
+        $nama = trim((string)($tema['name_id'] ?? ''));
+
+        return [
+            'nama'     => $nama !== '' ? $nama : (string)($tema['name'] ?? 'Pakaian'),
+            'verbatim' => $kalimat,
+            'tags'     => array_keys($tag),
+        ];
+    }
+
+    /**
+     * Timpakan isian manual ke hasil bacaan.
+     *
+     * Dipanggil SEBELUM normalisasi(), bukan sesudah — dengan begitu
+     * pembagian ulang detik tiap adegan, perambatan kostum antar adegan,
+     * dan pencocokan kunci tempat semuanya berjalan di atas angka yang
+     * sudah kamu tentukan, bukan di atas angka bacaan yang lalu ditimpa
+     * diam-diam.
+     *
+     * Yang dibiarkan kosong berarti "ikut ceritamu". Tidak ada nilai
+     * bawaan yang diam-diam menimpa hasil bacaan.
+     *
+     * @param string[] $catatan diisi daftar apa saja yang benar-benar ditimpa
+     */
+    public static function terapkanManual(array $e, array $m, bool $nsfw = true, array &$catatan = []): array
+    {
+        if ($m === []) {
+            return $e;
+        }
+
+        $teks    = static fn($v, int $b = 200): string => is_scalar($v) ? trim(mb_substr((string)$v, 0, $b)) : '';
+        $ditimpa = [];
+
+        // ---- yang berlaku untuk seluruh video ----
+        if (($v = $teks($m['judul'] ?? '', 120)) !== '') {
+            $e['judul'] = $v;
+            $ditimpa[]  = 'judul';
+        }
+
+        $durasi = (int)($m['durasi'] ?? 0);
+        if ($durasi > 0) {
+            // Detik tiap adegan dibagi ulang sebanding oleh normalisasi(),
+            // jadi di sini cukup angka totalnya yang diganti.
+            $e['durasi_detik'] = min(1800, max(10, $durasi));
+            $ditimpa[]         = 'durasi';
+        }
+
+        $perKlip = (int)($m['detik_per_klip'] ?? 0);
+        if ($perKlip > 0) {
+            $e['detik_per_klip'] = min(Pertandingan::MAKS_DETIK_KLIP, max(3, $perKlip));
+            $ditimpa[]           = 'detik per klip';
+        }
+
+        $e['waktu'] = is_array($e['waktu'] ?? null) ? $e['waktu'] : [];
+        $waktu      = is_array($m['waktu'] ?? null) ? $m['waktu'] : [];
+        if (($v = $teks($waktu['mulai'] ?? '', 12)) !== '') {
+            $e['waktu']['mulai'] = $v;
+            $ditimpa[]           = 'jam mulai';
+        }
+        if (($v = $teks($waktu['keterangan'] ?? '', 200)) !== '') {
+            $e['waktu']['keterangan'] = $v;
+            $ditimpa[]                = 'suasana cahaya';
+        }
+
+        // ---- petinju ----
+        //
+        // Petinju 1 dan 2 itu tokoh BERPERAN FIGHTER yang pertama dan
+        // kedua, bukan cast pertama dan kedua. Cerita yang menyebut
+        // wasitnya duluan menaruh wasit di urutan pertama cast, dan tanpa
+        // penyaringan ini nama petinju pertama mendarat di wasit.
+        $cast  = is_array($e['cast'] ?? null) ? $e['cast'] : [];
+        $kunci = [];
+        foreach ($cast as $k => $c) {
+            if (is_array($c) && ($c['peran'] ?? 'fighter') === 'fighter') {
+                $kunci[] = $k;
+            }
+        }
+        if (count($kunci) < 2) {
+            $kunci = array_keys($cast);
+        }
+
+        foreach (array_slice(is_array($m['petinju'] ?? null) ? array_values($m['petinju']) : [], 0, 2) as $i => $p) {
+            $k = $kunci[$i] ?? null;
+            if ($k === null || !is_array($p) || !is_array($cast[$k] ?? null)) {
+                continue;
+            }
+
+            if (($v = $teks($p['nama'] ?? '', 60)) !== '') {
+                $cast[$k]['nama'] = $v;
+                $ditimpa[]        = 'nama petinju ' . ($i + 1);
+            }
+            if (($v = $teks($p['karakter'] ?? '', 120)) !== '') {
+                $cast[$k]['character'] = TagResolver::normalize($v);
+                $ditimpa[]             = 'karakter petinju ' . ($i + 1);
+            }
+            if (($v = $teks($p['seri'] ?? '', 120)) !== '') {
+                $cast[$k]['series'] = TagResolver::normalize($v);
+            }
+            if (($v = $teks($p['sex'] ?? '', 10)) !== '') {
+                $cast[$k]['sex'] = $v === 'male' ? 'male' : 'female';
+            }
+            if (($v = $teks($p['fisik'] ?? '', 120)) !== '') {
+                $cast[$k]['fisik'] = $v;
+            }
+
+            // ---- tema pakaian ----
+            //
+            // SELURUH wujud tokoh itu diganti satu, bukan ditambah satu.
+            // Ceritanya boleh punya tiga wujud (baju tidur, bertinju,
+            // babak belur), tapi begitu kamu memilih temanya sendiri yang
+            // kamu minta satu pakaian dari awal sampai akhir — dan
+            // menyisakan wujud lamanya berarti kartu acuan berlipat dua
+            // yang separuhnya tidak pernah kamu pilih. Tahap kerusakan
+            // tidak ikut hilang: itu urusan kondisi, bukan pakaian.
+            $tema    = ((int)($p['pakaian_id'] ?? 0)) > 0 ? self::temaPakaian((int)$p['pakaian_id'], $nsfw) : null;
+            $kalimat = $teks($p['pakaian'] ?? '', 300);
+            if ($tema !== null || $kalimat !== '') {
+                $cast[$k]['kostum'] = ['manual' => [
+                    'kunci'    => 'manual',
+                    'nama'     => $tema['nama'] ?? 'Pakaian pilihanmu',
+                    'verbatim' => $kalimat !== '' ? $kalimat : (string)($tema['verbatim'] ?? ''),
+                    'tags'     => $tema['tags'] ?? [],
+                ]];
+                $ditimpa[] = 'pakaian petinju ' . ($i + 1)
+                           . ($tema !== null ? ' (' . $tema['nama'] . ')' : '');
+            }
+        }
+        $e['cast'] = $cast;
+
+        // ---- hasil pertandingan ----
+        $menang = $teks($m['pemenang'] ?? '', 4);
+        if (($menang === '1' || $menang === '2') && isset($kunci[(int)$menang - 1])) {
+            $k             = $kunci[(int)$menang - 1];
+            $e['pemenang'] = (string)($cast[$k]['id'] ?? $k);
+            $ditimpa[]     = 'pemenang';
+        }
+        $cara = $teks($m['cara'] ?? '', 20);
+        if (isset(Pertandingan::CARA[$cara])) {
+            $e['cara'] = $cara;
+            $ditimpa[] = 'cara selesai';
+        }
+
+        // ---- tempat ----
+        //
+        // Yang ditimpa cuma tempat PERTAMA. Cerita yang berpindah ruangan
+        // tetap berpindah: menimpa semuanya sekaligus akan meratakan
+        // "kamar tidur lalu turun ke gudang" jadi satu ruangan, dan itu
+        // menghapus bagian ceritamu yang tidak kamu minta dihapus.
+        $tp      = is_array($m['tempat'] ?? null) ? $m['tempat'] : [];
+        $nama    = $teks($tp['nama'] ?? '', 60);
+        $isi     = $teks($tp['isi'] ?? '', 200);
+        $rincian = $teks($tp['rincian'] ?? '', 400);
+        $ring    = $teks($tp['ring'] ?? '', 6);
+        $pen     = $teks($tp['penonton'] ?? '', 10);
+
+        if ($nama !== '' || $isi !== '' || $rincian !== '' || $ring !== '' || $pen !== '') {
+            $lokasi = is_array($e['lokasi'] ?? null) && $e['lokasi'] !== []
+                ? $e['lokasi']
+                : ['tempat1' => ['kunci' => 'tempat1', 'nama' => '', 'tempat' => '', 'verbatim' => '', 'tags' => []]];
+            $k = array_key_first($lokasi);
+
+            if ($nama !== '') {
+                $lokasi[$k]['nama'] = $nama;
+            }
+            if ($isi !== '') {
+                $lokasi[$k]['tempat'] = $isi;
+                // Rincian dari ceritamu menggambarkan tempat LAIN begitu
+                // tempatnya kamu ganti sendiri. Dibiarkan, satu kartu latar
+                // menyebut dua ruangan sekaligus — dan gambarnya jadi
+                // ruangan ketiga yang bukan salah satunya.
+                $lokasi[$k]['verbatim'] = '';
+                $lokasi[$k]['tags']     = [];
+            }
+            if ($rincian !== '') {
+                $lokasi[$k]['verbatim'] = $rincian;
+            }
+            if ($ring === 'ya' || $ring === 'tidak') {
+                $lokasi[$k]['ring'] = $ring === 'ya';
+            }
+            if (in_array($pen, ['none', 'sparse', 'packed'], true)) {
+                $lokasi[$k]['penonton'] = $pen;
+            }
+
+            $e['lokasi'] = $lokasi;
+            $ditimpa[]   = 'tempat';
+        }
+
+        if ($ditimpa !== []) {
+            $catatan[] = 'Isian manual dipakai: ' . implode(', ', array_unique($ditimpa)) . '.';
+        }
+
+        return $e;
+    }
+
     /** Kalimat ringkas untuk halaman. */
     public static function ringkas(array $e): string
     {
@@ -1176,9 +1553,15 @@ TXT;
         $d = $e['durasi_detik'] % 60;
         $lama = ($m > 0 ? $m . ' menit' : '') . ($d > 0 ? ($m > 0 ? ' ' : '') . $d . ' detik' : '');
 
+        // Panjang klip yang kamu minta ikut disebut. Tanpa ini tidak ada
+        // cara tahu permintaan "1 klip 30 detik" terbaca atau tidak sampai
+        // seluruh daftar klipnya selesai disusun di bawah.
+        $perKlip = (int)($e['detik_per_klip'] ?? 0);
+
         return ($e['judul'] !== '' ? $e['judul'] . ' — ' : '')
              . implode(' vs ', $orang) . '. '
              . count($e['adegan']) . ' adegan, ' . $lama . '.'
+             . ($perKlip > 0 ? ' Klip ' . $perKlip . ' detik.' : '')
              . ($e['waktu']['mulai'] !== '' ? ' Mulai pukul ' . $e['waktu']['mulai'] . '.' : '');
     }
 
@@ -1190,18 +1573,39 @@ TXT;
      * Susun daftar klip dan daftar gambar acuan dari struktur cerita.
      *
      * $opsi: detik_per_klip, target, nsfw, dewasa, gaya, wan{rasio},
-     *        seedance{resolusi}
+     *        seedance{resolusi}, manual{...}
      */
     public static function rancang(array $ekstrak, array $opsi = []): array
     {
-        $ekstrak = self::normalisasi($ekstrak);
+        // Isian manual ditimpakan DI SINI, bukan waktu ceritanya dibaca.
+        // Menyusun ulang tidak memanggil AI sama sekali, jadi mengganti
+        // tema pakaian atau nama petinju langsung terlihat hasilnya tanpa
+        // membayar pembacaan kedua — dan rancangan lama yang dibuka lagi
+        // ikut memakai isian yang tersimpan bersamanya.
+        $catatanManual = [];
+        $ekstrak = self::normalisasi(self::terapkanManual(
+            $ekstrak, (array)($opsi['manual'] ?? []), !empty($opsi['nsfw']), $catatanManual
+        ));
 
         $target = (string)($opsi['target'] ?? 'wan');
         if (!isset(ReversePrompt::TARGET[$target]) || $target === 'nai5') {
             $target = 'wan';
         }
-        // detik_per_klip 0 (atau tidak diisi) = biarkan mesin yang menentukan.
+        /*
+         * PANJANG KLIP: yang diminta halaman dulu, lalu yang diminta CERITAMU.
+         *
+         * Ceritamu yang menyebutnya ("buat 1 clip nya 30 detik") dibaca
+         * ikut pembacaan dan disimpan di dalam ekstrak. Tanpa langkah ini
+         * angka itu terbaca benar di panel atas — tiga adegan, 30 detik
+         * masing-masing — lalu hilang di bawahnya: pembaginya memakai
+         * bawaan 10 detik dan tiga adegan jadi sembilan klip.
+         *
+         * 0 (atau tidak diisi) di keduanya = mesin yang menentukan.
+         */
         $minta     = (int)($opsi['detik_per_klip'] ?? 0);
+        if ($minta <= 0) {
+            $minta = (int)($ekstrak['detik_per_klip'] ?? 0);
+        }
         $otomatis  = $minta <= 0;
         $perKlip   = $otomatis ? 10 : max(1, min(Pertandingan::MAKS_DETIK_KLIP, $minta));
 
@@ -1232,7 +1636,24 @@ TXT;
         $panjangKlip = [];
         foreach ($ekstrak['adegan'] as $i => $a) {
             if (!$otomatis) {
-                $panjangKlip[$i] = array_fill(0, $jatah[$i], $perKlip);
+                /*
+                 * PANJANG YANG DIMINTA ITU BATAS ATAS, BUKAN PANJANG PAKSA.
+                 *
+                 * Dulu tiap klip diisi persis $perKlip detik. Selama
+                 * adegannya kebetulan sepanjang kelipatan itu hasilnya
+                 * benar — tapi cerita 90 detik yang terbaca jadi enam
+                 * adegan 8-20 detik keluar sebagai enam klip 30 detik:
+                 * 180 detik, dua kali lipat yang diminta, tanpa satu pun
+                 * peringatan.
+                 *
+                 * Dibulatkan KE ATAS supaya tidak ada klip yang melewati
+                 * batas yang kamu minta, lalu dibagi rata di dalam
+                 * adegannya sendiri — jadi totalnya selalu sama persis
+                 * dengan durasi ceritamu.
+                 */
+                $n = max(1, (int)ceil($a['detik'] / $perKlip));
+                $jatah[$i] = $n;
+                $panjangKlip[$i] = self::bagiRata($a['detik'], $n);
                 continue;
             }
 
@@ -1402,6 +1823,12 @@ TXT;
         return [
             'mode'    => 'cerita',
             'target'  => $target,
+            // Apa saja yang benar-benar ditimpa isian manual. Dipisah dari
+            // "catatan" supaya halaman bisa menampilkannya di sebelah
+            // isiannya sendiri — kalau tenggelam di antara catatan lain,
+            // satu-satunya cara tahu pilihanmu terpakai adalah membaca
+            // empat puluh prompt.
+            'manual'  => $catatanManual,
             'judul'   => $ekstrak['judul'],
             'durasi'  => $jadi,
             'jumlah'  => count($klip),
@@ -1988,9 +2415,44 @@ TXT;
         $tempat   = $ring ? 'ring' : 'biasa';
         $penonton = $lok['penonton'] !== 'none';
 
-        $out  = [];
-        $lalu = '';
-        $kena = 0;
+        // Kata ganti di kalimat antisipasi menunjuk YANG MEMUKUL, dan
+        // langkahnya sendiri tidak menyebut siapa pelakunya. Namanya dicari
+        // di kalimat langkahnya — yang muncul paling awal itu subjeknya,
+        // karena tahap kedua selalu menulis "Eve snaps a jab", bukan
+        // kebalikannya. Tidak ketemu satu nama pun, dipakai jenis kelamin
+        // pelaku adegan ini selama mereka sama semua; pertandingan campur
+        // yang namanya luput jatuh ke 'female', sama seperti bawaan cast.
+        $jkPelaku = static function (string $aksi) use ($e, $r): string {
+            $paling = PHP_INT_MAX;
+            $pilih  = null;
+            foreach (($e['cast'] ?? []) as $c) {
+                if (($c['nama'] ?? '') === '') {
+                    continue;
+                }
+                $p = mb_stripos($aksi, $c['nama']);
+                if ($p !== false && $p < $paling) {
+                    $paling = $p;
+                    $pilih  = $c['sex'];
+                }
+            }
+            if ($pilih !== null) {
+                return $pilih;
+            }
+
+            $jk = [];
+            foreach (($r['adegan']['pelaku'] ?? []) as $id) {
+                if (isset($e['cast'][$id])) {
+                    $jk[$e['cast'][$id]['sex']] = true;
+                }
+            }
+
+            return count($jk) === 1 ? (string)array_key_first($jk) : 'female';
+        };
+
+        $out   = [];
+        $lalu  = '';
+        $kena  = 0;
+        $luput = 0;
         foreach (array_values($langkah) as $i => $l) {
             $tipe = isset(self::TIPE_LANGKAH[$l['tipe']]) ? $l['tipe'] : 'tenang';
 
@@ -2008,9 +2470,15 @@ TXT;
             if (preg_match('/[.!?]$/', $aksi) !== 1) {
                 $aksi .= '.';
             }
-            $efek = self::efekLangkah($tipe, $aksi, $kena);
+            // Nomor urut dihitung PER JENIS: pukulan mendarat punya
+            // hitungannya sendiri, pukulan luput punya hitungannya sendiri.
+            // Satu hitungan untuk dua-duanya membuat efeknya bergilir di
+            // urutan yang tidak ada hubungannya dengan jenis langkahnya.
+            $efek = self::efekLangkah($tipe, $aksi, $tipe === 'luput' ? $luput : $kena, $jkPelaku($aksi));
             if ($tipe === 'kena') {
                 $kena++;
+            } elseif ($tipe === 'luput') {
+                $luput++;
             }
 
             $out[] = [
@@ -2034,11 +2502,30 @@ TXT;
      * tidak membawa kalimat efek yang sama persis. Pukulan yang luput dapat
      * smear. Clinch, jatuh, dan diam tidak dapat apa-apa: impact frame di
      * adegan clinch menyuruh model menggambar benturan yang tidak ada.
+     *
+     * Dua kalimat lagi mengatur WAKTU geraknya, bukan efeknya:
+     *
+     *   - antisipasi, di pukulan pertama yang mendarat tiap klip. Jongkok
+     *     sebentar memuat pukulan lalu bahunya terbawa melewati sasaran —
+     *     itulah yang membuat jarak antar frame di benturannya melebar,
+     *     dan pose yang meloncat jauh terbaca sebagai pukulan keras.
+     *   - kadens on twos, di tiap luput kedua. Ditahan dua frame sambil
+     *     memutar, lalu penuh lagi persis di pukulannya.
+     *
+     * Keduanya bergilir, tidak dipasang di semua shot: dua kalimat efek di
+     * tiap shot cuma memanjangkan prompt tanpa menambah apa-apa. Kadensnya
+     * cuma menempel di langkah yang MEMANG ada pukulannya — dipasang di
+     * langkah tenang, kalimatnya ("lalu penuh lagi pas pukulannya") menyuruh
+     * model menggambar pukulan yang tidak ada di ceritanya. Langkah tenang
+     * sudah dapat aturan kadens yang sama dari paragraf Animation craft di
+     * ekor promptnya, dan di situ tidak ada risiko itu.
      */
-    private static function efekLangkah(string $tipe, string $aksi, int $ke): string
+    private static function efekLangkah(string $tipe, string $aksi, int $ke, string $sex = 'female'): string
     {
         if ($tipe === 'luput') {
-            return Pertandingan::GERAK['smear'];
+            return $ke % 2 === 1
+                ? Pertandingan::GERAK['twos'] . '. ' . Pertandingan::GERAK['smear']
+                : Pertandingan::GERAK['smear'];
         }
         if ($tipe !== 'kena') {
             return '';
@@ -2053,6 +2540,10 @@ TXT;
             $aksi
         ) === 1) {
             return Pertandingan::GERAK['ripple'];
+        }
+        if ($ke === 0) {
+            return Pertandingan::ganti(Pertandingan::GERAK['anticipate'], $sex)
+                 . '. ' . Pertandingan::GERAK['impact'];
         }
 
         return $ke % 3 === 2 ? Pertandingan::GERAK['freeze'] : Pertandingan::GERAK['impact'];
@@ -2307,7 +2798,10 @@ TXT;
              . 'identical to every other beat, and keep this place exactly as described above — the '
              . 'same objects in the same positions, the same surfaces, the light coming from the same places.';
 
-        return rtrim($prompt) . "\n\n" . $posisi . implode(' ', $b);
+        // Kadens animasinya ditaruh paling belakang, sesudah keterangan
+        // tempat — kalimat terakhir yang dibaca model adalah cara
+        // menggerakkannya, bukan daftar perabot ruangannya.
+        return Pertandingan::tambahAnimasi(rtrim($prompt) . "\n\n" . $posisi . implode(' ', $b));
     }
 
     /**
@@ -2350,6 +2844,16 @@ TXT;
         $nl = (int)($rencana['nomor_latar'] ?? 0);
         if ($nl > 0) {
             $urut[$nl] = ['nomor' => $nl, 'nama' => 'LATAR ' . mb_strtoupper($namaLatar)];
+        }
+
+        // Plat gaya ikut didaftar, karena daftar inilah satu-satunya yang
+        // memberitahu urutan unggahmu. Nomor di prompt sudah dipesan untuk
+        // gambar ini; kalau daftarnya tidak menyebutnya, kamu mengunggah
+        // tiga gambar untuk prompt yang menyebut empat — dan Image 4 di
+        // jangkar menunjuk sesuatu yang tidak ada.
+        $ng = (int)($rencana['nomor_gaya'] ?? 0);
+        if ($ng > 0) {
+            $urut[$ng] = ['nomor' => $ng, 'nama' => 'GAYA — plat acuan rupa'];
         }
 
         ksort($urut);

@@ -116,6 +116,25 @@ defined('AI_NSFW2_BASE_URL') || define('AI_NSFW2_BASE_URL', VENICE_BASE_URL);
 defined('AI_NSFW2_API_KEY')  || define('AI_NSFW2_API_KEY', '');
 defined('AI_NSFW2_TIMEOUT')  || define('AI_NSFW2_TIMEOUT', 90);
 
+// Penyunting prompt (halaman Ubah Prompt).
+//
+// PROFILNYA SENDIRI, bukan menumpang AI_NSFW_*, karena tugasnya memang
+// berbeda. Yang di sana MENULIS ketelanjangan — dan untuk itu model tanpa
+// sensor hampir selalu jadi satu-satunya pilihan. Yang di sini cuma
+// MENCARI POTONGAN yang harus diganti di teks yang sudah ada: pekerjaan
+// ketelitian, bukan pekerjaan menulis. Model yang lebih pintar menang
+// telak di situ, dan menumpangkan keduanya di satu profil berarti
+// memaksa dua kebutuhan yang berbeda memakai jawaban yang sama.
+//
+// Kalau model yang dipilih menolak, sistem turun sendiri ke AI_NSFW_* lalu
+// AI_NSFW2_* — jadi mengisinya dengan model sopan tidak pernah membuat
+// halamannya mati, cuma kadang satu panggilan terbuang.
+defined('AI_UBAH_PROVIDER') || define('AI_UBAH_PROVIDER', 'openai_compatible');
+defined('AI_UBAH_MODEL')    || define('AI_UBAH_MODEL', 'claude-opus-5');
+defined('AI_UBAH_BASE_URL') || define('AI_UBAH_BASE_URL', VENICE_BASE_URL);
+defined('AI_UBAH_API_KEY')  || define('AI_UBAH_API_KEY', '');
+defined('AI_UBAH_TIMEOUT')  || define('AI_UBAH_TIMEOUT', 120);
+
 // Pembaca CERITA (halaman Rancang Pertandingan, mode dari cerita).
 //
 // Ini tugas teks murni — tidak ada gambar sama sekali — jadi profil

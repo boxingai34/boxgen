@@ -85,7 +85,10 @@ final class GambarAi
      * dengan "|" lalu memecahnya lagi di sini cuma menambah satu tempat
      * baru untuk salah.
      *
-     * @param array{base?:string, characters?:list<array{prompt?:string}>, undesired?:string} $bagian
+     * @param array{base?:string, characters?:list<array{prompt?:string, uc?:string}>, undesired?:string} $bagian
+     * @param array $opsi  rasio|lebar|tinggi, benih, langkah, skala, rescale,
+     *                     kekuatan_uc, sampler, jadwal, model — semuanya opsional
+     *                     dan jatuh ke bawaan kalau tidak diisi.
      *
      * @return array{mime:string, data:string, model:string, byte:int}
      */
@@ -392,18 +395,29 @@ final class GambarAi
         $base   = trim((string)($bagian['base'] ?? ''));
         $negatif = trim((string)($bagian['undesired'] ?? ($opsi['negatif'] ?? '')));
 
+        // Kotak karakter dibawa berpasangan dengan undesired-nya sendiri.
+        // Halaman Ubah Prompt menggambar ulang gambar orang lain apa
+        // adanya, dan di prompt matang kotak UC per karakter sering yang
+        // menahan satu tokoh supaya tidak ikut memejamkan mata.
         $kotak = [];
         foreach (($bagian['characters'] ?? []) as $c) {
             $teks = trim((string)($c['prompt'] ?? ''));
             if ($teks !== '') {
-                $kotak[] = $teks;
+                $kotak[] = ['prompt' => $teks, 'uc' => trim((string)($c['uc'] ?? ''))];
             }
         }
 
         // Tiga ukuran yang tidak memakan Anlas tambahan pada langganan
         // Opus. Melebihi ini tetap jalan tapi mulai ditagih, jadi rasio
         // apa pun dipetakan ke salah satu dari ketiganya.
+        //
+        // Ukuran boleh ditentukan langsung — itu jalan yang dipakai waktu
+        // menggambar ulang gambar yang sudah ada: 1216x832 miliknya harus
+        // dipulangkan apa adanya, bukan dibulatkan ke "lanskap".
         [$lebar, $tinggi] = self::ukuranNovelAi((string)($opsi['rasio'] ?? ''));
+        if ((int)($opsi['lebar'] ?? 0) > 0 && (int)($opsi['tinggi'] ?? 0) > 0) {
+            [$lebar, $tinggi] = self::ukuranSah((int)$opsi['lebar'], (int)$opsi['tinggi']);
+        }
 
         // Benih boleh ditentukan dari luar. Itu satu-satunya cara membuat
         // beberapa gambar yang BERSAUDARA: prompt yang berbeda sedikit
@@ -414,27 +428,70 @@ final class GambarAi
             ? (int)$opsi['benih']
             : random_int(1, 2147483646);
 
+        // use_coords false, jadi titiknya tidak dipakai — tapi tetap harus
+        // ada bentuknya.
+        $titik = [['x' => 0.5, 'y' => 0.5]];
+
         $caption = [
             'base_caption'  => $base,
             'char_captions' => array_map(
-                // use_coords false, jadi titiknya tidak dipakai — tapi
-                // tetap harus ada bentuknya.
-                static fn(string $t): array => ['char_caption' => $t, 'centers' => [['x' => 0.5, 'y' => 0.5]]],
+                static fn(array $k): array => ['char_caption' => $k['prompt'], 'centers' => $titik],
                 $kotak
             ),
         ];
 
+        // Undesired per karakter cuma dikirim kalau memang ada isinya:
+        // daftar kosong itu bentuk yang selama ini dipakai dan diterima,
+        // dan daftar berisi string kosong belum tentu sama artinya bagi
+        // NovelAI.
+        $ucKotak = [];
+        foreach ($kotak as $k) {
+            if ($k['uc'] !== '') {
+                $ucKotak = array_map(
+                    static fn(array $x): array => ['char_caption' => $x['uc'], 'centers' => $titik],
+                    $kotak
+                );
+                break;
+            }
+        }
+
+        /*
+         * Setelan boleh dititipkan dari luar.
+         *
+         * Angka bawaannya tetap yang dulu — halaman Prompt dan Rancang
+         * tidak mengirim apa-apa dan hasilnya sama persis seperti
+         * sebelumnya. Yang butuh ini halaman Ubah Prompt: menggambar
+         * ulang gambar orang lain dengan langkah, guidance, dan sampler
+         * yang berbeda dari bawaan kita akan memulangkan gambar yang
+         * berbeda walau promptnya sama kata per kata.
+         */
+        $angka = static function (string $kunci, $bawaan) use ($opsi) {
+            return isset($opsi[$kunci]) && is_numeric($opsi[$kunci]) ? $opsi[$kunci] + 0 : $bawaan;
+        };
+
+        $sampler = trim((string)($opsi['sampler'] ?? ''));
+        $jadwal  = trim((string)($opsi['jadwal'] ?? ''));
+
+        // Model yang BENAR-BENAR dipakai, disimpan sekali lalu dipakai dua
+        // kali: di badan permintaan dan di keterangan yang dibawa pulang.
+        // Sempat dipisah, dan akibatnya halaman melaporkan model profil
+        // padahal yang menggambar model pilihan — kekeliruan yang mahal,
+        // karena seluruh gunanya memilih model adalah membandingkan.
+        $model = trim((string)($opsi['model'] ?? '')) !== ''
+            ? trim((string)$opsi['model'])
+            : (string)$p['model'];
+
         $body = [
             'input'  => $base,
-            'model'  => (string)$p['model'],
+            'model'  => $model,
             'action' => 'generate',
             'parameters' => [
                 'params_version'      => 4,
                 'width'               => $lebar,
                 'height'              => $tinggi,
-                'scale'               => 5,
-                'sampler'             => 'k_euler_ancestral',
-                'steps'               => 28,
+                'scale'               => $angka('skala', 5),
+                'sampler'             => $sampler !== '' ? $sampler : 'k_euler_ancestral',
+                'steps'               => max(1, min(50, (int)$angka('langkah', 28))),
                 'seed'                => $benih,
                 'extra_noise_seed'    => $benih,
                 'n_samples'           => 1,
@@ -446,10 +503,10 @@ final class GambarAi
                 'controlnet_strength' => 1,
                 'legacy'              => false,
                 'add_original_image'  => false,
-                'cfg_rescale'         => 0,
-                'noise_schedule'      => 'karras',
+                'cfg_rescale'         => $angka('rescale', 0),
+                'noise_schedule'      => $jadwal !== '' ? $jadwal : 'karras',
                 'legacy_v3_extend'    => false,
-                'uncond_scale'        => 1,
+                'uncond_scale'        => $angka('kekuatan_uc', 1),
                 'negative_prompt'     => $negatif,
                 'prompt'              => $base,
                 'reference_image_multiple'               => [],
@@ -465,7 +522,7 @@ final class GambarAi
                     'use_order'  => false,
                     'caption'    => [
                         'base_caption'  => $negatif,
-                        'char_captions' => [],
+                        'char_captions' => $ucKotak,
                     ],
                 ],
             ],
@@ -491,7 +548,7 @@ final class GambarAi
         return [
             'mime'  => 'image/png',
             'data'  => base64_encode($png),
-            'model' => (string)$p['model'],
+            'model' => $model,
             'byte'  => $byte,
         ];
     }
@@ -512,6 +569,31 @@ final class GambarAi
         if ($t > $w) { return [832, 1216]; }
 
         return [1024, 1024];
+    }
+
+    /**
+     * Ukuran yang diminta, dibulatkan ke yang boleh dikirim.
+     *
+     * NovelAI menolak sisi yang bukan kelipatan 64, dan menagih Anlas
+     * untuk kanvas yang lebih besar dari sejuta piksel. Angka yang datang
+     * dari metadata gambar lain hampir selalu sudah sah — pembulatan di
+     * sini cuma jaring untuk angka yang diketik sendiri, dan kanvas yang
+     * kelewat besar dipulangkan ke bentuk terdekat yang gratis.
+     *
+     * @return array{0:int, 1:int}
+     */
+    private static function ukuranSah(int $lebar, int $tinggi): array
+    {
+        $bulat = static fn(int $n): int => max(64, min(1536, intdiv($n, 64) * 64));
+
+        $l = $bulat($lebar);
+        $t = $bulat($tinggi);
+
+        if ($l * $t > 1_600_000) {
+            return self::ukuranNovelAi($lebar > $tinggi ? '16:9' : ($tinggi > $lebar ? '9:16' : '1:1'));
+        }
+
+        return [$l, $t];
     }
 
     /**

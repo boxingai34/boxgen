@@ -9,6 +9,7 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
+use App\Http\Controllers\UbahController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -46,6 +47,11 @@ Route::prefix('generator')->group(function () {
         Route::post('reverse/ambil', [ReverseController::class, 'ambilUrl'])->name('reverse.ambil');
         Route::post('reverse/baca', [ReverseController::class, 'baca'])->name('reverse.baca');
         Route::post('reverse/susun', [ReverseController::class, 'susun'])->name('reverse.susun');
+
+        // ---- Ubah Prompt (metadata gambar NovelAI disunting) ----
+        Route::get('ubah', [UbahController::class, 'halaman'])->name('ubah');
+        Route::post('ubah/ambil', [UbahController::class, 'ambil'])->name('ubah.ambil');
+        Route::post('ubah/terapkan', [UbahController::class, 'terapkan'])->name('ubah.terapkan');
 
         // ---- Buat gambarnya (prompt langsung digambar) ----
         Route::post('gambar/tokoh', [GambarController::class, 'tokoh'])->name('gambar.tokoh');

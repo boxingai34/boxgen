@@ -1445,7 +1445,14 @@ TXT;
     /**
      * Bakukan bagian "gaya" dari opsi yang datang dari halaman.
      *
-     * Bentuknya: ['gaya' => ['style_id' => ?int, 'artis' => string, 'kuat' => string]]
+     * Bentuknya: ['gaya' => ['style_id' => ?int, 'artis' => string, 'kuat' => string,
+     *                        'acuan' => bool]]
+     *
+     * Fungsi ini MEMBANGUN ULANG isinya, tidak menambal. Jadi kunci baru
+     * yang tidak didaftarkan di sini hilang diam-diam sebelum sampai ke
+     * penyusun promptnya — dan gejalanya menyesatkan: pilihannya terbaca
+     * benar di halaman, tersimpan benar di riwayat, tapi tidak pernah
+     * muncul di hasilnya.
      */
     public static function rapikanGaya(array $opsi, string $target): array
     {
@@ -1459,6 +1466,9 @@ TXT;
             'artis'    => mb_substr(trim((string)($g['artis'] ?? '')), 0, self::MAKS_ARTIS),
             'kuat'     => isset(self::KUAT[$kuat]) ? $kuat : 'sedang',
             'tipe'     => $target === 'nai5' ? 'style' : 'video_style',
+            // Kamu mengunggah plat acuan rupa? Bukan urusan NovelAI: jalur
+            // itu menyusun gambar diam, tidak punya gambar acuan bernomor.
+            'acuan'    => $target !== 'nai5' && !empty($g['acuan']),
         ];
 
         return $opsi;
@@ -3257,6 +3267,28 @@ TXT;
             ];
         }
 
+        /*
+         * PLAT GAYA SELALU NOMOR TERAKHIR.
+         *
+         * Bukan soal selera penomoran. Gambar arena disisipkan di tengah
+         * karena halaman memang menyediakan slotnya di tengah — sesudah
+         * petinju, sebelum wasit. Plat gaya tidak begitu: ia slot baru,
+         * dan menaruhnya di mana pun selain paling belakang akan menggeser
+         * nomor semua gambar sesudahnya. Jangkar "Image 4 is the referee"
+         * lalu menunjuk plat gaya, dan model mengunci wujud wasit ke
+         * sebuah potongan gambar — kesalahan yang persis sama dengan yang
+         * dicatat di komentar penomoran di atas.
+         *
+         * Paling belakang berarti menambahkannya tidak pernah memindahkan
+         * satu pun gambar yang sudah kamu unggah.
+         *
+         * $n sudah menunjuk nomor bebas berikutnya, TAPI belum tentu lewat
+         * nomor arena: dua petinju tanpa orang lain berhenti di $n = 3
+         * sementara arena memegang 3. Karena itu diambil yang lebih besar.
+         */
+        $adaAcuanGaya = !empty($opsi['gaya']['acuan']);
+        $nomorGaya    = $adaAcuanGaya ? max($n, $nomorLatar + 1) : 0;
+
         $shots = [];
         if ($e['video'] !== null && $e['video']['shots'] !== []) {
             foreach ($e['video']['shots'] as $sh) {
@@ -3323,7 +3355,13 @@ TXT;
             'rasio'    => $rasio,
             'durasi'   => $durasi,
             'orang'    => $orang,
-            'shots'    => $shots,
+            // Disaring di sini, bukan di tabel kameranya: tabelnya ada dua
+            // (Cerita dan Pertandingan) dan keduanya tidak tahu apa-apa
+            // soal penonton waktu memilih sudut. Di sini penontonnya sudah
+            // diketahui, dan semua penyusun prompt lewat sini.
+            'shots'    => self::kameraTanpaPenonton(
+                $shots, (string)($e['environment']['crowd'] ?? 'packed')
+            ),
             'gaya'     => rtrim($gaya, '. '),
             'tempat'   => $tempat,
             'cahaya'   => $e['lighting']['summary'],
@@ -3342,6 +3380,9 @@ TXT;
             'wasit'    => self::adaPeran($e, 'referee') || !empty($e['environment']['wasit']),
             'acuan_latar'  => $adaAcuanLatar,
             'nomor_latar'  => $nomorLatar,
+            // Plat gaya: gambar yang rupanya ditiru, bukan isinya.
+            'acuan_gaya'   => $adaAcuanGaya,
+            'nomor_gaya'   => $nomorGaya,
             // Kalau tidak ada gambar arena yang dibaca, keterangannya diambil
             // dari latar pilihanmu — jangkar "Image 3 is the venue." tanpa
             // keterangan apa pun tidak memberi tahu model apa-apa.
@@ -3539,6 +3580,49 @@ TXT;
      * memunculkan sarung tangan di tempat yang tidak seharusnya — dan
      * karena gaya adalah kalimat PERTAMA promptnya, bobotnya paling besar.
      */
+    /**
+     * Gaya pilihanmu memang anime, atau bukan?
+     *
+     * Kalimat pertama prompt dulu selalu berbunyi "an anime boxing match",
+     * lalu kalimat gaya ditempel sesudahnya. Untuk gaya anime itu penguat.
+     * Untuk separuh katalognya itu perkelahian: "an anime boxing match,
+     * warm rounded 3D cartoon: soft subsurface-lit skin" menyuruh dua
+     * rupa yang berbeda dalam satu kalimat, dan yang menang berganti tiap
+     * generasi. Begitu juga Simpsons, Spider-Verse, Berserk yang tinta
+     * hitam putih, dan Ghibli yang cat air.
+     *
+     * YANG DICARI TABRAKANNYA, BUKAN KATA "ANIME"-NYA.
+     *
+     * Percobaan pertama di sini memulangkan true cuma kalau kalimat
+     * gayanya menyebut "anime" sendiri. Itu salah, dan katalognya langsung
+     * membuktikannya: Ghibli, Berserk, Vagabond, Makoto Shinkai, One Punch
+     * Man, Mushishi dan Violet Evergarden semuanya anime atau manga, tapi
+     * kalimatnya menggambarkan RUPA — cat air, tinta hitam putih, latar
+     * terlukis — tanpa menyebut kata "anime" satu kali pun. Aturan itu
+     * mencabut kata anime dari tujuh gaya yang selama ini benar, demi
+     * memperbaiki satu yang salah.
+     *
+     * Jadi yang dicari sekarang cuma medium yang benar-benar BERTABRAKAN
+     * dengan gambar dua dimensi: 3D, CGI, clay, stop motion, live action,
+     * boneka. Gaya yang menyebut "anime" sendiri tetap anime walau 3D —
+     * Genshin menulis "cel-shaded 3D ANIME look", dan memang begitu
+     * adanya. Selain itu semuanya dibiarkan seperti sebelumnya, termasuk
+     * kalau tidak ada gaya sama sekali.
+     *
+     * "Photoreal" sengaja TIDAK masuk daftar: Makoto Shinkai berbunyi
+     * "photoreal painted backgrounds", dan itu menggambarkan latarnya,
+     * bukan mediumnya.
+     */
+    public static function gayaAnime(string $gaya): bool
+    {
+        $g = trim($gaya);
+        if ($g === '' || mb_stripos($g, 'anime') !== false) {
+            return true;
+        }
+
+        return preg_match('/\b(3d|cgi|claymation|clay|stop[- ]motion|live[- ]action|puppet\w*)\b/i', $g) !== 1;
+    }
+
     private static function gayaAdegan(string $gaya, bool $bertinju): string
     {
         if ($bertinju || $gaya === '') {
@@ -3559,9 +3643,25 @@ TXT;
         // "a 8-second" salah; 8, 11, dan 18 minta "an".
         $awalan = preg_match('/^(8|11|18)$/', (string)$r['durasi']) === 1 ? 'an ' : 'a ';
 
-        $bagian[] = 'Generate ' . $awalan . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 30fps: '
-                  . ($r['bertinju'] ? 'an anime boxing match' : 'a scene from an anime')
-                  . ', ' . self::gayaAdegan((string)$r['gaya'], (bool)$r['bertinju']) . '.';
+        // 24fps, bukan 30 — alasan lengkapnya di WanBuilder::renderAdegan().
+        // Ringkasnya: angka ini petunjuk gaya, bukan setelan wadah. Anime
+        // 24 frame per detik, dan "30fps" menarik model ke gerak rata ala
+        // rekaman kamera — persis lawan dari kadens yang diminta paragraf
+        // Animation craft di ekor prompt yang sama.
+        // Plat gaya disebut DI KALIMAT PERTAMA, bukan cuma di jangkarnya.
+        // Alasannya sama dengan alasan kalimat gaya ada di situ: ini slot
+        // berbobot paling besar di seluruh prompt. Jangkar Image 4 sendirian
+        // terkubur di antara jangkar tokoh, dan keterangan gaya bertulis
+        // lalu berebut dengan gambarnya alih-alih menguatkannya. Disebut di
+        // sini, keduanya menunjuk hal yang sama.
+        $nomorGaya = (int)($r['nomor_gaya'] ?? 0);
+        $anime     = self::gayaAnime((string)$r['gaya']);
+        $bagian[]  = 'Generate ' . $awalan . $r['durasi'] . '-second ' . $r['rasio'] . ' video at 24fps: '
+                  . ($r['bertinju']
+                      ? ($anime ? 'an anime boxing match' : 'a boxing match')
+                      : ($anime ? 'a scene from an anime' : 'an animated scene'))
+                  . ($nomorGaya > 0 ? ' rendered exactly like Image ' . $nomorGaya . ' — ' : ', ')
+                  . self::gayaAdegan((string)$r['gaya'], (bool)$r['bertinju']) . '.';
 
         // Dikumpulkan dulu lalu diurutkan menurut nomornya. Gambar arena
         // menyelip di tengah, jadi kalau dicetak sesuai urutan subjek saja,
@@ -3581,6 +3681,21 @@ TXT;
                           : 'Use it as the set — the walls, the floor, the furniture and where the light '
                             . 'comes from must match it exactly in every shot')
                       . '; there is nobody to take from that image.';
+        }
+        // Jangkar plat gaya, dan kalimat pembatasnya adalah SETENGAH dari
+        // gunanya. Tiap jangkar di prompt ini selalu menyebut apa yang
+        // boleh diambil dari gambarnya — arena menutup dengan "there is
+        // nobody to take from that image" supaya orang tidak ikut tersalin.
+        // Plat gaya butuh kebalikannya: rupanya saja yang diambil, isinya
+        // tidak. Tanpa kalimat itu model memperlakukannya seperti jangkar
+        // subjek — dan pose serta komposisi di plat itu ikut terbawa ke
+        // shot yang seharusnya punya koreografinya sendiri.
+        if ($nomorGaya > 0) {
+            $anchor[$nomorGaya] = 'Image ' . $nomorGaya . ' is a style reference. Match its '
+                      . 'rendering exactly: how skin, hair, fabric and glove leather are shaded, '
+                      . 'how soft the light falls, how much surface detail there is, and the '
+                      . 'colour palette. Take nothing else from it — not the poses, not the '
+                      . 'framing, not the composition, and not the moment it shows.';
         }
 
         ksort($anchor);
@@ -3610,6 +3725,45 @@ TXT;
     private static function adaPenonton(array $r): bool
     {
         return !in_array((string)($r['penonton'] ?? 'packed'), ['none', 'kosong', ''], true);
+    }
+
+    /**
+     * Bahasa kamera yang mengandaikan ada tempat duduk penontonnya.
+     *
+     * "From the stands" itu tribun, "from ringside" itu deretan kursi di
+     * pinggir ring. Model video hampir tidak pernah menggambar bangku
+     * kosong: diminta tribun, ia mengisinya dengan orang. Itulah yang
+     * membuat pertandingan di kamar tidur punya satu baris penonton
+     * duduk menonton — padahal kalimat "Only the two boxers are in shot
+     * at any time" ada di prompt yang sama. Sudut kamera itu perintah
+     * menggambar, larangan itu cuma kalimat, dan yang menggambar menang.
+     *
+     * Diganti, bukan dibuang: yang dibutuhkan dari "from the stands"
+     * tetap jarak dan ketinggian pandangnya, dan shot jauh yang
+     * keterangannya dihapus begitu saja kehilangan dua-duanya.
+     */
+    private const KAMERA_BERPENONTON = [
+        'from the stands' => 'from high up over the empty floor',
+        'from ringside'   => 'from just outside the ropes',
+    ];
+
+    /**
+     * Buang bahasa tribun dari sudut kamera kalau tempatnya memang kosong.
+     *
+     * @param  list<array<string,mixed>> $shots
+     * @return list<array<string,mixed>>
+     */
+    private static function kameraTanpaPenonton(array $shots, string $penonton): array
+    {
+        if (!in_array($penonton, ['none', 'kosong', ''], true)) {
+            return $shots;
+        }
+
+        foreach ($shots as $i => $sh) {
+            $shots[$i]['camera'] = strtr((string)($sh['camera'] ?? ''), self::KAMERA_BERPENONTON);
+        }
+
+        return $shots;
     }
 
     /**
@@ -3660,13 +3814,23 @@ TXT;
                  . 'of the place itself.';
         }
 
+        // LARANGANNYA SATU KALIMAT, DAN DISEBUT SEKALI.
+        //
+        // Dulu di sini ada daftar panjang: "no score, no soundtrack, no
+        // theme, no drums, no strings, no synth, no hum or drone". Niatnya
+        // menutup celah, hasilnya kebalikannya — model video tidak punya
+        // negative prompt, jadi delapan kata musik itu masuk ke dalam
+        // pengondisian yang sama persis seperti kata lain di promptnya.
+        // Menyebut "drums" untuk melarang drum tetap menyebut drum.
+        //
+        // Yang tersisa: daftar suara yang HARUS ada (di atas), lalu satu
+        // penutup yang mengunci daftar itu. Kalimat "nothing else" bekerja
+        // tanpa menyebut satu pun nama alat musik.
         return 'Audio: diegetic sound only — everything heard must be something happening '
              . 'in the scene itself. ' . $isi . ' '
-             . 'ABSOLUTELY NO MUSIC OF ANY KIND at any point: no score, no soundtrack, no theme, '
-             . 'no drums, no strings, no synth, no hum or drone standing in for music, and no '
-             . 'music fading in under the action at the end. If in doubt, leave the track silent '
-             . ($bertinju ? 'except for the impacts. ' : 'except for room tone. ')
-             . 'No narration and no commentary.';
+             . 'That list is the entire soundtrack and nothing else is added to it: no music '
+             . 'at any point, no narration, no commentary. If in doubt, leave the track silent '
+             . ($bertinju ? 'except for the impacts.' : 'except for room tone.');
     }
 
     private static function kalimatShotWan(array $sh, array $r): string
@@ -3681,16 +3845,30 @@ TXT;
         return $teks;
     }
 
+    /**
+     * Gerak kamera jadi kalimat.
+     *
+     * Yang bergerak MULUS dapat keterangan ease-nya. Tanpa itu model
+     * menariknya rata dari frame pertama sampai terakhir, dan kamera yang
+     * langsung penuh kecepatan lalu berhenti mendadak justru terbaca
+     * sebagai kamera 3D — bukan kamera yang digerakkan orang. Di animasi
+     * gambar tangan, kamera yang mendekat berangkat pelan, sampai puncak
+     * kecepatannya di tengah, lalu melambat sebelum berhenti, dan itulah
+     * yang dibaca mata sebagai halus.
+     *
+     * Whip pan dan handheld sengaja TIDAK dapat ease: yang satu memang
+     * harus mendadak, yang satu memang tidak rata.
+     */
     private static function gerakKamera(string $move): string
     {
         return match ($move) {
-            'push_in'     => 'the camera pushes in slowly',
-            'pull_out'    => 'the camera pulls out slowly',
-            'pan'         => 'the camera pans to follow the movement',
-            'tracking'    => 'the camera tracks alongside the fighters',
+            'push_in'     => 'the camera pushes in slowly, easing into the move and slowing again before it settles',
+            'pull_out'    => 'the camera pulls out slowly, easing into the move and slowing again before it settles',
+            'pan'         => 'the camera pans to follow the movement, easing in and out instead of starting and stopping abruptly',
+            'tracking'    => 'the camera tracks alongside the fighters, easing up to speed and easing off again at the end',
             // Mengorbit penuh memindahkan petinju kiri ke kanan layar, padahal
             // baris batasannya mengunci keduanya di sisi masing-masing.
-            'orbit'       => 'the camera arcs slowly around the fighters without crossing to their far side',
+            'orbit'       => 'the camera arcs slowly around the fighters without crossing to their far side, easing in and out of the arc',
             'handheld'    => 'handheld camera with slight shake',
             'whip_pan'    => 'a whip pan into the action',
             'slow_motion' => 'the impact plays in slow motion',
@@ -3811,7 +3989,13 @@ TXT;
         if ($laju !== '') {
             $b[] = SeedanceBuilder::kalimat($laju);
         }
-        $b[] = 'No background music.';
+
+        // "No background music." dulu ditempel di sini JUGA. Blok audio
+        // menyusul persis sesudah blok ini (lihat renderWan), jadi satu
+        // prompt memuat larangan musik dua kali dengan kata yang berbeda —
+        // dan setiap pengulangan menambah bobot kata "music" di
+        // pengondisian yang sama. Yang melarang sekarang cuma blok audio,
+        // sekali, di tempat yang memang membicarakan suara.
         return implode(' ', $b);
     }
 
@@ -3889,6 +4073,18 @@ TXT;
                         : 'Take the walls, floor, furniture and lighting from it, unchanged in every shot')
                     . '; there is nobody in that image.';
         }
+        // Sama seperti di renderWan: rupanya saja yang diambil, isinya
+        // tidak. Kalau tidak ikut ditulis di sini, plat gaya yang kamu
+        // unggah untuk target Seedance tidak disebut di prompt sama sekali —
+        // nomornya sudah dipesan tapi tidak ada jangkarnya, dan gambar
+        // tanpa jangkar jadi tebakan bebas buat modelnya.
+        if ((int)($r['nomor_gaya'] ?? 0) > 0) {
+            $ng = (int)$r['nomor_gaya'];
+            $anchor[$ng] = '@Image ' . $ng . ' is THE STYLE REFERENCE. Match its rendering '
+                    . 'exactly: shading of skin, hair, fabric and glove leather, softness of the '
+                    . 'light, amount of surface detail, and the colour palette. Take nothing else '
+                    . 'from it — not the poses, not the framing, not the composition.';
+        }
         ksort($anchor);
         foreach ($anchor as $baris) {
             $blok[] = $baris;
@@ -3898,12 +4094,18 @@ TXT;
         $nama = implode(' and ', array_map(static fn(array $o) => mb_strtoupper($o['nama']), $r['orang']));
         // Adegan yang bukan pertandingan — istirahat antar ronde, penutup
         // sesudah KO — tidak boleh dibuka dengan "boxing match ... trade".
+        // "anime" bersyarat dan plat gaya disebut, sama seperti jalur Wan —
+        // dua jalur yang menulis kalimat gaya dengan aturan berbeda cuma
+        // membuat hasil dari cerita yang sama berbeda rupa antar target.
+        $sebutGaya = self::gayaAnime((string)$r['gaya']) ? 'anime ' : '';
+        $ikutPlat  = (int)($r['nomor_gaya'] ?? 0) > 0
+            ? ', rendered exactly like @Image ' . (int)$r['nomor_gaya'] : '';
         $blok[] = !empty($r['bertinju'])
-            ? 'A ' . $r['durasi'] . '-second anime boxing match: ' . $nama
+            ? 'A ' . $r['durasi'] . '-second ' . $sebutGaya . 'boxing match: ' . $nama
               . (count($r['orang']) > 1 ? ' trade ' : ' works ') . $r['tempat']
-              . ', ' . $r['gaya'] . ', shot like a live boxing broadcast.'
-            : 'A ' . $r['durasi'] . '-second anime scene: ' . $nama . ' ' . $r['tempat']
-              . ', ' . self::gayaAdegan((string)$r['gaya'], false) . '.';
+              . ', ' . $r['gaya'] . $ikutPlat . ', shot like a live boxing broadcast.'
+            : 'A ' . $r['durasi'] . '-second ' . $sebutGaya . 'scene: ' . $nama . ' ' . $r['tempat']
+              . ', ' . self::gayaAdegan((string)$r['gaya'], false) . $ikutPlat . '.';
         $blok[] = '';
 
         foreach ($r['shots'] as $i => $sh) {

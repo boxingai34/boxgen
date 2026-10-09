@@ -143,6 +143,7 @@ Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 | `/generator` | Dasbor (diminta masuk) |
 | `/generator/prompt` | Prompt Generator — prompt gambar dari pilihan |
 | `/generator/reverse` | Dari Gambar/Video — referensi jadi prompt |
+| `/generator/ubah` | Ubah Prompt — metadata gambar NovelAI, karakternya diganti |
 | `/generator/rancang`, `/generator/riwayat`, `/generator/akun`, `/generator/alat-lama` | Generator |
 | `/generator/login`, `/generator/register`, `/generator/logout` | Masuk / daftar |
 | `/generator/cms` | CMS halaman depan (admin) |
@@ -155,7 +156,7 @@ mengganti awalan cukup di `routes/web.php`.
 
 ```
 app/Http/Controllers/     LandingController (halaman depan), CmsController, CeritaController (rancang),
-                          RiwayatController, DashboardController, AkunController
+                          RiwayatController, DashboardController, AkunController, UbahController (ubah prompt)
 app/Http/Middleware/      HanyaAdmin — alias 'admin' (bootstrap/app.php)
 app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + angka kanal),
                           PatreonTerbaru (pos + jumlah patron), DeviantartTerbaru (umpan galeri),
@@ -168,7 +169,8 @@ resources/js/components/landing/  KepalaPublik, KakiPublik, Rel (label seksi di 
                           VideoLite (facade YouTube), LinimasaX, SematInstagram
 resources/js/components/cms/      Isian, Gambar (unggah/pilih), DaftarTeks, KendaliBaris
 resources/js/components/box/      SisiNav, BilahAtas, Kartu, Tombol
-resources/js/lib/         gerak.ts (v-reveal, v-kata, v-magnet, hitungNaik, mode hemat), kirim.ts (fetch + CSRF + unggah)
+resources/js/lib/         gerak.ts (v-reveal, v-kata, v-magnet, hitungNaik, mode hemat), kirim.ts (fetch + CSRF + unggah),
+                          naimeta.ts (metadata NovelAI dari PNG: chunk teks + kanal alfa)
 resources/css/app.css     Tema, animasi, primitif halaman depan (.tegak .hanko .hinomaru .tali-ring …), saklar hemat
 public/img/               Gambar dari arsipmu, sudah diperkecil ke WebP
 public/uploads/landing/   Unggahan dari CMS (tidak ikut git)
@@ -182,9 +184,10 @@ storage/app/landing.json  Isi halaman depan (tidak ikut git; ada cadangan .bak1�
 | Halaman depan | Landing page publik BoxinGenerated + CMS |
 | Prompt Generator | Mode 1 & 2 petinju, lengkap dengan isi otomatis AI, warna per bagian, tag bebas, dan empat format keluaran |
 | Dari Gambar/Video | Unggah/seret/tempel/URL → dibaca model vision → kolomnya dibetulkan → prompt NovelAI |
+| Ubah Prompt | PNG NovelAI → metadatanya dibaca di browser → satu kalimat permintaan → karakternya diganti → digambar ulang dengan seed aslinya |
 | Buat gambarnya | Prompt yang baru jadi langsung digambar (NovelAI untuk tokoh, Gemini/OpenAI untuk latar) |
 | Dasbor | Angka ringkas + pintasan + riwayat terbaru |
-| Rancang Pertandingan (dari cerita) | Alur penuh: baca → susun → salin → simpan → buka lagi |
+| Rancang Pertandingan (dari cerita) | Alur penuh: baca → susun → salin → simpan → buka lagi, plus isian manual (tokoh, tempat, tema pakaian) |
 | Riwayat | Cari, lihat isi, hapus |
 | Akun | Nama, email, ganti kata sandi, tema, mode hemat |
 | Masuk / Daftar | Memakai tabel `users` lama, termasuk aturan "menunggu persetujuan admin" |
@@ -213,8 +216,153 @@ jadi hampir 1,5 MB), lalu berhenti di browser sebagai blob. Keterangannya
 **Prompt Generator dan Dari Gambar/Video memanggil mesin yang sama** dengan
 halaman lamanya (PromptBuilder, Exporter, ReversePrompt, CharacterResolver),
 lewat `PromptController` dan `ReverseController` — bukan lewat `api/*.php`.
+
+### Isian manual di Rancang Pertandingan
+
+Kotak ceritanya tetap jadi jalan masuk utamanya; kartu **Isian manual** di
+bawahnya cuma menimpa yang kamu sebutkan sendiri — tokoh (nama, tag karakter
+Danbooru, jenis kelamin, bentuk badan), tema pakaian, tempat, jam, durasi,
+pemenang, dan cara selesainya. Yang dikosongkan tetap dibaca dari ceritamu
+persis seperti sebelum kartu ini ada.
+
+Tema pakaiannya **daftar yang sama dengan Prompt Generator** — tabel `modules`
+bertipe `outfit`, lengkap dengan gambar contohnya — jadi apa pun yang
+ditambahkan lewat Admin/Master Katalog langsung muncul di sini juga. Yang
+dikirim ke prompt bukan nama temanya, melainkan tag kelima slotnya
+(atasan, bawahan, tangan, kaki, kepala) plus kalimat `sentence` milik temanya;
+lihat `Cerita::temaPakaian()`.
+
+**Panjang tiap klip** bisa disebut di ceritamu ("buat 1 clip nya 30 detik")
+atau diisi di kartu ini; keduanya berakhir di `detik_per_klip` di dalam
+ekstrak, jadi rancangan yang dibuka lagi tetap memakai panjang yang dulu
+kamu minta. Angka itu **batas atas, bukan panjang paksa**: tiap adegan
+dibagi ke atas (`ceil`) lalu dibagi rata di dalam adegannya sendiri,
+sehingga totalnya selalu sama persis dengan durasi ceritamu. Dulu tiap
+klip diisi persis angka itu — dan cerita 90 detik yang terbaca jadi enam
+adegan 8–20 detik keluar sebagai enam klip 30 detik, yaitu 180 detik,
+tanpa satu pun peringatan. Pembacanya juga diberi tahu angkanya, supaya
+detik tiap adegan dibuat kelipatan panjang klip sejak awal.
+
+Isiannya dipakai **dua kali**: sekali sebagai petunjuk waktu ceritanya dibaca
+(`Cerita::arahanManual()`), sekali lagi sebagai penimpa sesudah dibaca
+(`Cerita::terapkanManual()`). Yang kedua yang menentukan dan tidak memanggil AI
+sama sekali, jadi mengganti tema pakaian sesudah ceritanya terbaca langsung
+menyusun ulang secara gratis. Alasan keduanya perlu ada di komentar
+`engine/Cerita.php`.
 Jadi satu perubahan di engine langsung terasa di kedua tampilan, dan riwayatnya
 tetap satu tabel `generations` yang sama.
+
+### Ubah Prompt
+
+Gambar NovelAI yang sudah jadi membawa seluruh promptnya di dalam berkasnya
+sendiri. Halaman ini membacanya, menyunting satu hal yang kamu minta —
+biasanya karakternya — lalu menggambar ulang dengan seed dan setelan aslinya,
+sehingga yang berganti orangnya dan bukan adegannya.
+
+**Berkasnya tidak pernah diunggah.** `resources/js/lib/naimeta.ts` membaca
+chunk teks PNG-nya di browser, persis seperti novelai.net/inspect, dan yang
+dikirim ke server cuma teksnya. Tiga alasannya: PNG 1216×832 itu dua sampai
+tiga megabyte untuk dua kilobyte teks di kepalanya; salinan cadangan metadata
+ada di **kanal alfa** (stealth pnginfo) yang butuh piksel, sedangkan PHP di
+sini tidak punya GD sementara kanvas di browser punya; dan yang tidak pernah
+diunggah tidak perlu dijanjikan akan dihapus.
+
+**Gambar dari internet diambil lewat server, bukan disalin.** Menyalin
+gambar di browser lalu menempelnya di sini TIDAK membawa promptnya: papan
+klip cuma berisi pikselnya, sudah disandikan ulang tanpa chunk teks. Jadi
+halaman ini menerima **alamat** gambarnya (`ubah/ambil` →
+`UbahPrompt::ambilGambar()`), dan waktu kamu menekan Ctrl+V sesudah "Copy
+image", yang dipakai bukan pikselnya melainkan alamat yang ikut terbawa di
+potongan `<img src>` di papan klip. Servernya yang mengunduh — hampir tidak
+ada situs gambar yang mengizinkan pembacaan lintas-asal — lalu meneruskan
+bytenya apa adanya: tidak disimpan, tidak diperkecil, tidak disandikan
+ulang. Penjagaan alamatnya (`Referensi::periksaUrl()`) sama dengan halaman
+Dari Gambar/Video, jadi alamat jaringan lokal tetap ditolak.
+
+**Penyuntingnya punya profil sendiri** (`AI_UBAH_*`), bukan menumpang
+`AI_NSFW_*`. Tugasnya memang berbeda: yang di halaman Dari Gambar/Video
+MENULIS ketelanjangan — dan untuk itu model tanpa sensor sering jadi
+satu-satunya pilihan — sedangkan yang di sini cuma MENCARI POTONGAN yang
+harus diganti di teks yang sudah ada. Itu pekerjaan ketelitian, dan model
+yang lebih pintar menang telak di situ. Tiga pilihan disediakan di halaman
+(`UbahPrompt::PENYUNTING`), ketiganya lewat profil yang sama dengan model
+yang ditukar; kalau yang dipilih menolak, sistem turun sendiri ke
+`AI_NSFW_*` lalu `AI_POLISH_*`, dan model yang benar-benar menjawab
+ditulis di hasilnya.
+
+Diukur dengan prompt sungguhan (satu gambar, empat katalog sekaligus):
+
+| model | waktu | kotak yang tidak diminta | catatan |
+| --- | --- | --- | --- |
+| `claude-opus-5` | ~12–18 dtk | utuh | paling sedikit menyentuh yang tidak diminta |
+| `openai-gpt-6-sol` | ~35 dtk | utuh | paling rajin membersihkan tag lama |
+| `venice-uncensored-1-2` | ~3 dtk | utuh | paling kasar, tapi tidak pernah menolak |
+
+Dua jebakan yang ketahuan waktu mengukurnya, keduanya sudah ditutup:
+model penalar menghabiskan ribuan token untuk BERPIKIR sebelum menjawab,
+jadi jatah 4.000 token membuat GPT berhenti di tengah JSON — sekarang
+12.000. Dan jawaban yang terpotong itu **ikut tersimpan di `ai_cache`**
+(yang disimpan jawaban mentah, sebelum ada yang tahu ia sah atau tidak),
+sehingga permintaan yang sama selalu memulangkan kerusakan yang sama
+secepat kilat; karena itu tiap model dicoba dua kali — sekali boleh lewat
+cache, sekali dipaksa segar.
+
+**Katalognya katalog yang sama.** Karakter, pakaian, latar, dan gaya bisa
+dipilih dari daftar yang dipakai Prompt Generator — tabel `modules` yang
+sama, gambar contoh yang sama, komponen `KatalogModul`/`KatalogGaya`/
+`CariKarakter` yang sama. Apa pun yang ditambahkan lewat Master Katalog
+langsung muncul di sini juga. Yang masuk ke prompt bukan nama pilihannya
+melainkan tag milik modulnya, jadi ejaannya sudah pasti dikenali NovelAI —
+model tidak pernah diminta menebak tag.
+
+Pilihan katalog dan kalimat bebas boleh dipakai bersamaan; keduanya
+dirangkai jadi satu permintaan di `UbahPrompt::instruksiKatalog()`. Kalau
+seluruh permintaannya datang dari katalog, kotak karakter mana yang boleh
+tersentuh sudah diketahui sebelum model menjawab — dan kepastian itu
+dipakai sebagai pagar (`saring()`), jadi mengganti pakaian petinju pertama
+tidak mungkin menyentuh kotak petinju kedua.
+
+**Empat perbaikan yang dikerjakan tanpa model**, semuanya lahir dari
+kegagalan nyata waktu fitur ini diuji dengan prompt sungguhan:
+
+| yang rusak | yang memperbaiki |
+| --- | --- |
+| Model menulis ulang daftar tag dengan urutan lain, penggantian jadi "tidak ketemu" dan latar tidak pernah berganti | `gantiDaftarTag()` — potongannya diperlakukan sebagai daftar tag, bukan teks: tiap tag dicari sebagai ruas di antara koma, urutan tidak dipedulikan |
+| Tag judul seri lama tertinggal di blok prompt dan tetap menarik wajah tokoh lama | `sapuSeri()` — penghuni lama kotak itu dibaca dari prompt aslinya, judul serinya ditanyakan ke kamus, lalu ditukar |
+| Model memendekkan `tsunade (naruto)` jadi `tsunade`, yang tidak ada di Danbooru | `tegakkanTag()` — ruas tag yang berdiri sendiri dikembalikan ke bentuk kamusnya |
+| Pose dan ekspresi ikut tersapu waktu pakaian diganti | `pulihkanBukanPakaian()` — ruas yang hilang tapi bukan pakaian dipulangkan; di kotak yang orangnya sekalian diganti, ciri wajah lama tetap tidak boleh pulang |
+
+Ditambah `kembalikanJangkar()`, yang memasang lagi tag subjek (`girl`,
+`1boy`) kalau ikut terbuang — tanpa tag itu NovelAI tidak tahu kotak
+tersebut milik siapa, dan promptnya tetap terbaca wajar sementara
+gambarnya salah orang.
+
+**Model mengembalikan daftar ganti, bukan prompt baru.** Ini keputusan
+terpenting di `engine/UbahPrompt.php`. Prompt NovelAI yang matang panjangnya
+ribuan huruf dan penuh bobot `1.7::…::` yang saling mengunci; menyuruh model
+menulis ulang seluruhnya berarti bertaruh tiap kali bahwa ia menyalin dua ribu
+huruf tanpa menggeser satu koma pun. Dengan daftar ganti, yang disentuh cuma
+potongan yang diminta — sisanya dijamin sama byte per byte karena tidak pernah
+lewat model. Kotak karakter yang tidak diminta keluar 100% sama.
+
+**Tag karakternya dicari di kamus sebelum model dipanggil**
+(`UbahPrompt::kandidatKarakter()`), bukan sesudah: model yang mengarang
+"tsunade (naruto shippuden)" menghasilkan tag yang tidak dikenali NovelAI, dan
+kesalahan itu baru ketahuan setelah gambarnya jadi salah. Pencariannya satu
+query untuk semua frasa — satu query per frasa sempat memakan tiga detik.
+
+**Nama yang tertinggal disapu tanpa model** (`UbahPrompt::sapuSisa()`). Model
+rajin mengganti tag karakternya dan lupa penyebutan namanya di kalimat aksi
+("over aru's head"), padahal NovelAI membaca nama itu sebagai tag juga dan
+tetap menarik karakter lamanya masuk. Penyapuannya hanya kata utuh, melewati
+yang didahului "the/a/an", dan tiap penggantian dilaporkan sebagai barisnya
+sendiri di layar.
+
+Pratinjaunya memakai `GambarController@tokoh` yang sama dengan halaman lain,
+cuma dengan titipan `setelan` (ukuran, seed, langkah, guidance, sampler,
+model) supaya angka dari metadata gambar aslinya dipulangkan apa adanya.
+Tanpa itu gambar V4.5 yang digambar ulang dengan bawaan V5 memulangkan orang
+yang berbeda walau promptnya sama kata per kata.
 
 ## Keputusan yang perlu diingat
 

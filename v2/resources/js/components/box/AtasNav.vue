@@ -2,7 +2,7 @@
 import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Clapperboard, Gauge, Globe, History, Image, LayoutDashboard, LibraryBig, LogOut, Moon, PenLine, Sparkles, Sun, UserRound, Wrench } from 'lucide-vue-next';
+import { Clapperboard, Gauge, Globe, History, Image, LayoutDashboard, LibraryBig, LogOut, Moon, PenLine, Replace, Sparkles, Sun, UserRound, Wrench } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
 /**
@@ -35,6 +35,7 @@ const menu = computed(() => {
         { nama: 'Dasbor', rute: 'dashboard', ikon: LayoutDashboard, ket: 'Ringkasan & pintasan', persis: true },
         { nama: 'Prompt Generator', rute: 'prompt', ikon: Sparkles, ket: 'Susun dari pilihan', persis: false },
         { nama: 'Dari Gambar/Video', rute: 'reverse', ikon: Image, ket: 'Referensi jadi prompt', persis: false },
+        { nama: 'Ubah Prompt', rute: 'ubah', ikon: Replace, ket: 'Metadata NovelAI, karakternya diganti', persis: false },
         { nama: 'Rancang Pertandingan', rute: 'rancang', ikon: Clapperboard, ket: 'Cerita jadi papan klip', persis: false },
         { nama: 'Riwayat', rute: 'riwayat', ikon: History, ket: 'Prompt yang pernah jadi', persis: false },
         { nama: 'Alat lain', rute: 'alat-lama', ikon: Wrench, ket: 'Generator, komik, reverse', persis: false },

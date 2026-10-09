@@ -436,8 +436,21 @@ final class WanBuilder
         $gaya = SeedanceBuilder::kalimatModul($sel['style_id'] ?? null, 'video_style', true);
         $rasio = (string)($sel['rasio'] ?? '16:9');
 
-        $bagian[] = 'Generate a ' . $detik . '-second ' . $rasio . ' video at 30fps: '
-                  . 'an anime boxing match' . ($gaya === '' ? '' : ', ' . $gaya) . '.';
+        // 24fps, BUKAN 30 — dan ini disengaja meski catatan batas keras di
+        // bawah menyebut keluarannya terkunci 30 fps. Angka di kalimat ini
+        // bukan setelan wadahnya, melainkan petunjuk gaya: anime digambar
+        // 24 frame per detik, dan model video yang dibilang "30fps"
+        // cenderung meratakan geraknya seperti rekaman kamera. Yang kita
+        // minta justru kebalikannya — kadens tidak rata yang ditulis di
+        // paragraf Animation craft. Jangan dikembalikan ke 30 dengan alasan
+        // "wadahnya memang 30": dua hal yang berbeda.
+        // "anime" cuma disebut kalau gaya pilihanmu memang anime — lihat
+        // ReversePrompt::gayaAnime(). Gaya kartun 3D yang dipaksa dibuka
+        // dengan kata "anime" menghasilkan satu kalimat yang meminta dua
+        // rupa sekaligus, dan rupanya jadi undian tiap generasi.
+        $bagian[] = 'Generate a ' . $detik . '-second ' . $rasio . ' video at 24fps: '
+                  . (ReversePrompt::gayaAnime($gaya) ? 'an anime boxing match' : 'a boxing match')
+                  . ($gaya === '' ? '' : ', ' . $gaya) . '.';
 
         // ---- 2. jangkar karakter ----
         //
@@ -827,6 +840,14 @@ final class WanBuilder
         $catatan[] = 'Batas keras: 30 detik per generasi, 30 fps tetap, maksimal 10 '
             . 'gambar acuan. Satu bidikan menerus tampaknya masih sekitar 15 detik, '
             . 'jadi adegan yang lebih panjang dari itu memang dipotong jadi beberapa shot.';
+
+        // Pasangan catatan di atas: promptnya menulis 24fps padahal
+        // keluarannya 30. Tanpa kalimat ini, siapa pun yang membandingkan
+        // keduanya akan mengira salah satunya bug.
+        $catatan[] = 'Promptnya menulis "24fps" walaupun keluarannya tetap 30 fps. '
+            . 'Itu disengaja: angka di prompt dibaca model sebagai petunjuk gaya, '
+            . 'dan 24 fps adalah kadens anime — menyebut 30 justru menarik geraknya '
+            . 'jadi rata seperti rekaman kamera.';
 
         return $catatan;
     }

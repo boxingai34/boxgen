@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use AiClient;
+use App\Services\GambarModul;
 use Cerita;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Pertandingan;
 use PromptBuilder;
 use RateLimiter as KuotaHarian;
 use RuntimeException;
@@ -51,6 +53,17 @@ class CeritaController extends Controller
                 ])
                 ->sortBy(fn (array $m) => $m['slug'] === 'v-anime-violet' ? 0 : 1)
                 ->values(),
+            // Katalog tema pakaian — daftar yang SAMA dengan Prompt
+            // Generator, dibaca dari tabel modules yang sama. Ditaruh di
+            // sini, bukan diambil lewat permintaan susulan, karena
+            // halamannya memang butuh seluruh daftarnya begitu katalognya
+            // dibuka, dan jumlahnya cuma puluhan.
+            'pakaian' => self::katalogPakaian(),
+            // Pilihan untuk isian manual. Keduanya milik engine, jadi
+            // menambah cara selesai di sana cukup — halaman ikut sendiri.
+            'cara'    => collect(Pertandingan::CARA)
+                ->map(fn (string $label, string $kunci) => ['nilai' => $kunci, 'label' => $label])
+                ->values(),
             'tersimpan' => DB::table('generations')
                 ->select('id', 'title', 'created_at')
                 ->where('user_id', $userId)
@@ -59,6 +72,27 @@ class CeritaController extends Controller
                 ->limit(12)
                 ->get(),
         ]);
+    }
+
+    /**
+     * Tema pakaian untuk isian manual.
+     *
+     * Bentuknya sengaja persis sama dengan yang dipakai KatalogModul di
+     * Prompt Generator — id, nama, kategori, keterangan, contoh — supaya
+     * komponen katalognya dipakai apa adanya, bukan disalin dengan bentuk
+     * data yang sedikit berbeda.
+     */
+    private static function katalogPakaian(): array
+    {
+        $contoh = GambarModul::peta('outfit');
+
+        return array_map(static fn (array $m): array => [
+            'id'       => (int) $m['id'],
+            'nama'     => (string) ($m['name_id'] ?: $m['name']),
+            'kategori' => (string) ($m['category'] ?? ''),
+            'ket'      => (string) ($m['description'] ?? ''),
+            'contoh'   => $contoh[(string) ($m['slug'] ?? '')] ?? null,
+        ], PromptBuilder::listModules('outfit', ALLOW_NSFW));
     }
 
     /**
@@ -110,6 +144,7 @@ class CeritaController extends Controller
         $data = $request->validate([
             'cerita'      => ['required', 'string', 'min:20'],
             'detik_total' => ['nullable', 'integer', 'min:0', 'max:1800'],
+            'manual'      => ['nullable', 'array'],
         ], [
             'cerita.required' => 'Ceritanya masih kosong.',
             'cerita.min'      => 'Ceritanya terlalu pendek untuk dibuat papan cerita.',
@@ -134,7 +169,14 @@ class CeritaController extends Controller
         ignore_user_abort(true);
 
         try {
-            $hasil = Cerita::baca($data['cerita'], ['detik_total' => (int) ($data['detik_total'] ?? 0)]);
+            // Isian manual ikut masuk sebagai petunjuk. Ditimpakan lagi
+            // belakangan di susun(), jadi mengabaikannya di sini tidak
+            // merusak apa pun — tapi ceritanya dibaca jauh lebih tepat
+            // kalau pembacanya sudah tahu nama dan tempatnya.
+            $hasil = Cerita::baca($data['cerita'], [
+                'detik_total' => (int) ($data['detik_total'] ?? 0),
+                'manual'      => (array) $request->input('manual', []),
+            ]);
         } catch (InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (RuntimeException $e) {
@@ -162,6 +204,8 @@ class CeritaController extends Controller
             'target'           => ['nullable', 'string'],
             'rasio'            => ['nullable', 'string'],
             'gaya_id'          => ['nullable', 'integer'],
+            'gaya_acuan'       => ['nullable', 'boolean'],
+            'manual'           => ['nullable', 'array'],
         ]);
 
         // Ekstraknya diambil UTUH dari permintaan, bukan dari hasil
@@ -175,12 +219,27 @@ class CeritaController extends Controller
         try {
             $hasil = Cerita::rancang($ekstrak, [
                 'target'         => in_array($data['target'] ?? 'wan', ['wan', 'seedance25'], true) ? $data['target'] : 'wan',
+                // 0 = jangan dipaksa dari sini. Panjang klip datang dari
+                // ceritamu (dibaca ke dalam ekstrak) atau dari kartu isian
+                // manual; keduanya dibaca Cerita::rancang() sendiri.
                 'detik_per_klip' => 0,
                 'nsfw'           => true,
                 'dewasa'         => true,
-                'gaya'           => ['style_id' => $data['gaya_id'] ?? null, 'artis' => '', 'kuat' => 'sedang'],
+                'gaya'           => [
+                    'style_id' => $data['gaya_id'] ?? null,
+                    'artis'    => '',
+                    'kuat'     => 'sedang',
+                    // Punya plat acuan rupa untuk diunggah? Mesin memesan
+                    // satu nomor gambar paling belakang untuknya, dan
+                    // daftar urutan unggah ikut menyebutkannya.
+                    'acuan'    => (bool) ($data['gaya_acuan'] ?? false),
+                ],
                 'wan'            => ['rasio' => $data['rasio'] ?? '16:9'],
                 'seedance'       => ['resolusi' => '720p'],
+                // Diambil utuh dari permintaan, sama alasannya dengan
+                // ekstrak di atas: isinya bersarang, dan validate() cuma
+                // memulangkan kunci yang disebut aturannya.
+                'manual'         => (array) $request->input('manual', []),
             ]);
         } catch (InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);

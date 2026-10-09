@@ -197,7 +197,7 @@ export async function salin(teks: string): Promise<boolean> {
  * (model, ukuran, sisa jatah) menumpang di header. Galat tetap JSON, jadi
  * pesannya tetap terbaca seperti biasa.
  */
-export async function kirimGambar(alamat: string, isi: unknown): Promise<{ url: string; model: string; byte: number; kuota: string }> {
+export async function kirimGumpal(alamat: string, isi: unknown): Promise<{ gumpal: Blob; kepala: Headers }> {
     const jawab = await fetch(alamat, {
         method: 'POST',
         credentials: 'same-origin',
@@ -223,12 +223,23 @@ export async function kirimGambar(alamat: string, isi: unknown): Promise<{ url: 
         throw new GalatKirim(pesan, jawab.status);
     }
 
-    const gumpal = await jawab.blob();
+    return { gumpal: await jawab.blob(), kepala: jawab.headers };
+}
+
+/**
+ * Gambar yang langsung ditampilkan.
+ *
+ * Yang dipulangkan alamat objeknya, bukan gumpalannya: pemakainya cuma
+ * memasangnya di <img>. Kalau isi berkasnya yang dibutuhkan — halaman
+ * Ubah Prompt membaca metadata PNG-nya sendiri — pakai kirimGumpal().
+ */
+export async function kirimGambar(alamat: string, isi: unknown): Promise<{ url: string; model: string; byte: number; kuota: string }> {
+    const { gumpal, kepala } = await kirimGumpal(alamat, isi);
 
     return {
         url: URL.createObjectURL(gumpal),
-        model: jawab.headers.get('X-Gambar-Model') || '',
-        byte: Number(jawab.headers.get('X-Gambar-Byte') || gumpal.size),
-        kuota: jawab.headers.get('X-Gambar-Kuota') || '',
+        model: kepala.get('X-Gambar-Model') || '',
+        byte: Number(kepala.get('X-Gambar-Byte') || gumpal.size),
+        kuota: kepala.get('X-Gambar-Kuota') || '',
     };
 }
