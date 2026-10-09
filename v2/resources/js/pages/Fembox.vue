@@ -52,7 +52,8 @@ const props = defineProps<{
     gambar: { latar: boolean; tokoh: boolean };
     kuota: any;
     maks: { teks: number; antrean: number };
-    opsi: { tataLetak: Opsi[]; latar: Opsi[]; nuansa: Opsi[] };
+    /** perancang: model yang menyusun bahannya — Claude atau ChatGPT. */
+    opsi: { perancang: Array<Opsi & { model: string }>; tataLetak: Opsi[]; latar: Opsi[]; nuansa: Opsi[] };
     /** Modul yang sama dengan Prompt Generator, tanpa yang NSFW. */
     katalog: { pakaian: Modul[]; sarung: Modul[]; rambut: Modul[]; gaya: Modul[] };
 }>();
@@ -195,6 +196,10 @@ const pilihan = reactive({
     latar: String(simpanan?.pilihan?.latar ?? 'abu'),
     nuansa: String(simpanan?.pilihan?.nuansa ?? 'underground'),
     label: Boolean(simpanan?.pilihan?.label ?? false),
+    // Pilihan tersimpan yang sudah tidak ada di daftar jatuh ke yang pertama.
+    perancang: props.opsi.perancang.some((p) => p.nilai === simpanan?.pilihan?.perancang)
+        ? String(simpanan.pilihan.perancang)
+        : (props.opsi.perancang[0]?.nilai ?? 'claude'),
     modelGambar: String(simpanan?.pilihan?.modelGambar ?? ''),
     rasio: String(simpanan?.pilihan?.rasio ?? '16:9'),
     autoGambar: Boolean(simpanan?.pilihan?.autoGambar ?? true),
@@ -404,6 +409,7 @@ function muatan(b: Baris, segar: string) {
             latar: pilihan.latar,
             nuansa: pilihan.nuansa,
             label: pilihan.label,
+            perancang: pilihan.perancang,
         },
         segar,
         permintaan: nomorAcak(),
@@ -794,6 +800,32 @@ const labelStatus: Record<Baris['status'], string> = {
                 </Kartu>
 
                 <Kartu judul="2. Detail dari katalog" ket="Berlaku untuk semua karakter. Semuanya boleh dikosongkan.">
+                    <!-- Perancang: siapa yang merancang bahannya. Kalau yang
+                         dipilih menolak, yang lain otomatis jadi cadangan dan
+                         kartu hasilnya menyebut model yang akhirnya menjawab. -->
+                    <div class="mb-4">
+                        <span :class="labelKelas">Perancang prompt</span>
+                        <div class="flex w-fit rounded-lg border border-border p-0.5 text-xs" role="radiogroup" aria-label="Perancang prompt">
+                            <button
+                                v-for="p in opsi.perancang"
+                                :key="p.nilai"
+                                type="button"
+                                role="radio"
+                                :aria-checked="pilihan.perancang === p.nilai"
+                                class="rounded-md px-3.5 py-1.5 transition-colors"
+                                :class="pilihan.perancang === p.nilai ? 'bg-[hsl(var(--sorot)/0.18)] text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                                :title="p.model"
+                                @click="pilihan.perancang = p.nilai"
+                            >
+                                {{ p.label }}
+                            </button>
+                        </div>
+                        <p class="mt-1.5 text-xs text-muted-foreground">
+                            {{ opsi.perancang.find((p) => p.nilai === pilihan.perancang)?.ket }}. Mau membandingkan? Ganti perancangnya lalu tekan
+                            <strong>Susun ulang</strong> di kartu hasilnya.
+                        </p>
+                    </div>
+
                     <div>
                         <label :class="labelKelas" for="fembox-tema">Tema pakaian bersama</label>
                         <input

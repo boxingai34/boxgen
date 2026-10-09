@@ -84,6 +84,7 @@ class FemboxController extends Controller
             'pilihan.latar'     => ['nullable', 'string', Rule::in(array_keys(FemboxReferensi::LATAR))],
             'pilihan.nuansa'    => ['nullable', 'string', Rule::in(array_keys(FemboxReferensi::NUANSA))],
             'pilihan.label'     => ['nullable', 'boolean'],
+            'pilihan.perancang' => ['nullable', 'string', Rule::in(array_keys(FemboxReferensi::PERANCANG))],
             // Token acak dari tombol "Susun ulang" — rancangan baru, tapi
             // pengulangan permintaan yang sama tetap memulangkan yang itu.
             'segar'             => ['nullable', 'string', 'max:64'],
@@ -157,6 +158,7 @@ class FemboxController extends Controller
                     'latar'      => (string) ($pilihan['latar'] ?? 'abu'),
                     'nuansa'     => (string) ($pilihan['nuansa'] ?? 'underground'),
                     'label'      => (bool) ($pilihan['label'] ?? false),
+                    'perancang'  => (string) ($pilihan['perancang'] ?? 'claude'),
                     'segar'      => (string) $request->input('segar', ''),
                 ]
             );

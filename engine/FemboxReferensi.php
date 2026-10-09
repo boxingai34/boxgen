@@ -59,6 +59,20 @@ final class FemboxReferensi
     public const KODE_DITOLAK = 422;
 
     /**
+     * Perancang yang bisa dipilih di halaman.
+     *
+     * Modelnya sama dengan penyunting Ubah Prompt (UbahPrompt::PENYUNTING)
+     * dan jalan lewat profil AI_UBAH_* yang sama, cuma nama modelnya yang
+     * ditukar — jadi pilihan ini tidak menambah satu pun setelan. Hasil
+     * keduanya memang berbeda gaya: dua perancang untuk karakter yang sama
+     * memberi dua usulan desain yang bisa dibandingkan.
+     */
+    public const PERANCANG = [
+        'claude' => ['label' => 'Claude', 'ket' => 'Claude Opus 5 — paling patuh aturan, desainnya rapi'],
+        'gpt'    => ['label' => 'ChatGPT', 'ket' => 'GPT-6 Sol — gaya rancangan lain, biasanya sedikit lebih lambat'],
+    ];
+
+    /**
      * Tata letak lembar. Kalimatnya ditulis di kode (lihat base()), yang
      * di sini cuma label untuk halaman.
      */
@@ -208,7 +222,8 @@ final class FemboxReferensi
             self::system(),
             self::pesan($nama, $anime, $tema, $tambah, $kamus, $katalog, $nuansa, $tataLetak),
             $catatan,
-            is_scalar($opsi['segar'] ?? null) ? mb_substr(trim((string)$opsi['segar']), 0, 64) : ''
+            is_scalar($opsi['segar'] ?? null) ? mb_substr(trim((string)$opsi['segar']), 0, 64) : '',
+            isset(self::PERANCANG[$opsi['perancang'] ?? '']) ? (string)$opsi['perancang'] : null
         );
 
         // ---- 4. Pagar umur: keputusan akhirnya di kode, bukan di model.
@@ -260,6 +275,16 @@ final class FemboxReferensi
         );
 
         return [
+            'perancang' => array_map(
+                static fn (string $nilai, array $p): array => [
+                    'nilai' => $nilai,
+                    'label' => $p['label'],
+                    'ket'   => $p['ket'],
+                    'model' => UbahPrompt::PENYUNTING[$nilai]['model'] ?? '',
+                ],
+                array_keys(self::PERANCANG),
+                self::PERANCANG
+            ),
             'tataLetak' => $daftar(self::TATA_LETAK),
             'latar'     => $daftar(self::LATAR),
             'nuansa'    => $daftar(array_map(
@@ -499,7 +524,7 @@ final class FemboxReferensi
      *
      * @return array{0:array, 1:string}
      */
-    private static function tanyaModel(string $system, string $user, array &$catatan, string $segar): array
+    private static function tanyaModel(string $system, string $user, array &$catatan, string $segar, ?string $perancang = null): array
     {
         if ($segar !== '') {
             $user .= "\n\n[variasi rancangan: " . $segar . ' — buat rancangan yang berbeda dari biasanya]';
@@ -508,7 +533,7 @@ final class FemboxReferensi
         $dicoba  = [];
         $menolak = false;
 
-        foreach (self::urutanModel() as $profil) {
+        foreach (self::urutanModel($perancang) as $profil) {
             $dicoba[] = $profil['model'];
 
             $j = null;
@@ -561,10 +586,19 @@ final class FemboxReferensi
     }
 
     /** @return list<array> profil yang siap, tanpa model kembar */
-    private static function urutanModel(): array
+    private static function urutanModel(?string $perancang = null): array
     {
         $urut  = [];
         $sudah = [];
+
+        // Pilihan halaman dicoba paling awal; sisanya tetap jadi cadangan,
+        // jadi perancang yang menolak tidak membuat lembarnya gagal — kartu
+        // hasilnya menyebut model mana yang akhirnya menjawab.
+        $model = $perancang !== null ? (UbahPrompt::PENYUNTING[$perancang]['model'] ?? '') : '';
+        if ($model !== '' && AiClient::siapProfil('ubah')) {
+            $urut[] = ['model' => $model] + AiClient::profil('ubah');
+            $sudah[mb_strtolower($model)] = true;
+        }
 
         foreach (['fembox', 'ubah', 'nsfw', 'nsfw2', 'polish'] as $nama) {
             // fembox dan nsfw2 hanya dipakai kalau MODEL-nya diisi sendiri;

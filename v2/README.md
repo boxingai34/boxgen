@@ -404,9 +404,14 @@ diputus proxy di detik ke-60. Gambar juga bergiliran lewat `gambar.tokoh`
 tidak memulangkannya. Daftar dan prompt yang sudah jadi disimpan di
 `localStorage`; gambarnya tidak.
 
-Modelnya rantai yang sama dengan Ubah Prompt (`ubah` → `nsfw` → `nsfw2` →
-`polish`); kalau `AI_FEMBOX_MODEL` disetel di `config.local.php`, profil itu
-dicoba paling awal. Riwayatnya tersimpan dengan mode `fembox`.
+**Perancangnya bisa dipilih: Claude atau ChatGPT** (Claude Opus 5 /
+GPT-6 Sol, `FemboxReferensi::PERANCANG`). Keduanya lewat profil `AI_UBAH_*`
+dengan modelnya ditukar — sama seperti penyunting di Ubah Prompt — jadi
+tidak ada setelan baru. Yang dipilih dicoba paling awal; sisanya rantai yang
+sama dengan Ubah Prompt (`ubah` → `nsfw` → `nsfw2` → `polish`) sebagai
+cadangan, dan kartu hasilnya menyebut model yang akhirnya menjawab. Kalau
+`AI_FEMBOX_MODEL` disetel di `config.local.php`, profil itu ikut dicoba
+sesudah pilihan halaman. Riwayatnya tersimpan dengan mode `fembox`.
 
 ## Keputusan yang perlu diingat
 
