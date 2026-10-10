@@ -1687,7 +1687,11 @@ class MixedFightTest extends TestCase
     public function test_nama_tokoh_dewasa_ditulis_lain_tidak_ditolak(): void
     {
         $this->assertNull($this->tolakUmur(['nama' => 'Aizawa'], 'Shota Aizawa slams Oranye with a hook.'));
-        $this->assertNull($this->tolakUmur(['nama' => 'Aizawa'], 'Shota lands a jab.'));
+        $this->assertNull($this->tolakUmur(['nama' => 'Aizawa'], 'Aizawa Shota slams Oranye with a hook.'));
+        $this->assertNull($this->tolakUmur(['nama' => 'Shota Aizawa'], 'Shota lands a jab.'));
+        // "Shota" lepas dari nama petinju tidak lagi ditebak sebagai nama
+        // (putaran 3) — pesan galatnya menunjukkan jalan keluarnya.
+        $this->assertStringContainsString('tulis nama lengkapnya di kolom Nama', (string)$this->tolakUmur(['nama' => 'Aizawa'], 'Shota lands a jab.'));
         $this->assertNull($this->tolakUmur(['nama' => 'Eraserhead', 'catatan' => 'real name Shota Aizawa, 30']));
         $this->assertNull($this->tolakUmur(['nama' => 'kid', 'catatan' => 'kid punya rambut merah dan lengan besi']));
         $this->assertNull($this->tolakUmur(['nama' => 'shota', 'catatan' => 'shota pakai syal penangkap']));
@@ -1792,6 +1796,368 @@ class MixedFightTest extends TestCase
         ] as $alur) {
             $this->assertNull($this->tolakUmur([], $alur), $alur);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Temuan pemeriksa putaran 3
+    // ------------------------------------------------------------------
+
+    /** Regresi: "Shota"/"Kid" Title Case di samping kata biasa bukan nama — penanda kuat tidak bisa diakali lewat huruf kapital. */
+    public function test_shota_kid_title_case_tidak_dianggap_nama(): void
+    {
+        foreach ([
+            [['tampilan' => 'Shota Face, petite, short hair'], ''],
+            [['tampilan' => 'Shota Style outfit, short shorts'], ''],
+            [['tampilan' => 'Typical Shota, small and cute'], ''],
+            [['catatan' => 'Pure Shota look'], ''],
+            [['catatan' => 'Classic Shota body type'], ''],
+            [['tampilan' => 'Kid Size body, petite'], ''],
+            [['tampilan' => 'Shota Appearance, short hair'], ''],
+            [[], 'Two Shota boxers fight on the roof.'],
+            [[], 'The shota boxer grins.'],
+            [['catatan' => 'calls him Shota because he is tiny'], ''],
+        ] as [$a, $alur]) {
+            $this->assertNotNull($this->tolakUmur($a, $alur), json_encode($a) . $alur);
+        }
+
+        // Prosa model: kalimat yang memuatnya dibuang dari Base/Gemini.
+        $this->assertSame('', $this->panggilPrivat('prosaBersih', 'Shota Face Toska lands a hook.', ['Toska', 'Oranye']));
+
+        // Nama yang memang nama: nama petinju (dan "Shota"/"Kid" yang
+        // menempel padanya), daftar tokoh terkenal, julukan "Kid" yang jelas.
+        $this->assertNull($this->tolakUmur(['nama' => 'Eustass'], 'Eustass Kid lands a hook.'));
+        $this->assertNull($this->tolakUmur(['nama' => 'Aizawa', 'catatan' => 'Aizawa Shota, 30, pro hero']));
+        $this->assertNull($this->tolakUmur(['nama' => 'Eustass Kid', 'catatan' => 'Kid has red hair and a metal arm']));
+        $this->assertNull($this->tolakUmur(['catatan' => 'nickname: The Kid, 28 years old']));
+        $this->assertNull($this->tolakUmur(['catatan' => 'Oranye calls her Kid because she is the youngest pro at 21']));
+        $this->assertNull($this->tolakUmur(['catatan' => 'idola: Kid Gavilan']));
+
+        // Nama yang tidak ditulis di kolom Nama: ditolak, dengan saran yang jelas.
+        $pesan = (string)$this->tolakUmur(['nama' => 'Eustass', 'catatan' => 'Kid has red hair and a metal arm']);
+        $this->assertStringContainsString('"Kid"', $pesan);
+        $this->assertStringContainsString('tulis nama lengkapnya di kolom Nama', $pesan);
+    }
+
+    /** "is 10 years older", "are 10 years apart", "is 11 years into her career" itu selisih/lama waktu, bukan umur. */
+    public function test_selisih_umur_dan_lama_karier_bukan_umur(): void
+    {
+        foreach ([
+            'Toska is 10 years older than Oranye, but faster.',
+            'Oranye is 15 years older and much bigger.',
+            'They are 10 years apart.',
+        ] as $alur) {
+            $this->assertNull($this->tolakUmur([], $alur), $alur);
+        }
+        foreach ([
+            'he is 10 years older than her',
+            'Oranye is 12 years her senior',
+            'she is 10 years his junior',
+            "Oranye's 10 years older than her",
+            'she is 11 years into her pro career',
+            'She is 15 years a pro.',
+            'she is 12 years younger than her coach, 25',
+            'Toska is 10 cm taller than Oranye',
+            'she is 12 points ahead',
+        ] as $catatan) {
+            $this->assertNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+
+        // Umurnya sendiri tetap terbaca.
+        foreach (['she is 15 years old', 'she is 15 yo', 'The fighter is 15 and tiny.', 'This boxer is 16.'] as $catatan) {
+            $this->assertNotNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+    }
+
+    /** R4 lanjutan: "masih SMA" di kalimat berkata-waktu lampau itu latar (kalau ada keadaan sekarang di kalimat lain); murid orang lain bukan status. */
+    public function test_latar_masih_sma_dan_murid_orang_lain_lanjutan(): void
+    {
+        foreach ([
+            'Waktu itu mereka masih SMA; kini keduanya juara.',
+            'Ketika keduanya masih duduk di SMA, Toska selalu kalah. Kini ia 26 tahun.',
+            'Mereka masih SMA ketika pertama kali bertemu; sekarang 28 tahun.',
+            'Waktu masih kelas 2 SMA mereka bertemu; kini keduanya 27.',
+        ] as $alur) {
+            $this->assertNull($this->tolakUmur([], $alur), $alur);
+        }
+        foreach (['pelatih tinju untuk siswa SMA', 'Melatih murid-murid SMP di sasananya', 'coach for middle school kids'] as $catatan) {
+            $this->assertNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+
+        // Tanpa keadaan sekarang di kalimat LAIN, "masih SMA" tetap status.
+        foreach ([
+            'Toska masih SMA dan baru belajar tinju.',
+            'Toska masih SMA. Sekarang ia melawan Oranye.',
+            'Sekarang Toska masih SMA ketika melawan Oranye.',
+            'Saat ini masih SMA, Toska berlatih tinju.',
+            'Ketika ronde dimulai, Toska yang siswi SMA kelas 2 menyerang. Sekarang Oranye terdesak.',
+        ] as $alur) {
+            $this->assertNotNull($this->tolakUmur([], $alur), $alur);
+        }
+        $this->assertNotNull($this->tolakUmur(['catatan' => 'murid-murid SMP']));
+    }
+
+    /** R6 lanjutan: bentuk umur di bawah 18 yang masih lolos di putaran 2. */
+    public function test_umur_di_bawah_18_bentuk_lain_ditolak(): void
+    {
+        foreach ([
+            ['catatan' => 'Umurnya baru 15.'],
+            ['catatan' => 'umurnya masih 16'],
+            ['catatan' => 'usianya baru 15'],
+            ['catatan' => 'aged only 16'],
+            ['catatan' => 'age: just 15'],
+            ['catatan' => 'she just turned 16'],
+            ['catatan' => 'baru menginjak 16 tahun'],
+            ['catatan' => 'belum 18 tahun'],
+            ['catatan' => 'not yet 18'],
+            ['catatan' => 'she is under eighteen'],
+            ['catatan' => 'she will turn 18 next year'],
+            ['catatan' => 'This boxer is 16.'],
+            ['catatan' => 'The fighter is 15 and tiny.'],
+            ['catatan' => 'auburn hair, petite, 15.'],
+            ['catatan' => 'Toska, 16.'],
+            ['catatan' => 'a high school freshman'],
+            ['catatan' => 'high school sophomore, boxing club'],
+            ['catatan' => '8th grader'],
+            ['catatan' => 'in 9th grade'],
+            ['nama' => 'Toska (belum 18)'],
+        ] as $kasus) {
+            $this->assertNotNull($this->tolakUmur($kasus), json_encode($kasus));
+        }
+        foreach (['Oranye, 30, faces Toska, 15.', 'Toska, 16.', 'Two 8th graders fight on the roof.', 'Toska, a high school freshman, fights Oranye.'] as $alur) {
+            $this->assertNotNull($this->tolakUmur([], $alur), $alur);
+        }
+
+        // Angka yang bukan umur tetap lolos.
+        foreach ([
+            'KO in under 18 seconds',
+            'she will be 10 kg heavier',
+            'she will be 15 minutes late',
+            'her record turned 15-0 last night',
+            'turned pro at 19, now 26',
+            'genap 10 tahun berlatih tinju',
+            'rivals since 8th grade, now 30',
+            'She was an 8th grader when they met; now 30.',
+            'back in 9th grade they sparred; now both 28',
+            'freshman in college, 19',
+            'eighteen years old',
+            'menang 5 ronde, KO di round 15.',
+            'umur 27, tinggi 163, berat 55.5',
+            'coach, 34; her students are under 18',
+        ] as $catatan) {
+            $this->assertNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+        foreach (['Oranye, 30, faces Toska, 28.', 'In round 12, Toska, 25, lands a hook.', 'Back then they were 8th graders; now they are 30.'] as $alur) {
+            $this->assertNull($this->tolakUmur([], $alur), $alur);
+        }
+
+        // Prosa model dibaca dengan aturan umur yang sama dengan alur.
+        foreach (['Toska, 16, lands a hook.', 'She is 15 and throws a jab.'] as $kal) {
+            $this->assertSame('', $this->panggilPrivat('prosaBersih', $kal, ['Toska', 'Oranye']), $kal);
+        }
+        foreach (['Their 12-year-old rivalry explodes as she lands a hook.', 'She is 10 years older and throws a jab.'] as $kal) {
+            $this->assertSame($kal, $this->panggilPrivat('prosaBersih', $kal, ['Toska', 'Oranye']), $kal);
+        }
+    }
+
+    /** Umur AWAL karier ("started boxing at age 12", "Mulai bertinju umur 12") diperlakukan sama dengan "sejak umur 10". */
+    public function test_umur_awal_karier_tidak_ditolak(): void
+    {
+        foreach ([
+            'started boxing at age 12',
+            'Mulai bertinju umur 12.',
+            'mantan juara junior, mulai bertinju waktu umur 12',
+            'took up boxing at the age of 10',
+            'began training when she was 11',
+        ] as $catatan) {
+            $this->assertNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+
+        // Umur sekarang yang di bawah 18 tetap terbaca di sampingnya; umur
+        // lampau tanpa kata kerja awal karier tetap butuh umur sekarang.
+        $this->assertNotNull($this->tolakUmur(['catatan' => 'started at age 12, she is 15 now']));
+        $this->assertNotNull($this->tolakUmur([], 'At age 15, Toska fights Oranye.'));
+    }
+
+    /** R1 lanjutan: frasa larangan cuma dicopot kalau ujungnya jelas; selain itu kalimatnya dibuang utuh — tidak ada kalimat patah. */
+    public function test_negasi_ujung_jelas_atau_kalimat_dibuang(): void
+    {
+        foreach ([
+            // Ujungnya batas klausa atau pelengkap tempat yang dikenal: dicopot.
+            'He grins with no mouthguard in, blood on his teeth.'                     => 'He grins, blood on his teeth.',
+            'She grins with no mouthguard between her teeth.'                         => 'She grins.',
+            'She wears only a teal crop top, with no jacket over it.'                 => 'She wears only a teal crop top.',
+            'She stands tall with no jacket over her sports bra.'                     => 'She stands tall.',
+            'She steps in with no jacket covering her crop top.'                      => 'She steps in.',
+            'She wears teal gloves without any wraps underneath them.'                => 'She wears teal gloves.',
+            'He throws a jab without wraps protecting his knuckles.'                  => 'He throws a jab.',
+            'The auburn-haired woman, with no hand wraps under her teal gloves, drives a right hook into his jaw.'
+                => 'The auburn-haired woman drives a right hook into his jaw.',
+            // Anak kalimat who/which berkoma: dicopot bersama kedua komanya.
+            'The man in orange gloves, who wears no mouthguard, spits blood.'          => 'The man in orange gloves spits blood.',
+            'Toska, who is not wearing a jacket, raises her gloves.'                  => 'Toska raises her gloves.',
+            "Panel 2: Oranye, who wears no mouthguard, spits blood as Toska's hook lands." => "Panel 2: Oranye spits blood as Toska's hook lands.",
+            'She faces Oranye, who wears no mouthguard.'                              => 'She faces Oranye.',
+            // "No X," pembuka sesudah label: titik dua tidak berubah jadi koma.
+            'Panel 2: No mouthguard, Oranye grins through bloody teeth.'              => 'Panel 2: Oranye grins through bloody teeth.',
+            // Predikat atau ujung yang tidak dikenal: kalimatnya dibuang.
+            'She is wearing no jacket and no wraps, just a sports bra and shorts.'    => '',
+            'Toska is without a jacket tonight.'                                      => '',
+            'Sweat flies from her bare shoulders, with no jacket to hide her toned arms.' => '',
+        ] as $masuk => $harap) {
+            $hasil = $this->panggilPrivat('prosaBersih', $masuk);
+            $this->assertSame($harap, $hasil, $masuk);
+            $this->assertDoesNotMatchRegularExpression('/(^|\s)[.,;]|[.,;]\s*[.,;]|\b(is|are|has)\s*[,.]|\p{Ll},\s+(spits|raises|drives)\b/u', $hasil, $masuk);
+        }
+
+        // Prompt halaman model tetap dipakai, panelnya tetap lengkap.
+        $j = $this->jsonNakal();
+        $j['gemini_halaman'] = 'A single comic page with four panels in reading order, separated by clean white gutters. '
+            . 'Panel 1: Toska and Oranye trade blows. Panel 2: No mouthguard, Oranye grins through bloody teeth. '
+            . "Panel 3: Oranye, who wears no mouthguard, spits blood as Toska's hook lands. Panel 4: Oranye is down.";
+        $halaman = $this->rakit([], $j)['gemini']['halaman'];
+        $this->assertStringContainsString('Panel 2: Oranye grins through bloody teeth.', $halaman);
+        $this->assertStringContainsString("Panel 3: Oranye spits blood as Toska's hook lands.", $halaman);
+        $this->assertStringNotContainsStringIgnoringCase('mouthguard', $halaman);
+    }
+
+    /** R5 lanjutan: tag yang menceritakan sebab KO atau salam sarung bukan kontak; efek pukulan karangan model disapu dari panel ko/jeda/tatap. */
+    public function test_sebab_ko_bukan_kontak_dan_efek_pukulan_disapu(): void
+    {
+        $netral = fn (string $jenis, string $baseTag, string $aksi1 = 'standing, gloves lowered, looking down'): array => $this->panelEksplisit(
+            $jenis,
+            $baseTag,
+            "Bird's-eye view looking down at the canvas right after her uppercut. He lies face down, knocked out.",
+            ['siapa' => 1, 'posisi' => 'tengah atas', 'aksi' => $aksi1, 'peran' => 'netral', 'tangan' => '', 'sasaran' => ''],
+            ['siapa' => 2, 'posisi' => 'tengah bawah', 'aksi' => 'lying, unconscious', 'peran' => 'netral', 'tangan' => '', 'sasaran' => '']
+        );
+        $tanpaPukulan = function (array $a, string $ket): void {
+            $this->assertStringNotContainsString('missed punch', $a['ucBase'], $ket);
+            $this->assertDoesNotMatchRegularExpression('/speed lines|motion blur/', $a['base'] . $this->semuaKarakter($a), $ket);
+            $this->assertSame([], array_filter($a['catatan'], static fn (string $c): bool => str_contains($c, 'diperlakukan sebagai panel pukulan')), $ket);
+        };
+
+        $j = $this->jsonNakal(2);
+        foreach ([
+            ['ko', "bird's-eye view, knockout, knocked down by body blow"],
+            ['ko', "bird's-eye view, knockout, aftermath of liver punch"],
+            ['ko', "bird's-eye view, knockout, body hit on the canvas"],
+            ['ko', "bird's-eye view, knockout, gloves landing on canvas"],
+            ['tatap', 'eye level, staredown, gloves connecting with each other'],
+            ['tatap', 'eye level, staredown, fists connect with each other'],
+        ] as [$jenis, $tag]) {
+            $j['panel'][1] = $netral($jenis, $tag);
+            $tanpaPukulan($this->rakit(['panel' => 2], $j)['adegan'][1], $tag);
+        }
+
+        // Efek pukulan yang ditulis model sendiri di panel KO disapu dan dicatat.
+        $j['panel'][1] = $netral('ko', "bird's-eye view, knockout, aftermath, speed lines, motion blur", 'standing, looking down, speed lines on right arm, motion blur on right glove');
+        $a = $this->rakit(['panel' => 2], $j)['adegan'][1];
+        $tanpaPukulan($a, 'efek karangan model');
+        $this->assertNotEmpty(array_filter($a['catatan'], static fn (string $c): bool => str_contains($c, 'Dicopot dari panel "ko"')));
+        $this->assertStringContainsString('looking down', $this->tokoh($a, 'Toska')['prompt']);
+
+        // Tag kontak yang sungguh mendarat tetap mengubah panel KO jadi pukulan.
+        $j['panel'][1] = $netral('ko', 'low angle, knockout, glove buried in cheek');
+        $this->assertStringContainsString('missed punch', $this->rakit(['panel' => 2], $j)['adegan'][1]['ucBase']);
+
+        // Prosa dengan umur BENDA tidak dibuang dari Base.
+        $j = $this->jsonNakal();
+        $j['panel'][1]['base_kalimat'] = 'Their 12-year-old rivalry explodes as she lands a hook.';
+        $this->assertStringContainsString('Their 12-year-old rivalry explodes as she lands a hook.', $this->rakit([], $j)['adegan'][1]['base']);
+    }
+
+    // ------------------------------------------------------------------
+    // Putaran akhir: penilaian umur oleh model, kontak di tali ring,
+    // efek di kalimat panel KO, sisipan berkoma sesudah pembuka posisi
+    // ------------------------------------------------------------------
+
+    /** Model menandai isian sebagai di bawah umur → ditolak 422, apa pun kata regexnya. */
+    public function test_penilaian_model_atas_isian_di_bawah_umur_menolak(): void
+    {
+        $j = $this->jsonNakal();
+        $j['isian_bawah_umur'] = true;
+        $j['alasan_umur'] = 'alur menyebut keduanya remaja';
+
+        try {
+            $this->rakit([], $j);
+            $this->fail('Seharusnya ditolak.');
+        } catch (RuntimeException $e) {
+            $this->assertSame(MixedFight::KODE_DITOLAK, $e->getCode());
+            $this->assertStringContainsString('remaja', $e->getMessage());
+        }
+
+        // String "true" dari model juga dihitung; false/kosong tidak.
+        $j['isian_bawah_umur'] = 'true';
+        $this->expectException(RuntimeException::class);
+        $this->rakit([], $j);
+    }
+
+    public function test_penilaian_model_false_tidak_menolak(): void
+    {
+        $j = $this->jsonNakal();
+        $j['isian_bawah_umur'] = false;
+        $this->assertCount(4, $this->rakit([], $j)['adegan']);
+    }
+
+    /** Tag kontak dengan latar tali ring/kanvas tetap kontak; yang jatuh KE kanvas bukan. */
+    public function test_kontak_di_tali_ring_tetap_kontak(): void
+    {
+        foreach (['glove buried in his stomach against the ropes', 'fist smashing into his jaw on the ropes', 'body blow on the ropes'] as $t) {
+            $this->assertTrue($this->panggilPrivat('adaKontak', [$t]), $t);
+        }
+        foreach (['gloves landing on canvas', 'knocked down by body blow', 'gloves connecting with each other', 'impact lines'] as $t) {
+            $this->assertFalse($this->panggilPrivat('adaKontak', [$t]), $t);
+        }
+    }
+
+    /** Panel KO: kalimat Base yang menceritakan efek pukulan dibuang utuh, kalimat lain tetap. */
+    public function test_kalimat_efek_pukulan_di_panel_ko_dibuang(): void
+    {
+        $j = $this->jsonNakal();
+        $j['panel'][3] = $this->panelEksplisit(
+            'ko',
+            "bird's eye view, from above, knocked out, lying on back, impact lines",
+            'Oranye lies flat on the canvas. Speed lines and motion blur trail from her glove as he falls.',
+            ['siapa' => 1, 'posisi' => 'kiri', 'aksi' => 'standing, looking down', 'peran' => 'netral'],
+            ['siapa' => 2, 'posisi' => 'kanan', 'aksi' => 'unconscious, lying on back', 'peran' => 'netral']
+        );
+        $base = $this->rakit([], $j)['adegan'][3]['base'];
+
+        $this->assertStringContainsString('Oranye lies flat on the canvas.', $base);
+        $this->assertStringNotContainsString('Speed lines and motion blur', $base);
+        $this->assertStringNotContainsString('impact lines', $base);
+    }
+
+    /** "On the left, X, with no hand wraps …, drives" — tanpa tinggal "X, drives". */
+    public function test_sisipan_larangan_sesudah_pembuka_posisi(): void
+    {
+        $nama = ['Toska', 'Oranye'];
+        foreach ([
+            'On the left, the auburn-haired woman, with no hand wraps under her teal gloves, drives a right hook into his jaw.'
+                => 'On the left, the auburn-haired woman drives a right hook into his jaw.',
+            'On the left, Toska, without wraps, drives a right hook into his jaw.'
+                => 'On the left, Toska drives a right hook into his jaw.',
+            'He grins, wearing no mouthguard, blood on his teeth.' => 'He grins, blood on his teeth.',
+            'She tightens the wraps under her gloves before the bell. Toska lands a hook.' => 'Toska lands a hook.',
+            'Toska wraps her arms around him in a clinch.' => 'Toska wraps her arms around him in a clinch.',
+        ] as $masuk => $harap) {
+            $this->assertSame($harap, $this->panggilPrivat('prosaBersih', $masuk, $nama), $masuk);
+        }
+    }
+
+    /** Tokoh dewasa yang menyebut anak/adik ATAU julukan "Kid" tidak ditolak pagar umur. */
+    public function test_keluarga_dan_julukan_kid_tidak_ditolak(): void
+    {
+        foreach ([
+            'single mother of two kids, 34',
+            'a mom who boxes to support her children, 32',
+            'has a 16-year-old daughter; she is 38',
+            'her younger brother is in high school; she is 27',
+            'nicknamed "The Comeback Kid", 29',
+        ] as $catatan) {
+            $this->assertNull($this->tolakUmur(['catatan' => $catatan]), $catatan);
+        }
+        $this->assertNotNull($this->tolakUmur(['catatan' => 'she is 15']));
     }
 
     // ------------------------------------------------------------------

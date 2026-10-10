@@ -252,10 +252,15 @@ final class MixedFight
      * siswi/siswa/murid/pelajar cuma dihitung bersama jenjang sekolahnya
      * ("siswi SMA", "murid kelas 2"): "siswi sasana tinju", "murid sang
      * pelatih" itu murid sasana, lazim di cerita tinju orang dewasa.
+     *
+     * Sebutan pelajar tanpa kata "student" juga: "high school freshman/
+     * sophomore", "8th grader", "is in 9th grade". "College freshman" tidak
+     * (mahasiswa bisa dewasa), dan "since 8th grade" tidak cocok.
      */
     private const SEKOLAH_KINI = 'school[\s-]?(girls?|boys?|kids?|children)'
-        . '|(elementary|grade|middle|junior[\s-]high|high)[\s-]?school(ers?|[\s-]+(students?|pupils?|girls?|boys?|kids?|children))'
-        . '|(is|are|am|[\'’]s)\s+(still\s+)?in\s+((elementary|grade|middle|junior[\s-]high|high)[\s-]?school|junior[\s-]high)'
+        . '|(elementary|grade|middle|junior[\s-]high|high)[\s-]?school(ers?|[\s-]+(students?|pupils?|girls?|boys?|kids?|children|freshm[ae]n|sophomores?|juniors?|seniors?))'
+        . '|(1[0-2]|[1-9])(st|nd|rd|th)[\s-]?graders?'
+        . '|(is|are|am|[\'’]s)\s+(still\s+)?in\s+((elementary|grade|middle|junior[\s-]high|high)[\s-]?school|junior[\s-]high|(the\s+)?(1[0-2]|[1-9])(st|nd|rd|th)[\s-]?grade)'
         . '|(siswi|siswa|murid|pelajar)\s+(sd|smp|sma|smk|sekolah\s+(dasar|menengah)|kelas\s+(\d{1,2}|[ivx]{1,4}))'
         . '|kelas\s+(\d{1,2}|[ivx]{1,4})\s+(sd|smp|sma|smk)|(sd|smp|sma|smk)\s+kelas\s+(\d{1,2}|[ivx]{1,4})'
         . '|anak\s+(sekolah|sd|smp|sma|smk)|masih\s+(duduk\s+di\s+)?(sd|smp|sma|smk|sekolah)';
@@ -267,9 +272,14 @@ final class MixedFight
      * isian orang dewasa. Frasa dewasa yang menyebut sekolah ("mantan siswi
      * SMA", "high school teacher") dibuang dulu oleh POLA_ISIAN_DEWASA, dan
      * nama kedua petinju disamarkan dulu (samarkan()).
+     *
+     * "in 9th grade" polos dihitung di sini saja (tampilan/catatan itu
+     * daftar ciri, jadi itu status) — di alur bentuk itu lazim latar ("In
+     * 9th grade they met"). "back in"/"was in 9th grade" bukan status.
      */
-    private const POLA_ISIAN_MUDA = '/\b(loli(ta|con)?|shota(con)?|underage|under[\s-]?18|di bawah umur|belum (cukup )?umur|belum dewasa|minors|a minor(?![\s-]+\w)'
+    private const POLA_ISIAN_MUDA = '/\b(loli(ta|con)?|shota(con)?|underage|di bawah umur|belum (cukup )?umur|belum dewasa|minors|a minor(?![\s-]+\w)'
         . '|' . self::SEKOLAH_KINI
+        . '|(?<!back\s)(?<!was\s)(?<!were\s)in\s+(the\s+)?(1[0-2]|[1-9])(st|nd|rd|th)[\s-]?grade'
         . '|anak kecil|anak-anak|bocah'
         . '|teen(s|ager|agers|aged)?|teenage(?![\s-]+years?)|pre[\s-]?teens?'
         . '|child(ren)?|kids?|toddlers?|young (girl|boy)s?|little (girl|boy)s?)\b/iu';
@@ -280,13 +290,26 @@ final class MixedFight
      * di sini — yang dihitung hanya status pelajar dan remaja yang jelas.
      * "murid" polos juga tidak: di cerita tinju itu lazim berarti murid sasana.
      *
-     * "shota" cuma dihitung dalam huruf kecil: alur itu prosa, dan di prosa
-     * "Shota" berhuruf kapital tanpa artikel adalah nama (Shota Aizawa,
-     * "Shota lands a jab") — kata umumnya ditulis kecil atau berartikel.
+     * "shota" dihitung dalam huruf apa pun, sama dengan di tampilan/catatan:
+     * nama petinju — dan "Shota"/"Kid" yang menempel padanya, juga nama
+     * tokoh terkenal (NAMA_TERKENAL) — sudah disamarkan lebih dulu. Tebakan
+     * "Shota berhuruf kapital = nama" meloloskan "Two Shota boxers fight".
      */
-    private const POLA_ALUR_MUDA = '/\b(loli(ta|con)?|shotacon|(?-i:shota)|underage|under[\s-]?18|di bawah umur|belum (cukup )?umur|belum dewasa|minors|a minor(?![\s-]+\w)'
+    private const POLA_ALUR_MUDA = '/\b(loli(ta|con)?|shota(con)?|underage|di bawah umur|belum (cukup )?umur|belum dewasa|minors|a minor(?![\s-]+\w)'
         . '|' . self::SEKOLAH_KINI
         . '|teen(s|ager|agers|aged)?|teenage(?![\s-]+years?)|pre[\s-]?teens?)\b/iu';
+
+    /**
+     * Di bawah 18 yang ditulis terang-terangan — di SEMUA teks yang dibaca
+     * pagar umur (nama, isian, alur, prosa model): "under 18", "belum 18
+     * tahun", "not yet 18", "younger than 18", "she will turn 18 next year"
+     * (berarti 17 sekarang). Angka kata sudah diubah jadi angka dulu
+     * (angkaKata(): "under eighteen" = "under 18"). Satuan lain tidak:
+     * "KO in under 18 seconds", "less than 18 kg".
+     */
+    private const POLA_BELUM_18 = '/\b(?:under|below|younger than|less than|not yet|kurang dari|belum(?:\s+genap)?|di bawah)[\s-]*(?:(?:the\s+)?age\s+(?:of\s+)?|umur\s+|usia\s+)?18\b(?!\s*(?:cm|kg|lbs?|oz|%|min\w*|sec\w*|menit|detik|rounds?|ronde))'
+        . '|\b(?:she|he|they|' . self::SAMARAN . ')(?:\s+(?:will|is going to|akan)|[\'’]ll)\s+(?:turn|be|become|genap|berumur|berusia)\s+(?:1[0-8])\b'
+        . '(?![\s-]*(?:cm|kg|lbs?|oz|%|min\w*|sec\w*|menit|detik|rounds?|ronde|points?|poin|times?|years?\s+(?:older|younger|ago|later|into|of)\b)|\s*(?:-|–|and|to)\s*\d)/iu';
 
     /**
      * Untuk NAMA (isian DAN nama resmi versi model) dan JUDUL ANIME: hanya
@@ -299,11 +322,12 @@ final class MixedFight
      * di isian lain dan di prosa model, jadi meloloskannya berarti
      * meloloskan "Loli body, flat chest" di catatan.
      */
-    private const POLA_NAMA_MUDA = '/\b(loli(ta|con)?|shotacon|underage|under[\s-]?18|di bawah umur|belum (cukup )?umur|belum dewasa'
+    private const POLA_NAMA_MUDA = '/\b(loli(ta|con)?|shotacon|underage|di bawah umur|belum (cukup )?umur|belum dewasa'
         . '|school[\s-]?(girl|boy)s?|little (girl|boy)s?|young (girl|boy)s?|toddlers?|pre[\s-]?teens?)\b/iu';
 
-    /** Sebutan pelajar untuk frasa lampau ("was a high school student", "were schoolgirls"). */
-    private const SISWA_LAMPAU = '((elementary|grade|middle|junior[\s-]high|high)[\s-]?)?school[\s-]?(girls?|boys?|kids?|children|students?|pupils?)|(elementary|grade|middle|junior[\s-]high|high)[\s-]?schoolers?';
+    /** Sebutan pelajar untuk frasa lampau ("was a high school student", "were schoolgirls", "was an 8th grader"). */
+    private const SISWA_LAMPAU = '((elementary|grade|middle|junior[\s-]high|high)[\s-]?)?school[\s-]?(girls?|boys?|kids?|children|students?|pupils?)|(elementary|grade|middle|junior[\s-]high|high)[\s-]?schoolers?'
+        . '|(high|middle|junior[\s-]high)[\s-]?school\s+(freshm[ae]n|sophomores?|juniors?|seniors?)|(1[0-2]|[1-9])(st|nd|rd|th)[\s-]?graders?|in\s+(the\s+)?(1[0-2]|[1-9])(st|nd|rd|th)[\s-]?grade';
 
     /**
      * Frasa dewasa yang menyebut sekolah/remaja/umur — dibuang sebelum pola
@@ -321,9 +345,18 @@ final class MixedFight
         '/\b(high|middle|junior|elementary)[\s-]?school\s+(graduates?|teachers?|nurses?|principals?|counselors?|coach(es)?|alumn\w*|reunion|friends?|sweethearts?)\b/iu',
         '/\b(graduated|lulus(an)?)\s+((from|dari)\s+)?((high|middle)[\s-]?school|sma|smk|smp)\b/iu',
         // Murid ORANG LAIN: "teaches high school students", "mengajar siswa
-        // SMA", "melatih anak-anak", "her students are high schoolers".
-        '/\b(teach(es|ing)?|taught|coach(es|ed|ing)?|train(s|ed|ing)?|tutor(s|ed|ing)?|mentor(s|ed|ing)?|mengajar(i)?|melatih|membimbing|mendidik)\s+([\w-]+\s+){0,2}?(' . self::SISWA_LAMPAU . '|students?|pupils?|siswi|siswa|murid|pelajar|kids?|children|anak-anak)(\s+(sd|smp|sma|smk))?\b/iu',
+        // SMA", "melatih anak-anak", "melatih murid-murid SMP", "pelatih
+        // tinju untuk siswa SMA", "coach for middle school kids", "her
+        // students are high schoolers".
+        '/\b(teach(es|ing)?|taught|coach(es|ed|ing)?|train(s|ed|ing)?|tutor(s|ed|ing)?|mentor(s|ed|ing)?|teachers?|trainers?|instructors?|mengajar(i)?|melatih|membimbing|mendidik|guru|pelatih|instruktur)\s+([\w-]+\s+){0,2}?((untuk|bagi|for|of|para)\s+)?(' . self::SISWA_LAMPAU . '|students?|pupils?|(siswi|siswa|murid|pelajar)(-(siswi|siswa|murid|pelajar))?|kids?|children|anak-anak)(\s+(sd|smp|sma|smk))?\b/iu',
         '/\b(her|his|their|my|our)\s+(own\s+)?(students?|pupils?)\b[^,.;]*/iu',
+        // Anak/adik ORANG ITU, bukan petinjunya: "single mother of two kids",
+        // "her younger brother is in high school", "punya dua anak".
+        '/\b(her|his|their|my|our)\s+(own\s+)?((two|three|four|five|\d)\s+)?(kids?|children|daughters?|sons?|(younger|little|baby)\s+(sisters?|brothers?|siblings?))\b[^,.;]*/iu',
+        '/\b(mother|father|mom|mum|dad|parent|single (mother|mom|father|dad)|ibu|ayah|bapak)\s+(of|dari|untuk)\s+((two|three|four|five|\d|dua|tiga|empat|lima)\s+)?(kids?|children|daughters?|sons?|anak(-anak)?)\b[^,.;]*/iu',
+        '/\b(has|have|had|punya|memiliki|mempunyai)\s+((a|an|two|three|four|\d|dua|tiga|empat|seorang)\s+)?([\w-]+\s+)?(kids?|children|daughters?|sons?|anak(-anak)?|adik)\b[^,.;]*/iu',
+        // Julukan dalam kutip: "The Comeback Kid", "Kid Dynamite".
+        '/["“][^"”]{0,40}\bkid\b[^"”]{0,40}["”]/iu',
         '/\b(since|during|sejak)\s+((her|his|their|my)\s+)?(early\s+|late\s+|mid[\s-]?)?teen(s|age years)\b/iu',
         '/\bkid(skin| gloves?| leather)\b/iu',
         // Umur AWAL sesuatu yang berlanjut sampai sekarang: "sejak umur 10",
@@ -331,6 +364,12 @@ final class MixedFight
         // sekarang lebih tua dari itu. Bentuk lampau lain: POLA_UMUR_LAMPAU.
         '/\b(sejak|semenjak|sedari)\s+((dia|ia|mereka|keduanya|' . self::SAMARAN . ')\s+)?(masih\s+|baru\s+)?((ber)?(umur|usia)\s+)?\d{1,2}\b(\s*(tahun|thn|th)\b)?/iu',
         '/\b(since|from)\s+(the\s+)?age\s+(of\s+)?\d{1,2}\b/iu',
+        // Umur AWAL karier, sama dengan "sejak umur 10": "started boxing at
+        // age 12", "took up boxing at the age of 10", "began training when
+        // she was 11", "Mulai bertinju umur 12", "mulai bertinju waktu umur
+        // 12". Kata kerjanya sudah menandai latar — bio petinju dewasa
+        // paling lazim ditulis begini, tanpa umur sekarang.
+        '/\b(start(ed|s|ing)?|began|begins?|beginning|took\s+up|picked\s+up|(me)?mulai)\s+([\p{L}\'’-]+\s+){0,3}?((at|from)\s+(the\s+)?age\s+(of\s+)?|((pada|di)\s+)?((waktu|saat|ketika|sejak)\s+)?(ber)?(umur|usia)\s+|when\s+(she|he|they|i|' . self::SAMARAN . ')\s+(was|were)\s+)\d{1,2}\b(\s*(tahun|thn|th|(years?|yrs?)([\s-]*old)?)\b)?/iu',
         // Umur BENDA: "their 12-year-old rivalry", "a 15-year-old record".
         '/\b\d{1,2}[\s-]*(years?|yrs?)[\s-]*old\s+(rivalry|feud|grudge|friendship|partnership|career|streak|record|history|tradition|gym|club|belt|title|dream|promise|wait|scar|injury|bet|debt|photo|video|memory|memories|vow)\b/iu',
     ];
@@ -349,6 +388,7 @@ final class MixedFight
         '/\b(waktu|saat|ketika|sewaktu|semasa)\s+((dia|ia|mereka|keduanya|' . self::SAMARAN . ')\s+)?(masih\s+|baru\s+)?((ber)?(umur|usia)\s+)?\d{1,2}\b(\s*(tahun|thn|th)\b)?/iu',
         '/\b(at|by)\s+(the\s+)?age\s+(of\s+)?\d{1,2}\b/iu',
         '/\b(was|were|had been)\s+(only\s+|just\s+|barely\s+)?\d{1,2}\b([\s-]*(years?|yrs?)([\s-]*old)?\b)?/iu',
+        '/\b(just\s+)?turned\s+\d{1,2}\b/iu',
     ];
 
     /** Umur dewasa SEKARANG: "now 27", "now she is 30", "sekarang 25 tahun", "kini keduanya 28 tahun", "is 30", "umur 25". */
@@ -364,7 +404,16 @@ final class MixedFight
      * kata ("sixteen", "tujuh belas") sudah diubah jadi angka (angkaKata()).
      */
     private const POLA_ANGKA_UMUR = [
-        '/\b(?:umur(?:nya)?|usia(?:nya)?|berumur|berusia|aged?)(?:\s+(?:is|of))?\s*[:=]?\s*(\d{1,2})\b/iu',
+        // Kata keterangan di antaranya tidak mengubah apa-apa: "umurnya baru
+        // 15", "usianya masih 16", "aged only 16", "age: just 15".
+        '/\b(?:umur(?:nya)?|usia(?:nya)?|berumur|berusia|aged?)(?:\s+(?:is|of|was))?\s*[:=]?\s*(?:(?:baru|masih|hanya|cuma|sekitar|kira-kira|only|just|barely|still|about|around|almost|nearly)\s+)?(\d{1,2})\b/iu',
+        // "she just turned 16", "baru menginjak 16 tahun", "menginjak usia
+        // 16". "turned pro at 19" tidak cocok (sesudah kata kerjanya harus
+        // angka), begitu juga rekor "turned 15-0" dan lama waktu "genap 10
+        // tahun berlatih" — "N tahun" di sini harus menutup klausa.
+        '/\b(?|(?:turned|turns|turning)\s+(\d{1,2})\b(?![\s-]*(?:cm|kg|lbs?|oz|%|rounds?|ronde|years?\s+(?:into|of|as|in)\b)|\s*(?:-|–|and|to)\s*\d)'
+            . '|(?:menginjak|genap)\s+(?:umur|usia)\s+(\d{1,2})\b'
+            . '|(?:menginjak|genap)\s+(\d{1,2})\s*(?:tahun|thn)(?=\s*(?:$|[,.;:!?)]|(?:dan|tapi)\b)))/iu',
         '/\b(\d{1,2})[\s-]*(?:years?|yrs?)[\s-]*old\b/iu',
         '/\b(\d{1,2})\s*(?:yo|y\/o|y\.o\.?)(?![\w])/iu',
         '/\b(\d{1,2})\s+years\s+of\s+age\b/iu',
@@ -378,14 +427,21 @@ final class MixedFight
         // umur. Angka di bawah 10 tidak — "baru 3 tahun jadi pro" lama waktu.
         '/\b(?:baru|masih)\s+(1[0-7])\s*(?:tahun|thn|th)\b(?!\s+(?:lagi|kemudian|lalu|silam|yang lalu)\b)/iu',
         // "she is 15", "she's sixteen", "my OC is 16", "Toska is 16" (nama
-        // sudah disamarkan jadi SAMARAN), juga past tense cerita ("Toska was
-        // 16 and …"). Subjeknya orang, angkanya 10–17 tanpa satuan: "the
-        // count is 8", "she is 163 cm", "Rank: she is 3" bukan umur, begitu
-        // juga rekor tanding "he is 17 and 0", "12-1". (\K: pesan galat
+        // sudah disamarkan jadi SAMARAN), "This boxer is 16", juga past
+        // tense cerita ("Toska was 16 and …"). Subjeknya orang, angkanya
+        // 10–17 tanpa satuan: "the count is 8", "she is 163 cm", "Rank: she
+        // is 3" bukan umur, begitu juga rekor tanding "he is 17 and 0",
+        // "12-1". Sesudah angkanya cuma batas klausa, "years old"/"yo",
+        // "tahun" yang menutup klausa, atau kata sambung — BUKAN "years"
+        // polos: "is 10 years older", "are 10 years apart", "is 11 years
+        // into her career" itu selisih atau lama waktu. (\K: pesan galat
         // tidak mengutip kata samaran.)
-        '/\b(?:she|he|they|oc|character|karakter|girl|boy|' . self::SAMARAN . '\K)(?:\s+(?:is|are|was|were)|[\'’]s)\s+(?:only\s+|just\s+|still\s+|barely\s+|now\s+)?(1[0-7])(?=\s*(?:$|[,.;:!?)]|(?:years?|yrs?|yo|tahun|thn|and|dan|but|tapi|with|dengan|now|already|sekarang|kini|this year|when|while|during|at the time)\b))(?!\s*(?:and|dan|-|–|to)\s*\d)/iu',
-        // Keterangan umur sesudah nama, juga di alur: "Toska, 15, faces Oranye", "Toska (16)".
-        '/\b' . self::SAMARAN . '\s*[,(]\s*\K(1[0-7])\s*(?=[,)])/u',
+        '/\b(?:she|he|they|oc|character|karakter|girl|boy|woman|man|lady|guy|boxer|fighter|heroine|hero|protagonist|rival|opponent|' . self::SAMARAN . '\K)(?:\s+(?:is|are|was|were)|[\'’]s)\s+(?:only\s+|just\s+|still\s+|barely\s+|now\s+|about\s+|around\s+)?(1[0-7])'
+            . '(?=\s*(?:$|[,.;:!?)]|(?:yo|(?:years?|yrs?)[\s-]*old|and|dan|but|tapi|with|dengan|now|already|sekarang|kini|this year|when|while|during|at the time)\b|(?:tahun|thn)\s*(?:$|[,.;:!?)]|(?:dan|and|but|tapi)\b)))(?!\s*(?:and|dan|-|–|to)\s*\d)/iu',
+        // Keterangan umur sesudah nama, juga di alur: "Toska, 15, faces
+        // Oranye", "Toska (16)", "Oranye, 30, faces Toska, 15.", "Toska, 16."
+        // Titik desimal ("Toska, 15.5 kg lebih ringan") bukan batas.
+        '/\b' . self::SAMARAN . '\s*[,(]\s*\K(1[0-7])\s*(?=[,)]|\.(?!\d)|$)/u',
     ];
 
     /**
@@ -397,37 +453,58 @@ final class MixedFight
     private const SAMARAN = 'NAMA_PETINJU';
 
     /**
-     * "Shota"/"Kid" sebagai bagian nama tokoh lain (samarkan()): berhuruf
-     * kapital dan menempel pada kata berhuruf kapital — "Shota Aizawa",
-     * "Kid Flash", "Karate Kid", "Billy the Kid". Peka huruf besar: "kid"
-     * dan "shota" kecil tetap kata biasa. Kata ganti, kata sifat umur/ukuran,
-     * dan boy/girl tidak dihitung sebagai pasangan nama ("The Shota",
-     * "Little Kid", "Shota Boy" itu sebutan, bukan nama).
+     * "Shota"/"Kid" sebagai nama tokoh LAIN (samarkan()) — daftar TETAP
+     * tokoh dewasa terkenal, bukan tebakan dari huruf kapital. Tebakan
+     * "kata berhuruf kapital + Shota/Kid = nama" meloloskan "Shota Face",
+     * "Typical Shota", "Kid Size body" asal ditulis Title Case. Tokoh lain
+     * cukup ditulis lengkap di kolom Nama — pesan galat pagar umur
+     * menyarankannya — dan "Shota"/"Kid" yang menempel pada nama petinju
+     * sendiri ("Shota Aizawa" untuk petinju "Aizawa") juga dihitung nama.
+     *
+     * "Kid" sebagai JULUKAN yang ditandai jelas ("nickname: The Kid", "calls
+     * her Kid", "dijuluki Kid") juga nama: julukan "Kid" lazim di tinju (Kid
+     * Gavilan, Kid Chocolate). "Shota" tidak — "dipanggil Shota karena
+     * mungil" justru penanda.
      */
-    private const FRASA_NAMA = '/(?<![\p{L}\p{N}])(?:(?!(?:The|This|That|These|Those|Her|His|Their|My|Our|Its|Your|Every|Each|Little|Small|Tiny|Young|Baby|Cute|School|Teen|Child)\b)\p{Lu}[\p{L}\'’-]+\s+(?:the\s+)?(?:Shota|Kid)'
-        . '|(?:Shota|Kid)\s+(?!(?:Boys?|Girls?|Body|Kun|Chan)\b)\p{Lu}[\p{L}\'’-]+)(?![\p{L}\p{N}])/u';
+    private const NAMA_TERKENAL = '/(?<![\p{L}\p{N}])(?:Shota\s+Aizawa|Aizawa\s+Shota|Eustass\s+(?:["“]?Captain["”]?\s+)?Kid|Kid\s+(?:Flash|Gavilan|Chocolate|McCoy)|Karate\s+Kid|Billy\s+the\s+Kid'
+        . '|(?:nicknamed?|julukan(?:nya)?|dijuluki|alias|ring\s+name|known\s+as|calls?\s+(?:her|him|me)|called)\s*[:=]?\s*["“‘\']?(?:the\s+)?\KKid)(?![\p{L}\p{N}])/iu';
 
     /**
      * Angka 10–17 yang berdiri sendiri sebagai butir daftar — cara lazim
-     * menulis umur di tampilan/catatan ("Toska, 16, auburn hair", "(16)").
-     * Hanya untuk tampilan/catatan: di nama ("Android 17") dan alur ("ronde
-     * 12, ...") angka lepas bukan umur — di alur yang dihitung cuma angka
-     * sesudah nama ("Toska, 15, faces Oranye"; POLA_ANGKA_UMUR). Tinggi
-     * (163), "18", "16 kg" tidak cocok, begitu juga angka yang bertetangga
-     * dengan angka lain di daftar: "ukuran sarung: 10, 12, atau 16 oz".
+     * menulis umur di tampilan/catatan ("Toska, 16, auburn hair", "(16)",
+     * "auburn hair, petite, 15."). Hanya untuk tampilan/catatan: di nama
+     * ("Android 17") dan alur ("ronde 12, ...") angka lepas bukan umur — di
+     * alur yang dihitung cuma angka sesudah nama ("Toska, 15, faces Oranye";
+     * POLA_ANGKA_UMUR). Tinggi (163), "18", "16 kg" tidak cocok, begitu juga
+     * angka yang bertetangga dengan angka lain di daftar: "ukuran sarung:
+     * 10, 12, atau 16 oz". Titik desimal ("15.5") bukan batas.
      */
-    private const POLA_ANGKA_LEPAS = '/(?:^|(?<!\d)(?<!\d\s)[,;(])\s*(1[0-7])\s*(?=[,;)]|$)(?!\s*[,;]\s*(?:(?:atau|or|dan|and)\s+)?\d)/u';
+    private const POLA_ANGKA_LEPAS = '/(?:^|(?<!\d)(?<!\d\s)[,;(])\s*(1[0-7])\s*(?=[,;)]|\.(?!\d)|$)(?!\s*[,;]\s*(?:(?:atau|or|dan|and)\s+)?\d)/u';
 
     /**
-     * Angka kata 10–17 — diubah jadi angka dulu (angkaKata()) supaya pola
+     * Angka kata 10–18 — diubah jadi angka dulu (angkaKata()) supaya pola
      * angka di atas berlaku sama: "sixteen years old" = "16 years old",
-     * "she is sixteen" = "she is 16", "sepuluh tahun berlatih" = "10 tahun
-     * berlatih" (tetap bukan umur).
+     * "she is sixteen" = "she is 16", "under eighteen" = "under 18",
+     * "sepuluh tahun berlatih" = "10 tahun berlatih" (tetap bukan umur).
      */
     private const ANGKA_KATA = [
-        'ten' => 10, 'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14, 'fifteen' => 15, 'sixteen' => 16, 'seventeen' => 17,
-        'sepuluh' => 10, 'sebelas' => 11, 'dua belas' => 12, 'tiga belas' => 13, 'empat belas' => 14, 'lima belas' => 15, 'enam belas' => 16, 'tujuh belas' => 17,
+        'ten' => 10, 'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14, 'fifteen' => 15, 'sixteen' => 16, 'seventeen' => 17, 'eighteen' => 18,
+        'sepuluh' => 10, 'sebelas' => 11, 'dua belas' => 12, 'tiga belas' => 13, 'empat belas' => 14, 'lima belas' => 15, 'enam belas' => 16, 'tujuh belas' => 17, 'delapan belas' => 18,
     ];
+
+    /**
+     * "masih SMA" sebagai LATAR (tanpaLatarSekolah()): di kalimat yang memuat
+     * kata waktu lampau ("Waktu itu mereka masih SMA", "Ketika keduanya
+     * masih duduk di SMA", "Mereka masih SMA ketika pertama bertemu") —
+     * asal teks yang sama, di kalimat LAIN, menyebut keadaan sekarang
+     * ("kini keduanya juara", "sekarang 28 tahun"). Yang dibuang cuma
+     * bentuk "masih …"; "siswi SMA kelas 2" di kalimat yang sama tetap
+     * terbaca, karena "saat/ketika" juga berarti "ketika" di cerita yang
+     * sedang berlangsung.
+     */
+    private const MASIH_SEKOLAH = '/\bmasih\s+(?:duduk\s+di\s+(?:bangku\s+)?)?(?:kelas\s+(?:\d{1,2}|[ivx]{1,4})\s+)?(?:sd|smp|sma|smk|sekolah(?:\s+(?:dasar|menengah))?)(?:\s+kelas\s+(?:\d{1,2}|[ivx]{1,4}))?\b/iu';
+    private const KATA_WAKTU_LAMPAU = '/\b(?:waktu|saat|ketika|sewaktu|semasa|kala|dulu|dahulu)\b(?!\s+(?:ini|sekarang|kini)\b)/iu';
+    private const KATA_KINI = '/\b(?:kini|sekarang|saat ini|now|nowadays|today|these days)\b/iu';
 
     /** Ini komik tinju, bukan adegan telanjang. */
     private const POLA_EKSPLISIT = '/\b(nsfw|nude|naked|nudity|nipples?|areolae?|pussy|vagina|penis|genitals?|bottomless|sex|cum|bare breasts|exposed breasts)\b/i';
@@ -471,6 +548,30 @@ final class MixedFight
      * selalu digabung dengan ", ", jadi batas tag = awal/koma.
      */
     private const POLA_KONTAK = '/\b(gloves?|fists?)\s+(buried|sinking|sunk|connecting|connects|smashing|crashing|slamming|landing|lands|digging|driven)\b|\b(punched|hit|struck)\s+(in|on)\b|\bconnect\w*\s+with\b|(?:^|,)\s*impacts?\s*(?=,|$)|\bbody blows?\b|\b(stomach|gut|body|liver) punch(es)?\b/i';
+
+    /**
+     * Tag yang cocok POLA_KONTAK tapi menceritakan SEBAB KO atau benturan
+     * dengan lantai, bukan sarung yang sedang mendarat: "knocked down by
+     * body blow", "aftermath of liver punch", "body hit on the canvas",
+     * "gloves landing on canvas" — dan salam sarung di panel tatap ("gloves
+     * connecting with each other", "fists touching"). Dibaca PER TAG
+     * (adaKontak()): "glove buried in stomach" di samping tag "knocked out"
+     * tetap kontak.
+     *
+     * Lantai hanya dihitung kalau ia SASARAN benturannya ("on/onto/into
+     * the canvas"), bukan sekadar latar: "glove buried in his stomach
+     * against the ropes" dan "body blow on the ropes" tetap kontak — dulu
+     * kata "ropes"/"floor" di mana pun membuang tag itu, dan panel uppercut
+     * penentu kehilangan efek pukulannya.
+     */
+    private const POLA_BUKAN_KONTAK = '/\b(knock(ed|s)?\s+(out|down)|knockout|aftermath|unconscious|out cold|down for the count|each other|touch\w*|bump\w*|salute)\b|\b(on|onto|into|against)\s+(the\s+)?(canvas|floor|mat|ground)\b/i';
+
+    /**
+     * Efek pukulan yang tidak boleh ada di panel ko/jeda/tatap (aturan 6).
+     * "impact lines/frame" dan "action lines" ikut: itu efek gambar untuk
+     * benturan, bukan suasana.
+     */
+    private const POLA_EFEK_PUKUL = '/\b(speed lines|motion blur|punch trail|afterimage|impact (lines|frame|flash|burst)|action lines)\b/i';
 
     /**
      * Pose yang digambar V5 dengan salah (pelajaran revisi panel Toska):
@@ -758,6 +859,24 @@ final class MixedFight
         $sebutan = array_values(array_unique(array_filter($sebutan, static fn (string $n): bool => $n !== '')));
 
         self::tolakIsianMuda($a, $b, is_scalar($opsi['alur'] ?? null) ? (string)$opsi['alur'] : '', $sebutan);
+
+        /*
+         * Penilaian model atas ISIAN pengguna. tolakIsianMuda() di atas cuma
+         * menangkap penanda yang jelas — pola teks tidak bisa membedakan
+         * "masih SMA" sekarang dari "masih SMA waktu pertama bertemu, kini
+         * 28 tahun" tanpa salah menolak cerita dewasa. Bedanya itu soal
+         * makna, dan model yang membaca kalimatnya utuh menilainya jauh
+         * lebih baik. Keputusannya tetap di kode: true = ditolak.
+         */
+        $muda = $j['isian_bawah_umur'] ?? false;
+        if ($muda === true || (is_string($muda) && in_array(mb_strtolower(trim($muda)), ['true', 'ya', 'yes'], true))) {
+            $alasan = self::rapi($j['alasan_umur'] ?? '', 200);
+            throw new RuntimeException(
+                'Isiannya menggambarkan petinju yang masih di bawah umur' . ($alasan !== '' ? ' (' . $alasan . ')' : '')
+                . ' — Mixed Fight hanya untuk karakter dewasa.',
+                self::KODE_DITOLAK
+            );
+        }
 
         if (count($jp) < 2) {
             throw new RuntimeException('Model tidak menyerahkan data kedua petinju.', self::KODE_DITOLAK);
@@ -1203,8 +1322,12 @@ ATURAN — semuanya wajib:
    - karakter."tangan": "right" atau "left" — tangan yang memukul; "" untuk yang bukan pemukul.
    - karakter."sasaran": bagian badan karakter INI yang terkena di panel ini — "stomach", "face", "jaw", "ribs", atau "chest"; "" kalau tidak terkena. Pemukul cross counter yang sekaligus terkena juga mengisi sasaran.
 
+UMUR DI ISIAN PENGGUNA. Baca juga nama, tampilan, catatan, dan alur yang diketik pengguna. Isi "isian_bawah_umur" = true kalau teks itu menggambarkan salah satu petinju SAAT INI berumur di bawah 18 tahun (mis. "Toska, 16", "masih SMA", "gadis remaja", "ABG", "bocil", "both are 15"), dan tulis alasannya singkat di "alasan_umur". Yang BUKAN di bawah umur: masa lalu atau riwayat karier ("rival sejak SMA, kini 27", "turned pro at 17", "mulai bertinju umur 12"), anggota keluarga ("ibu dua anak", "adiknya masih SMA"), lama berlatih ("15 tahun jadi petinju"), dan nama/julukan tokoh dewasa ("Shota Aizawa", "Eustass Kid", "The Comeback Kid"). Ragu antara masa lalu dan sekarang = baca sebagai masa lalu kalau teks menyebut umur dewasa sekarang; selain itu true.
+
 Balas HANYA dengan satu objek JSON persis berbentuk:
 {
+  "isian_bawah_umur": false,
+  "alasan_umur": "",
   "petinju": [
     {
       "nama_tampil": "nama seperti ditulis resmi (OC: nama dari pengguna)",
@@ -1394,8 +1517,15 @@ TXT;
         foreach ($periksa as [$label, $teks, $pola, $samar, $lepas]) {
             $tanda = self::tandaMuda($samar ? self::samarkan($teks, $nama) : $teks, $pola, $lepas);
             if ($tanda !== null) {
+                // "Shota"/"Kid" yang ditolak bisa saja nama tokoh yang tidak
+                // ada di kolom Nama ("Eraserhead" + "Shota, 31, pro hero"):
+                // jalan keluarnya jelas dan bisa diduga, tanpa menebak nama
+                // dari huruf kapital.
+                $saran = preg_match('/^(?:shota|kid)$/iu', $tanda) === 1
+                    ? ' Kalau "' . $tanda . '" itu bagian nama tokoh, tulis nama lengkapnya di kolom Nama.'
+                    : '';
                 throw new RuntimeException(
-                    $label . ' menyebut ciri di bawah umur ("' . $tanda . '") — Mixed Fight hanya untuk karakter dewasa.',
+                    $label . ' menyebut ciri di bawah umur ("' . $tanda . '") — Mixed Fight hanya untuk karakter dewasa.' . $saran,
                     self::KODE_DITOLAK
                 );
             }
@@ -1412,17 +1542,45 @@ TXT;
         if (trim($teks) === '') {
             return null;
         }
-        $t = preg_replace(self::POLA_ISIAN_DEWASA, ' ', self::angkaKata($teks)) ?? $teks;
+        $t = self::angkaKata($teks);
+        $t = self::tanpaLatarSekolah(preg_replace(self::POLA_ISIAN_DEWASA, ' ', $t) ?? $t);
         if (preg_match(self::POLA_UMUR_KINI, $t) === 1) {
             $t = preg_replace(self::POLA_UMUR_LAMPAU, ' ', $t) ?? $t;
         }
 
+        // Sesudah frasa dewasa dibuang: "her students are under 18" itu
+        // murid orang lain, bukan petinjunya.
+        if (preg_match(self::POLA_BELUM_18, $t, $m) === 1) {
+            return $m[0];
+        }
         $angka = self::umurMuda($t, $lepas ? [...self::POLA_ANGKA_UMUR, self::POLA_ANGKA_LEPAS] : self::POLA_ANGKA_UMUR);
         if ($angka !== null) {
             return $angka;
         }
 
         return preg_match($pola, $t, $m) === 1 ? $m[0] : null;
+    }
+
+    /**
+     * "masih SMA" di kalimat berkata-waktu lampau dibuang (MASIH_SEKOLAH) —
+     * hanya kalau teksnya juga menyebut keadaan SEKARANG di kalimat lain:
+     * kata kini/sekarang/now, atau umur dewasa sekarang (POLA_UMUR_KINI).
+     * Kalimat yang memuat penanda sekarang itu sendiri tidak pernah dianggap
+     * latar ("Saat ini masih SMA", "Sekarang Toska masih SMA ketika …").
+     */
+    private static function tanpaLatarSekolah(string $t): string
+    {
+        if (preg_match(self::KATA_KINI, $t) !== 1 && preg_match(self::POLA_UMUR_KINI, $t) !== 1) {
+            return $t;
+        }
+        $kalimat = preg_split('/(?<=[.;!?\n])/u', $t) ?: [$t];
+        foreach ($kalimat as $i => $k) {
+            if (preg_match(self::KATA_WAKTU_LAMPAU, $k) === 1 && preg_match(self::KATA_KINI, $k) !== 1 && preg_match(self::POLA_UMUR_KINI, $k) !== 1) {
+                $kalimat[$i] = preg_replace(self::MASIH_SEKOLAH, ' ', $k) ?? $k;
+            }
+        }
+
+        return implode('', $kalimat);
     }
 
     /**
@@ -1450,7 +1608,7 @@ TXT;
     }
 
     /**
-     * Angka kata 10–17 jadi angka, di MANA PUN letaknya — "she is sixteen"
+     * Angka kata 10–18 jadi angka, di MANA PUN letaknya — "she is sixteen"
      * dan "umur tujuh belas" sama dengan "she is 16" dan "umur 17". Pola
      * angkanya sendiri yang memilah umur dari lama waktu ("fifteen years of
      * boxing" = "15 years of boxing", tetap bukan umur).
@@ -1458,7 +1616,7 @@ TXT;
     private static function angkaKata(string $teks): string
     {
         return preg_replace_callback(
-            '/\b(ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|sepuluh|sebelas|(?:dua|tiga|empat|lima|enam|tujuh)\s+belas)\b/iu',
+            '/\b(ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|sepuluh|sebelas|(?:dua|tiga|empat|lima|enam|tujuh|delapan)\s+belas)\b/iu',
             static fn (array $m): string => (string)self::ANGKA_KATA[preg_replace('/\s+/u', ' ', mb_strtolower($m[1]))],
             $teks
         ) ?? $teks;
@@ -1479,15 +1637,18 @@ TXT;
      * satu kata juga disamarkan persis seperti diketik pengguna: petinju
      * "kid" yang catatannya "kid punya rambut merah" sedang menyebut namanya.
      *
-     * Di luar nama petinju, "Shota"/"Kid" berhuruf kapital yang menempel
-     * pada kata lain berhuruf kapital juga nama (FRASA_NAMA): "real name
-     * Shota Aizawa", "Karate Kid style headband", "fan of Kid Flash",
-     * "Billy the Kid" — petinju yang namanya diisi "Aizawa" atau
-     * "Eraserhead" tidak ditolak karena alurnya menulis nama lengkapnya.
+     * Di luar nama petinju, yang disamarkan cuma dua bentuk yang bisa
+     * diduga: "Shota"/"Kid" berhuruf kapital yang MENEMPEL pada nama petinju
+     * ("Shota Aizawa"/"Aizawa Shota" untuk petinju "Aizawa", "Eustass Kid"
+     * untuk "Eustass" — sama saja dengan pengguna menulis nama lengkapnya
+     * di kolom Nama), dan daftar tetap NAMA_TERKENAL ("real name Shota
+     * Aizawa", "Karate Kid style headband", "fan of Kid Flash", julukan
+     * "The Kid"). Sembarang kata berhuruf kapital di samping "Shota" BUKAN
+     * nama: "Shota Face", "Typical Shota" tetap terbaca.
      *
-     * Nama yang sendirinya penanda kuat (POLA_NAMA_MUDA: "Loli") tidak
-     * pernah disamarkan — tolakIsianMuda() sudah menolaknya lebih dulu, ini
-     * cuma pengaman.
+     * Nama yang sendirinya penanda kuat (POLA_NAMA_MUDA: "Loli", POLA_BELUM_18)
+     * tidak pernah disamarkan — tolakIsianMuda() sudah menolaknya lebih
+     * dulu, ini cuma pengaman.
      *
      * @param list<string> $nama
      */
@@ -1496,12 +1657,12 @@ TXT;
         if (trim($teks) === '') {
             return $teks;
         }
-        $teks = preg_replace(self::FRASA_NAMA, self::SAMARAN, $teks) ?? $teks;
+        $teks = preg_replace(self::NAMA_TERKENAL, self::SAMARAN, $teks) ?? $teks;
 
         $penuh  = [];
         $potong = [];
         foreach ($nama as $n) {
-            if (preg_match(self::POLA_NAMA_MUDA, (string)$n) === 1) {
+            if (preg_match(self::POLA_NAMA_MUDA, (string)$n) === 1 || preg_match(self::POLA_BELUM_18, self::angkaKata((string)$n)) === 1) {
                 continue;
             }
             $kata = preg_split('/[^\p{L}\p{N}]+/u', trim((string)$n), -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -1528,7 +1689,14 @@ TXT;
             $teks = preg_replace('/' . $batas($k) . '/u', self::SAMARAN, $teks) ?? $teks;
         }
 
-        return $teks;
+        // "Shota"/"Kid" yang menempel pada nama petinju adalah bagian nama
+        // itu ("Shota Aizawa", "Aizawa Shota", "Eustass Kid", "Toska the
+        // Kid"). Peka huruf besar, seperti nama ditulis.
+        return preg_replace(
+            '/(?<![\p{L}\p{N}])(?:Shota|Kid)\s+' . self::SAMARAN . '|' . self::SAMARAN . '\s+(?:the\s+)?(?:Shota|Kid)(?![\p{L}\p{N}])/u',
+            self::SAMARAN,
+            $teks
+        ) ?? $teks;
     }
 
     // =================================================================
@@ -1719,6 +1887,34 @@ TXT;
         // ---- 1. Jenis panel dan peran tiap karakter: siapa yang kena, siapa yang memukul.
         [$jenis, $adaUppercut] = self::peranPanel($pj['jenis'] ?? null, $baseTag, $tokoh, $petinju, $catatan);
         $adaPukul = $jenis === 'pukulan';
+
+        // Panel ko/jeda/tatap TANPA efek pukulan (aturan 6) — termasuk yang
+        // ditulis model sendiri di base_tag atau aksi. Kode tidak menambah
+        // efek di panel itu, jadi tanpa ini "speed lines, motion blur"
+        // karangan model tetap lewat. Panel "lain" (tanpa field, tanpa
+        // tanda apa pun) tidak disentuh: bisa saja adegan menerjang.
+        if (in_array($jenis, ['ko', 'jeda', 'tatap'], true)) {
+            $dibuang = [];
+            $baseTag = self::tanpaPose($baseTag, self::POLA_EFEK_PUKUL, $dibuang);
+            foreach ($tokoh as $s => $t) {
+                $tokoh[$s]['aksi'] = self::tanpaPose($t['aksi'], self::POLA_EFEK_PUKUL, $dibuang);
+            }
+            // Kalimat Base yang menceritakan efek itu ("Speed lines trail
+            // from her glove as he falls.") dibuang utuh — kalimat lain
+            // panel ini tetap.
+            $bagian = preg_split('/(?<=[.!?])\s+/u', trim($kalimat)) ?: [];
+            $sisa   = array_values(array_filter(
+                $bagian,
+                static fn (string $k): bool => preg_match(self::POLA_EFEK_PUKUL, $k) !== 1
+            ));
+            if (count($sisa) !== count($bagian)) {
+                $dibuang[] = 'kalimat efek pukulan';
+                $kalimat = implode(' ', $sisa);
+            }
+            if ($dibuang !== []) {
+                $catatan[] = 'Dicopot dari panel "' . $jenis . '": ' . implode(', ', self::unik($dibuang)) . ' — panel tanpa kontak tidak diberi efek pukulan.';
+            }
+        }
 
         // ---- 2. Pose yang digambar V5 dengan salah — juga kalau ditulis di base_tag.
         $dibuang = [];
@@ -2116,7 +2312,8 @@ TXT;
      *
      * KECUALI field "jenis"-nya sendiri dibantah bukti yang lebih kuat:
      * base_tag yang memuat tag KONTAK ("punched in the face, glove connecting
-     * with cheek") itu panel pukulan, apa pun jenis tulisannya — kalau tidak,
+     * with cheek"; dibaca per tag, tanpa tag sebab-KO seperti "knocked down
+     * by body blow" — adaKontak()) itu panel pukulan, apa pun jenis tulisannya — kalau tidak,
      * panel itu kehilangan UC anti-meleset dan pukulannya digambar meleset.
      * Panel "tatap"/"jeda" yang perannya diisi pemukul DAN korban juga panel
      * pukulan. Panel "ko" cuma dikalahkan tag kontak: pemenang yang ditandai
@@ -2130,7 +2327,7 @@ TXT;
         $jenis = self::pilihJenis($jenisModel);
         if ($jenis !== null && $jenis !== 'pukulan') {
             $peranModel = array_map(static fn (array $t): ?string => $t['peranModel'], $tokoh);
-            $kontak     = preg_match(self::POLA_KONTAK, implode(', ', $baseTag)) === 1;
+            $kontak     = self::adaKontak($baseTag);
             $berperan   = in_array('pemukul', $peranModel, true) && in_array('korban', $peranModel, true);
             if ($kontak || ($jenis !== 'ko' && $berperan)) {
                 $catatan[] = 'Panel ditandai "' . $jenis . '", tapi ' . ($kontak ? 'base_tag-nya memuat tag kontak' : 'model mengisi pemukul dan korbannya')
@@ -2169,7 +2366,7 @@ TXT;
                 // Pose KO tanpa nama pukulan dan tanpa tag kontak itu SESUDAH
                 // pukulan: "knocked back, unconscious" milik yang roboh, bukan
                 // korban yang sedang kena.
-                preg_match(self::POLA_KO, $teks) === 1 && !$adaKata && preg_match(self::POLA_KONTAK, $teks) !== 1 => 'ko',
+                preg_match(self::POLA_KO, $teks) === 1 && !$adaKata && !self::adaKontak(self::daftar($teks)) => 'ko',
                 // Karakter yang terkena berarti ada pukulan yang mendarat, walau
                 // kata "punch" sendiri tidak tertulis ("being hit", "doubled over").
                 $adaKata || $adaKena               => 'pukulan',
@@ -2209,6 +2406,24 @@ TXT;
         }
 
         return ['pukulan', preg_match('/\buppercuts?\b/i', $teks) === 1];
+    }
+
+    /**
+     * Ada tag KONTAK di daftar ini? Dibaca per tag: tag yang menceritakan
+     * sebab KO, benturan dengan kanvas, atau salam sarung (POLA_BUKAN_KONTAK)
+     * tidak dihitung, walau memuat "body blow"/"landing"/"connect with".
+     *
+     * @param list<string> $tags
+     */
+    private static function adaKontak(array $tags): bool
+    {
+        foreach ($tags as $t) {
+            if (preg_match(self::POLA_KONTAK, $t) === 1 && preg_match(self::POLA_BUKAN_KONTAK, $t) !== 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -3130,9 +3345,12 @@ TXT;
      * di kalimat deskripsi ("with no hand wraps", "No mouthguards.").
      *
      * Kalimat yang menyebut anak/remaja dibuang utuh — pagar umur juga
-     * berlaku di prosa. Yang dicari cuma penanda kuat (POLA_PROSA_MUDA, umur
-     * di bawah 18 dalam angka), SESUDAH nama kedua petinju disamarkan:
-     * "Eustass Kid lands a hook" itu kalimat aksi utama, bukan anak-anak.
+     * berlaku di prosa. Yang dicari cuma penanda kuat (POLA_PROSA_MUDA),
+     * SESUDAH nama kedua petinju disamarkan: "Eustass Kid lands a hook" itu
+     * kalimat aksi utama, bukan anak-anak. Umur dalam angka dibaca dengan
+     * aturan yang SAMA dengan alur (tandaMuda()): "Toska, 16, lands a hook"
+     * dan "She is 15 and …" dibuang, "Their 12-year-old rivalry explodes"
+     * dan "She is 10 years older" tidak.
      *
      * @param list<string> $nama nama kedua petinju
      */
@@ -3140,9 +3358,7 @@ TXT;
     {
         $hasil = [];
         foreach (self::kalimatTanpaNegasi($teks) as $kal) {
-            $samar = self::samarkan($kal, $nama);
-            if (preg_match(self::POLA_PROSA_MUDA, $samar) === 1
-                || self::umurMuda($samar, ['/\b(\d{1,2})[\s-]*(?:years?|yrs?)[\s-]*old\b/iu']) !== null) {
+            if (self::tandaMuda(self::samarkan($kal, $nama), self::POLA_PROSA_MUDA) !== null) {
                 continue;
             }
             if (preg_match('/\b' . self::PROSA_INTI . '\b/iu', $kal) !== 1) {
@@ -3206,6 +3422,11 @@ TXT;
         . '|school ?uniforms?|nude|naked|nipples?'
         // "bare hands" di Base positif melawan "bare hands" di UC Base.
         . '|bare[\s-](?:hands?|fists?|knuckles?|knuckled)'
+        // "wraps"/"tape" polos: hanya sebagai kata benda (didahului kata
+        // penentu) atau tangan yang "wrapped/taped" — "wraps her arms
+        // around him" (clinch) dan "wrap top" tetap boleh.
+        . '|(?:the|her|his|their|any|of|with)\s+(?:[\p{L}-]+\s+)?(?:wraps|wrappings?|tape)'
+        . '|(?:wrists?|hands?|fists?|knuckles?)\s+(?:(?:are|is|were|was)\s+)?(?:wrapped|taped|bandaged)|wrap-free'
         . '|monochrome|greyscale|grayscale|black[- ]and[- ]white|limited palette|desaturated)';
 
     /** Barang yang lazim ditulis model dalam bentuk larangan ("no hand wraps", "without any wraps"). */
@@ -3214,25 +3435,35 @@ TXT;
 
     /**
      * Larangan yang ditulis model di SATU kalimat dicopot — atau kalimatnya
-     * dibuang ('' dikembalikan) kalau larangannya tidak bisa dicopot tanpa
-     * mematahkan tata bahasanya:
+     * dibuang ('' dikembalikan) kalau larangannya tidak bisa dicopot dengan
+     * pasti. Kalimat yang hilang lebih baik daripada kalimat patah.
      *
      * 1. keterangan "(no X, no Y)", "with no X …", "without (any) X …",
-     *    "wearing no X …" — dicopot UTUH bersama pelengkapnya ("on her
-     *    body", "underneath", "visible", "in place", "visible beneath the
-     *    gloves"); kalimatnya tetap utuh tanpa frasa itu ("A boxer slams a
-     *    hook."). Frasa yang DIAPIT ("Oranye—without hand wraps—slams",
+     *    "wearing no X …" — dicopot UTUH bersama pelengkapnya, TAPI cuma
+     *    kalau ujung frasanya jelas: batas klausa tepat sesudah barangnya
+     *    (atau sesudah "visible"/"in place"/"underneath"), atau pelengkap
+     *    tempat yang dikenal ("on her body", "over it", "between her teeth",
+     *    "under her teal gloves"). "with no jacket to hide her toned arms"
+     *    yang ujungnya tidak dikenal tidak dicopot — kalimatnya dibuang di
+     *    langkah 3, bukan dibiarkan jadi "… shoulders to hide her toned
+     *    arms". Frasa yang DIAPIT ("Oranye—without hand wraps—slams",
      *    "Toska, with no jacket, steps forward") dicopot bersama kedua
      *    pengapitnya, supaya subjek dan predikatnya tidak dipisah tanda
-     *    yatim ("Toska, steps forward", "Oranye——slams").
+     *    yatim ("Toska, steps forward", "Oranye——slams"). Sesudah is/are/
+     *    was frasa itu PREDIKAT ("She is wearing no jacket", "Toska is
+     *    without a jacket") — tidak dicopot, supaya tidak tinggal "She is,".
+     *    Anak kalimat ", who wears no mouthguard," dicopot bersama kedua
+     *    komanya: anak kalimat "who/which" berkoma selalu menempel pada kata
+     *    benda sebelumnya, jadi "Oranye spits blood" tetap utuh. "No X,"
+     *    pembuka kalimat ("Panel 2: No mouthguard, Oranye grins") juga.
      * 2. "no X" sebagai butir terakhir daftar (", no wraps", "and no
-     *    mouthguard") — dicopot;
-     * 3. "no X"/"not wearing X" sebagai objek/subjek ("He wears no
-     *    mouthguard", "There are no hand wraps", "No jacket.", "She is not
-     *    wearing a mouthguard, and …", "Neither is wearing a mouthguard") —
-     *    klausanya dibuang; kalau itu klausa pertama, subjek kalimatnya ikut
-     *    hilang, jadi kalimatnya dibuang. "She has on, just a crop top" dan
-     *    "She is not, and her lip bleeds" lebih buruk daripada tanpa kalimat.
+     *    mouthguard") tepat sebelum batas klausa — dicopot;
+     * 3. sisa larangan apa pun ("He wears no mouthguard", "There are no hand
+     *    wraps", "No jacket.", "She is not wearing a mouthguard, and …",
+     *    "Neither is wearing a mouthguard", "Toska is without a jacket
+     *    tonight") — KALIMATNYA dibuang utuh. Membuang klausanya saja
+     *    meninggalkan "She has on, just a crop top" atau "The man in orange
+     *    gloves, spits blood".
      *
      * "gloves on bare hands" jadi "gloves directly on the hands" — maksudnya
      * memang sarung langsung di tangan, tapi kata "bare hands" melawan UC Base.
@@ -3244,50 +3475,50 @@ TXT;
         $daftar = $barang . '(?:\s*(?:,|\bor\b|\band\b|\bnor\b)\s*(?:(?:no|without)\s+)?' . $barang . ')*';
         // Pelengkap yang ikut dicopot: keterangan keadaan ("visible", "in
         // place", "showing"), lalu tempat ("on her body", "beneath the
-        // gloves"), atau kata keterangan polos di batas klausa ("with no
-        // layers underneath,"). Tanpa ini "with no wraps visible" tinggal
+        // gloves", "over it", "covering her crop top"), atau kata keterangan
+        // polos di batas klausa ("with no layers underneath,", "with no
+        // mouthguard in,"). Tanpa ini "with no wraps visible" tinggal
         // "visible" yang menggantung.
-        $lengkap = '(?:\s+(?:visible|showing|shown|in place|in sight|present|seen|anywhere|at all|whatsoever))?'
-            . '(?:\s+(?:on|under|over|beneath|underneath|around|inside|in)\s+(?:(?:her|his|their|the|its)\s+)?'
-            . '(?:hands?|wrists?|knuckles?|fists?|gloves?|body|torso|shoulders?|chest|mouth|teeth|skin|top)\b'
-            . '|\s+(?:underneath|beneath|on|at all|whatsoever)(?=\s*(?:[,;:.!?)—–]|$)))?';
+        $keadaan = '(?:\s+(?:visible|showing|shown|in place|in sight|present|seen|anywhere|at all|whatsoever))?';
+        $tempat  = '\s+(?:on|under|over|beneath|underneath|around|inside|in|between|covering|protecting|hiding)\s+(?:it|them'
+            . '|(?:(?:her|his|their|the|its)\s+)?(?:(?:' . self::PROSA_SIFAT . '|crop)[\s-]+){0,2}'
+            . '(?:hands?|wrists?|knuckles?|fists?|gloves?|body|torso|shoulders?|chest|arms?|mouth|teeth|skin|tops?|bras?|shirts?|outfits?))\b';
+        $batas   = '(?=\s*(?:[,;:.!?)—–]|--|$))';
+        $polos   = '(?:\s+(?:underneath|beneath|on|in))?' . $batas;
         // "without layers of protection" tidak disentuh — tanpa "layers" sisanya patah.
-        $frasa = '(?:with\s+no|without(?:\s+(?:wearing|using))?|wearing\s+no|having\s+no|sporting\s+no)\s+' . $daftar . '\b(?!\s+of\b)' . $lengkap;
+        $frasa = '(?:with\s+no|without(?:\s+(?:wearing|using))?|wearing\s+no|having\s+no|sporting\s+no)\s+' . $daftar . '\b(?!\s+of\b)'
+            . $keadaan . '(?:' . $tempat . '|' . $polos . ')';
         // Subjek pendek di awal kalimat (atau sesudah "Panel 1:"): satu kata,
         // atau kata penentu + sampai tiga kata ("Her fists", "The boxer in teal").
-        $subjek = '(?:[^:]*:\s*)?(?:(?:the|a|an|her|his|their|its|both|each)\s+[\p{L}\p{N}\'’-]+(?:\s+[\p{L}\p{N}\'’-]+){0,2}|[\p{L}\p{N}\'’-]+)';
+        // Pembuka posisi yang diwajibkan system prompt ("On the left, the
+        // auburn-haired woman, with no hand wraps …, drives") ikut dilewati,
+        // supaya tidak tinggal "woman, drives".
+        $subjek = '(?:[^:]*:\s*)?(?:(?:on|in|at)\s+the\s+(?:left|right|center|centre|middle|foreground|background)(?:\s+of\s+the\s+(?:frame|panel|ring))?\s*,\s*)?(?:(?:the|a|an|her|his|their|its|both|each)\s+[\p{L}\p{N}\'’-]+(?:\s+[\p{L}\p{N}\'’-]+){0,2}|[\p{L}\p{N}\'’-]+)';
+        // Sesudah is/are/was frasanya predikat, bukan keterangan.
+        $bukanPredikat = '(?<!\bis\s)(?<!\bare\s)(?<!\bwas\s)(?<!\bwere\s)(?<!\bbe\s)(?<!\bbeen\s)(?<![\'’]s\s)(?<![\'’]re\s)';
+        $henti = '[^,;:.!?()—–]';
 
-        // 1. Keterangan: dalam kurung, diapit em-dash, diapit koma sesudah
-        // subjek pendek, lalu di mana pun.
-        $kal = preg_replace('/\s*\(\s*(?:(?:no|without)\s+' . $daftar . $lengkap . '|' . $frasa . ')\s*\)/iu', '', $kal) ?? $kal;
+        // 1. Keterangan: dalam kurung, anak kalimat who/which, diapit
+        // em-dash, "No X," pembuka, diapit koma sesudah subjek pendek, lalu
+        // di mana pun.
+        $kal = preg_replace('/\s*\(\s*(?:(?:no|without)\s+' . $daftar . '\b' . $keadaan . '(?:' . $tempat . '|' . $polos . ')|' . $frasa . ')\s*\)/iu', '', $kal) ?? $kal;
+        $kal = preg_replace_callback(
+            '/\s*,\s*(?:who|which)\s+' . $henti . '*?\b(?:no|not|n[\'’]t|never|without)\b' . $henti . '*?\b(?:' . self::PROSA_BARANG_NEGASI . ')\b' . $henti . '*(,\s*)?/iu',
+            static fn (array $m): string => ($m[1] ?? '') !== '' ? ' ' : '',
+            $kal
+        ) ?? $kal;
         $kal = preg_replace('/\s*(?:—|–|--)\s*' . $frasa . '\s*(?:—|–|--)\s*/iu', ' ', $kal) ?? $kal;
+        $kal = preg_replace('/(^|:\s*)no\s+' . $daftar . '\b(?!\s+of\b)' . $keadaan . '(?:' . $tempat . ')?\s*,\s*/iu', '$1', $kal) ?? $kal;
         $kal = preg_replace('/^(' . $subjek . ')\s*,\s*' . $frasa . '\s*,\s*/iu', '$1 ', $kal) ?? $kal;
-        $kal = preg_replace('/\s*(?:,|—|–)?\s*(?:\b(?:and|but)\s+)?\b' . $frasa . '/iu', '', $kal) ?? $kal;
+        $kal = preg_replace('/\s*(?:,|—|–)?\s*(?:\b(?:and|but)\s+)?\b' . $bukanPredikat . $frasa . '/iu', '', $kal) ?? $kal;
         // 2. Butir terakhir daftar, tepat sebelum batas klausa.
-        $kal = preg_replace('/(?:\s*,\s*(?:(?:and|but|or)\s+)?|\s+(?:and|but|or|nor)\s+)no\s+' . $daftar . '\b' . $lengkap . '(?=\s*(?:[,;:.!?)]|$))/iu', '', $kal) ?? $kal;
+        $kal = preg_replace('/(?:\s*,\s*(?:(?:and|but|or)\s+)?|\s+(?:and|but|or|nor)\s+)no\s+' . $daftar . '\b(?!\s+of\b)' . $keadaan . '(?:' . $tempat . ')?' . $polos . '/iu', '', $kal) ?? $kal;
 
-        // 3. Sisa larangan sebagai objek/subjek: klausanya dibuang.
-        $larang = '/(?:\bno|\bnot\s+(?:wearing|using|sporting|in)|n[\'’]t\s+(?:wearing|wear|using|use|have)|\bnot\s+(?:wear|use|have)'
-            . '|\bnever\s+(?:wears?|wearing|uses?)|\bneither\b[^,;:]*?\b(?:wears?|wearing|has|have|uses?))\s+' . $barang . '\b/iu';
+        // 3. Sisa larangan apa pun: kalimatnya dibuang utuh.
+        $larang = '/(?:\bno|\bwithout(?:\s+(?:wearing|using))?|\bnot\s+(?:wearing|using|sporting|in)|n[\'’]t\s+(?:wearing|wear|using|use|have)|\bnot\s+(?:wear|use|have)'
+            . '|\bnever\s+(?:wears?|wearing|uses?)|\bneither\b[^,;:]*?\b(?:wears?|wearing|has|have|uses?))\s+' . $barang . '\b(?!\s+of\b)/iu';
         if (preg_match($larang, $kal) === 1) {
-            $akhir  = preg_match('/[.!?]$/u', $kal) === 1 ? mb_substr($kal, -1) : '';
-            $potong = preg_split('/([,;:])/u', $akhir !== '' ? mb_substr($kal, 0, -1) : $kal, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
-            $simpan = [];
-            for ($i = 0, $n = count($potong); $i < $n; $i += 2) {
-                $klausa = trim($potong[$i]);
-                if (preg_match($larang, $klausa) === 1) {
-                    if ($i === 0) {
-                        return '';
-                    }
-                    continue;
-                }
-                $simpan[] = ($simpan === [] ? '' : ($potong[$i - 1] ?? ',') . ' ') . $klausa;
-            }
-            $kal = trim(implode('', $simpan));
-            if (count(preg_split('/\s+/u', $kal) ?: []) < 3) {
-                return '';
-            }
-            $kal .= $akhir !== '' ? $akhir : '.';
+            return '';
         }
 
         $kal = preg_replace_callback(
