@@ -7,10 +7,12 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\MixedFightController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\UbahController;
+use App\Http\Controllers\WaifuCrushedController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -54,9 +56,21 @@ Route::prefix('generator')->group(function () {
         Route::post('ubah/ambil', [UbahController::class, 'ambil'])->name('ubah.ambil');
         Route::post('ubah/terapkan', [UbahController::class, 'terapkan'])->name('ubah.terapkan');
 
-        // ---- FemBox Reference (lembar acuan petinju wanita, NovelAI V5) ----
+        // ---- FemBox Reference: tiga sub-menu ----
+        // Female Fight = lembar acuan petinju wanita (NovelAI V5), alamatnya
+        // tetap /fembox supaya tautan dan riwayat lama tidak putus.
         Route::get('fembox', [FemboxController::class, 'halaman'])->name('fembox');
         Route::post('fembox/susun', [FemboxController::class, 'susun'])->name('fembox.susun');
+
+        // Waifu Crushed = templat 4 adegan (pose awal, dihajar, pukulan
+        // terakhir, KO). Dirangkai kode, tanpa model.
+        Route::get('fembox/waifu-crushed', [WaifuCrushedController::class, 'halaman'])->name('fembox.waifu');
+        Route::post('fembox/waifu-crushed/susun', [WaifuCrushedController::class, 'susun'])->name('fembox.waifu.susun');
+
+        // Mixed Fight = alur komik strip 3–5 panel dari cerita singkat;
+        // pasangannya bisa wanita vs pria, wanita vs wanita, pria vs pria.
+        Route::get('fembox/mixed-fight', [MixedFightController::class, 'halaman'])->name('fembox.mixed');
+        Route::post('fembox/mixed-fight/susun', [MixedFightController::class, 'susun'])->name('fembox.mixed.susun');
 
         // ---- Buat gambarnya (prompt langsung digambar) ----
         Route::post('gambar/tokoh', [GambarController::class, 'tokoh'])->name('gambar.tokoh');

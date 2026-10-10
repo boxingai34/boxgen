@@ -4,7 +4,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { hitungNaik } from '@/lib/gerak';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ArrowRight, Clapperboard, Clock3, FileText, History, IdCard, Replace, Sparkles, Wrench } from 'lucide-vue-next';
+import { ArrowRight, Clapperboard, Clock3, FileText, History, IdCard, Replace, Skull, Sparkles, Swords, Wrench } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 
 const props = defineProps<{
@@ -40,10 +40,22 @@ const pintasan = [
         rute: 'ubah',
     },
     {
-        judul: 'FemBox Reference',
+        judul: 'FemBox · Female Fight',
         isi: 'Sebut anime, nama, dan tema pakaiannya — jadi lembar acuan petinju untuk NovelAI V5.',
         ikon: IdCard,
         rute: 'fembox',
+    },
+    {
+        judul: 'FemBox · Waifu Crushed',
+        isi: 'Empat adegan siap tempel: pose awal, dihajar, pukulan terakhir, KO — NovelAI V5 dan Gemini.',
+        ikon: Skull,
+        rute: 'fembox.waifu',
+    },
+    {
+        judul: 'FemBox · Mixed Fight',
+        isi: 'Cerita singkat jadi komik strip 3–5 panel — wanita vs pria, wanita vs wanita, atau pria vs pria.',
+        ikon: Swords,
+        rute: 'fembox.mixed',
     },
     { judul: 'Riwayat', isi: 'Prompt yang pernah jadi, bisa dibuka dan dipakai lagi.', ikon: History, rute: 'riwayat' },
     { judul: 'Alat lain', isi: 'Generator tag, dari gambar/video, dari komik.', ikon: Wrench, rute: 'alat-lama' },

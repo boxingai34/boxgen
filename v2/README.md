@@ -144,7 +144,9 @@ Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 | `/generator/prompt` | Prompt Generator — prompt gambar dari pilihan |
 | `/generator/reverse` | Dari Gambar/Video — referensi jadi prompt |
 | `/generator/ubah` | Ubah Prompt — metadata gambar NovelAI, karakternya diganti |
-| `/generator/fembox` | FemBox Reference — lembar acuan petinju wanita untuk NovelAI V5 |
+| `/generator/fembox` | FemBox Reference › Female Fight — lembar acuan petinju wanita untuk NovelAI V5 |
+| `/generator/fembox/waifu-crushed` | FemBox Reference › Waifu Crushed — templat 4 adegan (pose awal → dihajar → pukulan terakhir → KO) |
+| `/generator/fembox/mixed-fight` | FemBox Reference › Mixed Fight — alur komik strip 3–5 panel dari cerita singkat |
 | `/generator/rancang`, `/generator/riwayat`, `/generator/akun`, `/generator/alat-lama` | Generator |
 | `/generator/login`, `/generator/register`, `/generator/logout` | Masuk / daftar |
 | `/generator/cms` | CMS halaman depan (admin) |
@@ -158,7 +160,7 @@ mengganti awalan cukup di `routes/web.php`.
 ```
 app/Http/Controllers/     LandingController (halaman depan), CmsController, CeritaController (rancang),
                           RiwayatController, DashboardController, AkunController, UbahController (ubah prompt),
-                          FemboxController (lembar acuan FemBox)
+                          FemboxController (lembar acuan FemBox), WaifuCrushedController, MixedFightController
 app/Http/Middleware/      HanyaAdmin — alias 'admin' (bootstrap/app.php)
 app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + angka kanal),
                           PatreonTerbaru (pos + jumlah patron), DeviantartTerbaru (umpan galeri),
@@ -412,6 +414,58 @@ sama dengan Ubah Prompt (`ubah` → `nsfw` → `nsfw2` → `polish`) sebagai
 cadangan, dan kartu hasilnya menyebut model yang akhirnya menjawab. Kalau
 `AI_FEMBOX_MODEL` disetel di `config.local.php`, profil itu ikut dicoba
 sesudah pilihan halaman. Riwayatnya tersimpan dengan mode `fembox`.
+
+**Tiga sub-menu.** Menu FemBox Reference sekarang induk dari Female Fight
+(lembar acuan di atas, alamatnya tetap `/fembox`), Waifu Crushed, dan Mixed
+Fight. Sub-menunya baris sendiri di bawah menu utama (`AtasNav.vue`, kunci
+`anak`), muncul hanya waktu induknya dibuka — laci yang menggantung akan
+terpotong oleh baris menu yang digulir mendatar. Keduanya memakai satu kartu
+keluaran, `components/box/KartuAdegan.vue` (bentuknya di `lib/adegan.ts`):
+urutan kotak Base → UC Base → Character 1 → UC 1 → Character 2 → UC 2, semua
+bisa disunting di tempat, tab Gemini, dan tombol gambar NovelAI.
+
+### Waifu Crushed
+
+Empat adegan satu set: pose awal (solo / face-off) → dihajar dari segala
+sisi (2A–2D per panel, atau satu halaman komik 5 panel) + satu panel besar
+babak belur (sulit berdiri / jeda ronde) → serangan terakhir (hook /
+uppercut) → KO (tengkurap / telentang). Sumbernya templat yang disetujui di
+`../WAIFU-CRUSHED-TEMPLATE.md`.
+
+**Tanpa AI.** `engine/WaifuCrushed.php` merangkai semuanya dari isian dua
+petinju (rambut, mata, badan, pakaian, sarung, tinggi) — seketika, tidak
+memotong jatah. Dadu di halaman mengambil dari kolam di `opsiHalaman()`.
+Warna tiap petinju diturunkan sendiri dan dipasang di UC lawannya. Prompt
+Gemini tiap adegan sudah utuh, deskripsi petinju disisipkan langsung.
+
+**Arah tangan.** Petinju yang menghadap ke kanan layar memperlihatkan sisi
+kanan badannya, jadi hook kanan = Rival di KIRI menghadap kanan; uppercut
+dilihat dari belakang bahu pemukul (kanan badan = kanan layar). Mixed Fight
+memakai pemetaan yang sama (`WaifuCrushed::tangan()`).
+
+**Pagar umur.** Mesin ini tidak bertanya ke model, jadi umur canon tidak
+bisa diperiksa sendiri: tag karakter canon wajib disertai centang "18+ di
+canon", kalau tidak ditolak 422. Riwayat: mode `waifu-crushed`; kalau
+`selection` melewati batas kolom TEXT, prompt Gemini lalu daftar adegannya
+dilepas dulu.
+
+### Mixed Fight
+
+Cerita singkat jalannya pertandingan jadi komik strip 3–5 panel berurutan.
+Pasangannya bisa wanita vs pria, wanita vs wanita, atau pria vs pria.
+
+**Pola FemBox: model menyerahkan bahan, kode merangkai.** `engine/MixedFight.php`
+meminta JSON berisi data canon tiap petinju (termasuk tinggi resmi atau
+perkiraan beserta dasarnya) dan rincian tiap panel. `rakit()` lalu merangkai
+kotak NovelAI dan menegakkan aturan studio: tanpa hand wraps/mouthguard,
+atasan satu lapis, efek speed di pukulan, garis getar di bagian badan yang
+kena, tangan pemukul dikunci ke sisi kamera, sudut kamera beda tiap panel,
+tidak jongkok/melayang, tinggi di tiap karakter, dan 13 tag terlarang
+disapu dari semua UC. `rakit()` bisa dites tanpa model (`tests/Unit/MixedFightTest.php`).
+
+Petinju yang di canon belum dewasa ditolak (422). Perancang Claude/ChatGPT,
+jatah harian, dan pengulangan sesudah putus sama dengan FemBox. Riwayat:
+mode `mixed-fight`.
 
 ## Keputusan yang perlu diingat
 

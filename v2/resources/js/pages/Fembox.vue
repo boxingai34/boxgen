@@ -627,9 +627,9 @@ const labelStatus: Record<Baris['status'], string> = {
 </script>
 
 <template>
-    <Head title="FemBox Reference" />
+    <Head title="Female Fight — FemBox Reference" />
 
-    <AppLayout judul="FemBox Reference" anak="Lembar acuan petinju wanita untuk NovelAI V5 — sebut anime, nama, dan tema pakaiannya.">
+    <AppLayout judul="Female Fight" anak="FemBox Reference · lembar acuan petinju wanita untuk NovelAI V5 — sebut anime, nama, dan tema pakaiannya.">
         <template #kanan>
             <span v-if="labelKuota" class="rounded-full border border-border/70 px-2.5 py-1 text-xs text-muted-foreground">
                 {{ labelKuota }}

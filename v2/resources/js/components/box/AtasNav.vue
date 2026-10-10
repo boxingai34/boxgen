@@ -2,8 +2,27 @@
 import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { Clapperboard, Gauge, Globe, History, IdCard, Image, LayoutDashboard, LibraryBig, LogOut, Moon, PenLine, Replace, Sparkles, Sun, UserRound, Wrench } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import {
+    Clapperboard,
+    Gauge,
+    Globe,
+    History,
+    IdCard,
+    Image,
+    LayoutDashboard,
+    LibraryBig,
+    LogOut,
+    Moon,
+    PenLine,
+    Replace,
+    Skull,
+    Sparkles,
+    Sun,
+    Swords,
+    UserRound,
+    Wrench,
+} from 'lucide-vue-next';
+import { computed, onMounted, ref, type Component } from 'vue';
 
 /**
  * Menu di ATAS, bukan di samping.
@@ -30,13 +49,34 @@ const halaman = usePage();
 const user = computed(() => (halaman.props as any).auth?.user ?? null);
 const admin = computed(() => Boolean((halaman.props as any).auth?.user?.admin));
 
-const menu = computed(() => {
-    const dasar = [
+type Menu = { nama: string; rute: string; ikon: Component; ket: string; persis: boolean; anak?: Menu[] };
+
+/*
+ * Sub-menu tidak dibuka sebagai laci di atas menu: baris menu digulir
+ * mendatar (overflow-x), dan laci yang menggantung di dalamnya ikut
+ * terpotong. Sub-menunya jadi baris sendiri yang muncul waktu induknya
+ * sedang dibuka — terlihat terus, sama seperti menu utamanya.
+ */
+const menu = computed<Menu[]>(() => {
+    const dasar: Menu[] = [
         { nama: 'Dasbor', rute: 'dashboard', ikon: LayoutDashboard, ket: 'Ringkasan & pintasan', persis: true },
         { nama: 'Prompt Generator', rute: 'prompt', ikon: Sparkles, ket: 'Susun dari pilihan', persis: false },
         { nama: 'Dari Gambar/Video', rute: 'reverse', ikon: Image, ket: 'Referensi jadi prompt', persis: false },
         { nama: 'Ubah Prompt', rute: 'ubah', ikon: Replace, ket: 'Metadata NovelAI, karakternya diganti', persis: false },
-        { nama: 'FemBox Reference', rute: 'fembox', ikon: IdCard, ket: 'Lembar acuan petinju untuk NovelAI V5', persis: false },
+        {
+            nama: 'FemBox Reference',
+            rute: 'fembox',
+            ikon: IdCard,
+            ket: 'Female Fight, Waifu Crushed, Mixed Fight — untuk NovelAI V5',
+            persis: false,
+            anak: [
+                // /fembox itu sendiri Female Fight, jadi dicocokkan persis:
+                // kalau tidak, ia ikut menyala di dua sub-menu lainnya.
+                { nama: 'Female Fight', rute: 'fembox', ikon: IdCard, ket: 'Lembar acuan petinju wanita', persis: true },
+                { nama: 'Waifu Crushed', rute: 'fembox.waifu', ikon: Skull, ket: 'Templat 4 adegan: pose awal, dihajar, pukulan terakhir, KO', persis: false },
+                { nama: 'Mixed Fight', rute: 'fembox.mixed', ikon: Swords, ket: 'Alur komik strip 3–5 panel dari cerita singkat', persis: false },
+            ],
+        },
         { nama: 'Rancang Pertandingan', rute: 'rancang', ikon: Clapperboard, ket: 'Cerita jadi papan klip', persis: false },
         { nama: 'Riwayat', rute: 'riwayat', ikon: History, ket: 'Prompt yang pernah jadi', persis: false },
         { nama: 'Alat lain', rute: 'alat-lama', ikon: Wrench, ket: 'Generator, komik, reverse', persis: false },
@@ -63,6 +103,9 @@ function aktif(rute: string, persis: boolean): boolean {
 
     return sekarang.value === jalur || (!persis && sekarang.value.startsWith(jalur + '/'));
 }
+
+/** Sub-menu milik menu yang sedang dibuka, kalau ada. */
+const subMenu = computed(() => menu.value.find((m) => m.anak?.length && aktif(m.rute, m.persis))?.anak ?? []);
 
 const gelap = ref(true);
 
@@ -171,6 +214,26 @@ function keluar() {
                     v-if="aktif(m.rute, m.persis)"
                     class="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-gradient-to-r from-[hsl(var(--sorot))] to-[hsl(var(--sudut))]"
                 />
+            </Link>
+        </nav>
+
+        <!-- Baris 2b: sub-menu, hanya waktu induknya sedang dibuka -->
+        <nav v-if="subMenu.length" class="menu-atas flex gap-1 overflow-x-auto border-t border-border/50 px-4 py-1.5 sm:px-6" aria-label="Sub-menu">
+            <Link
+                v-for="s in subMenu"
+                :key="s.rute"
+                :href="route(s.rute)"
+                prefetch
+                :title="s.ket"
+                class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors"
+                :class="
+                    aktif(s.rute, s.persis)
+                        ? 'bg-[hsl(var(--sorot)/0.16)] font-semibold text-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                "
+            >
+                <component :is="s.ikon" class="h-3.5 w-3.5 shrink-0" :class="aktif(s.rute, s.persis) ? 'text-[hsl(var(--sorot))]' : ''" />
+                <span class="whitespace-nowrap">{{ s.nama }}</span>
             </Link>
         </nav>
 
