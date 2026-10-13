@@ -230,13 +230,11 @@ final class FemboxReferensi
     /**
      * Bahan dari model → lembar acuan jadi (langkah 4 dan 5 susun()).
      *
-     * Dipisah supaya Monthly Showdown — yang menanyakan riset dan rancangan
-     * pakaian sekaligus dengan pesan sistemnya sendiri — tetap dirangkai
-     * oleh kode yang sama persis: pagar umur, saringan aturan studio, dan
-     * tata letak lembar tidak punya salinan kedua yang lama-lama berbeda.
-     *
-     * $opsi sama dengan susun(), ditambah 'tinggi' (cm, opsional): kalau
-     * diisi, Character Prompt ditutup kalimat tinggi badan (aturan 8).
+     * Dipisah supaya Monthly Showdown — yang menanyakan rancangannya dengan
+     * pesan sistemnya sendiri (tema pertandingan, jenis kelamin) — tetap
+     * dirangkai oleh kode yang sama persis: pagar umur, saringan aturan
+     * studio, dan tata letak lembar tidak punya salinan kedua yang lama-lama
+     * berbeda. $opsi sama dengan susun().
      *
      * Selain kunci susun(), hasilnya membawa 'bahan' — potongan yang sudah
      * disaring (fisik, pakaian, sarung, …) untuk dirangkai ulang di adegan
@@ -257,7 +255,6 @@ final class FemboxReferensi
         $latar     = isset(self::LATAR[$opsi['latar'] ?? '']) ? (string)$opsi['latar'] : 'abu';
         $nuansa    = isset(self::NUANSA[$opsi['nuansa'] ?? '']) ? (string)$opsi['nuansa'] : 'underground';
         $label     = !empty($opsi['label']);
-        $tinggi    = is_numeric($opsi['tinggi'] ?? null) ? (int)$opsi['tinggi'] : 0;
 
         // ---- 4. Pagar umur: keputusan akhirnya di kode, bukan di model.
         $dewasa = self::dewasa($j);
@@ -273,10 +270,6 @@ final class FemboxReferensi
         $base  = self::base($bahan, $katalog, $tataLetak, $latar, $nuansa, $label, $dewasa);
         $tokoh = self::tokoh($bahan, $katalog, $dewasa);
         $uc    = self::uc($bahan, $tokoh, $label, $dewasa);
-
-        if ($tinggi > 0) {
-            $tokoh .= '. She is ' . $tinggi . ' cm tall.';
-        }
 
         return [
             'karakter' => [

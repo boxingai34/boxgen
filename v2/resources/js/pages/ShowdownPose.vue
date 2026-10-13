@@ -5,7 +5,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { adeganDari, teksNai, type AdeganNai } from '@/lib/adegan';
 import { GalatKirim, kirim, salin } from '@/lib/kirim';
-import { angka, bacaSimpanan, ikut, namaBaris, type BarisShowdown, type Laga } from '@/lib/showdown';
+import { bacaSimpanan, ikut, namaBaris, type BarisShowdown, type Laga } from '@/lib/showdown';
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeftRight, Check, Copy, LoaderCircle, Plus, RotateCcw, TriangleAlert, Wand2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
@@ -13,8 +13,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 /**
  * Monthly Showdown — langkah 2: Referensi Pose.
  *
- * Satu laga dari langkah 1 (Cari Lawan) dibawa ke sini: dua petinju yang
- * sudah diriset, lengkap dengan ciri, pakaian, sarung, dan tinggi badannya.
+ * Satu laga dari langkah 1 (Kostum & Lawan) dibawa ke sini: dua petinju
+ * yang sudah dirancang, lengkap dengan ciri, pakaian, dan sarungnya.
  * Petinjunya dibaca dari simpanan browser yang sama (lib/showdown.ts) —
  * server tidak menyimpan antrean langkah 1.
  *
@@ -35,7 +35,6 @@ const props = defineProps<{
         kamera: KameraOpsi[];
         venue: Opsi[];
         rasio: Opsi[];
-        tinggi: [number, number];
         maks: number;
     };
     gambar: { latar: boolean; tokoh: boolean };
@@ -104,7 +103,7 @@ const dipilih = ref<Butir[]>(
         : [],
 );
 
-/** Ciri yang disunting khusus untuk pose, per petinju. Kosong = ikut hasil riset. */
+/** Ciri yang disunting khusus untuk pose, per petinju. Kosong = ikut hasil rancangan. */
 const sunting = ref<Record<string, Sunting>>(sp.sunting && typeof sp.sunting === 'object' ? sp.sunting : {});
 
 watch(
@@ -122,7 +121,7 @@ watch(
     { deep: true },
 );
 
-// Laga yang dibawa dari Cari Lawan (?a=…&b=…) menang atas pilihan tersimpan.
+// Laga yang dibawa dari Kostum & Lawan (?a=…&b=…) menang atas pilihan tersimpan.
 onMounted(() => {
     const q = new URLSearchParams(window.location.search);
     const a = q.get('a') ?? '';
@@ -149,7 +148,7 @@ function tukarPetinju() {
     [pilih.a, pilih.b] = [pilih.b, pilih.a];
 }
 
-/** Ciri satu petinju sebagai teks berkoma: suntingan dulu, lalu hasil riset. */
+/** Ciri satu petinju sebagai teks berkoma: suntingan dulu, lalu hasil rancangan. */
 function ciri(b: BarisShowdown | null, kolom: keyof Sunting): string {
     if (!b) return '';
     const s = sunting.value[b.id]?.[kolom];
@@ -169,11 +168,6 @@ function pulihkan(b: BarisShowdown) {
     sunting.value = sisa;
 }
 
-const tinggi = (b: BarisShowdown | null) => (b ? angka(b, 'tinggi') : null);
-const tinggiSah = (b: BarisShowdown | null) => {
-    const t = tinggi(b);
-    return t != null && t >= props.opsi.tinggi[0] && t <= props.opsi.tinggi[1];
-};
 
 // ------------------------------------------------------------- pose
 const poseMap = computed(() => new Map(props.opsi.pose.map((p) => [p.nilai, p])));
@@ -230,14 +224,13 @@ const panelHasil = ref<HTMLElement | null>(null);
 let penanda = 0;
 
 const siapSusun = computed(
-    () => Boolean(A.value && B.value && A.value.id !== B.value.id && dipilih.value.length && tinggiSah(A.value) && tinggiSah(B.value)),
+    () => Boolean(A.value && B.value && A.value.id !== B.value.id && dipilih.value.length),
 );
 
 function petinju(b: BarisShowdown) {
     return {
         karakter: b.hasil!.karakter,
         segel: b.hasil!.segel,
-        tinggi: tinggi(b),
         fisik: ciri(b, 'fisik').slice(0, props.maks.teks),
         ikat: ciri(b, 'ikat').slice(0, props.maks.teks),
         pakaian: ciri(b, 'pakaian').slice(0, props.maks.teks),
@@ -297,22 +290,21 @@ async function salinSemua(jenis: 'nai' | 'gemini') {
     }
 }
 
-const ringkasPetinju = (b: BarisShowdown | null) =>
-    b ? `${tinggi(b) ?? '?'} cm · ${ciri(b, 'sarung') || 'sarung belum ada'}` : '';
+const ringkasPetinju = (b: BarisShowdown | null) => (b ? ciri(b, 'sarung') || 'sarung belum ada' : '');
 </script>
 
 <template>
     <Head title="Monthly Showdown — Referensi Pose" />
 
-    <AppLayout judul="Monthly Showdown · Referensi Pose" anak="FemBox Reference · satu laga dari Cari Lawan, pilih pose dan sudut kameranya — NovelAI V5 + Gemini.">
+    <AppLayout judul="Monthly Showdown · Referensi Pose" anak="FemBox Reference · satu laga dari Kostum & Lawan, pilih pose dan sudut kameranya — NovelAI V5 + Gemini.">
         <div class="grid gap-5 pb-24 2xl:grid-cols-2 2xl:items-start">
             <!-- ================= kolom kiri ================= -->
             <div class="space-y-5">
                 <!-- ---------- 1. Laga ---------- -->
-                <Kartu judul="1. Laga" ket="Dua petinju dari langkah Cari Lawan, lengkap dengan pakaian dan tingginya.">
+                <Kartu judul="1. Laga" ket="Dua petinju dari langkah Kostum & Lawan, lengkap dengan pakaiannya.">
                     <div v-if="peserta.length < 2" class="rounded-xl border border-border/60 bg-muted/30 px-3.5 py-3 text-sm leading-relaxed text-muted-foreground">
-                        Belum ada dua petinju yang selesai diriset di browser ini. Riset dan jodohkan dulu di
-                        <Link :href="route('fembox.showdown')" class="font-medium text-[hsl(var(--sorot))] hover:underline">Cari Lawan</Link>, lalu
+                        Belum ada dua petinju yang selesai dirancang di browser ini. Rancang dulu di
+                        <Link :href="route('fembox.showdown')" class="font-medium text-[hsl(var(--sorot))] hover:underline">Kostum &amp; Lawan</Link>, lalu
                         tekan <strong>Referensi Pose</strong> di kartu laganya.
                     </div>
 
@@ -360,9 +352,6 @@ const ringkasPetinju = (b: BarisShowdown | null) =>
                                 <template v-if="p">
                                     <p class="text-sm font-semibold">{{ namaBaris(p) }}</p>
                                     <p class="text-xs text-muted-foreground">{{ ringkasPetinju(p) }}</p>
-                                    <p v-if="!tinggiSah(p)" class="mt-1 text-xs text-destructive">
-                                        Tinggi badan harus {{ opsi.tinggi[0] }}–{{ opsi.tinggi[1] }} cm — koreksi di kartunya di Cari Lawan.
-                                    </p>
                                     <details class="mt-2">
                                         <summary class="cursor-pointer select-none text-xs text-muted-foreground hover:text-foreground">Sunting ciri untuk pose ini</summary>
                                         <div class="mt-2 space-y-2">
@@ -379,7 +368,7 @@ const ringkasPetinju = (b: BarisShowdown | null) =>
                                                 />
                                             </div>
                                             <button v-if="sunting[p.id]" type="button" :class="tombolKecil" @click="pulihkan(p)">
-                                                <RotateCcw class="h-3 w-3" /> Kembalikan ke hasil riset
+                                                <RotateCcw class="h-3 w-3" /> Kembalikan ke hasil rancangan
                                             </button>
                                         </div>
                                     </details>
@@ -558,7 +547,7 @@ const ringkasPetinju = (b: BarisShowdown | null) =>
                 <Kartu v-if="!hasil" judul="Hasilnya muncul di sini">
                     <p class="text-sm leading-relaxed text-muted-foreground">
                         Tiap pose jadi satu kartu: Base Prompt, UC Base, Character 1 dan 2 masing-masing dengan UC-nya dan posisi gaya V5, ukuran gambar,
-                        plus prompt Gemini yang memakai lembar acuan dari langkah 1 sebagai gambar acuan. Tinggi badan tiap petinju selalu ditulis.
+                        plus prompt Gemini yang memakai lembar acuan dari langkah 1 sebagai gambar acuan.
                     </p>
                 </Kartu>
 

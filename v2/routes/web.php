@@ -73,12 +73,11 @@ Route::prefix('generator')->group(function () {
         Route::get('fembox/mixed-fight', [MixedFightController::class, 'halaman'])->name('fembox.mixed');
         Route::post('fembox/mixed-fight/susun', [MixedFightController::class, 'susun'])->name('fembox.mixed.susun');
 
-        // Monthly Showdown = dua langkah. Cari Lawan: riset tiap karakter
-        // (model, bisa lewat internet) lalu dijodohkan kode. Referensi Pose:
-        // satu laga dibawa ke katalog pose, dirangkai kode tanpa model.
+        // Monthly Showdown = dua langkah. Kostum & Lawan: boxing attire tiap
+        // karakter dirancang model, lawannya diundi di halaman. Referensi
+        // Pose: satu laga dibawa ke katalog pose, dirangkai kode tanpa model.
         Route::get('fembox/monthly-showdown', [MonthlyShowdownController::class, 'halaman'])->name('fembox.showdown');
-        Route::post('fembox/monthly-showdown/riset', [MonthlyShowdownController::class, 'riset'])->name('fembox.showdown.riset');
-        Route::post('fembox/monthly-showdown/jodoh', [MonthlyShowdownController::class, 'jodoh'])->name('fembox.showdown.jodoh');
+        Route::post('fembox/monthly-showdown/rancang', [MonthlyShowdownController::class, 'rancang'])->name('fembox.showdown.rancang');
         Route::get('fembox/monthly-showdown/pose', [MonthlyShowdownController::class, 'halamanPose'])->name('fembox.showdown.pose');
         Route::post('fembox/monthly-showdown/pose/susun', [MonthlyShowdownController::class, 'susunPose'])->name('fembox.showdown.pose.susun');
 

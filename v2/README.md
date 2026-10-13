@@ -147,7 +147,7 @@ Tambahkan `--paksa` untuk mengambil ulang tanpa menunggu cache kedaluwarsa.
 | `/generator/fembox` | FemBox Reference › Female Fight — lembar acuan petinju wanita untuk NovelAI V5 |
 | `/generator/fembox/waifu-crushed` | FemBox Reference › Waifu Crushed — templat 4 adegan (pose awal → dihajar → pukulan terakhir → KO) |
 | `/generator/fembox/mixed-fight` | FemBox Reference › Mixed Fight — alur komik strip 3–5 panel dari cerita singkat |
-| `/generator/fembox/monthly-showdown` | FemBox Reference › Monthly Showdown › Cari Lawan — riset karakter, jodohkan lawan, lembar acuan |
+| `/generator/fembox/monthly-showdown` | FemBox Reference › Monthly Showdown › Kostum & Lawan — boxing attire + lembar acuan, lawan diundi |
 | `/generator/fembox/monthly-showdown/pose` | FemBox Reference › Monthly Showdown › Referensi Pose — pose dan sudut kamera untuk satu laga |
 | `/generator/rancang`, `/generator/riwayat`, `/generator/akun`, `/generator/alat-lama` | Generator |
 | `/generator/login`, `/generator/register`, `/generator/logout` | Masuk / daftar |
@@ -163,7 +163,7 @@ mengganti awalan cukup di `routes/web.php`.
 app/Http/Controllers/     LandingController (halaman depan), CmsController, CeritaController (rancang),
                           RiwayatController, DashboardController, AkunController, UbahController (ubah prompt),
                           FemboxController (lembar acuan FemBox), WaifuCrushedController, MixedFightController,
-                          MonthlyShowdownController (riset, jodoh, pose)
+                          MonthlyShowdownController (rancang, pose)
 app/Http/Middleware/      HanyaAdmin — alias 'admin' (bootstrap/app.php)
 app/Services/             LandingContent (isi + bawaan + simpan), YoutubeTerbaru (umpan Atom + angka kanal),
                           PatreonTerbaru (pos + jumlah patron), DeviantartTerbaru (umpan galeri),
@@ -475,29 +475,26 @@ mode `mixed-fight`.
 Dua langkah, tampil sebaris di sub-menu sesudah tanda › (`AtasNav.vue`:
 sub-menu boleh punya `anak` sendiri).
 
-**1. Cari Lawan** (`/fembox/monthly-showdown`). Satu kotak susunan
+**1. Kostum & Lawan** (`/fembox/monthly-showdown`). Satu kotak susunan
 `Nama | Sumber` (maks 16) dan satu tema pertandingan (pro, underground,
 bunny, bikini, …), plus tema/atasan/bawahan/sarung dari katalog Prompt
 Generator — tanpa NSFW, seragam sekolah, perban, pakaian dalam, dan lapisan
-luar. Tiap karakter satu panggilan model (`engine/MonthlyShowdown.php`):
-riset umur canon, tinggi, berat, ukuran badan, gaya tinju, kekuatan 1–10,
-sekaligus bahan pakaian yang dirangkai jadi lembar acuan oleh
-`FemboxReferensi::lembar()` (aturan studio yang sama dengan Female Fight,
-ditambah kalimat tinggi). Kalau profilnya Venice, model membaca internet dulu
-(`AiClient` opsi `web` → `venice_parameters.enable_web_search: on`; baris
-pertama pesan sengaja mengarahkan kuerinya ke profil resmi). Angka resmi dan
-perkiraan dibedakan beserta dasarnya.
+luar. Tiap karakter satu panggilan model (`engine/MonthlyShowdown.php`)
+yang langsung merancang boxing attire-nya; bahannya dirangkai jadi lembar
+acuan oleh `FemboxReferensi::lembar()` (aturan studio yang sama dengan
+Female Fight). **Tanpa angka tubuh**: tinggi, berat, dan ukuran badan tidak
+diriset dan tinggi badan sengaja tidak ditulis di prompt menu ini (pilihan
+pemilik studio, 2026-10-13).
 
-Penjodohan **tanpa model**: skor 0–100 per pasangan (Seimbang: berat →
-kekuatan → tinggi; David vs Goliath: selisih tinggi dicari, kekuatan tetap
-setara; gaya yang saling mengunci menambah nilai), lalu pasangan dengan total
-terbaik dicari menyeluruh lewat bitmask — bukan rakus. Ganjil = satu
-cadangan. Pasangan boleh dikunci sendiri. Angka boleh dikoreksi di kartu.
+Lawan **diundi** di halaman (`lib/showdown.ts` → `undi()`, Fisher–Yates).
+Ganjil = satu cadangan. Laga boleh dikunci (tidak ikut diundi ulang) atau
+dipasangkan sendiri.
 
-**Pagar umur + segel.** Yang di canon belum 18 atau bukan wanita tidak ikut
-sama sekali (tidak dirancang, tidak dijodohkan). Hasil riset hidup di
-localStorage, jadi identitasnya (nama, judul, tag, umur, dewasa, wanita)
-disegel HMAC `APP_KEY` di server; jodoh dan pose menolak yang segelnya putus.
+**Pagar umur + segel.** Model tetap menilai umur canon. Yang belum 18 atau
+bukan wanita tidak ikut sama sekali (tidak dirancang, tidak diundi). Hasil
+rancangan hidup di localStorage, jadi identitasnya (nama, judul, tag, umur,
+dewasa, wanita) disegel HMAC `APP_KEY` di server; Referensi Pose menolak yang
+segelnya putus.
 
 **2. Referensi Pose** (`/fembox/monthly-showdown/pose`). Satu laga dibawa
 dari langkah 1 (`?a=…&b=…`, data petinju dari localStorage yang sama).
@@ -507,7 +504,7 @@ sama boleh dua kali), venue opsional — bawaannya arena kosong, ada juga latar
 polos untuk komposit ke arena buatan artist. Aturan studio memakai konstanta
 publik `WaifuCrushed` (pola sapuan, kelompok UC, venue). Pose bertangan
 menolak kamera yang membalik sisi badan; uppercut kameranya dikunci di balik
-bahu pemukul. Riwayat: mode `showdown` (riset) dan `showdown-pose`.
+bahu pemukul. Riwayat: mode `showdown` (rancangan) dan `showdown-pose`.
 
 ## Keputusan yang perlu diingat
 

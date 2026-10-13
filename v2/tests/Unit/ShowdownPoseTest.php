@@ -11,10 +11,11 @@ use WaifuCrushed;
  * Mesin Referensi Pose Monthly Showdown (engine/ShowdownPose.php).
  *
  * Yang dijaga di sini aturan pemilik studio — yang dilanggar isian, bukan
- * katalognya: tinggi badan di setiap Character Prompt, tanpa hand wraps
+ * katalognya: penanda dewasa di setiap Character Prompt, tanpa hand wraps
  * dan mouthguard, atasan satu lapis, tag terlarang tidak pernah masuk UC,
  * efek kecepatan pada pukulan dan garis getar pada yang terkena, dan
- * tangan pemukul yang dikunci lewat posisi.
+ * tangan pemukul yang dikunci lewat posisi. Tinggi badan sengaja tidak
+ * ditulis di menu ini (pilihan pemilik studio, 2026-10-13).
  */
 class ShowdownPoseTest extends TestCase
 {
@@ -25,7 +26,6 @@ class ShowdownPoseTest extends TestCase
         return array_merge([
             'nama'    => 'Mujina',
             'tag'     => 'mujina (ssss.dynazenon)',
-            'tinggi'  => 178,
             'fisik'   => 'adult woman, mature female, dark purple hair, short hair, half-closed eyes, large breasts, toned',
             'ikat'    => '',
             'pakaian' => 'white corset top, deep purple boxing shorts, white boxing boots',
@@ -38,7 +38,6 @@ class ShowdownPoseTest extends TestCase
         return array_merge([
             'nama'    => 'Nico Robin',
             'tag'     => 'nico robin',
-            'tinggi'  => 188,
             'fisik'   => 'adult woman, mature female, black hair, long hair, blue eyes',
             'ikat'    => 'high ponytail',
             'pakaian' => 'black sports bra, purple boxing trunks',
@@ -85,28 +84,26 @@ class ShowdownPoseTest extends TestCase
         }
     }
 
-    public function test_tinggi_badan_dan_penanda_dewasa_di_setiap_character_prompt(): void
+    public function test_penanda_dewasa_di_setiap_prompt_dan_tanpa_tinggi_badan(): void
     {
         foreach ($this->susunSemua() as $pose => $a) {
-            $this->assertStringEndsWith('She is 178 cm tall.', $a['karakter'][0]['prompt'], $pose);
-            $this->assertStringEndsWith('She is 188 cm tall.', $a['karakter'][1]['prompt'], $pose);
             foreach ($a['karakter'] as $k) {
                 $this->assertStringContainsString('adult woman, mature female', $k['prompt'], $pose);
+                $this->assertStringNotContainsString('cm tall', $k['prompt'], $pose);
             }
-            // Gemini juga menyebut keduanya dewasa dan tingginya.
-            $this->assertStringContainsString('178 cm tall', $a['gemini'], $pose);
-            $this->assertStringContainsString('188 cm tall', $a['gemini'], $pose);
             $this->assertStringContainsString('adult women', $a['gemini'], $pose);
+            $this->assertStringContainsString('an adult female boxer', $a['gemini'], $pose);
+            $this->assertStringNotContainsString('cm tall', $a['gemini'], $pose);
+            $this->assertStringNotContainsString('height difference', $a['base'], $pose);
         }
     }
 
-    public function test_selisih_tinggi_hanya_ditulis_kalau_terasa(): void
+    public function test_kalimat_tinggi_yang_tertempel_di_ciri_ikut_dibuang(): void
     {
-        $beda = ShowdownPose::susun($this->a(), $this->b(), ['adegan' => [['pose' => 'faceoff']]]);
-        $this->assertStringContainsString('height difference', $beda['adegan'][0]['base']);
+        $a = ShowdownPose::susun($this->a(['fisik' => 'adult woman, dark purple hair, She is 178 cm tall.']), $this->b(), ['adegan' => [['pose' => 'vs']]])['adegan'][0];
 
-        $mirip = ShowdownPose::susun($this->a(['tinggi' => 186]), $this->b(), ['adegan' => [['pose' => 'faceoff']]]);
-        $this->assertStringNotContainsString('height difference', $mirip['adegan'][0]['base']);
+        $this->assertStringNotContainsString('cm tall', $a['karakter'][0]['prompt']);
+        $this->assertStringContainsString('dark purple hair', $a['karakter'][0]['prompt']);
     }
 
     public function test_isian_disapu_dari_hand_wraps_mouthguard_lapisan_dan_kata_anak(): void
@@ -258,10 +255,10 @@ class ShowdownPoseTest extends TestCase
         }
     }
 
-    public function test_isian_salah_ditolak(): void
+    public function test_ciri_kosong_ditolak(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        ShowdownPose::susun($this->a(['tinggi' => 120]), $this->b(), ['adegan' => [['pose' => 'vs']]]);
+        ShowdownPose::susun($this->a(['tag' => '', 'fisik' => '']), $this->b(), ['adegan' => [['pose' => 'vs']]]);
     }
 
     public function test_tanpa_pose_ditolak(): void

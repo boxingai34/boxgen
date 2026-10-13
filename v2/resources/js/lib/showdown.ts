@@ -1,16 +1,16 @@
 /**
  * Monthly Showdown — bentuk data yang dipakai bersama dua halamannya:
- * Cari Lawan (pages/MonthlyShowdown.vue) dan Referensi Pose
+ * Kostum & Lawan (pages/MonthlyShowdown.vue) dan Referensi Pose
  * (pages/ShowdownPose.vue).
  *
- * Langkah 1 menyimpan petinju yang sudah diriset dan laganya di browser;
- * langkah 2 membacanya dari simpanan yang sama. Server tidak menyimpan
- * antrean ini — yang ia simpan cuma riwayat — jadi satu-satunya jembatan
- * kedua halaman memang localStorage ini.
+ * Langkah 1 menyimpan petinju yang sudah dirancang dan hasil undiannya di
+ * browser; langkah 2 membacanya dari simpanan yang sama. Server tidak
+ * menyimpan antrean ini — yang ia simpan cuma riwayat — jadi satu-satunya
+ * jembatan kedua halaman memang localStorage ini.
  *
  * `segel` dari server ikut disimpan apa adanya. Tanpa segel yang cocok
  * dengan `karakter` (nama, judul, tag, umur, dewasa, wanita), server
- * menolak petinju itu di langkah berikutnya.
+ * menolak petinju itu di Referensi Pose.
  */
 
 export const KUNCI_SHOWDOWN = 'boxgen.showdown.v1';
@@ -27,34 +27,11 @@ export interface Identitas {
     dikenal?: boolean;
 }
 
-export interface Statistik {
-    tinggi: number | null;
-    tinggi_resmi: boolean;
-    tinggi_dasar: string;
-    berat: number | null;
-    berat_resmi: boolean;
-    berat_dasar: string;
-    bust: number | null;
-    waist: number | null;
-    hip: number | null;
-    cup: string;
-    ukuran_resmi: boolean;
-    ukuran_dasar: string;
-    tipe_badan: string;
-    kekuatan: number | null;
-    kekuatan_alasan: string;
-}
-
-/** Hasil riset satu karakter, persis dari server. */
-export interface HasilRiset {
+/** Rancangan satu karakter, persis dari server. */
+export interface HasilRancangan {
     ikut: boolean;
     alasan: string;
     karakter: Identitas;
-    statistik: Statistik | null;
-    gaya: { nilai: string; label: string; alasan: string } | null;
-    sumber: Array<{ url: string; judul: string }>;
-    web: boolean;
-    profil: string;
     /** Potongan yang sudah disaring, untuk Referensi Pose. */
     petinju: { tag: string; fisik: string[]; ikat: string[]; pakaian: string[]; sarung: string[] } | null;
     bagian: { base: string; characters: Array<{ prompt: string; uc: string }>; undesired: string } | null;
@@ -67,30 +44,19 @@ export interface HasilRiset {
     masukan?: string;
 }
 
-/** Angka yang boleh dikoreksi pengguna; kosong = ikut hasil riset. */
-export interface Koreksi {
-    tinggi: number | '';
-    berat: number | '';
-    kekuatan: number | '';
-    gaya: string;
-}
-
 export interface BarisShowdown {
     /** Tetap sepanjang umur baris ini — laga merujuk ke sini. */
     id: string;
     nama: string;
     sumber: string;
-    status: 'baru' | 'antre' | 'riset' | 'jadi' | 'gagal';
+    status: 'baru' | 'antre' | 'rancang' | 'jadi' | 'gagal';
     galat: string;
-    hasil: HasilRiset | null;
-    koreksi: Koreksi;
+    hasil: HasilRancangan | null;
 }
 
 export interface Laga {
     a: string;
     b: string;
-    skor: number;
-    alasan: string[];
     dikunci: boolean;
 }
 
@@ -99,16 +65,7 @@ export interface SimpananShowdown {
     daftar: BarisShowdown[];
     laga: Laga[];
     cadangan: string[];
-    catatanLaga: string[];
-    /** Pasangan yang dikunci pengguna. */
-    tetap: Array<{ a: string; b: string }>;
-    /** Sidik angka saat laga terakhir dihitung — beda = laganya basi. */
-    sidikLaga: string;
     pilihan: Record<string, unknown>;
-}
-
-export function koreksiKosong(): Koreksi {
-    return { tinggi: '', berat: '', kekuatan: '', gaya: '' };
 }
 
 export function bacaSimpanan(): Partial<SimpananShowdown> | null {
@@ -128,24 +85,40 @@ export function tulisSimpanan(isi: SimpananShowdown): void {
     }
 }
 
-/** Angka yang dipakai: koreksi pengguna dulu, lalu hasil riset. */
-export function angka(b: BarisShowdown, kunci: 'tinggi' | 'berat' | 'kekuatan'): number | null {
-    const k = b.koreksi?.[kunci];
-    if (k !== '' && k != null && !Number.isNaN(Number(k))) return Number(k);
-    const s = b.hasil?.statistik?.[kunci];
-    return s == null ? null : Number(s);
-}
-
-export function gayaDipakai(b: BarisShowdown): string {
-    return b.koreksi?.gaya || b.hasil?.gaya?.nilai || '';
-}
-
-/** Nama tampil satu baris: dari hasil riset kalau ada. */
+/** Nama tampil satu baris: dari hasil rancangan kalau ada. */
 export function namaBaris(b: BarisShowdown): string {
     return b.hasil?.karakter.nama || b.nama || 'Karakter';
 }
 
-/** Petinju yang boleh ikut laga: sudah diriset, dewasa, wanita, bersegel. */
+/** Petinju yang boleh ikut laga: sudah dirancang, dewasa, wanita, bersegel. */
 export function ikut(b: BarisShowdown): boolean {
     return Boolean(b.hasil?.ikut && b.hasil.segel && b.hasil.karakter.dewasa && b.hasil.karakter.wanita);
+}
+
+/**
+ * Undi lawan. Pasangan yang dikunci dipertahankan; sisanya diacak
+ * (Fisher–Yates) lalu dipasangkan berurutan. Ganjil = satu cadangan.
+ */
+export function undi(peserta: string[], tetap: Array<{ a: string; b: string }>): { laga: Laga[]; cadangan: string[] } {
+    const ada = new Set(peserta);
+    const dipakai = new Set<string>();
+    const terkunci: Array<{ a: string; b: string }> = [];
+    for (const t of tetap) {
+        // Kunci yang tumpang tindih (satu petinju di dua kunci) cuma yang pertama berlaku.
+        if (t.a === t.b || !ada.has(t.a) || !ada.has(t.b) || dipakai.has(t.a) || dipakai.has(t.b)) continue;
+        terkunci.push(t);
+        dipakai.add(t.a);
+        dipakai.add(t.b);
+    }
+
+    const sisa = peserta.filter((id) => !dipakai.has(id));
+    for (let i = sisa.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [sisa[i], sisa[j]] = [sisa[j], sisa[i]];
+    }
+
+    const laga: Laga[] = terkunci.map((t) => ({ a: t.a, b: t.b, dikunci: true }));
+    for (let i = 0; i + 1 < sisa.length; i += 2) laga.push({ a: sisa[i], b: sisa[i + 1], dikunci: false });
+
+    return { laga, cadangan: sisa.length % 2 ? [sisa[sisa.length - 1]] : [] };
 }

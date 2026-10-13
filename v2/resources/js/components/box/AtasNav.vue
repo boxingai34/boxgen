@@ -83,10 +83,10 @@ const menu = computed<Menu[]>(() => {
                     nama: 'Monthly Showdown',
                     rute: 'fembox.showdown',
                     ikon: Trophy,
-                    ket: 'Riset karakter, jodohkan lawan, lalu referensi pose',
+                    ket: 'Rancang boxing attire, undi lawan, lalu referensi pose',
                     persis: false,
                     anak: [
-                        { nama: 'Cari Lawan', rute: 'fembox.showdown', ikon: UsersRound, ket: 'Riset tinggi, berat, ukuran badan; jodohkan; lembar acuan', persis: true },
+                        { nama: 'Kostum & Lawan', rute: 'fembox.showdown', ikon: UsersRound, ket: 'Boxing attire + lembar acuan tiap karakter, lawannya diundi', persis: true },
                         { nama: 'Referensi Pose', rute: 'fembox.showdown.pose', ikon: Camera, ket: 'Pose dan sudut kamera untuk satu laga', persis: false },
                     ],
                 },

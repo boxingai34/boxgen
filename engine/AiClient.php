@@ -65,36 +65,6 @@ final class AiClient
     }
 
     /**
-     * Sumber web yang dibaca model pada panggilan terakhir yang memakai
-     * opsi 'web' — [['url' => ..., 'judul' => ...], ...]. Kosong kalau
-     * panggilannya tanpa web, jawabannya dari cache, atau penyedianya tidak
-     * melaporkannya. Dibersihkan di awal setiap panggilan.
-     *
-     * @var list<array{url:string, judul:string}>
-     */
-    private static array $sitasi = [];
-
-    /** @return list<array{url:string, judul:string}> */
-    public static function sitasiTerakhir(): array
-    {
-        return self::$sitasi;
-    }
-
-    /**
-     * Apakah profil ini bisa mencari di web lewat opsi 'web'.
-     *
-     * Baru Venice: pencariannya cukup satu sakelar di venice_parameters dan
-     * modelnya tidak perlu tahu apa pun. Penyedia lain butuh alat (tool
-     * call) sendiri-sendiri — profil di sana tetap menjawab, tapi dari
-     * ingatan modelnya.
-     */
-    public static function bisaWeb(array $profil): bool
-    {
-        return (string)($profil['provider'] ?? '') === 'openai_compatible'
-            && str_contains((string)($profil['base_url'] ?? ''), 'venice.ai');
-    }
-
-    /**
      * Catat pemakaian dari jawaban server.
      *
      * Tiap penyedia menamainya berbeda: OpenAI dan yang meniru formatnya
@@ -303,8 +273,7 @@ final class AiClient
      * begitu cara memberi tahu model frame mana yang detik berapa.
      *
      * $opsi: max_tokens (int), temperature (float), timeout (int),
-     *        cache (bool, bawaan true), web (bool — cari di internet dulu;
-     *        hanya berlaku kalau bisaWeb(), lihat sitasiTerakhir()).
+     *        cache (bool, bawaan true).
      */
     public static function completeDengan(
         array $profil,
@@ -324,7 +293,6 @@ final class AiClient
         }
 
         $pesan = self::rapikanPesan($user);
-        self::$sitasi = [];
 
         // --- cache: input yang sama tidak memanggil API dua kali ---
         // Gambar ikut di-hash (bukan disimpan) supaya unggahan yang sama
@@ -333,13 +301,10 @@ final class AiClient
         foreach ($pesan['images'] as $img) {
             $sidik .= '|' . hash('sha256', $img['data']) . ':' . ($img['label'] ?? '');
         }
-        // Jawaban yang sudah membaca internet tidak sama dengan jawaban dari
-        // ingatan, jadi keduanya disimpan di kunci yang berbeda.
-        $web = !empty($opsi['web']) && self::bisaWeb($profil);
         $cacheKey = hash('sha256', implode('|', [
             (string)$profil['nama'], (string)$profil['provider'], (string)$profil['model'],
             (string)$profil['base_url'], $system, $pesan['text'],
-        ]) . $sidik . ($web ? '|web' : ''));
+        ]) . $sidik);
 
         $pakaiCache = $opsi['cache'] ?? true;
 
@@ -793,12 +758,6 @@ final class AiClient
                 'include_venice_system_prompt' => false,
                 'strip_thinking_response'      => true,
             ];
-            // "on", bukan "auto": yang memintanya memang butuh angka dari
-            // internet (tinggi badan resmi dan sejenisnya), bukan tebakan
-            // model tentang perlu tidaknya mencari.
-            if (!empty($opsi['web'])) {
-                $body['venice_parameters']['enable_web_search'] = 'on';
-            }
         }
 
         if ($expectJson) {
@@ -884,13 +843,6 @@ final class AiClient
         }
 
         self::catatToken($p, $json);
-
-        foreach ((array)($json['venice_parameters']['web_search_citations'] ?? []) as $s) {
-            $url = is_array($s) ? trim((string)($s['url'] ?? '')) : '';
-            if (preg_match('#^https?://#i', $url) === 1) {
-                self::$sitasi[] = ['url' => mb_substr($url, 0, 300), 'judul' => mb_substr(trim((string)($s['title'] ?? '')), 0, 200)];
-            }
-        }
 
         // Model yang berpikir dulu kadang menyertakan <think>...</think>.
         $text = preg_replace('/<think>.*?<\/think>/s', '', $text) ?? $text;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * Monthly Showdown — langkah 2: Referensi Pose untuk satu laga.
  *
- * Dua petinju yang sudah dijodohkan di langkah 1 (MonthlyShowdown) dibawa
+ * Dua petinju yang sudah diundi jadi satu laga di langkah 1 (MonthlyShowdown) dibawa
  * ke sini bersama ciri dan pakaiannya, lalu dipilihkan pose: promo/poster
  * sebelum laga, yang sexy tapi tetap sinematik, dan aksi di ring. Tiap pose
  * boleh ditimpa sudut kameranya, dan pose yang sama boleh dipilih dua kali
@@ -23,10 +23,14 @@ declare(strict_types=1);
  *
  * Aturan studio ditegakkan kode memakai konstanta WaifuCrushed (satu aturan,
  * satu tempat): isian disapu dari hand wraps/mouthguard/lapisan luar/kata
- * anak-anak, setiap UC disaring dari tag terlarang, tinggi badan ditulis di
- * setiap Character Prompt, pukulan yang mendarat diberi efek kecepatan dan
- * yang terkena diberi garis getar, dan tangan pemukul dikunci lewat posisi
- * (menghadap kanan layar = sisi kanan badan ke kamera).
+ * anak-anak, setiap UC disaring dari tag terlarang, pukulan yang mendarat
+ * diberi efek kecepatan dan yang terkena diberi garis getar, dan tangan
+ * pemukul dikunci lewat posisi (menghadap kanan layar = sisi kanan badan ke
+ * kamera).
+ *
+ * Tinggi badan sengaja TIDAK ditulis di menu ini — pilihan pemilik studio
+ * untuk Monthly Showdown (2026-10-13): yang dibutuhkan cuma boxing attire,
+ * tanpa angka tubuh. Menu FemBox lain tetap menulisnya.
  */
 final class ShowdownPose
 {
@@ -478,7 +482,6 @@ final class ShowdownPose
             'kamera'   => $kamera,
             'venue'    => $venue,
             'rasio'    => array_map(static fn (string $n, string $l): array => ['nilai' => $n, 'label' => $l], array_keys(self::RASIO), self::RASIO),
-            'tinggi'   => [WaifuCrushed::TINGGI_MIN, WaifuCrushed::TINGGI_MAKS],
             'maks'     => self::MAKS_ADEGAN,
         ];
     }
@@ -486,15 +489,14 @@ final class ShowdownPose
     /**
      * Rangkai kartu pose untuk satu laga.
      *
-     * @param array $a petinju pertama (Character 1): nama, tag, tinggi, fisik,
-     *                 ikat, pakaian, sarung — teks berkoma atau daftar
+     * @param array $a petinju pertama (Character 1): nama, tag, fisik, ikat,
+     *                 pakaian, sarung — teks berkoma atau daftar
      * @param array $b petinju kedua (Character 2)
      * @param array $opsi adegan (list ['pose','kamera']), venue, venue_bebas,
      *                    tangan ('kanan'|'kiri'), penyerang ('a'|'b'),
      *                    tukar (bool), rasio
      *
-     * @throws InvalidArgumentException tinggi kosong/di luar rentang, ciri
-     *                                  kosong, atau tidak ada pose yang dipilih
+     * @throws InvalidArgumentException ciri kosong, atau tidak ada pose yang dipilih
      */
     public static function susun(array $a, array $b, array $opsi = []): array
     {
@@ -530,13 +532,6 @@ final class ShowdownPose
         $warnaUntukA = self::warnaLawan($B, $A, $catatan);
         $warnaUntukB = self::warnaLawan($A, $B, $catatan);
 
-        $selisih  = abs($A['tinggi'] - $B['tinggi']);
-        $tagTinggi = $selisih >= WaifuCrushed::SELISIH_TERASA ? 'height difference' : '';
-        if ($tagTinggi === '') {
-            $catatan[] = 'Selisih tinggi ' . $A['nama'] . ' dan ' . $B['nama'] . ' cuma ' . $selisih
-                . ' cm — "height difference" tidak ditulis di Base supaya NAI tidak membesar-besarkannya.';
-        }
-
         $gaya = self::gaya($venue);
 
         $adegan = [];
@@ -548,28 +543,20 @@ final class ShowdownPose
                 [
                     'A' => $A, 'B' => $B, 'ucA' => $warnaUntukA, 'ucB' => $warnaUntukB,
                     'kanan' => $kanan, 'bPenyerang' => $bPenyerang, 'tukar' => $tukar,
-                    'rasio' => $rasio, 'venue' => $venue, 'tagTinggi' => $tagTinggi, 'gaya' => $gaya,
+                    'rasio' => $rasio, 'venue' => $venue, 'gaya' => $gaya,
                 ]
             );
         }
 
         array_unshift(
             $catatan,
-            'Gemini: unggah lembar acuan kedua petinju dari langkah 1 (Cari Lawan) sebagai gambar acuan, lalu tempel prompt Gemini pose yang dipilih.',
+            'Gemini: unggah lembar acuan kedua petinju dari langkah 1 (Kostum & Lawan) sebagai gambar acuan, lalu tempel prompt Gemini pose yang dipilih.',
             'NovelAI: tempel per kotak sesuai urutan (Base → UC Base → Character 1 → UC 1 → Character 2 → UC 2); posisi karakter pakai UI positioning V5.'
         );
 
         return [
             'adegan'  => $adegan,
-            'ringkas' => sprintf(
-                '%s (%d cm) vs %s (%d cm) · %d pose · %s',
-                $A['nama'],
-                $A['tinggi'],
-                $B['nama'],
-                $B['tinggi'],
-                count($adegan),
-                $venue['ringkas']
-            ),
+            'ringkas' => sprintf('%s vs %s · %d pose · %s', $A['nama'], $B['nama'], count($adegan), $venue['ringkas']),
             'catatan' => array_values(array_unique($catatan)),
         ];
     }
@@ -650,7 +637,6 @@ final class ShowdownPose
             $tetap ? '' : $kamera['tag'],
             $aksi ? ($venue['serpih'][0] ?? '') : '',
             $venue['tag'],
-            $k['tagTinggi'],
         ];
         $tagBase = self::unik(self::rata($base));
 
@@ -710,8 +696,8 @@ final class ShowdownPose
     }
 
     /**
-     * Character Prompt utuh: "girl", ciri lengkapnya, tag pose, lalu kalimat
-     * tinggi badan (aturan 8). UC: yang dilarang di pose ini + warna lawan.
+     * Character Prompt utuh: "girl", ciri lengkapnya, lalu tag pose. UC: yang
+     * dilarang di pose ini + warna lawan.
      *
      * @param list<string> $pose
      * @param list<string> $larang
@@ -724,7 +710,7 @@ final class ShowdownPose
         return [
             'label'  => $p['nama'],
             'posisi' => $posisi,
-            'prompt' => implode(', ', $tags) . '. She is ' . $p['tinggi'] . ' cm tall.',
+            'prompt' => implode(', ', $tags),
             'uc'     => self::ucKotak(array_merge($larang, [$warnaLawan]), $tags),
         ];
     }
@@ -767,15 +753,6 @@ final class ShowdownPose
         $nama = self::rapi($isian['nama'] ?? '', 80);
         $nama = $nama !== '' ? $nama : $peran;
 
-        $tinggi = $isian['tinggi'] ?? null;
-        if (!is_numeric($tinggi)) {
-            throw new InvalidArgumentException('Tinggi badan ' . $nama . ' wajib diisi (' . WaifuCrushed::TINGGI_MIN . '–' . WaifuCrushed::TINGGI_MAKS . ' cm).');
-        }
-        $cm = (int)round((float)$tinggi);
-        if ($cm < WaifuCrushed::TINGGI_MIN || $cm > WaifuCrushed::TINGGI_MAKS) {
-            throw new InvalidArgumentException('Tinggi badan ' . $nama . ' harus ' . WaifuCrushed::TINGGI_MIN . '–' . WaifuCrushed::TINGGI_MAKS . ' cm (sekarang ' . $cm . ' cm).');
-        }
-
         $buang   = [];
         $tag     = self::bersih($isian['tag'] ?? '', $buang);
         $fisik   = self::bersih($isian['fisik'] ?? '', $buang);
@@ -784,7 +761,7 @@ final class ShowdownPose
         $sarung  = self::bersih($isian['sarung'] ?? '', $buang);
 
         if ($fisik === [] && $tag === []) {
-            throw new InvalidArgumentException('Ciri ' . $nama . ' masih kosong — riset ulang karakternya di langkah 1.');
+            throw new InvalidArgumentException('Ciri ' . $nama . ' masih kosong — rancang ulang karakternya di langkah 1.');
         }
         if ($buang !== []) {
             $catatan[] = 'Dibuang dari isian ' . $nama . ': ' . implode(', ', self::unik($buang))
@@ -824,7 +801,6 @@ final class ShowdownPose
 
         return [
             'nama'    => $nama,
-            'tinggi'  => $cm,
             'tag'     => $tag,
             'fisik'   => $fisik,
             'pakaian' => $pakaian,
@@ -890,10 +866,10 @@ final class ShowdownPose
         return $kecil !== '' && preg_match('/(^|\s)' . preg_quote($kecil, '/') . '(\s|$)/u', $besar) === 1;
     }
 
-    /** Frasa Gemini satu petinju — selalu dengan umur dewasa dan tinggi badan. */
+    /** Frasa Gemini satu petinju — selalu dengan umur dewasa. */
     private static function deskripsi(array $p): string
     {
-        $bagian = ['an adult female boxer', $p['tinggi'] . ' cm tall'];
+        $bagian = ['an adult female boxer'];
         if ($p['tag'] !== []) {
             $bagian[] = 'modeled on ' . implode(' / ', $p['tag']);
         }
@@ -972,8 +948,9 @@ final class ShowdownPose
 
     /**
      * Teks/daftar jadi daftar tag, dipisah di koma di luar kurung —
-     * "mujina (ssss.dynazenon)" itu satu tag. Kalimat berakhiran titik
-     * ("She is 170 cm tall.") tidak ikut.
+     * "mujina (ssss.dynazenon)" itu satu tag. Kalimat tinggi badan ("She is
+     * 170 cm tall.") yang tertempel di ciri ikut dibuang: menu ini tidak
+     * menulis tinggi.
      *
      * @return list<string>
      */

@@ -22,25 +22,24 @@ use WaifuCrushed;
 /**
  * FemBox Reference → Monthly Showdown, dua langkah:
  *
- *   1. Cari Lawan (/fembox/monthly-showdown) — tiap karakter diriset dan
- *      dirancang satu per satu (engine/MonthlyShowdown.php, memanggil
- *      model), lalu semuanya dijodohkan kode dalam sekali panggil.
+ *   1. Kostum & Lawan (/fembox/monthly-showdown) — boxing attire tiap
+ *      karakter dirancang satu per satu (engine/MonthlyShowdown.php,
+ *      memanggil model), lalu lawannya diundi di halaman.
  *   2. Referensi Pose (/fembox/monthly-showdown/pose) — satu laga dibawa
  *      ke katalog pose (engine/ShowdownPose.php, tanpa model).
  *
- * SEGEL. Hasil riset hidup di browser (antrean dan simpanannya di sana),
- * lalu dikirim balik untuk dijodohkan dan dibuatkan pose. Yang dikirim
- * balik itu bisa disunting — dan memang boleh: tinggi atau berat yang
- * meleset harus bisa dikoreksi. Yang TIDAK boleh berubah adalah putusan
- * umurnya. Jadi identitas yang diputus server (nama, judul, tag, umur,
- * dewasa, wanita) diberi segel HMAC dengan APP_KEY waktu riset selesai,
- * dan langkah berikutnya hanya menerima petinju yang segelnya cocok.
- * Mengganti nama atau tag di browser = segelnya putus = riset ulang.
+ * SEGEL. Hasil rancangan hidup di browser (antrean dan simpanannya di
+ * sana), lalu dikirim balik untuk dibuatkan pose. Ciri dan pakaiannya
+ * boleh disunting di sana; yang TIDAK boleh berubah adalah putusan umurnya.
+ * Jadi identitas yang diputus server (nama, judul, tag, umur, dewasa,
+ * wanita) diberi segel HMAC dengan APP_KEY waktu rancangan selesai, dan
+ * Referensi Pose hanya menerima petinju yang segelnya cocok. Mengganti nama
+ * atau tag di browser = segelnya putus = rancang ulang.
  */
 class MonthlyShowdownController extends Controller
 {
     // ------------------------------------------------------------------
-    // Langkah 1 — Cari Lawan
+    // Langkah 1 — Kostum & Lawan
     // ------------------------------------------------------------------
 
     public function halaman(): TampilanInertia
@@ -50,7 +49,6 @@ class MonthlyShowdownController extends Controller
                 'ai'    => AiClient::siapProfil('ubah') || AiClient::siapProfil('nsfw') || AiClient::siapProfil('polish')
                     || AiClient::profilDiatur('fembox'),
                 'model' => $this->modelSiap(),
-                'web'   => $this->webSiap(),
             ],
             'gambar'  => GambarController::status(),
             'kuota'   => $this->kuota(),
@@ -70,8 +68,8 @@ class MonthlyShowdownController extends Controller
         ]);
     }
 
-    /** Riset + rancang SATU karakter. Antreannya dijalankan halaman. */
-    public function riset(Request $request): JsonResponse
+    /** Rancang boxing attire SATU karakter. Antreannya dijalankan halaman. */
+    public function rancang(Request $request): JsonResponse
     {
         $maks = MonthlyShowdown::MAKS_TEKS;
 
@@ -94,7 +92,6 @@ class MonthlyShowdownController extends Controller
             'pilihan.nuansa'      => ['nullable', 'string', Rule::in(array_keys(FemboxReferensi::NUANSA))],
             'pilihan.label'       => ['nullable', 'boolean'],
             'pilihan.perancang'   => ['nullable', 'string', Rule::in(array_keys(FemboxReferensi::PERANCANG))],
-            'pilihan.web'         => ['nullable', 'boolean'],
             'segar'               => ['nullable', 'string', 'max:64'],
             'permintaan'          => ['nullable', 'string', 'regex:/^[A-Za-z0-9-]{8,64}$/'],
         ], [
@@ -117,7 +114,7 @@ class MonthlyShowdownController extends Controller
                 return response()->json($ada);
             }
             if ($ada === 'jalan') {
-                return $this->gagal('Karakter ini masih diriset di server — sebentar lagi.', 503);
+                return $this->gagal('Karakter ini masih dirancang di server — sebentar lagi.', 503);
             }
         }
 
@@ -133,7 +130,7 @@ class MonthlyShowdownController extends Controller
         }
 
         try {
-            $hasil = MonthlyShowdown::riset(
+            $hasil = MonthlyShowdown::rancang(
                 [
                     'nama'    => (string) ($karakter['nama'] ?? ''),
                     'sumber'  => (string) ($karakter['sumber'] ?? ''),
@@ -153,7 +150,6 @@ class MonthlyShowdownController extends Controller
                     'nuansa'     => (string) ($pilihan['nuansa'] ?? 'sexy'),
                     'label'      => (bool) ($pilihan['label'] ?? false),
                     'perancang'  => (string) ($pilihan['perancang'] ?? 'claude'),
-                    'web'        => (bool) ($pilihan['web'] ?? true),
                     'segar'      => (string) $request->input('segar', ''),
                 ]
             );
@@ -169,12 +165,12 @@ class MonthlyShowdownController extends Controller
             $this->lupakan($kunci);
             report($e);
 
-            return $this->gagal('Risetnya gagal: ' . $e->getMessage(), 500);
+            return $this->gagal('Rancangannya gagal: ' . $e->getMessage(), 500);
         }
 
         KuotaHarian::hit('reverse');
 
-        $genId = $hasil['ikut'] ? $this->simpanRiset($request, $hasil, $karakter, $pilihan) : null;
+        $genId = $hasil['ikut'] ? $this->simpanRancangan($request, $hasil, $karakter, $pilihan) : null;
 
         $jawab = ['ok' => true] + $hasil + [
             'segel'         => self::segel($hasil['karakter']),
@@ -188,47 +184,6 @@ class MonthlyShowdownController extends Controller
         }
 
         return response()->json($jawab);
-    }
-
-    /** Jodohkan semua yang sudah diriset — kode saja, seketika. */
-    public function jodoh(Request $request): JsonResponse
-    {
-        $request->validate([
-            'petinju'            => ['required', 'array', 'max:' . MonthlyShowdown::MAKS_PETINJU],
-            'petinju.*.id'       => ['required', 'string', 'max:64'],
-            'petinju.*.karakter' => ['required', 'array'],
-            'petinju.*.segel'    => ['required', 'string', 'max:128'],
-            'mode'               => ['nullable', 'string', Rule::in(array_keys(MonthlyShowdown::JODOH))],
-            'tetap'              => ['nullable', 'array'],
-            'tetap.*.a'          => ['required', 'string', 'max:64'],
-            'tetap.*.b'          => ['required', 'string', 'max:64'],
-        ], [
-            'petinju.required' => 'Belum ada karakter yang selesai diriset.',
-            'petinju.max'      => 'Paling banyak ' . MonthlyShowdown::MAKS_PETINJU . ' petinju sekali jodoh.',
-        ]);
-
-        $catatan = [];
-        $sah     = [];
-        foreach ((array) $request->input('petinju', []) as $p) {
-            $k = (array) ($p['karakter'] ?? []);
-            if (($tolak = $this->tolakan($k, (string) ($p['segel'] ?? ''))) !== null) {
-                $catatan[] = trim((string) ($k['nama'] ?? 'Satu karakter')) . ' dilewati: ' . $tolak;
-                continue;
-            }
-            $sah[] = [
-                'id'       => (string) $p['id'],
-                'nama'     => (string) ($k['nama'] ?? ''),
-                'tinggi'   => $p['tinggi'] ?? null,
-                'berat'    => $p['berat'] ?? null,
-                'kekuatan' => $p['kekuatan'] ?? null,
-                'gaya'     => (string) ($p['gaya'] ?? ''),
-            ];
-        }
-
-        $hasil = MonthlyShowdown::jodohkan($sah, (string) $request->input('mode', 'seimbang'), (array) $request->input('tetap', []));
-        $hasil['catatan'] = array_values(array_unique(array_merge($catatan, $hasil['catatan'])));
-
-        return response()->json(['ok' => true] + $hasil);
     }
 
     // ------------------------------------------------------------------
@@ -250,36 +205,31 @@ class MonthlyShowdownController extends Controller
         $opsi = ShowdownPose::opsiHalaman();
 
         $aturan = [
-            'opsi'               => ['required', 'array'],
-            'opsi.adegan'        => ['required', 'array', 'min:1', 'max:' . ShowdownPose::MAKS_ADEGAN],
+            'opsi'                 => ['required', 'array'],
+            'opsi.adegan'          => ['required', 'array', 'min:1', 'max:' . ShowdownPose::MAKS_ADEGAN],
             'opsi.adegan.*.pose'   => ['required', 'string', Rule::in(array_column($opsi['pose'], 'nilai'))],
             'opsi.adegan.*.kamera' => ['nullable', 'string', Rule::in(array_column($opsi['kamera'], 'nilai'))],
-            'opsi.venue'         => ['nullable', 'string', Rule::in(array_column($opsi['venue'], 'nilai'))],
-            'opsi.venue_bebas'   => ['nullable', 'string', 'max:' . $maks],
-            'opsi.tangan'        => ['nullable', 'string', Rule::in(['kanan', 'kiri'])],
-            'opsi.penyerang'     => ['nullable', 'string', Rule::in(['a', 'b'])],
-            'opsi.tukar'         => ['nullable', 'boolean'],
-            'opsi.rasio'         => ['nullable', 'string', Rule::in(array_keys(ShowdownPose::RASIO))],
+            'opsi.venue'           => ['nullable', 'string', Rule::in(array_column($opsi['venue'], 'nilai'))],
+            'opsi.venue_bebas'     => ['nullable', 'string', 'max:' . $maks],
+            'opsi.tangan'          => ['nullable', 'string', Rule::in(['kanan', 'kiri'])],
+            'opsi.penyerang'       => ['nullable', 'string', Rule::in(['a', 'b'])],
+            'opsi.tukar'           => ['nullable', 'boolean'],
+            'opsi.rasio'           => ['nullable', 'string', Rule::in(array_keys(ShowdownPose::RASIO))],
         ];
         $pesan = [
             'opsi.adegan.required' => 'Pilih minimal satu pose.',
             'opsi.adegan.max'      => 'Paling banyak ' . ShowdownPose::MAKS_ADEGAN . ' pose sekali susun.',
             'opsi.*.in'            => 'Pilihannya tidak dikenal — muat ulang halamannya.',
         ];
-        $rentang = WaifuCrushed::TINGGI_MIN . '–' . WaifuCrushed::TINGGI_MAKS . ' cm';
         foreach (['a' => 'Petinju 1', 'b' => 'Petinju 2'] as $peran => $label) {
             $aturan[$peran]               = ['required', 'array'];
             $aturan[$peran . '.karakter'] = ['required', 'array'];
             $aturan[$peran . '.segel']    = ['required', 'string', 'max:128'];
-            $aturan[$peran . '.tinggi']   = ['required', 'integer', 'min:' . WaifuCrushed::TINGGI_MIN, 'max:' . WaifuCrushed::TINGGI_MAKS];
             foreach (['fisik', 'ikat', 'pakaian', 'sarung'] as $kolom) {
                 $aturan[$peran . '.' . $kolom] = ['nullable', 'string', 'max:' . $maks];
             }
-            $pesan[$peran . '.required']        = 'Pilih dulu laganya.';
-            $pesan[$peran . '.tinggi.required'] = 'Tinggi badan ' . $label . ' wajib diisi (' . $rentang . ').';
-            $pesan[$peran . '.tinggi.min']      = 'Tinggi badan ' . $label . ' harus ' . $rentang . '.';
-            $pesan[$peran . '.tinggi.max']      = 'Tinggi badan ' . $label . ' harus ' . $rentang . '.';
-            $pesan[$peran . '.*.max']           = 'Isian ' . $label . ' terlalu panjang (maks ' . $maks . ' huruf).';
+            $pesan[$peran . '.required'] = 'Pilih dulu laganya.';
+            $pesan[$peran . '.*.max']    = 'Isian ' . $label . ' terlalu panjang (maks ' . $maks . ' huruf).';
         }
 
         $request->validate($aturan, $pesan);
@@ -294,7 +244,6 @@ class MonthlyShowdownController extends Controller
             $petinju[$peran] = [
                 'nama'    => (string) ($k['nama'] ?? ''),
                 'tag'     => (string) ($k['tag'] ?? ''),
-                'tinggi'  => (int) ($p['tinggi'] ?? 0),
                 'fisik'   => (string) ($p['fisik'] ?? ''),
                 'ikat'    => (string) ($p['ikat'] ?? ''),
                 'pakaian' => (string) ($p['pakaian'] ?? ''),
@@ -357,7 +306,7 @@ class MonthlyShowdownController extends Controller
     private function tolakan(array $k, string $segel): ?string
     {
         if ($segel === '' || ! hash_equals(self::segel($k), $segel)) {
-            return 'segel risetnya tidak cocok (nama, tag, atau umurnya diubah sesudah diriset?) — riset ulang di langkah Cari Lawan.';
+            return 'segel rancangannya tidak cocok (nama, tag, atau umurnya diubah sesudah dirancang?) — rancang ulang di langkah Kostum & Lawan.';
         }
         if (($k['dewasa'] ?? null) !== true) {
             return 'di canon belum dewasa atau umurnya tidak pasti.';
@@ -374,7 +323,7 @@ class MonthlyShowdownController extends Controller
     // ------------------------------------------------------------------
 
     /** Sama dengan FemboxController::simpan(): base + karakter disambung di `output`. */
-    private function simpanRiset(Request $request, array $hasil, array $karakter, array $pilihan): ?int
+    private function simpanRancangan(Request $request, array $hasil, array $karakter, array $pilihan): ?int
     {
         $nama  = trim((string) ($hasil['karakter']['nama'] ?? ''));
         $judul = mb_substr(($nama !== '' ? $nama : 'Karakter') . ' — Monthly Showdown', 0, 150);
@@ -390,15 +339,12 @@ class MonthlyShowdownController extends Controller
                     'nai5',
                     $judul,
                     json_encode([
-                        'mode'      => 'showdown',
-                        'isian'     => $karakter,
-                        'pilihan'   => $pilihan,
-                        'karakter'  => $hasil['karakter'],
-                        'statistik' => $hasil['statistik'],
-                        'gaya'      => $hasil['gaya'],
-                        'sumber'    => $hasil['sumber'],
-                        'bagian'    => $hasil['bagian'],
-                        'palet'     => $hasil['palet'],
+                        'mode'     => 'showdown',
+                        'isian'    => $karakter,
+                        'pilihan'  => $pilihan,
+                        'karakter' => $hasil['karakter'],
+                        'bagian'   => $hasil['bagian'],
+                        'palet'    => $hasil['palet'],
                     ], JSON_UNESCAPED_UNICODE),
                     $rata,
                     $hasil['bagian']['undesired'],
@@ -498,18 +444,6 @@ class MonthlyShowdownController extends Controller
         $profil = FemboxReferensi::urutanModel()[0] ?? null;
 
         return $profil !== null ? (string) $profil['model'] : null;
-    }
-
-    /** Ada profil di rantai yang bisa mencari di internet? */
-    private function webSiap(): bool
-    {
-        foreach (FemboxReferensi::urutanModel() as $profil) {
-            if (AiClient::bisaWeb($profil)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function kuota(): array
