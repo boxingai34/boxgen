@@ -544,6 +544,10 @@ final class Exporter
         $out['nai5']['regional']   = '';
         $out['nai5']['catatan']    = $alami['catatan'];
 
+        // ChatGPT: prosa utuh, tanpa tag dan tanpa kolom negatif. Tidak
+        // masuk TARGETS karena tidak dicetak lewat format() per tag.
+        $out['chatgpt'] = ChatGptPrompt::build($built, $sel, $alami['base']);
+
         return $out;
     }
 }

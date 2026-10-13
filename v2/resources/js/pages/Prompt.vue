@@ -110,7 +110,7 @@ const promptTergambar = ref('');
 // Bawaannya NovelAI, bukan Stable Diffusion: tombol SD-nya disembunyikan
 // (lihat TARGET di bawah), dan target yang tidak punya tombol tidak bisa
 // ditinggalkan kalau ia juga yang kepilih duluan.
-const target = ref<'sd' | 'novelai' | 'nai5' | 'gemini'>('novelai');
+const target = ref<'sd' | 'novelai' | 'nai5' | 'gemini' | 'chatgpt'>('novelai');
 
 // ----------------------------------------------------------- interaksi
 const interaksi = computed(() => (props.modul.interaction || []).find((m: any) => String(m.id) === String(pilih.interaction_id)));
@@ -349,13 +349,20 @@ const tujuanGambar = computed(() => {
             ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: lembar ? ('16:9' as const) : ('1:1' as const) }
             : null;
     }
+    // Jalur gambar yang sama dengan Gemini — penyedianya ditentukan
+    // AI_GAMBAR_* di config, dan bisa saja memang OpenAI.
+    if (target.value === 'chatgpt') {
+        return props.gambar.latar
+            ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: lembar ? ('16:9' as const) : ('3:4' as const) }
+            : null;
+    }
 
     return null;
 });
 
 /** Isinya dibaca saat diklik, jadi selalu yang sedang tampil. */
 function muatanGambar(): Record<string, unknown> {
-    if (target.value === 'gemini') {
+    if (target.value === 'gemini' || target.value === 'chatgpt') {
         return { prompt: keluaran.value?.prompt || '' };
     }
 
@@ -382,6 +389,7 @@ const TARGET = [
     { nilai: 'novelai', label: 'NovelAI (tag)', tampil: true },
     { nilai: 'nai5', label: 'NovelAI V5 (kalimat)', tampil: true },
     { nilai: 'gemini', label: 'Gemini', tampil: true },
+    { nilai: 'chatgpt', label: 'ChatGPT', tampil: true },
 ] as const;
 
 const targetTampil = TARGET.filter((t) => t.tampil);
@@ -765,6 +773,10 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                              disusun. Jadi membetulkan satu kata di sini tidak
                              perlu menyusun ulang dari awal. -->
                         <KotakTeks v-if="keluaran" judul="Prompt" :teks="keluaran.prompt || ''" :baris="7" sunting @update:teks="keluaran.prompt = $event" />
+
+                        <p v-if="target === 'chatgpt'" class="text-xs leading-relaxed text-muted-foreground">
+                            Tempel seluruh teks ini ke ChatGPT. ChatGPT tidak punya kolom negative — larangannya sudah ditulis di baris "Avoid".
+                        </p>
 
                         <!-- NovelAI memisahkan Base Prompt dan Character Prompt -->
                         <template v-if="nai">

@@ -343,9 +343,12 @@ final class NaturalPrompt
     /**
      * Cari cara menyebut tiap petinju yang bisa diikat NovelAI.
      *
+     * Publik karena keluaran ChatGPT memakai sebutan yang sama untuk
+     * menguraikan tiap orang, supaya cocok dengan kalimat aksinya.
+     *
      * @return array{a: string, b: string}
      */
-    private static function sebutan(array $a, ?array $b): array
+    public static function sebutan(array $a, ?array $b): array
     {
         if ($b === null) {
             return ['a' => 'the boxer', 'b' => 'the boxer'];
