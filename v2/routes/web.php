@@ -8,6 +8,7 @@ use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MixedFightController;
+use App\Http\Controllers\MonthlyShowdownController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
@@ -71,6 +72,15 @@ Route::prefix('generator')->group(function () {
         // pasangannya bisa wanita vs pria, wanita vs wanita, pria vs pria.
         Route::get('fembox/mixed-fight', [MixedFightController::class, 'halaman'])->name('fembox.mixed');
         Route::post('fembox/mixed-fight/susun', [MixedFightController::class, 'susun'])->name('fembox.mixed.susun');
+
+        // Monthly Showdown = dua langkah. Cari Lawan: riset tiap karakter
+        // (model, bisa lewat internet) lalu dijodohkan kode. Referensi Pose:
+        // satu laga dibawa ke katalog pose, dirangkai kode tanpa model.
+        Route::get('fembox/monthly-showdown', [MonthlyShowdownController::class, 'halaman'])->name('fembox.showdown');
+        Route::post('fembox/monthly-showdown/riset', [MonthlyShowdownController::class, 'riset'])->name('fembox.showdown.riset');
+        Route::post('fembox/monthly-showdown/jodoh', [MonthlyShowdownController::class, 'jodoh'])->name('fembox.showdown.jodoh');
+        Route::get('fembox/monthly-showdown/pose', [MonthlyShowdownController::class, 'halamanPose'])->name('fembox.showdown.pose');
+        Route::post('fembox/monthly-showdown/pose/susun', [MonthlyShowdownController::class, 'susunPose'])->name('fembox.showdown.pose.susun');
 
         // ---- Buat gambarnya (prompt langsung digambar) ----
         Route::post('gambar/tokoh', [GambarController::class, 'tokoh'])->name('gambar.tokoh');

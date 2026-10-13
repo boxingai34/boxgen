@@ -3,6 +3,8 @@ import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
+    Camera,
+    ChevronRight,
     Clapperboard,
     Gauge,
     Globe,
@@ -19,7 +21,9 @@ import {
     Sparkles,
     Sun,
     Swords,
+    Trophy,
     UserRound,
+    UsersRound,
     Wrench,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref, type Component } from 'vue';
@@ -67,14 +71,25 @@ const menu = computed<Menu[]>(() => {
             nama: 'FemBox Reference',
             rute: 'fembox',
             ikon: IdCard,
-            ket: 'Female Fight, Waifu Crushed, Mixed Fight — untuk NovelAI V5',
+            ket: 'Female Fight, Waifu Crushed, Mixed Fight, Monthly Showdown — untuk NovelAI V5',
             persis: false,
             anak: [
                 // /fembox itu sendiri Female Fight, jadi dicocokkan persis:
-                // kalau tidak, ia ikut menyala di dua sub-menu lainnya.
+                // kalau tidak, ia ikut menyala di sub-menu lainnya.
                 { nama: 'Female Fight', rute: 'fembox', ikon: IdCard, ket: 'Lembar acuan petinju wanita', persis: true },
                 { nama: 'Waifu Crushed', rute: 'fembox.waifu', ikon: Skull, ket: 'Templat 4 adegan: pose awal, dihajar, pukulan terakhir, KO', persis: false },
                 { nama: 'Mixed Fight', rute: 'fembox.mixed', ikon: Swords, ket: 'Alur komik strip 3–5 panel dari cerita singkat', persis: false },
+                {
+                    nama: 'Monthly Showdown',
+                    rute: 'fembox.showdown',
+                    ikon: Trophy,
+                    ket: 'Riset karakter, jodohkan lawan, lalu referensi pose',
+                    persis: false,
+                    anak: [
+                        { nama: 'Cari Lawan', rute: 'fembox.showdown', ikon: UsersRound, ket: 'Riset tinggi, berat, ukuran badan; jodohkan; lembar acuan', persis: true },
+                        { nama: 'Referensi Pose', rute: 'fembox.showdown.pose', ikon: Camera, ket: 'Pose dan sudut kamera untuk satu laga', persis: false },
+                    ],
+                },
             ],
         },
         { nama: 'Rancang Pertandingan', rute: 'rancang', ikon: Clapperboard, ket: 'Cerita jadi papan klip', persis: false },
@@ -217,24 +232,48 @@ function keluar() {
             </Link>
         </nav>
 
-        <!-- Baris 2b: sub-menu, hanya waktu induknya sedang dibuka -->
-        <nav v-if="subMenu.length" class="menu-atas flex gap-1 overflow-x-auto border-t border-border/50 px-4 py-1.5 sm:px-6" aria-label="Sub-menu">
-            <Link
-                v-for="s in subMenu"
-                :key="s.rute"
-                :href="route(s.rute)"
-                prefetch
-                :title="s.ket"
-                class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors"
-                :class="
-                    aktif(s.rute, s.persis)
-                        ? 'bg-[hsl(var(--sorot)/0.16)] font-semibold text-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                "
-            >
-                <component :is="s.ikon" class="h-3.5 w-3.5 shrink-0" :class="aktif(s.rute, s.persis) ? 'text-[hsl(var(--sorot))]' : ''" />
-                <span class="whitespace-nowrap">{{ s.nama }}</span>
-            </Link>
+        <!-- Baris 2b: sub-menu, hanya waktu induknya sedang dibuka.
+             Sub-menu yang punya langkah sendiri (Monthly Showdown) membuka
+             langkahnya DI BARIS YANG SAMA, sesudah tanda ›, bukan baris
+             keempat: kepala halaman yang menempel sudah tiga baris. -->
+        <nav v-if="subMenu.length" class="menu-atas flex items-center gap-1 overflow-x-auto border-t border-border/50 px-4 py-1.5 sm:px-6" aria-label="Sub-menu">
+            <template v-for="s in subMenu" :key="s.rute">
+                <Link
+                    :href="route(s.rute)"
+                    prefetch
+                    :title="s.ket"
+                    class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors"
+                    :class="
+                        aktif(s.rute, s.persis)
+                            ? 'bg-[hsl(var(--sorot)/0.16)] font-semibold text-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    "
+                >
+                    <component :is="s.ikon" class="h-3.5 w-3.5 shrink-0" :class="aktif(s.rute, s.persis) ? 'text-[hsl(var(--sorot))]' : ''" />
+                    <span class="whitespace-nowrap">{{ s.nama }}</span>
+                </Link>
+
+                <template v-if="s.anak?.length && aktif(s.rute, s.persis)">
+                    <ChevronRight class="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+                    <Link
+                        v-for="(c, i) in s.anak"
+                        :key="c.rute"
+                        :href="route(c.rute)"
+                        prefetch
+                        :title="c.ket"
+                        class="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
+                        :class="
+                            aktif(c.rute, c.persis)
+                                ? 'border-[hsl(var(--sorot)/0.5)] font-semibold text-foreground'
+                                : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                        "
+                    >
+                        <span class="tabular-nums text-muted-foreground">{{ i + 1 }}.</span>
+                        <component :is="c.ikon" class="h-3.5 w-3.5 shrink-0" :class="aktif(c.rute, c.persis) ? 'text-[hsl(var(--sorot))]' : ''" />
+                        <span class="whitespace-nowrap">{{ c.nama }}</span>
+                    </Link>
+                </template>
+            </template>
         </nav>
 
         <!-- Baris 3: judul halaman.

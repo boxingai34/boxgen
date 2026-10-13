@@ -54,10 +54,10 @@ class FemboxController extends Controller
             // Katalognya katalog yang sama dengan Prompt Generator, tanpa
             // modul NSFW: lembar acuan ini tidak membuat ketelanjangan.
             'katalog' => [
-                'pakaian' => $this->modul('outfit'),
-                'sarung'  => $this->sarung(),
-                'rambut'  => $this->modul('hair_style'),
-                'gaya'    => $this->modul('style', 'gaya'),
+                'pakaian' => self::modul('outfit'),
+                'sarung'  => self::sarung(),
+                'rambut'  => self::modul('hair_style'),
+                'gaya'    => self::modul('style', 'gaya'),
             ],
         ]);
     }
@@ -262,9 +262,10 @@ class FemboxController extends Controller
     /**
      * Katalog modul dengan gambar contohnya, bentuknya sama dengan halaman
      * Ubah Prompt supaya KatalogModul/KatalogGaya bisa dipakai apa adanya.
-     * Tanpa modul NSFW (lihat halaman()).
+     * Tanpa modul NSFW (lihat halaman()). Publik karena Monthly Showdown
+     * menawarkan katalog yang sama, disaring lagi lewat `slug`.
      */
-    private function modul(string $tipe, string $gambar = ''): array
+    public static function modul(string $tipe, string $gambar = ''): array
     {
         try {
             $daftar = PromptBuilder::listModules($tipe, false);
@@ -288,6 +289,7 @@ class FemboxController extends Controller
 
         return array_map(static fn (array $m): array => [
             'id'       => (int) $m['id'],
+            'slug'     => (string) $m['slug'],
             'nama'     => (string) ($m['name_id'] ?: $m['name']),
             'kategori' => (string) ($m['category'] ?? ''),
             'ket'      => (string) ($m['description'] ?? ''),
@@ -303,7 +305,7 @@ class FemboxController extends Controller
      * terbuka, dan tangan kosong. Semuanya sah untuk adegan lain, tapi
      * lembar ini wajib bersarung tinju, jadi yang lain tidak ditawarkan.
      */
-    private function sarung(): array
+    public static function sarung(): array
     {
         try {
             $daftar = PromptBuilder::listModules('outfit_hand', false);
@@ -319,6 +321,7 @@ class FemboxController extends Controller
 
         return array_map(static fn (array $m): array => [
             'id'       => (int) $m['id'],
+            'slug'     => (string) $m['slug'],
             'nama'     => (string) ($m['name_id'] ?: $m['name']),
             'kategori' => (string) ($m['category'] ?? ''),
             'ket'      => (string) ($m['description'] ?? ''),

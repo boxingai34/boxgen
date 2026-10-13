@@ -27,6 +27,9 @@ declare(strict_types=1);
  * kalimat tinggi badan, penanda dewasa, efek kecepatan, serta garis getar
  * ditulis di kode — tidak ada satu pun yang bergantung pada orang yang
  * mengisi ingat aturannya.
+ *
+ * Konstanta aturan yang publik (pola sapuan, kelompok UC, venue) dipakai
+ * juga oleh ShowdownPose — satu aturan studio, satu tempat menulisnya.
  */
 final class WaifuCrushed
 {
@@ -42,26 +45,26 @@ final class WaifuCrushed
      * difference" justru membuat NAI membesar-besarkan selisih yang
      * sebenarnya tidak ada.
      */
-    private const SELISIH_TERASA = 5;
+    public const SELISIH_TERASA = 5;
 
-    private const KUALITAS  = 'masterpiece, best quality, very aesthetic, absurdres, no text';
-    private const PEWARNAAN = 'anime coloring, cel shading, vibrant colors, bold lineart';
+    public const KUALITAS  = 'masterpiece, best quality, very aesthetic, absurdres, no text';
+    public const PEWARNAAN = 'anime coloring, cel shading, vibrant colors, bold lineart';
 
     /** Penanda dewasa, ditulis di SETIAP prompt karakter — juga yang cuma kelihatan lengannya. */
-    private const DEWASA = 'adult woman, mature female';
+    public const DEWASA = 'adult woman, mature female';
 
     /**
      * UC Base dipecah per kelompok supaya varian solo / duo / komik
      * dirangkai dari potongan yang sama, bukan tiga salinan yang lama-lama
      * berbeda sendiri.
      */
-    private const UC_KUALITAS = 'lowres, worst quality, bad quality, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra arms, extra limbs, extra legs, bad proportions, deformed, mutated';
-    private const UC_UMUR     = 'child, loli, shota, aged down';
+    public const UC_KUALITAS = 'lowres, worst quality, bad quality, jpeg artifacts, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra arms, extra limbs, extra legs, bad proportions, deformed, mutated';
+    public const UC_UMUR     = 'child, loli, shota, aged down';
     private const UC_SOLO     = '2girls, multiple girls';
-    private const UC_ORANG    = '1boy, male, crowd, referee';
-    private const UC_ATURAN   = 'hand wraps, wrist wraps, bandages, taped wrists, mouthguard, mouthpiece, jacket, coat, layered clothing';
-    private const UC_WARNA    = 'monochrome, greyscale, sketch, spot color, partially colored, limited palette, desaturated';
-    private const UC_GAYA     = '3d, realistic, photo, text, watermark, signature, logo, speech bubble';
+    public const UC_ORANG    = '1boy, male, crowd, referee';
+    public const UC_ATURAN   = 'hand wraps, wrist wraps, bandages, taped wrists, mouthguard, mouthpiece, jacket, coat, layered clothing';
+    public const UC_WARNA    = 'monochrome, greyscale, sketch, spot color, partially colored, limited palette, desaturated';
+    public const UC_GAYA     = '3d, realistic, photo, text, watermark, signature, logo, speech bubble';
     private const UC_KOMIK    = 'single panel, different characters in each panel';
 
     /**
@@ -71,7 +74,7 @@ final class WaifuCrushed
      * isian: warna lawan masuk UC, dan "black panties" di pakaian lawan
      * akan ikut terbawa kalau tidak disaring di ujung.
      */
-    private const POLA_UC_TERLARANG = '/\b(nsfw|nudity|bottomless|wardrobe malfunction|ahegao|tongue out|panties|pantyshot|upskirt|breast focus|chest focus|underboob|cleavage)\b/i';
+    public const POLA_UC_TERLARANG = '/\b(nsfw|nudity|bottomless|wardrobe malfunction|ahegao|tongue out|panties|pantyshot|upskirt|breast focus|chest focus|underboob|cleavage)\b/i';
 
     /**
      * Perban, plester, dan pelindung mulut — pemilik studio tidak memakainya
@@ -79,7 +82,7 @@ final class WaifuCrushed
      * hand wraps; yang dikecualikan cuma potongan busana yang memang bernama
      * "wrap" (wrap top, wrap skirt) dan hiasan rambut ("hair wrap").
      */
-    private const POLA_PERBAN = '/\b((hand|wrist|boxing|knuckle|fist)s? ?(wraps?|wrappings?|tape)|(?<!hair )wraps?(?![- ](tops?|skirts?|dress(es)?|shirts?|blouses?|style|around))|wrappings?|wrapped (hands?|wrists?|knuckles?|fists?)|gauze|tape[sd]?|athletic tape|sports tape|bandage[sd]?|band-?aids?|sarashi|(mouth|teeth|tooth|gum) ?(guards?|pieces?|shields?))\b/i';
+    public const POLA_PERBAN = '/\b((hand|wrist|boxing|knuckle|fist)s? ?(wraps?|wrappings?|tape)|(?<!hair )wraps?(?![- ](tops?|skirts?|dress(es)?|shirts?|blouses?|style|around))|wrappings?|wrapped (hands?|wrists?|knuckles?|fists?)|gauze|tape[sd]?|athletic tape|sports tape|bandage[sd]?|band-?aids?|sarashi|(mouth|teeth|tooth|gum) ?(guards?|pieces?|shields?))\b/i';
 
     /**
      * Lapisan luar: atasan petinju cukup SATU lapis. Salinan pola
@@ -88,30 +91,30 @@ final class WaifuCrushed
      * yang tidak bernama jaket: sweater, rompi, kimono, "open shirt",
      * "tank top over sports bra".
      */
-    private const POLA_LAPISAN = '/\b(jackets?|(over|trench ?)?coats?|cardigans?|hoodies?|cap(e|elet)s?|cloaks?|mantles?|ponchos?|shawls?|stoles?|haori|blazers?|boleros?|shrugs?|overshirts?|parkas?|robes?|sweaters?|sweatshirts?|vests?|kimonos?|windbreakers?|track ?tops?|open shirts?|[\w-]+ over (a |an |her |the )?(sports bra|bikini( top)?|tube top|crop top|bra|bandeau)|layered(?!\s+(hair|skirts?|frills?|ruffles?|bangs)))\b/i';
+    public const POLA_LAPISAN = '/\b(jackets?|(over|trench ?)?coats?|cardigans?|hoodies?|cap(e|elet)s?|cloaks?|mantles?|ponchos?|shawls?|stoles?|haori|blazers?|boleros?|shrugs?|overshirts?|parkas?|robes?|sweaters?|sweatshirts?|vests?|kimonos?|windbreakers?|track ?tops?|open shirts?|[\w-]+ over (a |an |her |the )?(sports bra|bikini( top)?|tube top|crop top|bra|bandeau)|layered(?!\s+(hair|skirts?|frills?|ruffles?|bangs)))\b/i';
 
     /**
      * Aturan 9: pewarnaan selalu anime full color. Isian (terutama venue
      * "Tulis sendiri") yang memuat "monochrome" dibuang — kalau dibiarkan,
      * Base memintanya sementara UC Base melarangnya.
      */
-    private const POLA_MONOKROM = '/\b(monochrome|greyscale|grayscale|black[- ]and[- ]white|sketch\w*|spot colou?r|partially colou?red|limited palette|desaturated|lineart only|screentone|halftone|sepia|muted colou?rs|washed out)\b/i';
+    public const POLA_MONOKROM = '/\b(monochrome|greyscale|grayscale|black[- ]and[- ]white|sketch\w*|spot colou?r|partially colou?red|limited palette|desaturated|lineart only|screentone|halftone|sepia|muted colou?rs|washed out)\b/i';
 
     /** Orang ketiga di venue: "crowd, referee" ada di UC Base setiap adegan. */
-    private const POLA_ORANG_LAIN = '/\b(crowds?|referees?|audiences?|spectators?|onlookers?|cheering fans|1boy|male)\b/i';
+    public const POLA_ORANG_LAIN = '/\b(crowds?|referees?|audiences?|spectators?|onlookers?|cheering fans|1boy|male)\b/i';
 
     /** "jacket-style collar" itu detail pada atasannya sendiri, bukan lapisan kedua. */
-    private const POLA_LAPISAN_BOLEH = '/\b(jackets?|coats?|cardigans?|hoodies?|cap(e|elet)s?|cloaks?|blazers?|robes?|shawls?)[- ](inspired|style|styled|like|motif|pattern|print|collar|buttons?|trim|lapels?)\b/i';
+    public const POLA_LAPISAN_BOLEH = '/\b(jackets?|coats?|cardigans?|hoodies?|cap(e|elet)s?|cloaks?|blazers?|robes?|shawls?)[- ](inspired|style|styled|like|motif|pattern|print|collar|buttons?|trim|lapels?)\b/i';
 
     /**
      * Kata yang mengarah ke anak-anak. Adegannya kekerasan dengan pakaian
      * minim, jadi petinjunya wajib dewasa — penanda dewasa di prompt dan
      * penjaga di UC tidak ada artinya kalau isian sendiri menulis "loli".
      */
-    private const POLA_ANAK = '/\b(loli(con)?s?|shota(con)?s?|child(ren)?|kids?|toddlers?|little girls?|young girls?|teens?|teenage(rs?)?|underage|aged down|schoolgirls?|school uniforms?|serafuku|elementary school\w*|middle school\w*|randoseru|kindergarten)\b/i';
+    public const POLA_ANAK = '/\b(loli(con)?s?|shota(con)?s?|child(ren)?|kids?|toddlers?|little girls?|young girls?|teens?|teenage(rs?)?|underage|aged down|schoolgirls?|school uniforms?|serafuku|elementary school\w*|middle school\w*|randoseru|kindergarten)\b/i';
 
     /** Kata warna, untuk menurunkan daftar warna pencegah bocor dan menyebut warna rambut. */
-    private const KATA_WARNA = 'red|blue|green|yellow|pink|purple|violet|orange|black|white|grey|gray|silver|gold|golden|brown|blonde|blond|aqua|cyan|teal|navy|magenta|crimson|scarlet|maroon|beige|lavender|turquoise|platinum|emerald|amber|indigo|lime|mint|coral|burgundy|auburn|copper|bronze|redhead';
+    public const KATA_WARNA = 'red|blue|green|yellow|pink|purple|violet|orange|black|white|grey|gray|silver|gold|golden|brown|blonde|blond|aqua|cyan|teal|navy|magenta|crimson|scarlet|maroon|beige|lavender|turquoise|platinum|emerald|amber|indigo|lime|mint|coral|burgundy|auburn|copper|bronze|redhead';
 
     /**
      * Satu frasa warna utuh: "pink", "light blue", "blue-green", "platinum
@@ -119,7 +122,7 @@ final class WaifuCrushed
      * dari sarung — "light blue boxing gloves" harus jadi "light blue
      * sports bra", bukan "blue".
      */
-    private const FRASA_WARNA = '(?:(?:light|dark|pale|deep|bright|ash|platinum|strawberry|dirty|sky|pastel|hot|neon)\s+)?(?:' . self::KATA_WARNA . ')(?:[- ](?:' . self::KATA_WARNA . '))?';
+    public const FRASA_WARNA = '(?:(?:light|dark|pale|deep|bright|ash|platinum|strawberry|dirty|sky|pastel|hot|neon)\s+)?(?:' . self::KATA_WARNA . ')(?:[- ](?:' . self::KATA_WARNA . '))?';
 
     /**
      * Tag yang dibuang dari paragraf deskripsi Gemini (prompt NovelAI tetap
@@ -146,7 +149,7 @@ final class WaifuCrushed
         'slim'              => 'a slim figure',
     ];
 
-    private const UKURAN = ['16:9' => '1216×832', '3:4' => '832×1216', '1:1' => '1024×1024'];
+    public const UKURAN = ['16:9' => '1216×832', '3:4' => '832×1216', '1:1' => '1024×1024'];
 
     private const KELOMPOK = [
         1 => 'Scene 1 — Pose awal',
@@ -160,7 +163,7 @@ final class WaifuCrushed
      * frasa Gemini]) — "flying leaves" di templat cuma masuk akal di
      * hutan, jadi tidak boleh ikut ke atap gedung.
      */
-    private const VENUE = [
+    public const VENUE = [
         'hutan' => [
             'label'  => 'Ring di hutan',
             'tag'    => 'outdoors, forest, boxing ring, grey ring ropes, grey canvas, trees, grass, dappled sunlight',

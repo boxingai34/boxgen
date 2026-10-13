@@ -205,9 +205,7 @@ final class FemboxReferensi
         }
 
         $tataLetak = isset(self::TATA_LETAK[$opsi['tata_letak'] ?? '']) ? (string)$opsi['tata_letak'] : 'lengkap';
-        $latar     = isset(self::LATAR[$opsi['latar'] ?? '']) ? (string)$opsi['latar'] : 'abu';
         $nuansa    = isset(self::NUANSA[$opsi['nuansa'] ?? '']) ? (string)$opsi['nuansa'] : 'underground';
-        $label     = !empty($opsi['label']);
 
         $catatan = [];
 
@@ -226,6 +224,41 @@ final class FemboxReferensi
             isset(self::PERANCANG[$opsi['perancang'] ?? '']) ? (string)$opsi['perancang'] : null
         );
 
+        return self::lembar($j, $model, $kamus, $katalog, $nama, $anime, $opsi, $catatan);
+    }
+
+    /**
+     * Bahan dari model → lembar acuan jadi (langkah 4 dan 5 susun()).
+     *
+     * Dipisah supaya Monthly Showdown — yang menanyakan riset dan rancangan
+     * pakaian sekaligus dengan pesan sistemnya sendiri — tetap dirangkai
+     * oleh kode yang sama persis: pagar umur, saringan aturan studio, dan
+     * tata letak lembar tidak punya salinan kedua yang lama-lama berbeda.
+     *
+     * $opsi sama dengan susun(), ditambah 'tinggi' (cm, opsional): kalau
+     * diisi, Character Prompt ditutup kalimat tinggi badan (aturan 8).
+     *
+     * Selain kunci susun(), hasilnya membawa 'bahan' — potongan yang sudah
+     * disaring (fisik, pakaian, sarung, …) untuk dirangkai ulang di adegan
+     * lain tanpa mengulang saringannya.
+     */
+    public static function lembar(
+        array $j,
+        string $model,
+        ?array $kamus,
+        array $katalog,
+        string $nama,
+        string $anime,
+        array $opsi,
+        array $catatan = []
+    ): array {
+        $katalog  += ['pakaian' => null, 'sarung' => null, 'rambut' => null, 'gaya' => null, 'atasan' => null, 'bawahan' => null];
+        $tataLetak = isset(self::TATA_LETAK[$opsi['tata_letak'] ?? '']) ? (string)$opsi['tata_letak'] : 'lengkap';
+        $latar     = isset(self::LATAR[$opsi['latar'] ?? '']) ? (string)$opsi['latar'] : 'abu';
+        $nuansa    = isset(self::NUANSA[$opsi['nuansa'] ?? '']) ? (string)$opsi['nuansa'] : 'underground';
+        $label     = !empty($opsi['label']);
+        $tinggi    = is_numeric($opsi['tinggi'] ?? null) ? (int)$opsi['tinggi'] : 0;
+
         // ---- 4. Pagar umur: keputusan akhirnya di kode, bukan di model.
         $dewasa = self::dewasa($j);
         if (!$dewasa) {
@@ -240,6 +273,10 @@ final class FemboxReferensi
         $base  = self::base($bahan, $katalog, $tataLetak, $latar, $nuansa, $label, $dewasa);
         $tokoh = self::tokoh($bahan, $katalog, $dewasa);
         $uc    = self::uc($bahan, $tokoh, $label, $dewasa);
+
+        if ($tinggi > 0) {
+            $tokoh .= '. She is ' . $tinggi . ' cm tall.';
+        }
 
         return [
             'karakter' => [
@@ -262,6 +299,13 @@ final class FemboxReferensi
             'ringkas' => self::rapi($j['ringkas'] ?? '', 1200),
             'catatan' => array_values(array_unique($catatan)),
             'model'   => $model,
+            'bahan'   => [
+                'fisik'   => $bahan['fisik'],
+                'ikat'    => $bahan['ikat'],
+                'pakaian' => $bahan['pakaian'],
+                'sarung'  => $bahan['sarung'],
+                'kesan'   => $bahan['kesan'],
+            ],
         ];
     }
 
@@ -311,9 +355,12 @@ final class FemboxReferensi
      * (karakter bernama "Blue" dari "Grand Blue") lebih merusak daripada
      * tidak ada kandidat sama sekali.
      *
+     * Publik untuk Monthly Showdown, yang memberikan tag kamus ini ke
+     * model risetnya sebelum bertanya.
+     *
      * @return null|array{tag:string, nai:string, nama:string, seri:?string, ciri:list<string>}
      */
-    private static function cariKarakter(string $tagPilih, string $nama, string $anime, array &$catatan): ?array
+    public static function cariKarakter(string $tagPilih, string $nama, string $anime, array &$catatan): ?array
     {
         try {
             $tag = null;
@@ -417,13 +464,31 @@ final class FemboxReferensi
      * membuat ketelanjangan, jadi tema "Nude Match" tidak ditawarkan dan
      * id-nya yang dikirim diam-diam pun ditolak.
      *
-     * @return array{pakaian:?array, sarung:?array, rambut:?array, gaya:?array}
+     * 'atasan' dan 'bawahan' (slot top/bottom Prompt Generator) cuma dikirim
+     * Monthly Showdown; halaman Female Fight tidak menawarkannya.
+     *
+     * @return array{pakaian:?array, sarung:?array, rambut:?array, gaya:?array, atasan:?array, bawahan:?array}
      */
-    private static function katalog(array $opsi, array &$catatan): array
+    public static function katalog(array $opsi, array &$catatan): array
     {
-        $hasil = ['pakaian' => null, 'sarung' => null, 'rambut' => null, 'gaya' => null];
+        $hasil = ['pakaian' => null, 'sarung' => null, 'rambut' => null, 'gaya' => null, 'atasan' => null, 'bawahan' => null];
 
         try {
+            foreach (['atasan' => 'outfit_top', 'bawahan' => 'outfit_bottom'] as $slot => $tipe) {
+                $id = (int)($opsi[$slot] ?? 0);
+                if ($id <= 0) {
+                    continue;
+                }
+                $mod = PromptBuilder::loadModule($id, false, $tipe);
+                if ($mod === null) {
+                    continue;
+                }
+                $tags = self::bersihKatalog(self::tagModul($mod));
+                if ($tags !== []) {
+                    $hasil[$slot] = ['nama' => (string)($mod['name_id'] ?: $mod['name']), 'tags' => $tags];
+                }
+            }
+
             $id = (int)($opsi['pakaian'] ?? 0);
             if ($id > 0) {
                 $tema = Cerita::temaPakaian($id, false);
@@ -585,8 +650,13 @@ final class FemboxReferensi
             );
     }
 
-    /** @return list<array> profil yang siap, tanpa model kembar */
-    private static function urutanModel(?string $perancang = null): array
+    /**
+     * Publik untuk Monthly Showdown: rantai perancang yang sama, jadi
+     * memilih Claude atau ChatGPT di sana berarti hal yang sama dengan di sini.
+     *
+     * @return list<array> profil yang siap, tanpa model kembar
+     */
+    public static function urutanModel(?string $perancang = null): array
     {
         $urut  = [];
         $sudah = [];
@@ -706,6 +776,11 @@ TXT;
             $pilih[] = '- Tema pakaian "' . $katalog['pakaian']['nama'] . '": ' . $katalog['pakaian']['kalimat']
                 . ($katalog['pakaian']['tags'] !== [] ? ' (potongan: ' . implode(', ', $katalog['pakaian']['tags']) . ')' : '');
         }
+        foreach (['atasan' => 'Atasan', 'bawahan' => 'Bawahan'] as $slot => $sebut) {
+            if (($katalog[$slot] ?? null) !== null) {
+                $pilih[] = '- ' . $sebut . ' "' . $katalog[$slot]['nama'] . '": ' . implode(', ', $katalog[$slot]['tags']);
+            }
+        }
         if ($katalog['sarung'] !== null) {
             $pilih[] = '- Bentuk sarung tinju "' . $katalog['sarung']['nama'] . '": ' . implode(', ', $katalog['sarung']['tags']);
         }
@@ -737,8 +812,11 @@ TXT;
      * untuk frasa itu sendiri — kata "adult" di tempat lain tidak lagi
      * membatalkan "high school student, 16" di sebelahnya. Semua angka
      * dibaca, bukan cuma yang pertama: "5'4\", 16" itu enam belas tahun.
+     *
+     * Publik karena Monthly Showdown memakai timbangan yang sama untuk
+     * menentukan siapa yang boleh ikut dijodohkan.
      */
-    private static function dewasa(array $j): bool
+    public static function dewasa(array $j): bool
     {
         // true, "true", atau 1 — model tidak selalu patuh tipe. Selain
         // itu (null, "unknown", "ragu") dihitung belum dewasa.
