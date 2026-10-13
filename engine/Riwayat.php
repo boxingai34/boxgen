@@ -197,6 +197,7 @@ final class Riwayat
 
         $label = match ($mode) {
             'duo'        => '2 Petinju',
+            'sheet'      => 'Reference Sheet',
             'seedance'   => 'Video',
             'storyboard' => 'Storyboard',
             'comic'      => 'Halaman Komik',

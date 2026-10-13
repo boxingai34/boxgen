@@ -14,8 +14,10 @@ import { computed, nextTick, reactive, ref, watch } from 'vue';
 /**
  * Prompt Generator: prompt gambar dari pilihan, bukan dari cerita.
  *
- * Dua mode — satu petinju dan dua petinju. Mode video, storyboard, dan
- * komik tetap ada mesinnya di aplikasi lama tapi tidak ditawarkan di sini.
+ * Tiga mode — satu petinju, dua petinju, dan Reference Sheet (lembar acuan
+ * satu karakter: depan/samping/belakang, ekspresi, detail sarung, palet).
+ * Mode video, storyboard, dan komik tetap ada mesinnya di aplikasi lama
+ * tapi tidak ditawarkan di sini.
  *
  * Yang menyusun tetap engine/PromptBuilder.php; halaman ini cuma
  * mengumpulkan pilihan dan menggambar hasilnya.
@@ -27,13 +29,20 @@ const props = defineProps<{
     jumlah: { tag: number; karakter: number };
     aiSiap: boolean;
     gambar: { latar: boolean; tokoh: boolean };
+    lembar: { tataLetak: Record<string, { label: string; ket: string }>; latar: Record<string, string> };
 }>();
 
 const isianKelas =
     'w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[hsl(var(--sorot))] disabled:opacity-50';
 
 // -------------------------------------------------------------- keadaan
-const mode = ref<'single' | 'duo'>('single');
+const mode = ref<'single' | 'duo' | 'sheet'>('single');
+
+/**
+ * Pilihan khusus Reference Sheet. Dipisah dari `pilih` supaya kiriman
+ * mode 1 dan 2 Petinju tetap persis seperti sebelumnya.
+ */
+const lembarPilih = reactive({ tata_letak: 'lengkap', latar: 'abu' });
 
 function orangBaru() {
     const o: any = { character: '', gender: '', mature: false, hair_id: '', outfit_id: '', condition_id: '' };
@@ -114,6 +123,14 @@ const subAktif = computed(() => {
 });
 
 const adaArah = computed(() => Boolean(interaksi.value?.arah));
+
+/** Isian kartu Gambarnya. Lembar acuan cuma memakai kualitas dan gaya. */
+const JENIS_GAMBAR = [
+    ['quality', 'Kualitas'], ['style', 'Gaya'], ['background', 'Latar'], ['lighting', 'Cahaya'],
+    ['cam_distance', 'Jarak kamera'], ['cam_angle', 'Sudut kamera'], ['cam_effect', 'Efek kamera'], ['ring', 'Ring'],
+] as const;
+
+const jenisGambar = computed(() => (mode.value === 'sheet' ? JENIS_GAMBAR.slice(0, 2) : JENIS_GAMBAR));
 
 function kelompok(tipe: string): Array<[string, any[]]> {
     const peta = new Map<string, any[]>();
@@ -219,7 +236,16 @@ async function susun() {
         const muatan: any = {
             mode: mode.value,
             a: bersih(a),
-            ...pilih,
+            // Lembar acuan cuma memakai kualitas dan gaya dari kartu
+            // Gambarnya — latar, kamera, cahaya, dan pose diatur lembarnya.
+            ...(mode.value === 'sheet'
+                ? {
+                      quality_id: pilih.quality_id,
+                      style_id: pilih.style_id,
+                      sheet_layout: lembarPilih.tata_letak,
+                      sheet_background: lembarPilih.latar,
+                  }
+                : pilih),
             extra_tags: tagTambahan.value,
             trim_implied: trimImplied.value,
             used_ai: Boolean(aiNota.value),
@@ -278,11 +304,16 @@ function acak() {
 
     pilih.quality_id = ambil('quality');
     pilih.style_id = ambil('style');
+    a.outfit_id = ambil('outfit');
+
+    // Lembar acuan cuma memakai kualitas, gaya, dan pakaian; tata
+    // letaknya pilihan sengaja, bukan untuk diacak.
+    if (mode.value === 'sheet') return;
+
     pilih.background_id = ambil('background');
     pilih.lighting_id = ambil('lighting');
     pilih.cam_distance_id = ambil('cam_distance');
     pilih.cam_angle_id = ambil('cam_angle');
-    a.outfit_id = ambil('outfit');
     a.condition_id = ambil('condition');
 
     if (mode.value === 'duo') {
@@ -306,14 +337,16 @@ const nai = computed(() => hasil.value?.keluaran?.[target.value]?.structured ?? 
  */
 const tujuanGambar = computed(() => {
     if (!keluaran.value) return null;
+    // Lembar acuan berjajar ke samping, jadi kanvasnya lanskap.
+    const lembar = mode.value === 'sheet';
     if (target.value === 'novelai' || target.value === 'nai5') {
         return props.gambar.tokoh
-            ? { alamat: route('gambar.tokoh'), label: 'Buat gambarnya (NovelAI)', bentuk: '3:4' as const }
+            ? { alamat: route('gambar.tokoh'), label: 'Buat gambarnya (NovelAI)', bentuk: lembar ? ('16:9' as const) : ('3:4' as const) }
             : null;
     }
     if (target.value === 'gemini') {
         return props.gambar.latar
-            ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: '1:1' as const }
+            ? { alamat: route('gambar.latar'), label: 'Buat gambarnya', bentuk: lembar ? ('16:9' as const) : ('1:1' as const) }
             : null;
     }
 
@@ -374,7 +407,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
              letaknya di tengah dan bukan menempel ke salah satu tepi. -->
         <div class="mb-5 flex flex-wrap items-center justify-center gap-2">
             <button
-                v-for="[n, l] in [['single', '1 Petinju'], ['duo', '2 Petinju']]"
+                v-for="[n, l] in [['single', '1 Petinju'], ['duo', '2 Petinju'], ['sheet', 'Reference Sheet']]"
                 :key="n"
                 type="button"
                 class="rounded-xl border px-4 py-2 text-sm transition-colors"
@@ -460,6 +493,40 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         />
                     </div>
 
+                    <!-- Reference Sheet: pose diganti tata letak lembarnya.
+                         Kondisi tidak ditawarkan di panel di bawah —
+                         lembar acuan memperlihatkan desain bersih. -->
+                    <div v-else-if="mode === 'sheet'" class="mb-4 space-y-4">
+                        <div>
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Tata letak lembar</span>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <button
+                                    v-for="(t, kunci) in lembar.tataLetak"
+                                    :key="kunci"
+                                    type="button"
+                                    class="rounded-xl border px-3 py-2.5 text-left transition-colors"
+                                    :class="lembarPilih.tata_letak === kunci ? 'border-[hsl(var(--sorot))] bg-[hsl(var(--sorot)/0.08)]' : 'border-border hover:border-[hsl(var(--sorot)/0.5)]'"
+                                    @click="lembarPilih.tata_letak = String(kunci)"
+                                >
+                                    <span class="block text-sm font-medium">{{ t.label }}</span>
+                                    <span class="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{{ t.ket }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <label class="block">
+                            <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Latar polos</span>
+                            <select v-model="lembarPilih.latar" :class="isianKelas">
+                                <option v-for="(label, kunci) in lembar.latar" :key="kunci" :value="kunci">{{ label }}</option>
+                            </select>
+                        </label>
+
+                        <p class="text-xs leading-relaxed text-muted-foreground">
+                            Murni desain: tanpa luka, memar, keringat, hand wraps, atau mouthguard — semuanya dijaga di Undesired Content,
+                            kecuali yang sengaja dibawa pakaian pilihanmu sendiri. Warna yang dipilih di slot pakaian ikut jadi palet warnanya.
+                        </p>
+                    </div>
+
                     <template v-else>
                         <div class="mb-4">
                             <span class="mb-1.5 block text-xs font-medium text-muted-foreground">Interaksi</span>
@@ -521,11 +588,12 @@ const targetTampil = TARGET.filter((t) => t.tampil);
 
                     <div class="grid gap-4" :class="mode === 'duo' ? 'lg:grid-cols-2' : ''">
                         <PanelPetinju
-                            :judul="mode === 'single' ? 'Petinju' : 'Petinju A'"
+                            :judul="mode === 'duo' ? 'Petinju A' : mode === 'sheet' ? 'Karakter' : 'Petinju'"
                             :modul="modul"
                             :warna="warna"
                             :semesta="semesta"
                             :orang="a"
+                            :tanpa-kondisi="mode === 'sheet'"
                             @latar="latarSaran = $event"
                         />
                         <PanelPetinju
@@ -547,9 +615,12 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                 <div>
 
                 <!-- Gambarnya -->
-                <Kartu judul="Gambarnya" ket="Kualitas, gaya, tempat, kamera, dan cahaya.">
+                <Kartu
+                    judul="Gambarnya"
+                    :ket="mode === 'sheet' ? 'Kualitas dan gaya — latar, kamera, dan cahaya sudah diatur lembarnya.' : 'Kualitas, gaya, tempat, kamera, dan cahaya.'"
+                >
                     <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
-                        <label v-for="[tipe, label] in [['quality', 'Kualitas'], ['style', 'Gaya'], ['background', 'Latar'], ['lighting', 'Cahaya'], ['cam_distance', 'Jarak kamera'], ['cam_angle', 'Sudut kamera'], ['cam_effect', 'Efek kamera'], ['ring', 'Ring']]" :key="tipe" class="block">
+                        <label v-for="[tipe, label] in jenisGambar" :key="tipe" class="block">
                             <span class="mb-1.5 block text-xs text-muted-foreground">
                                 {{ label }}
                                 <span v-if="tipe === 'background' && latarSaran.length" class="text-xs text-[hsl(var(--sorot))]">· ada saran dari serinya</span>
@@ -680,7 +751,7 @@ const targetTampil = TARGET.filter((t) => t.tampil);
                         <TombolGambar
                             v-if="tujuanGambar"
                             ref="tombolGambar"
-                            :key="target"
+                            :key="target + tujuanGambar.bentuk"
                             :alamat="tujuanGambar.alamat"
                             :label="tujuanGambar.label"
                             :bentuk="tujuanGambar.bentuk"

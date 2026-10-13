@@ -9,6 +9,7 @@ use Database;
 use Exporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use LembarAcuan;
 use Optimizer;
 use Palette;
 use PromptBuilder;
@@ -22,9 +23,10 @@ use Inertia\Response;
 /**
  * Prompt Generator: menyusun prompt gambar dari pilihan, bukan dari cerita.
  *
- * Dua mode yang dipakai — satu petinju dan dua petinju. Mode video, komik,
- * dan storyboard tetap ada mesinnya di aplikasi lama tapi tidak ditawarkan
- * di sini; halaman ini fokus ke prompt gambar.
+ * Tiga mode yang dipakai — satu petinju, dua petinju, dan lembar acuan
+ * (reference sheet) satu karakter. Mode video, komik, dan storyboard tetap
+ * ada mesinnya di aplikasi lama tapi tidak ditawarkan di sini; halaman ini
+ * fokus ke prompt gambar.
  *
  * Seluruh daftar menu (kualitas, gaya, pakaian, kondisi, kamera, …) datang
  * dari tabel modules yang sama dengan aplikasi lama, jadi apa pun yang
@@ -41,6 +43,15 @@ class PromptController extends Controller
             'jumlah'   => $this->jumlah(),
             'aiSiap'   => AiClient::isConfigured(),
             'gambar'   => GambarController::status(),
+            // Pilihan mode Reference Sheet. Nilainya dibaca dari mesinnya,
+            // jadi menambah tata letak di sana cukup, halaman ikut sendiri.
+            'lembar'   => [
+                'tataLetak' => array_map(
+                    static fn (array $t): array => ['label' => $t['label'], 'ket' => $t['ket']],
+                    LembarAcuan::TATA_LETAK
+                ),
+                'latar' => array_map(static fn (array $l): string => $l['label'], LembarAcuan::LATAR),
+            ],
         ]);
     }
 
@@ -270,7 +281,7 @@ class PromptController extends Controller
     /** Susun promptnya, lalu simpan ke riwayat. */
     public function susun(Request $request): JsonResponse
     {
-        $mode = $request->input('mode') === 'duo' ? 'duo' : 'single';
+        $mode = in_array($request->input('mode'), ['duo', 'sheet'], true) ? $request->input('mode') : 'single';
         $in = $request->all();
 
         $sel = [
@@ -303,6 +314,12 @@ class PromptController extends Controller
             $sel['a'] = $this->orang(is_array($in['a'] ?? null) ? $in['a'] : []);
             $sel['b'] = $this->orang(is_array($in['b'] ?? null) ? $in['b'] : []);
             $sel['interaction_id'] = $this->modId($in['interaction_id'] ?? null);
+        } elseif ($mode === 'sheet') {
+            // Satu orang seperti mode 1 Petinju, tapi pose diganti tata
+            // letak lembar. Nilai yang tidak dikenal jatuh ke bawaan mesin.
+            $sel += $this->orang(is_array($in['a'] ?? null) ? $in['a'] : []);
+            $sel['sheet_layout'] = LembarAcuan::letak($in);
+            $sel['sheet_background'] = LembarAcuan::latar($in);
         } else {
             $sel += $this->orang(is_array($in['a'] ?? null) ? $in['a'] : []);
             $sel['pose_id'] = $this->modId($in['pose_id'] ?? null);
@@ -329,7 +346,7 @@ class PromptController extends Controller
              VALUES (?,?,?,?,?,?,?,?,?,?)',
             [
                 (int) $request->user()->id,
-                $mode === 'duo' ? 'image2' : 'image',
+                match ($mode) { 'duo' => 'image2', 'sheet' => 'sheet', default => 'image' },
                 'sd',
                 Riwayat::judulOtomatis($sel, $mode),
                 json_encode($sel, JSON_UNESCAPED_UNICODE),

@@ -23,6 +23,8 @@ const props = defineProps<{
     warna: { palet: Record<string, string>; peta: Record<string, any[]>; dasar: Array<{ id: number; color_base: string }> };
     semesta: Array<{ nama: string; jumlah: number }>;
     orang: any;
+    /** Lembar acuan murni desain — bagian kondisinya tidak ditawarkan. */
+    tanpaKondisi?: boolean;
 }>();
 
 const isianKelas =
@@ -437,6 +439,7 @@ function kelompok(tipe: string): Array<[string, any[]]> {
         </details>
 
         <!-- ============ KONDISI ============ -->
+        <template v-if="!tanpaKondisi">
         <label class="mt-4 block">
             <span class="mb-1.5 block text-xs text-muted-foreground">Kondisi</span>
             <KatalogModul
@@ -471,5 +474,6 @@ function kelompok(tipe: string): Array<[string, any[]]> {
                 Kembalikan ke tema
             </button>
         </details>
+        </template>
     </div>
 </template>

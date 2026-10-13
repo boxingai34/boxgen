@@ -154,6 +154,7 @@ final class Exporter
             'quality'      => 'Style',
             'style'        => 'Art style',
             'count'        => 'Scene',
+            'sheet'        => 'Layout',
             'character'    => 'Boxer A',
             'appearance'   => 'Boxer A appearance',
             'outfit'       => 'Boxer A outfit',
@@ -509,8 +510,12 @@ final class Exporter
         //
         // V5 memang mengizinkan kalimat dan tag bercampur, jadi keduanya
         // disambung: kalimat dulu, tag menyusul di belakang.
+        //
+        // Tag tata letak lembar acuan ('sheet') ikut wajib: kalimatnya
+        // menjelaskan susunan, tagnya yang memancang jenis gambarnya. Mode
+        // lain tidak pernah mengisi blok itu.
         $wajibTag = [];
-        foreach (['count', 'quality', 'extra'] as $blok) {
+        foreach (['count', 'sheet', 'quality', 'extra'] as $blok) {
             $wajibTag = array_merge($wajibTag, $built['blocks'][$blok] ?? []);
         }
 

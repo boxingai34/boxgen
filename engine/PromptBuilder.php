@@ -4,9 +4,10 @@ declare(strict_types=1);
 /**
  * Prompt Builder — mode gambar.
  *
- * Dua mode:
+ * Tiga mode:
  *   single = satu petinju
  *   duo    = dua petinju + pose interaksi
+ *   sheet  = lembar acuan satu karakter (tata letaknya di LembarAcuan)
  *
  * Urutan blok mengikuti dokumen konsep. Urutan itu penting karena model
  * gambar memberi bobot lebih besar pada tag yang berada di depan.
@@ -34,6 +35,9 @@ final class PromptBuilder
         'quality',
         'style',
         'count',
+
+        // tata letak lembar acuan — cuma diisi mode 'sheet'
+        'sheet',
 
         // aksi bersama
         'interaction',
@@ -121,9 +125,11 @@ final class PromptBuilder
 
     public static function build(array $sel): array
     {
-        return ($sel['mode'] ?? 'single') === 'duo'
-            ? self::buildDuo($sel)
-            : self::buildSingle($sel);
+        return match ($sel['mode'] ?? 'single') {
+            'duo'   => self::buildDuo($sel),
+            'sheet' => self::buildSheet($sel),
+            default => self::buildSingle($sel),
+        };
     }
 
     // =================================================================
@@ -227,6 +233,89 @@ final class PromptBuilder
             $hasil['catatan'][] = 'Model gambar sering mencampur ciri dua karakter '
                 . '(rambut Boxer A bisa nyasar ke Boxer B). Pakai keluaran '
                 . '"Regional" di bawah kalau ingin keduanya benar-benar terpisah.';
+        }
+
+        return $hasil;
+    }
+
+    // =================================================================
+    // LEMBAR ACUAN (reference sheet)
+    // =================================================================
+
+    /**
+     * Satu orang, banyak pandangan.
+     *
+     * Orangnya disusun persis seperti mode satu petinju — karakter,
+     * penampilan, gaya rambut, tema dan slot pakaian beserta warnanya.
+     * Yang berbeda:
+     *
+     *   - KONDISI DIBUANG. Lembar acuan memamerkan desain; memar, keringat,
+     *     dan plester menutupi desain itu. Pilihan kondisi yang terlanjur
+     *     diisi di mode lain tidak ikut terbawa.
+     *   - Pose, latar, kamera, cahaya, dan ring tidak dipakai — tata letak
+     *     lembarnya (LembarAcuan) yang menentukan semuanya.
+     *   - Tidak ada slot pakaian yang dipotong kamera: lembarnya selalu
+     *     memperlihatkan badan penuh.
+     */
+    private static function buildSheet(array $sel): array
+    {
+        $allowNsfw = (bool)($sel['allow_nsfw'] ?? ALLOW_NSFW);
+        $items     = [];
+        $catatan   = [];
+
+        $adaKondisi = false;
+        $orang = [];
+        foreach ($sel as $k => $v) {
+            if ($k === 'condition_id' || str_starts_with((string)$k, 'cond_')) {
+                $adaKondisi = $adaKondisi || (!empty($v) && $v !== 'none');
+                continue;
+            }
+            $orang[$k] = $v;
+        }
+
+        $char = self::person($orang, $allowNsfw, '', $items, $catatan);
+        $items[] = self::tagItem(self::countTag($orang, $char, 1), 'count', 'jumlah orang');
+        $items[] = self::tagItem('solo', 'count', 'jumlah orang');
+
+        $asal = 'lembar acuan: ' . LembarAcuan::TATA_LETAK[LembarAcuan::letak($sel)]['label'];
+        foreach (LembarAcuan::tag($sel) as $nama) {
+            $items[] = self::tagItem($nama, 'sheet', $asal);
+        }
+
+        foreach (['quality', 'style'] as $tipe) {
+            self::addModule($sel[$tipe . '_id'] ?? null, $tipe, $tipe, $allowNsfw, $items);
+        }
+
+        $unknown = self::addExtraTags($sel, $allowNsfw, $items);
+
+        if ($adaKondisi) {
+            $catatan[] = 'Kondisi yang dipilih tidak dipakai — lembar acuan memperlihatkan '
+                . 'desain bersih, tanpa luka, memar, atau keringat.';
+        }
+        $catatan[] = 'Lembar acuan paling pas di kanvas lanskap (1216×832 di NovelAI).';
+
+        $hasil = self::finish($sel, $items, $unknown, $catatan, ['a' => $char]);
+
+        // UC khusus lembar acuan, tanpa satu pun tag yang justru diminta.
+        //
+        // Pilihan yang disengaja menang: tema "underground" memang memakai
+        // bandages sebagai bagian kostumnya. Tapi itu dikatakan terang-
+        // terangan, supaya tidak dikira aturan lembar acuannya bocor.
+        $diminta = array_flip(array_column($hasil['items'], 'name'));
+        $sudah   = array_flip(array_column($hasil['negative_items'], 'name'));
+        $dilepas = [];
+
+        foreach (LembarAcuan::UC as $nama) {
+            if (isset($diminta[$nama])) {
+                $dilepas[] = str_replace('_', ' ', $nama);
+            } elseif (!isset($sudah[$nama])) {
+                $hasil['negative_items'][] = self::tagItem($nama, 'negative', 'lembar acuan');
+            }
+        }
+
+        if ($dilepas !== []) {
+            $hasil['catatan'][] = 'Tidak dilarang di Undesired Content karena justru diminta pilihanmu: '
+                . implode(', ', $dilepas) . '.';
         }
 
         return $hasil;
@@ -959,6 +1048,12 @@ final class PromptBuilder
             : ($pria
                 ? ['2boys', 'multiple_boys', 'crowd', 'multiple_views']
                 : ['2girls', 'multiple_girls', '3girls', 'crowd', 'multiple_views']);
+
+        // Lembar acuan memang SATU orang dalam BANYAK pandangan — melarang
+        // multiple_views di sana berarti melarang lembarnya sendiri.
+        if (($sel['mode'] ?? '') === 'sheet') {
+            $pagar = array_values(array_diff($pagar, ['multiple_views']));
+        }
 
         $sudah = array_column($negatif, 'name');
 

@@ -42,6 +42,20 @@ final class NaturalPrompt
      */
     public static function build(array $sel): array
     {
+        // Lembar acuan bukan adegan: tidak ada ring, lawan, atau aksi yang
+        // perlu diceritakan — yang diceritakan tata letak lembarnya.
+        if (($sel['mode'] ?? 'single') === 'sheet') {
+            $diubah = [];
+            $teks = SeedanceBuilder::safetyRewrite(LembarAcuan::kalimat($sel), $diubah);
+
+            return [
+                'base'    => $teks,
+                'catatan' => $diubah === [] ? [] : [
+                    'Beberapa kata dihaluskan supaya tidak kena penyaring: ' . implode(', ', $diubah) . '.',
+                ],
+            ];
+        }
+
         $duo = ($sel['mode'] ?? 'single') === 'duo';
 
         // Mode 1 petinju menaruh datanya di tingkat teratas.
