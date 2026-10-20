@@ -4,6 +4,7 @@ use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DiscoverController;
 use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
@@ -101,6 +102,22 @@ Route::prefix('generator')->group(function () {
         Route::get('alat-lama', fn () => Inertia::render('AlatLama', [
             'basisLama' => config('app.legacy_url'),
         ]))->name('alat-lama');
+
+        // ---- DISCOVER: art boxing dari Pixiv, DeviantArt, booru, X (admin) ----
+        // Admin saja: isinya termasuk R-18 (diburamkan di halaman), dan
+        // gambarnya disimpan di luar public/.
+        Route::middleware('admin')->prefix('discover')->group(function () {
+            Route::get('/', [DiscoverController::class, 'halaman'])->name('discover');
+            Route::get('daftar', [DiscoverController::class, 'daftar'])->name('discover.daftar');
+            Route::get('gambar/{id}', [DiscoverController::class, 'gambar'])->whereNumber('id')->name('discover.gambar');
+            Route::get('besar/{id}/{i}', [DiscoverController::class, 'besar'])->whereNumber(['id', 'i'])->name('discover.besar');
+            Route::post('karya/{id}/status', [DiscoverController::class, 'status'])->whereNumber('id')->name('discover.status');
+            Route::post('karya/{id}/ai', [DiscoverController::class, 'ai'])->whereNumber('id')->name('discover.ai');
+            Route::post('crawl', [DiscoverController::class, 'crawl'])->name('discover.crawl');
+            Route::get('jalan', [DiscoverController::class, 'jalan'])->name('discover.jalan');
+            Route::post('tweet', [DiscoverController::class, 'tweet'])->name('discover.tweet');
+            Route::post('kata', [DiscoverController::class, 'kata'])->name('discover.kata');
+        });
 
         // ---- CMS halaman depan (admin) ----
         Route::middleware('admin')->prefix('cms')->group(function () {

@@ -12,3 +12,9 @@ Artisan::command('inspire', function () {
 // kalau `php artisan schedule:run` dipanggil cron/Task Scheduler tiap menit;
 // kalau tidak, halaman depan tetap memperbarui dirinya waktu dikunjungi.
 Schedule::command('landing:segarkan')->everyThirtyMinutes()->withoutOverlapping();
+
+// DISCOVER: art boxing terbaru dari Pixiv, DeviantArt, dan booru. Satu
+// putaran = ±15 pencarian + gambar kecil karya yang baru, jadi ringan.
+// Tanpa schedule:run pun halaman DISCOVER memulainya sendiri waktu dibuka
+// kalau crawl terakhir sudah lewat 30 menit.
+Schedule::command('discover:crawl')->everyThirtyMinutes()->withoutOverlapping(60)->runInBackground();

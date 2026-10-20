@@ -6,6 +6,7 @@ import {
     Camera,
     ChevronRight,
     Clapperboard,
+    Compass,
     Gauge,
     Globe,
     History,
@@ -98,6 +99,8 @@ const menu = computed<Menu[]>(() => {
     ];
 
     if (admin.value) {
+        // Papan art boxing dari banyak situs; admin saja karena memuat R-18.
+        dasar.push({ nama: 'DISCOVER', rute: 'discover', ikon: Compass, ket: 'Art boxing terbaru dari Pixiv, DeviantArt, Danbooru, Rule34, dan X', persis: false });
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
     }
