@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentFbxController;
 use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\KatalogController;
@@ -117,6 +118,19 @@ Route::prefix('generator')->group(function () {
             Route::get('jalan', [DiscoverController::class, 'jalan'])->name('discover.jalan');
             Route::post('tweet', [DiscoverController::class, 'tweet'])->name('discover.tweet');
             Route::post('kata', [DiscoverController::class, 'kata'])->name('discover.kata');
+        });
+
+        // ---- AGENT FBX: hasil agent FEMBOX (admin) ----
+        // Data bisnis pemilik studio — kandidat poll, roster, tren — jadi
+        // hanya admin, bukan semua yang punya akun generator.
+        Route::middleware('admin')->prefix('fbx')->group(function () {
+            Route::get('/', [AgentFbxController::class, 'scout'])->name('fbx');
+            Route::get('roster', [AgentFbxController::class, 'roster'])->name('fbx.roster');
+            Route::get('tren', [AgentFbxController::class, 'tren'])->name('fbx.tren');
+            Route::get('gambar/{nama}', [AgentFbxController::class, 'gambar'])
+                ->where('nama', '[0-9]+-[kb]\.[a-z0-9]+')->name('fbx.gambar');
+            Route::post('kandidat/{id}/status', [AgentFbxController::class, 'status'])->whereNumber('id')->name('fbx.status');
+            Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
         });
 
         // ---- CMS halaman depan (admin) ----

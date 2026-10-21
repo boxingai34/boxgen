@@ -3,10 +3,13 @@ import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
+    BookUser,
+    Bot,
     Camera,
     ChevronRight,
     Clapperboard,
     Compass,
+    Flame,
     Gauge,
     Globe,
     History,
@@ -22,6 +25,7 @@ import {
     Sparkles,
     Sun,
     Swords,
+    Telescope,
     Trophy,
     UserRound,
     UsersRound,
@@ -101,6 +105,20 @@ const menu = computed<Menu[]>(() => {
     if (admin.value) {
         // Papan art boxing dari banyak situs; admin saja karena memuat R-18.
         dasar.push({ nama: 'DISCOVER', rute: 'discover', ikon: Compass, ket: 'Art boxing terbaru dari Pixiv, DeviantArt, Danbooru, Rule34, dan X', persis: false });
+        // Data bisnis FEMBOX (kandidat poll, roster, tren) — rutenya juga
+        // dijaga middleware admin, menu ini cuma tidak ditampilkan ke yang lain.
+        dasar.push({
+            nama: 'AGENT FBX',
+            rute: 'fbx',
+            ikon: Bot,
+            ket: 'Hasil agent FEMBOX: kandidat Scout mingguan, roster, tren Danbooru',
+            persis: false,
+            anak: [
+                { nama: 'Scout', rute: 'fbx', ikon: Telescope, ket: 'Kandidat Female Fight, Mixed Fight, Waifu Crushed minggu ini', persis: true },
+                { nama: 'Roster', rute: 'fbx.roster', ikon: BookUser, ket: 'Semua karakter yang pernah tampil', persis: false },
+                { nama: 'Tren Danbooru', rute: 'fbx.tren', ikon: Flame, ket: 'Karakter paling disukai 7 hari terakhir', persis: false },
+            ],
+        });
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
     }
