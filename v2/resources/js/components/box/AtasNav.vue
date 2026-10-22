@@ -9,6 +9,7 @@ import {
     ChevronRight,
     Clapperboard,
     Compass,
+    Film,
     Flame,
     Gauge,
     Globe,
@@ -104,7 +105,18 @@ const menu = computed<Menu[]>(() => {
 
     if (admin.value) {
         // Papan art boxing dari banyak situs; admin saja karena memuat R-18.
-        dasar.push({ nama: 'DISCOVER', rute: 'discover', ikon: Compass, ket: 'Art boxing terbaru dari Pixiv, DeviantArt, Danbooru, Rule34, dan X', persis: false });
+        dasar.push({
+            nama: 'DISCOVER',
+            rute: 'discover',
+            ikon: Compass,
+            ket: 'Art boxing terbaru dan adegan tinju di anime, manga, manhwa',
+            persis: false,
+            anak: [
+                // /discover itu sendiri Art Boxing, jadi dicocokkan persis.
+                { nama: 'Art Boxing', rute: 'discover', ikon: Compass, ket: 'Art boxing terbaru dari Pixiv, DeviantArt, Danbooru, Rule34, dan X', persis: true },
+                { nama: 'Boxing Scene', rute: 'discover.adegan', ikon: Film, ket: 'Adegan tinju wanita di anime, manga, manhwa, manhua, kartun, komik', persis: false },
+            ],
+        });
         // Data bisnis FEMBOX (kandidat poll, roster, tren) — rutenya juga
         // dijaga middleware admin, menu ini cuma tidak ditampilkan ke yang lain.
         dasar.push({

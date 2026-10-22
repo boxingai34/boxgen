@@ -570,3 +570,46 @@ INSERT IGNORE INTO `discover_kata` (`sumber`, `kata`) VALUES
   ('safebooru', 'boxing_gloves'),
   ('rule34', 'boxing_gloves'),
   ('rule34', 'boxing');
+
+-- ---------------------------------------------------------------------
+-- DISCOVER Boxing Scene (migrasi 020): adegan tinju wanita di anime,
+-- manga, manhwa, manhua, kartun, dan komik
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `discover_adegan` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sumber`        VARCHAR(20)  NOT NULL,
+  `sumber_id`     VARCHAR(64)  NOT NULL,
+  `url`           VARCHAR(500) NOT NULL,
+  `judul`         VARCHAR(255) NOT NULL DEFAULT '',
+  `seri`          VARCHAR(190) NOT NULL DEFAULT '',
+  `bagian`        VARCHAR(190) NOT NULL DEFAULT '',
+  `jenis`         VARCHAR(10)  NOT NULL DEFAULT 'lain',
+  `jenis_tangan`  TINYINT(1)   NOT NULL DEFAULT 0,
+  `ket`           TEXT         NULL,
+  `tautan`        VARCHAR(500) NOT NULL DEFAULT '',
+  `gambar`        TEXT         NULL,
+  `kecil`         VARCHAR(255) NOT NULL DEFAULT '',
+  `lebar`         SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `tinggi`        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `rating`        CHAR(1)      NOT NULL DEFAULT 'g',
+  `umur`          VARCHAR(10)  NOT NULL DEFAULT '',
+  `status`        VARCHAR(10)  NOT NULL DEFAULT 'baru',
+  `alasan`        VARCHAR(20)  NOT NULL DEFAULT '',
+  `diposting_at`  DATETIME     NULL,
+  `ditemukan_at`  TIMESTAMP    NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_discover_adegan` (`sumber`, `sumber_id`),
+  KEY `idx_discover_adegan_jenis` (`status`, `jenis`, `diposting_at`),
+  KEY `idx_discover_adegan_seri` (`seri`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `discover_adegan_jalan` (
+  `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `mulai`      DATETIME     NOT NULL,
+  `selesai`    DATETIME     NULL,
+  `baru`       INT UNSIGNED NOT NULL DEFAULT 0,
+  `ringkasan`  TEXT         NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_discover_adegan_jalan_mulai` (`mulai`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

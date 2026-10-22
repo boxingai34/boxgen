@@ -32,4 +32,8 @@ return [
 
     // Salinan gambar besar (Lightbox) dihapus setelah sekian hari.
     'besar_hari' => (int) env('DISCOVER_BESAR_HARI', 7),
+
+    // Boxing Scene: crawl otomatis kalau halamannya dibuka dan crawl
+    // terakhir lebih tua dari ini (jam). Blognya jarang bertambah.
+    'adegan_jeda_jam' => (int) env('DISCOVER_ADEGAN_JEDA', 12),
 ];

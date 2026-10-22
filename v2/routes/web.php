@@ -5,6 +5,7 @@ use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DiscoverAdeganController;
 use App\Http\Controllers\DiscoverController;
 use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
@@ -118,6 +119,15 @@ Route::prefix('generator')->group(function () {
             Route::get('jalan', [DiscoverController::class, 'jalan'])->name('discover.jalan');
             Route::post('tweet', [DiscoverController::class, 'tweet'])->name('discover.tweet');
             Route::post('kata', [DiscoverController::class, 'kata'])->name('discover.kata');
+
+            // Boxing Scene: adegan tinju wanita di anime, manga, manhwa, manhua, kartun, komik.
+            Route::get('scene', [DiscoverAdeganController::class, 'halaman'])->name('discover.adegan');
+            Route::get('scene/daftar', [DiscoverAdeganController::class, 'daftar'])->name('discover.adegan.daftar');
+            Route::get('scene/gambar/{id}', [DiscoverAdeganController::class, 'gambar'])->whereNumber('id')->name('discover.adegan.gambar');
+            Route::post('scene/{id}/status', [DiscoverAdeganController::class, 'status'])->whereNumber('id')->name('discover.adegan.status');
+            Route::post('scene/{id}/jenis', [DiscoverAdeganController::class, 'jenis'])->whereNumber('id')->name('discover.adegan.jenis');
+            Route::post('scene/crawl', [DiscoverAdeganController::class, 'crawl'])->name('discover.adegan.crawl');
+            Route::get('scene/jalan', [DiscoverAdeganController::class, 'jalan'])->name('discover.adegan.jalan');
         });
 
         // ---- AGENT FBX: hasil agent FEMBOX (admin) ----

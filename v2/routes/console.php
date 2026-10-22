@@ -18,3 +18,7 @@ Schedule::command('landing:segarkan')->everyThirtyMinutes()->withoutOverlapping(
 // Tanpa schedule:run pun halaman DISCOVER memulainya sendiri waktu dibuka
 // kalau crawl terakhir sudah lewat 30 menit.
 Schedule::command('discover:crawl')->everyThirtyMinutes()->withoutOverlapping(60)->runInBackground();
+
+// DISCOVER Boxing Scene: blog adegan tinju kartun/anime cuma bertambah
+// beberapa postingan sebulan, jadi dua kali sehari sudah cukup.
+Schedule::command('discover:adegan')->twiceDaily(6, 18)->withoutOverlapping(60)->runInBackground();

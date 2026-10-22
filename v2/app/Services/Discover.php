@@ -341,8 +341,16 @@ final class Discover
             return null;
         }
         $id = DB::table('discover_jalan')->insertGetId(['mulai' => now()]);
+        self::lepas('discover:crawl --jalan=' . $id);
+
+        return $id;
+    }
+
+    /** Jalankan `php artisan <perintah>` di latar belakang tanpa menunggunya (tidak di tes). Dipakai juga DiscoverAdegan. */
+    public static function lepas(string $perintah): void
+    {
         if (app()->runningUnitTests()) {
-            return $id;
+            return;
         }
 
         // Di bawah Apache PHP_BINARY bisa httpd.exe; pakai php.exe di sebelahnya kalau begitu.
@@ -354,12 +362,10 @@ final class Discover
         $artisan = base_path('artisan');
 
         if (PHP_OS_FAMILY === 'Windows') {
-            pclose(popen('start "" /B "' . $php . '" "' . $artisan . '" discover:crawl --jalan=' . $id . ' > NUL 2>&1', 'r'));
+            pclose(popen('start "" /B "' . $php . '" "' . $artisan . '" ' . $perintah . ' > NUL 2>&1', 'r'));
         } else {
-            exec(escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' discover:crawl --jalan=' . $id . ' > /dev/null 2>&1 &');
+            exec(escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' ' . $perintah . ' > /dev/null 2>&1 &');
         }
-
-        return $id;
     }
 
     // ------------------------------------------------------------------
