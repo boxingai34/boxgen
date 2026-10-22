@@ -543,7 +543,15 @@ final class DiscoverAdegan
             return null;
         }
         $id = DB::table('discover_adegan_jalan')->insertGetId(['mulai' => now()]);
-        Discover::lepas('discover:adegan --jalan=' . $id);
+        if (!Discover::lepas('discover:adegan --jalan=' . $id)) {
+            // Hosting tanpa exec(): ditutup dengan galat supaya halaman tidak
+            // menunggu selamanya dan menyebut sebabnya.
+            DB::table('discover_adegan_jalan')->where('id', $id)->update([
+                'selesai'   => now(),
+                'ringkasan' => json_encode(['baru' => 0, 'dilihat' => 0, 'disaring' => 0, 'kurasi' => 0, 'diperbaiki' => 0,
+                    'galat' => [Discover::tanpaLatar('discover:adegan')]], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
 
         return $id;
     }

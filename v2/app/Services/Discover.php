@@ -341,16 +341,39 @@ final class Discover
             return null;
         }
         $id = DB::table('discover_jalan')->insertGetId(['mulai' => now()]);
-        self::lepas('discover:crawl --jalan=' . $id);
+        if (!self::lepas('discover:crawl --jalan=' . $id)) {
+            // Ditutup langsung dengan galat: halaman berhenti menunggu dan
+            // menyebut sebabnya, dan kunjungan berikutnya tidak mencoba lagi
+            // sampai jeda crawl lewat.
+            DB::table('discover_jalan')->where('id', $id)->update([
+                'selesai'   => now(),
+                'ringkasan' => json_encode(['_' => ['galat' => [self::tanpaLatar('discover:crawl')]]], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
 
         return $id;
     }
 
-    /** Jalankan `php artisan <perintah>` di latar belakang tanpa menunggunya (tidak di tes). Dipakai juga DiscoverAdegan. */
-    public static function lepas(string $perintah): void
+    /**
+     * Jalankan `php artisan <perintah>` di latar belakang tanpa menunggunya.
+     * false kalau hosting tidak mengizinkan; di tes dianggap berhasil tanpa
+     * menjalankan apa pun. Dipakai juga DiscoverAdegan.
+     */
+    public static function lepas(string $perintah): bool
     {
         if (app()->runningUnitTests()) {
-            return;
+            return true;
+        }
+
+        // Hosting bersama sering mematikan exec()/popen(). Di PHP 8 fungsi
+        // yang dimatikan tidak ada sama sekali dan memanggilnya melempar
+        // Error — halaman yang memulai crawl ikut jadi 500. Jadi diperiksa
+        // dulu, bukan dicoba.
+        $fungsi = PHP_OS_FAMILY === 'Windows' ? ['popen', 'pclose'] : ['exec'];
+        foreach ($fungsi as $f) {
+            if (!function_exists($f)) {
+                return false;
+            }
         }
 
         // Di bawah Apache PHP_BINARY bisa httpd.exe; pakai php.exe di sebelahnya kalau begitu.
@@ -361,11 +384,24 @@ final class Discover
         }
         $artisan = base_path('artisan');
 
-        if (PHP_OS_FAMILY === 'Windows') {
-            pclose(popen('start "" /B "' . $php . '" "' . $artisan . '" ' . $perintah . ' > NUL 2>&1', 'r'));
-        } else {
-            exec(escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' ' . $perintah . ' > /dev/null 2>&1 &');
+        try {
+            if (PHP_OS_FAMILY === 'Windows') {
+                pclose(popen('start "" /B "' . $php . '" "' . $artisan . '" ' . $perintah . ' > NUL 2>&1', 'r'));
+            } else {
+                exec(escapeshellarg($php) . ' ' . escapeshellarg($artisan) . ' ' . $perintah . ' > /dev/null 2>&1 &');
+            }
+        } catch (Throwable) {
+            return false;
         }
+
+        return true;
+    }
+
+    /** Pesan untuk halaman waktu lepas() tidak bisa menjalankan apa pun. */
+    public static function tanpaLatar(string $perintah): string
+    {
+        return 'Hosting ini mematikan exec(), jadi crawl tidak bisa dimulai dari halaman. '
+            . "Jadwalkan `php artisan $perintah` lewat Cron Jobs di panel hosting.";
     }
 
     // ------------------------------------------------------------------
