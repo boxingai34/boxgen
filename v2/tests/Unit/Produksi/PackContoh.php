@@ -5,8 +5,9 @@ namespace Tests\Unit\Produksi;
 /**
  * Pack contoh untuk tes PRODUKSI: folder "1 - ANTRIAN" palsu di folder
  * sementara, berisi pack format md (Revisi 2, lengkap dengan sisa Revisi 1
- * dan folder BACKUP yang harus diabaikan), pack.json, dan dua bentuk pack
- * lama. Tidak ada yang menyentuh folder PRODUCTION asli.
+ * dan folder BACKUP yang harus diabaikan), pack.json, dua bentuk pack
+ * lama, dan pack kecil untuk tes checklist klip (md dan pack.json). Tidak
+ * ada yang menyentuh folder PRODUCTION asli.
  */
 trait PackContoh
 {
@@ -221,6 +222,83 @@ MD);
         $this->tulis($p . 'BACA DULU - Prompt Revisi 3.md', '# Revisi 3');
         $this->tulis($p . 'Ran Mouri vs Masumi Sera - Prompt Pack (Wan 3.0).md', "# Pack\n\n| Resolusi | Draft 480p, final sesuai akun |\n");
         $this->png($p . 'RAN 1.png');
+
+        return $this->antrian . DIRECTORY_SEPARATOR . $nama;
+    }
+
+    /**
+     * Pack md kecil untuk tes checklist klip: tabel klip di PEMETAAN KLIP -
+     * Revisi 1.md (+ "## Kontinuitas penting" berisi $kontinuitas), tester
+     * di TEST REVISI 1 dengan "## Kriteria lulus" berbaris `1. **T05**: …`.
+     *
+     * @param list<string>         $klip        kode klip apa adanya, mis. ['01', '05', '11A']
+     * @param array<string,string> $tester      kode tester → isi baris kriteria lulus
+     * @param list<string>         $kontinuitas butir kontinuitas (markdown)
+     */
+    protected function buatPackChecklist(string $nama, array $klip, array $tester = [], array $kontinuitas = []): string
+    {
+        $p = $nama . DIRECTORY_SEPARATOR;
+
+        $baris = '';
+        foreach ($klip as $k) {
+            $baris .= "| {$k} | Adegan {$k} | 30 dtk | @image1 = A-00.png; @image2 = B-00.png |\n";
+            $this->tulis($p . 'PROMPT TXT' . DIRECTORY_SEPARATOR . $k . '.txt', "Overall: 30 seconds. @image1 = A, @image2 = B.\n[0-30s] Klip {$k}.\n");
+        }
+        $md = "# {$nama} — Revisi 1\n\n| Klip | Adegan | Durasi | Urutan gambar |\n|---|---|---|---|\n{$baris}";
+        if ($kontinuitas) {
+            $md .= "\n## Kontinuitas penting\n\n" . implode("\n", array_map(fn ($b) => "- {$b}", $kontinuitas)) . "\n";
+        }
+        $this->tulis($p . 'PEMETAAN KLIP - Revisi 1.md', $md);
+
+        if ($tester) {
+            $tabel = $lulus = '';
+            $i = 0;
+            foreach ($tester as $kode => $isi) {
+                $tabel .= "| {$kode} | Tes {$kode} | @image1=A-00.png; @image2=B-00.png |\n";
+                $lulus .= ++$i . ". **{$kode}**: {$isi}\n";
+                $this->tulis($p . 'TEST REVISI 1' . DIRECTORY_SEPARATOR . $kode . '.txt', "10-second test. @image1 A, @image2 B.\n[0-10s] Tes {$kode}.\n");
+            }
+            $this->tulis($p . 'TEST REVISI 1' . DIRECTORY_SEPARATOR . 'README.md',
+                "# Tester Revisi 1\n\nMasing-masing **10 detik**.\n\n| Tes | Tujuan | Urutan gambar |\n|---|---|---|\n{$tabel}\n## Kriteria lulus\n\n{$lulus}");
+        }
+
+        foreach (['A-00.png', 'B-00.png'] as $g) {
+            $this->png($p . $g);
+        }
+
+        return $this->antrian . DIRECTORY_SEPARATOR . $nama;
+    }
+
+    /**
+     * pack.json kecil untuk tes checklist klip. Tiap tester/klip cukup
+     * ditulis kodenya (+ "kriteria" bila perlu); judul, durasi, prompt, dan
+     * gambar dilengkapi di sini.
+     *
+     * @param list<array<string,mixed>> $tester
+     * @param list<array<string,mixed>> $klip
+     * @param list<string>              $kontinuitas
+     */
+    protected function buatPackJsonChecklist(string $nama, array $tester, array $klip, array $kontinuitas = []): string
+    {
+        $p = $nama . DIRECTORY_SEPARATOR;
+        $lengkapi = function (array $x, string $folder, int $durasi) use ($p) {
+            $prompt = $folder . '/' . $x['kode'] . '.txt';
+            $this->tulis($p . str_replace('/', DIRECTORY_SEPARATOR, $prompt), "{$durasi}-second scene. @image1 = A.\n[0-{$durasi}s] {$x['kode']}.\n");
+
+            return $x + ['judul' => 'Adegan ' . $x['kode'], 'durasi' => $durasi, 'prompt' => $prompt, 'gambar' => ['A-00.png']];
+        };
+
+        $this->tulis($p . 'pack.json', json_encode([
+            'versi'       => 1,
+            'judul'       => $nama,
+            'revisi'      => '1',
+            'model'       => 'wan-3.0',
+            'tester'      => array_map(fn ($x) => $lengkapi($x, 'TEST REVISI 1', 10), $tester),
+            'klip'        => array_map(fn ($x) => $lengkapi($x, 'PROMPT TXT', 30), $klip),
+            'subtitle'    => (object) [],
+            'kontinuitas' => $kontinuitas,
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        $this->png($p . 'A-00.png');
 
         return $this->antrian . DIRECTORY_SEPARATOR . $nama;
     }

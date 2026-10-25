@@ -107,7 +107,7 @@ class GudangTest extends TestCase
         $this->assertSame(['A-00.png', 'B-00.png', 'BG-01.PNG'], Gudang::urai($klip->gambar));
         $this->assertSame(file_get_contents($dir . '/PROMPT TXT/01.txt'), $klip->prompt);
         $this->assertSame('PROMPT TXT/01.txt', $klip->prompt_file);
-        $this->assertSame([], Gudang::urai($klip->kriteria));
+        $this->assertSame(['Pairin benar-benar menari 8 detik', 'Kostum utuh', 'Hanya dua orang'], Gudang::urai($klip->kriteria)); // checklist turunan dari T01
         $this->assertSame(['Hanya satu Joka', 'Mata kiri terbuka', 'Kanan tetap tertutup'], Gudang::urai($item[1]->kriteria));
 
         $this->assertSame(['klip|01', 'klip|02'], $g->itemsPack($id, 'klip')->map(fn ($r) => $r->jenis . '|' . $r->kode)->all());

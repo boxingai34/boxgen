@@ -1430,10 +1430,10 @@ class PemantauTest extends TestCase
         $pm->simpanNilai($id, [], array_fill(0, 50, ['t' => '00:12.5', 'isi' => str_repeat('é', 500)]));
         $this->assertSame('00:12.5', json_decode($this->take($id)->catatan, true)[0]['t']);
 
-        // Klip tidak punya kriteria: nilai apa pun dibuang, catatan tetap tersimpan.
+        // Klip 01 mewarisi 3 kriteria T01 (checklist turunan): indeks di luarnya dibuang, catatan tetap tersimpan.
         $klip = $pm->tambahManual((int) $this->item('01')->id, $this->videoLuar('b.mp4'));
-        $pm->simpanNilai($klip, [0 => 'lolos'], [['t' => 1, 'isi' => 'Bagus']]);
-        $this->assertSame(['{}', [['t' => 1, 'isi' => 'Bagus']]], [$this->take($klip)->nilai, json_decode($this->take($klip)->catatan, true)]);
+        $pm->simpanNilai($klip, [0 => 'lolos', 5 => 'gagal'], [['t' => 1, 'isi' => 'Bagus']]);
+        $this->assertSame(['{"0":"lolos"}', [['t' => 1, 'isi' => 'Bagus']]], [$this->take($klip)->nilai, json_decode($this->take($klip)->catatan, true)]);
     }
 
     public function test_putuskan_dan_status_item(): void

@@ -13,6 +13,7 @@ import {
     koma,
     labelItem,
     labelTake,
+    namaItem,
     namaModel,
     pakaiPolling,
     rapikanNilai,
@@ -41,12 +42,18 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
  *
  * "Salin catatan untuk Claude" menyusun teks yang sama dengan mockup:
  * kriteria yang gagal + catatan per waktu + permintaan merevisi bagian
- * yang gagal saja, siap ditempel ke percakapan Claude.
+ * yang gagal saja, siap ditempel ke percakapan Claude. Take yang berakhir
+ * tanpa video (nsfw, failed, canceled, galat) tidak punya apa pun untuk
+ * dinilai: checklist dan catatan per waktu disembunyikan, dan teksnya
+ * berisi status take + pesan galatnya + permintaan memeriksa prompt.
  */
 const props = defineProps<PropsReview>();
 
 const pemutar = ref<InstanceType<typeof PemutarTake> | null>(null);
 const waktu = ref(0);
+
+/** galat/failed/nsfw/canceled: tidak ada video, tidak ada yang bisa dinilai. */
+const berakhirTanpaVideo = computed(() => props.take.status !== 'selesai' && !takeAktif(props.take.status));
 
 // ---- Penilaian & catatan (salinan lokal yang disimpan otomatis) ----
 const nilai = reactive<Record<string, NilaiKriteria>>({});
@@ -214,13 +221,59 @@ const kalimatKeputusan = computed(() => {
 });
 
 // ---- Salin catatan untuk Claude ----
-const teksClaude = computed(() => {
+/** "Klip 06 take 1 — Maomao vs Pairin, Revisi 5 (Wan 3.0, seed 902 117 455)"; tester: "Tester T05 take 2 — …". */
+const kepalaClaude = computed(() => {
     const t = props.take;
-    const gagal = props.item.kriteria.filter((_, i) => nilai[String(i)] === 'gagal');
-    const kepala = `Review ${props.item.kode} take ${t.nomor} — ${props.pack.judul}${props.pack.revisi ? `, Revisi ${props.pack.revisi}` : ''} (${namaModel(t.model)}, seed ${seedRapi(t.seed)})`;
+
+    return `${namaItem(props.item.jenis, props.item.kode)} take ${t.nomor} — ${props.pack.judul}${props.pack.revisi ? `, Revisi ${props.pack.revisi}` : ''} (${namaModel(t.model)}, seed ${seedRapi(t.seed)})`;
+});
+
+/** Biaya take tanpa video. Yang belum pasti tidak pernah ditulis "tidak ditagih". */
+function kalimatBiaya(): string {
+    const b = props.take.biaya;
+    if (b === null || b === undefined) return 'biaya belum pasti (mungkin sudah ditagih)';
+
+    return Number(b) > 0 ? `sudah ditagih ${uang(b)}` : 'tidak ditagih';
+}
+
+const KEADAAN_TANPA_VIDEO: Record<string, string> = {
+    failed: 'GAGAL dibuat Higgsfield',
+    canceled: 'DIBATALKAN di Higgsfield',
+    galat: 'berhenti dengan GALAT',
+};
+
+/**
+ * Take tanpa video: tidak ada kriteria gagal atau catatan per waktu untuk
+ * dilaporkan. nsfw → minta Claude mencari pemicu filter di prompt dan
+ * mengubahnya seminimal mungkin; failed/canceled/galat → status + pesan
+ * galat take, lalu minta diperiksa apakah prompt atau permintaannya penyebabnya.
+ */
+function teksTanpaVideo(): string {
+    const t = props.take;
+    const kode = props.item.kode;
+
+    if (t.status === 'nsfw') {
+        return [
+            `${kepalaClaude.value} DIBLOKIR filter Higgsfield tanpa alasan, ${kalimatBiaya()}, tidak ada video.`,
+            `Tolong periksa prompt ${kode}: cari kata atau adegan yang mungkin memicu filter, ubah seminimal mungkin, bagian lain jangan diubah.`,
+        ].join('\n');
+    }
 
     return [
-        kepala,
+        `${kepalaClaude.value} ${KEADAAN_TANPA_VIDEO[t.status] ?? `berakhir dengan status ${t.status}`}, ${kalimatBiaya()}, tidak ada video.`,
+        `Pesan galat: ${t.galat?.trim() || '(tidak ada pesan)'}`,
+        ...(t.request_id ? [`Request Higgsfield: ${t.request_id}`] : []),
+        `Tolong periksa apakah penyebabnya prompt ${kode} atau permintaannya (gambar acuan, durasi, pengaturan kiriman). Kalau prompt yang perlu diubah, ubah seminimal mungkin; bagian lain jangan diubah.`,
+    ].join('\n');
+}
+
+const teksClaude = computed(() => {
+    if (berakhirTanpaVideo.value) return teksTanpaVideo();
+
+    const gagal = props.item.kriteria.filter((_, i) => nilai[String(i)] === 'gagal');
+
+    return [
+        kepalaClaude.value,
         'Gagal:',
         ...(gagal.length ? gagal.map((x) => `- ${x}`) : ['- (tidak ada)']),
         'Catatan per waktu:',
@@ -257,7 +310,6 @@ watch(teksClaude, () => {
  * Selain itu selalu ada "Tambah take dari berkas": video yang diunduh
  * manual dari dashboard Higgsfield masuk sebagai take baru item ini.
  */
-const berakhirTanpaVideo = computed(() => props.take.status !== 'selesai' && !takeAktif(props.take.status));
 /** Pemulihan lewat kirim ulang body — bisa membuat dan menagih take. */
 const periksaBerbayar = computed(() => Boolean(props.take.bisa_periksa) && !props.take.request_id);
 /** Take lain item ini yang sudah selesai sesudah take ini: biasanya kirim ulang tidak perlu lagi. */
@@ -362,122 +414,143 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                         @waktu="waktu = $event"
                     />
 
-                    <Kartu :judul="`Checklist ${item.kode}`" :ket="tester ? 'Dari kriteria lulus tester.' : 'Dari target di prompt klip.'" rapat>
-                        <template #alat>
-                            <span class="flex flex-wrap items-center justify-end gap-2">
-                                <span class="text-[12px] text-muted-foreground" aria-live="polite">
-                                    <template v-if="statusSimpan === 'menunggu' || statusSimpan === 'menyimpan'">Menyimpan…</template>
-                                    <template v-else-if="statusSimpan === 'tersimpan'">Tersimpan</template>
-                                </span>
-                                <ChipStatus v-if="kriteriaAda"
-                                    >{{ hitung.lolos }} lolos · {{ hitung.gagal }} gagal · {{ hitung.belum }} belum</ChipStatus
-                                >
-                            </span>
-                        </template>
-                        <ul v-if="kriteriaAda" class="m-0 list-none py-1 pl-0">
-                            <li
-                                v-for="(k, i) in item.kriteria"
-                                :key="i"
-                                class="flex flex-wrap items-center gap-3 border-t border-border/60 px-5 py-2.5 first:border-t-0"
-                            >
-                                <span class="min-w-0 flex-[1_1_300px] text-[14px] leading-[1.45]">{{ k }}</span>
-                                <span class="flex gap-1.5" role="group" :aria-label="`Nilai: ${k}`">
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-[40px] min-w-[80px] items-center justify-center gap-1 rounded-[9px] border px-3 text-[13px] font-semibold transition-colors"
-                                        :class="
-                                            nilai[String(i)] === 'lolos'
-                                                ? 'border-emerald-500/70 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                                                : 'border-border text-muted-foreground hover:text-foreground'
-                                        "
-                                        :aria-pressed="nilai[String(i)] === 'lolos'"
-                                        @click="beriNilai(i, 'lolos')"
-                                    >
-                                        <Check v-if="nilai[String(i)] === 'lolos'" class="h-3.5 w-3.5" aria-hidden="true" /> Lolos
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex min-h-[40px] min-w-[80px] items-center justify-center gap-1 rounded-[9px] border px-3 text-[13px] font-semibold transition-colors"
-                                        :class="
-                                            nilai[String(i)] === 'gagal'
-                                                ? 'border-destructive/70 bg-destructive/15 text-red-700 dark:text-red-300'
-                                                : 'border-border text-muted-foreground hover:text-foreground'
-                                        "
-                                        :aria-pressed="nilai[String(i)] === 'gagal'"
-                                        @click="beriNilai(i, 'gagal')"
-                                    >
-                                        <X v-if="nilai[String(i)] === 'gagal'" class="h-3.5 w-3.5" aria-hidden="true" /> Gagal
-                                    </button>
-                                </span>
-                            </li>
-                        </ul>
-                        <p v-else class="m-0 px-5 py-4 text-[14px] leading-relaxed text-muted-foreground">
-                            Item ini tidak punya kriteria tertulis. Tonton videonya, lalu tulis yang tidak sesuai di catatan per waktu.
-                        </p>
-                        <p
-                            v-if="statusSimpan === 'galat'"
-                            role="alert"
-                            class="m-0 flex flex-wrap items-center gap-3 border-t border-border/60 px-5 py-3 text-[13px]"
-                        >
-                            <span class="flex-1 text-red-700 dark:text-red-300">Penilaian belum tersimpan: {{ pesanSimpan }}</span>
-                            <Tombol jenis="garis" @click="simpanSekarang">Coba simpan lagi</Tombol>
+                    <!-- Berakhir tanpa video: tidak ada yang bisa dinilai atau diberi catatan per waktu -->
+                    <Kartu
+                        v-if="berakhirTanpaVideo"
+                        judul="Tidak ada video untuk dinilai"
+                        ket="Checklist dan catatan per waktu tidak dipakai untuk take ini."
+                    >
+                        <p class="m-0 text-[14px] leading-relaxed text-muted-foreground">
+                            Take {{ take.nomor }} berakhir tanpa video ({{ labelTake(take.status).teks }}).
+                            <template v-if="take.status === 'nsfw'">
+                                "Salin catatan untuk Claude" di bagian Keputusan menyalin laporan blokir ini dan meminta Claude mencari kata atau
+                                adegan di prompt {{ item.kode }} yang mungkin memicu filter.
+                            </template>
+                            <template v-else>
+                                "Salin catatan untuk Claude" di bagian Keputusan menyalin status dan pesan galatnya, supaya Claude memeriksa apakah
+                                penyebabnya prompt {{ item.kode }} atau permintaannya.
+                            </template>
                         </p>
                     </Kartu>
 
-                    <Kartu judul="Catatan per waktu" ket="Tandai detik yang bermasalah. Garis oranye muncul di bawah video." rapat>
-                        <template #alat>
-                            <Tombol jenis="garis" :nonaktif="menulis" @click="mulaiCatatan">
-                                <Plus class="h-4 w-4" /> Catatan di {{ waktuVideo(waktu) }}
-                            </Tombol>
-                        </template>
-                        <form
-                            v-if="menulis"
-                            class="flex flex-wrap items-center gap-2.5 border-b border-border/60 px-5 py-3"
-                            @submit.prevent="simpanCatatan"
-                        >
-                            <span class="w-[76px] shrink-0 font-mono text-[14px] text-[hsl(var(--kanvas))]">{{ koma(tBaru) }} dtk</span>
-                            <input
-                                ref="kolomCatatan"
-                                v-model="isiBaru"
-                                type="text"
-                                maxlength="500"
-                                placeholder="Mis. counter kena pipi kiri, seharusnya pipi kanan"
-                                :aria-label="`Isi catatan di detik ${koma(tBaru)}`"
-                                class="h-10 min-w-0 flex-[1_1_240px] rounded-lg border border-border bg-background px-3 text-[14px] focus:border-[hsl(var(--sorot)/0.6)] focus:outline-none"
-                                @keydown.esc="batalCatatan"
-                            />
-                            <Tombol tipe="submit" :nonaktif="!isiBaru.trim()">Simpan</Tombol>
-                            <Tombol jenis="sunyi" @click="batalCatatan">Batal</Tombol>
-                        </form>
-                        <ul v-if="catatan.length" class="m-0 list-none py-1.5 pl-0">
-                            <li
-                                v-for="(c, i) in catatan"
-                                :key="`${c.t}-${i}`"
-                                class="flex items-start gap-3.5 px-5 py-2.5 text-[14px] leading-[1.45]"
+                    <template v-else>
+                        <Kartu :judul="`Checklist ${item.kode}`" :ket="tester ? 'Dari kriteria lulus tester.' : 'Dari kriteria tester bernomor sama dan kunci kontinuitas pack.'" rapat>
+                            <template #alat>
+                                <span class="flex flex-wrap items-center justify-end gap-2">
+                                    <span class="text-[12px] text-muted-foreground" aria-live="polite">
+                                        <template v-if="statusSimpan === 'menunggu' || statusSimpan === 'menyimpan'">Menyimpan…</template>
+                                        <template v-else-if="statusSimpan === 'tersimpan'">Tersimpan</template>
+                                    </span>
+                                    <ChipStatus v-if="kriteriaAda"
+                                        >{{ hitung.lolos }} lolos · {{ hitung.gagal }} gagal · {{ hitung.belum }} belum</ChipStatus
+                                    >
+                                </span>
+                            </template>
+                            <ul v-if="kriteriaAda" class="m-0 list-none py-1 pl-0">
+                                <li
+                                    v-for="(k, i) in item.kriteria"
+                                    :key="i"
+                                    class="flex flex-wrap items-center gap-3 border-t border-border/60 px-5 py-2.5 first:border-t-0"
+                                >
+                                    <span class="min-w-0 flex-[1_1_300px] text-[14px] leading-[1.45]">{{ k }}</span>
+                                    <span class="flex gap-1.5" role="group" :aria-label="`Nilai: ${k}`">
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-[40px] min-w-[80px] items-center justify-center gap-1 rounded-[9px] border px-3 text-[13px] font-semibold transition-colors"
+                                            :class="
+                                                nilai[String(i)] === 'lolos'
+                                                    ? 'border-emerald-500/70 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                                    : 'border-border text-muted-foreground hover:text-foreground'
+                                            "
+                                            :aria-pressed="nilai[String(i)] === 'lolos'"
+                                            @click="beriNilai(i, 'lolos')"
+                                        >
+                                            <Check v-if="nilai[String(i)] === 'lolos'" class="h-3.5 w-3.5" aria-hidden="true" /> Lolos
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-[40px] min-w-[80px] items-center justify-center gap-1 rounded-[9px] border px-3 text-[13px] font-semibold transition-colors"
+                                            :class="
+                                                nilai[String(i)] === 'gagal'
+                                                    ? 'border-destructive/70 bg-destructive/15 text-red-700 dark:text-red-300'
+                                                    : 'border-border text-muted-foreground hover:text-foreground'
+                                            "
+                                            :aria-pressed="nilai[String(i)] === 'gagal'"
+                                            @click="beriNilai(i, 'gagal')"
+                                        >
+                                            <X v-if="nilai[String(i)] === 'gagal'" class="h-3.5 w-3.5" aria-hidden="true" /> Gagal
+                                        </button>
+                                    </span>
+                                </li>
+                            </ul>
+                            <p v-else class="m-0 px-5 py-4 text-[14px] leading-relaxed text-muted-foreground">
+                                Item ini tidak punya kriteria tertulis. Tonton videonya, lalu tulis yang tidak sesuai di catatan per waktu.
+                            </p>
+                            <p
+                                v-if="statusSimpan === 'galat'"
+                                role="alert"
+                                class="m-0 flex flex-wrap items-center gap-3 border-t border-border/60 px-5 py-3 text-[13px]"
                             >
-                                <button
-                                    type="button"
-                                    class="w-[76px] shrink-0 text-left font-mono text-[hsl(var(--kanvas))] hover:underline"
-                                    :aria-label="`Lompat ke detik ${koma(c.t)}`"
-                                    @click="pemutar?.lompat(c.t)"
+                                <span class="flex-1 text-red-700 dark:text-red-300">Penilaian belum tersimpan: {{ pesanSimpan }}</span>
+                                <Tombol jenis="garis" @click="simpanSekarang">Coba simpan lagi</Tombol>
+                            </p>
+                        </Kartu>
+
+                        <Kartu judul="Catatan per waktu" ket="Tandai detik yang bermasalah. Garis oranye muncul di bawah video." rapat>
+                            <template #alat>
+                                <Tombol jenis="garis" :nonaktif="menulis" @click="mulaiCatatan">
+                                    <Plus class="h-4 w-4" /> Catatan di {{ waktuVideo(waktu) }}
+                                </Tombol>
+                            </template>
+                            <form
+                                v-if="menulis"
+                                class="flex flex-wrap items-center gap-2.5 border-b border-border/60 px-5 py-3"
+                                @submit.prevent="simpanCatatan"
+                            >
+                                <span class="w-[76px] shrink-0 font-mono text-[14px] text-[hsl(var(--kanvas))]">{{ koma(tBaru) }} dtk</span>
+                                <input
+                                    ref="kolomCatatan"
+                                    v-model="isiBaru"
+                                    type="text"
+                                    maxlength="500"
+                                    placeholder="Mis. counter kena pipi kiri, seharusnya pipi kanan"
+                                    :aria-label="`Isi catatan di detik ${koma(tBaru)}`"
+                                    class="h-10 min-w-0 flex-[1_1_240px] rounded-lg border border-border bg-background px-3 text-[14px] focus:border-[hsl(var(--sorot)/0.6)] focus:outline-none"
+                                    @keydown.esc="batalCatatan"
+                                />
+                                <Tombol tipe="submit" :nonaktif="!isiBaru.trim()">Simpan</Tombol>
+                                <Tombol jenis="sunyi" @click="batalCatatan">Batal</Tombol>
+                            </form>
+                            <ul v-if="catatan.length" class="m-0 list-none py-1.5 pl-0">
+                                <li
+                                    v-for="(c, i) in catatan"
+                                    :key="`${c.t}-${i}`"
+                                    class="flex items-start gap-3.5 px-5 py-2.5 text-[14px] leading-[1.45]"
                                 >
-                                    {{ koma(c.t) }} dtk
-                                </button>
-                                <span class="min-w-0 flex-1">{{ c.isi }}</span>
-                                <button
-                                    type="button"
-                                    class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                    :aria-label="`Hapus catatan ${koma(c.t)} detik`"
-                                    @click="hapusCatatan(i)"
-                                >
-                                    <X class="h-4 w-4" />
-                                </button>
-                            </li>
-                        </ul>
-                        <p v-else-if="!menulis" class="m-0 px-5 py-4 text-[14px] text-muted-foreground">
-                            Belum ada catatan. Putar videonya, jeda di detik yang salah, lalu tekan tombol di kanan atas.
-                        </p>
-                    </Kartu>
+                                    <button
+                                        type="button"
+                                        class="w-[76px] shrink-0 text-left font-mono text-[hsl(var(--kanvas))] hover:underline"
+                                        :aria-label="`Lompat ke detik ${koma(c.t)}`"
+                                        @click="pemutar?.lompat(c.t)"
+                                    >
+                                        {{ koma(c.t) }} dtk
+                                    </button>
+                                    <span class="min-w-0 flex-1">{{ c.isi }}</span>
+                                    <button
+                                        type="button"
+                                        class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                        :aria-label="`Hapus catatan ${koma(c.t)} detik`"
+                                        @click="hapusCatatan(i)"
+                                    >
+                                        <X class="h-4 w-4" />
+                                    </button>
+                                </li>
+                            </ul>
+                            <p v-else-if="!menulis" class="m-0 px-5 py-4 text-[14px] text-muted-foreground">
+                                Belum ada catatan. Putar videonya, jeda di detik yang salah, lalu tekan tombol di kanan atas.
+                            </p>
+                        </Kartu>
+                    </template>
                 </div>
 
                 <!-- Kanan: cek otomatis, acuan, keputusan -->
@@ -619,7 +692,7 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                         <!-- Belum diputuskan -->
                         <template v-else>
                             <p
-                                v-if="hitung.gagal > 0"
+                                v-if="hitung.gagal > 0 && !berakhirTanpaVideo"
                                 class="m-0 rounded-xl border border-[hsl(var(--kanvas)/0.35)] bg-[hsl(var(--kanvas)/0.08)] px-3.5 py-3 text-[13px] leading-normal"
                             >
                                 Ada <strong>{{ hitung.gagal }}</strong> kriteria gagal. Biasanya: salin catatan ke Claude untuk revisi prompt, lalu

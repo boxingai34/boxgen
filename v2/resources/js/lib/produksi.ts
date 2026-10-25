@@ -76,6 +76,11 @@ export function namaModel(kode: string): string {
     return kenal[kode] ?? kode;
 }
 
+/** "Tester T05" / "Klip 06" — sebutan item di teks yang disalin untuk Claude. */
+export function namaItem(jenis: Jenis | string, kode: string): string {
+    return `${jenis === 'tester' ? 'Tester' : 'Klip'} ${kode}`;
+}
+
 /** "Maomao vs Pairin" → ["M", "P"]; dipakai kalau gambar petinju tidak ada. */
 export function inisialPasangan(judul: string): [string, string] {
     const [a = '', b = ''] = judul.split(/\s+vs\.?\s+/i);

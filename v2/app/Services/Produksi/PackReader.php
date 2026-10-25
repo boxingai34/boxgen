@@ -26,6 +26,10 @@ use Throwable;
  * Pembaca tidak pernah menulis ke folder pack dan tidak melempar galat:
  * apa pun yang janggal menjadi kalimat di `peringatan`.
  *
+ * Klip tanpa `kriteria` di pack.json (dan semua klip md/lama) mendapat
+ * checklist turunan: kriteria tester bernomor sama + kalimat kontinuitas
+ * yang merujuk klip itu (kriteriaKlip()).
+ *
  * Prompt dibaca apa adanya (byte demi byte, termasuk CRLF); hanya BOM UTF-8
  * di awal berkas yang dibuang.
  */
@@ -45,6 +49,29 @@ class PackReader
 
     /** Butir kontinuitas yang juga jadi catatan edit: urusan gong, musik, subtitle, penyuntingan. */
     private const POLA_CATATAN_EDIT = '/(?<!\p{L})(gong|musik|music|subtitle)|sunting|(?<!\p{L})edit/iu';
+
+    /** Paling banyak butir checklist klip yang diturunkan otomatis (§3b). */
+    public const BATAS_KRITERIA_KLIP = 12;
+
+    /**
+     * Rujukan detik milik tester ("pada detik 4", "di detik 6–10", "Gong detik 4"):
+     * waktunya hanya benar untuk tes 10 detik, jadi dibuang saat kriterianya
+     * diwariskan ke klip. "8 detik" / "6 detik dengung" (angka di depan) tetap.
+     */
+    private const POLA_DETIK_TESTER = '/(?<!\p{L})(?:(?:pada|di|dari|sejak|mulai|sampai|hingga|sekitar|tepat)\s+)?(?:detik|dtk)\s+(?:ke-?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:[-–—]|s\.?\s?d\.?|sampai|hingga)\s*\d+(?:[.,]\d+)?)?/iu';
+
+    /** Kriteria yang hanya saran mendengar/menonton ("Dengarkan hasilnya"), bukan kondisi yang bisa dinilai. */
+    private const POLA_SARAN_DENGAR = '/^(?:coba\s+)?(?:dengar(?:kan)?|tonton|periksa|cek)(?:\s+(?:lagi|ulang|baik-baik|dulu))?(?:\s+(?:hasil|audio|suara|bunyi|video)(?:nya)?)?(?:\s+(?:sampai|hingga)\s+(?:habis|akhir|selesai))?$/iu';
+
+    /**
+     * Sesudah angka yang bukan kode klip: huruf/angka menempel ("A-K3", "720p"),
+     * desimal/jam/rasio ("23,5", "0:30", "16:9"), "30-an", "18+", dan satuan
+     * ("24 dtk", "30 detik", "10 menit", "50%"). "02 s.d. 04" tetap rentang.
+     */
+    private const SESUDAH_KODE = '(?![\p{L}\d+]|[.,:]\d|-\p{L}|\s*(?i:dtk|detik|s|sec|secs|seconds?|menit|mnt|min|jam|fps|cm|kg|th|thn|tahun|kali|derajat)(?![\p{L}.])|\s*[%°])';
+
+    /** Kata di depan angka yang menandai bukan kode klip: "detik 15", "Revisi 12", "ronde 10", "tes 03". */
+    private const SEBELUM_KODE = '/(?<!\p{L})(?:detik|dtk|revisi|ronde|round|umur|usia|tahun|menit|versi|vol|volume|bab|episode|ep|jam|pukul|image|gambar|seed|tes|test|tester)\.?\s*(?:ke-?\s*)?$/iu';
 
     private array $cfg;
 
@@ -112,6 +139,7 @@ class PackReader
             if (!$this->dariJson($pack) && !$this->dariMd($pack)) {
                 $this->dariLama($pack);
             }
+            $pack['klip'] = self::kriteriaKlip($pack['klip'], $pack['tester'], $pack['kontinuitas']);
             $pack['dokumen'] = $this->dokumen($pack['revisi']);
 
             if ($this->tebakanDurasi) {
@@ -558,6 +586,251 @@ class PackReader
     }
 
     // ------------------------------------------------------------------
+    // Checklist klip
+    // ------------------------------------------------------------------
+
+    /**
+     * Checklist review untuk klip yang belum punya kriteria (§3b). Kriteria
+     * dari pack.json dipakai apa adanya; klip lain (md, lama, atau pack.json
+     * tanpa "kriteria") diturunkan, urut:
+     *
+     *   a. kriteria tester bernomor sama (T05 ↔ 05, T11A ↔ 11A), tanpa
+     *      rujukan detik milik tester dan tanpa saran "Dengarkan hasilnya";
+     *   b. kalimat kontinuitas yang merujuk klip itu ("(03)", "02/06",
+     *      "04–05", "mulai 02" = 02 sampai klip terakhir);
+     *   c. kalau a dan b kosong: kalimat pertama tiap butir kontinuitas yang
+     *      tidak merujuk klip tertentu (semua kalimat pertama kalau tidak ada).
+     *
+     * Tanpa kembar, paling banyak BATAS_KRITERIA_KLIP butir.
+     *
+     * @param  list<array<string,mixed>> $klip
+     * @param  list<array<string,mixed>> $tester
+     * @param  list<string>              $kontinuitas
+     * @return list<array<string,mixed>> $klip dengan `kriteria` terisi
+     */
+    public static function kriteriaKlip(array $klip, array $tester, array $kontinuitas): array
+    {
+        $kodeKlip = array_map(fn ($k) => (string) ($k['kode'] ?? ''), $klip);
+
+        $dariTester = [];
+        foreach ($tester as $t) {
+            $nomor = self::nomorItem((string) ($t['kode'] ?? ''), 'tester');
+            if ($nomor !== null && !isset($dariTester[$nomor])) {
+                $dariTester[$nomor] = self::daftarTeks($t['kriteria'] ?? []);
+            }
+        }
+
+        // Kontinuitas dipecah sekali: [teks, kode klip yang dirujuk].
+        $potongan = $pertama = [];
+        foreach ($kontinuitas as $butir) {
+            foreach (self::kalimat(self::bersihMd((string) $butir)) as $i => $k) {
+                if ($i === 0) {
+                    $pertama[] = [self::rapikan($k), self::rujukanKlip($k, $kodeKlip)];
+                }
+                foreach (self::pecahTitikKoma($k, $kodeKlip) as [$teks, $rujukan]) {
+                    $potongan[] = [self::rapikan($teks), $rujukan];
+                }
+            }
+        }
+
+        foreach ($klip as &$item) {
+            if (self::daftarTeks($item['kriteria'] ?? [])) {
+                continue;
+            }
+            $kode = (string) ($item['kode'] ?? '');
+
+            $hasil = [];
+            $nomor = self::nomorItem($kode, 'klip');
+            foreach ($nomor !== null ? ($dariTester[$nomor] ?? []) : [] as $k) {
+                if (($k = self::kriteriaWarisan($k)) !== null) {
+                    $hasil[] = $k;
+                }
+            }
+            foreach ($potongan as [$teks, $rujukan]) {
+                if (in_array($kode, $rujukan, true)) {
+                    $hasil[] = $teks;
+                }
+            }
+            if (!$hasil) {
+                $umum = array_column(array_filter($pertama, fn ($p) => !$p[1]), 0);
+                $hasil = $umum ?: array_column($pertama, 0);
+            }
+
+            $item['kriteria'] = array_slice(self::unik($hasil), 0, self::BATAS_KRITERIA_KLIP);
+        }
+        unset($item);
+
+        return $klip;
+    }
+
+    /**
+     * Kode klip yang dirujuk sebuah kalimat: angka dua digit yang berdiri
+     * sendiri ("(03)", "02/06", "klip 03", "11A"), "klip 3", rentang
+     * "04–05" / "04-05" / "klip 3–5", dan "mulai 02" / "sejak 02" (sampai
+     * klip terakhir). Nama gambar ("BG-02.png"), waktu ("24 dtk", "23,5",
+     * "0:30"), rasio, dan angka sesudah "detik"/"Revisi"/"ronde" tidak
+     * dihitung. "11" hanya klip 11; rentang dan "mulai" memakai angkanya
+     * (11A ikut "10–12").
+     *
+     * @param  list<string> $kodeKlip
+     * @return list<string> kode klip yang dirujuk, urut seperti $kodeKlip
+     */
+    public static function rujukanKlip(string $teks, array $kodeKlip): array
+    {
+        $persis = $rentang = [];
+        $sah = fn (int $pos) => !preg_match(self::SEBELUM_KODE, substr($teks, 0, $pos));
+        $sampai = '\s*(?:[-–—]|s\.?\s?d\.?|(?i:sampai|hingga))\s*';
+
+        // "klip 03", "klip 3–5", "klip 03 sampai klip 05"
+        preg_match_all('/(?<!\p{L})(?i:klip|clip)\s+(\d{1,3})([A-Z]?)(?:' . $sampai . '(?:(?i:klip|clip)\s+)?(\d{1,3})[A-Z]?)?' . self::SESUDAH_KODE . '/u', $teks, $m, PREG_SET_ORDER);
+        foreach ($m as $x) {
+            if (($x[3] ?? '') !== '') {
+                $rentang[] = [(int) $x[1], (int) $x[3]];
+            } else {
+                $persis[] = self::kodeBaku($x[1] . $x[2], 'klip');
+            }
+        }
+
+        // "mulai 02", "sejak klip 3" → sampai klip terakhir
+        preg_match_all('/(?<!\p{L})(?i:mulai|sejak)\s+(?:(?i:dari)\s+)?(?:(?i:klip|clip)\s+(\d{1,3})|(\d{2}))[A-Z]?' . self::SESUDAH_KODE . '/u', $teks, $m, PREG_SET_ORDER);
+        foreach ($m as $x) {
+            $rentang[] = [(int) ($x[1] !== '' ? $x[1] : $x[2]), PHP_INT_MAX];
+        }
+
+        // "04–05", "04-05", "04 s.d. 05"
+        preg_match_all('/(?<![\p{L}\d.,:\-–—#@])(\d{2})[A-Z]?' . $sampai . '(\d{2})[A-Z]?' . self::SESUDAH_KODE . '/u', $teks, $m, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        foreach ($m as $x) {
+            if ($sah($x[0][1])) {
+                $rentang[] = [(int) $x[1][0], (int) $x[2][0]];
+            }
+        }
+
+        // "(03)", "02/06", "11A"
+        preg_match_all('/(?<![\p{L}\d.,:\-–—#@])(\d{2})([A-Z]?)' . self::SESUDAH_KODE . '/u', $teks, $m, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        foreach ($m as $x) {
+            if ($sah($x[0][1])) {
+                $persis[] = self::kodeBaku($x[1][0] . $x[2][0], 'klip');
+            }
+        }
+
+        $hasil = [];
+        foreach ($kodeKlip as $kode) {
+            $kode = (string) $kode;
+            $angka = preg_match('/^0*(\d+)[A-Z]?$/', $kode, $a) ? (int) $a[1] : null;
+            $kena = in_array($kode, $persis, true);
+            foreach ($angka !== null && !$kena ? $rentang : [] as [$dari, $ke]) {
+                if ($angka >= min($dari, $ke) && $angka <= max($dari, $ke)) {
+                    $kena = true;
+                    break;
+                }
+            }
+            if ($kena) {
+                $hasil[] = $kode;
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Kalimat sebuah butir, dipecah sesudah ". " (juga "! " dan "? ");
+     * singkatan seperti "mis." dan "s.d." tidak memutus kalimat.
+     *
+     * @return list<string>
+     */
+    public static function kalimat(string $teks): array
+    {
+        $hasil = [];
+        foreach (preg_split('/(?<=[.!?])\s+/u', trim($teks)) ?: [] as $k) {
+            $n = count($hasil);
+            if ($n && preg_match('/(?<!\p{L})(?:mis|dll|dsb|dkk|dst|s\.d|vs|no|hlm|tgl|sdr|dr|kl|lih)\.$/iu', $hasil[$n - 1])) {
+                $hasil[$n - 1] .= ' ' . $k;
+            } else {
+                $hasil[] = $k;
+            }
+        }
+
+        return array_values(array_filter(array_map('trim', $hasil), fn ($k) => $k !== ''));
+    }
+
+    /**
+     * Satu kalimat dipecah di "; " hanya kalau kedua sisinya merujuk klip
+     * yang berbeda ("Gong 03 …; gong 05 …"). Sisi tanpa rujukan tetap
+     * menempel ke sisi sebelumnya.
+     *
+     * @param  list<string> $kodeKlip
+     * @return list<array{0:string,1:list<string>}> [teks, kode klip yang dirujuk]
+     */
+    private static function pecahTitikKoma(string $kalimat, array $kodeKlip): array
+    {
+        $hasil = [];
+        foreach (preg_split('/;\s+/u', $kalimat) ?: [] as $bagian) {
+            $rujukan = self::rujukanKlip($bagian, $kodeKlip);
+            $n = count($hasil);
+            if ($n && !($rujukan && $hasil[$n - 1][1] && $rujukan !== $hasil[$n - 1][1])) {
+                $hasil[$n - 1][0] .= '; ' . $bagian;
+                $hasil[$n - 1][1] = self::rujukanKlip($hasil[$n - 1][0], $kodeKlip);
+            } else {
+                $hasil[] = [$bagian, $rujukan];
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Kriteria tester yang diwariskan ke klip: rujukan detik tester dibuang,
+     * sisa spasi/koma dirapikan, huruf pertama kapital. Kosong atau hanya
+     * saran mendengar → null.
+     */
+    private static function kriteriaWarisan(string $kriteria): ?string
+    {
+        $s = preg_replace(self::POLA_DETIK_TESTER, ' ', $kriteria);
+        $s = preg_replace(['/\(\s*\)/u', '/\s+([,;:.)])/u', '/([,;:])(?:\s*[,;:])+/u', '/\(\s+/u'], [' ', '$1', '$1', '('], $s);
+        $s = self::rapikan(preg_replace('/^[\s,;:–—-]+|[\s,;:–—-]+$/u', '', $s));
+
+        return $s === '' || preg_match(self::POLA_SARAN_DENGAR, $s) ? null : $s;
+    }
+
+    /** Nomor pembanding tester ↔ klip: "T05"/"05" → "5", "T11A"/"11A" → "11A". */
+    private static function nomorItem(string $kode, string $jenis): ?string
+    {
+        $pola = $jenis === 'tester' ? '/^T0*(\d+)([A-Z]?)$/' : '/^0*(\d+)([A-Z]?)$/';
+
+        return preg_match($pola, strtoupper(trim($kode)), $m) ? (int) $m[1] . $m[2] : null;
+    }
+
+    /** Satu butir checklist: spasi dirapikan, titik akhir dibuang, huruf pertama kapital. */
+    private static function rapikan(string $s): string
+    {
+        $s = rtrim(trim(preg_replace('/\s+/u', ' ', $s)), '.;');
+
+        return mb_strtoupper(mb_substr($s, 0, 1)) . mb_substr($s, 1);
+    }
+
+    /** Markdown di butir kontinuitas pack.json: **tebal**, __tebal__, *miring*, `kode`. */
+    private static function bersihMd(string $s): string
+    {
+        $s = self::bersih(str_replace('__', '', $s));
+
+        return preg_replace('/(?<![\p{L}\d*_])[*_]([^*_]+)[*_](?![\p{L}\d*_])/u', '$1', $s);
+    }
+
+    /** @return list<string> tanpa kembar (huruf besar-kecil dan spasi diabaikan), urutan pertama dipakai */
+    private static function unik(array $daftar): array
+    {
+        $hasil = [];
+        foreach ($daftar as $s) {
+            $kunci = mb_strtolower(preg_replace('/\s+/u', ' ', trim($s)));
+            if ($kunci !== '' && !isset($hasil[$kunci])) {
+                $hasil[$kunci] = $s;
+            }
+        }
+
+        return array_values($hasil);
+    }
+
+    // ------------------------------------------------------------------
     // Format lama
     // ------------------------------------------------------------------
 
@@ -624,7 +897,8 @@ class PackReader
         $hasil = [];
         foreach ($txt as $kode => $f) {
             $item = [
-                'kode'        => $kode,
+                'kode'        => (string) $kode, // kunci larik "10" menjadi int 10
+
                 'judul'       => trim(preg_replace('/^\s*T?\d+[A-Za-z]?\s*[-–—_.:]*\s*/i', '', pathinfo($f, PATHINFO_FILENAME))),
                 'durasi'      => 0,
                 'gambar'      => [],

@@ -49,7 +49,14 @@ class PackReaderTest extends TestCase
         $this->assertSame(['A-00.png', 'C-00.png'], $p['klip'][1]['gambar']);
         $this->assertSame('Interval — Maomao dan Joka', $p['klip'][1]['judul']);
         $this->assertSame(['PROMPT TXT/01.txt', 'PROMPT TXT/02 - Interval.txt'], array_column($p['klip'], 'prompt_file'));
-        $this->assertSame([], $p['klip'][0]['kriteria']);
+
+        // Checklist klip: kriteria tester bernomor sama + kontinuitas yang merujuk klip itu.
+        $this->assertSame(['Pairin benar-benar menari 8 detik', 'Kostum utuh', 'Hanya dua orang'], $p['klip'][0]['kriteria']);
+        $this->assertSame([
+            'Hanya satu Joka', 'Mata kiri terbuka', 'Kanan tetap tertutup',
+            'Maomao mulai 02 sudah luka berat: mata KANAN tertutup',
+            'Gong pembuka 02 dipukul 15 dtk; sisakan ekor saat penyuntingan',
+        ], $p['klip'][1]['kriteria']);
 
         // Prompt byte demi byte, CRLF dan huruf Jepang utuh.
         $this->assertSame(self::prompt01(), $p['klip'][0]['prompt']);
@@ -125,6 +132,10 @@ class PackReaderTest extends TestCase
         $this->assertSame(['01', '02'], array_column($p['klip'], 'kode'));
         $this->assertSame(self::prompt01(), $p['klip'][0]['prompt']);
         $this->assertSame('PROMPT TXT/01.txt', $p['klip'][0]['prompt_file']);
+
+        // Klip pack.json tanpa "kriteria": warisan T01; klip 02 tanpa tester → kalimat pertama kontinuitas.
+        $this->assertSame(['Menari 8 detik', 'Kostum utuh'], $p['klip'][0]['kriteria']);
+        $this->assertSame(['Gong pembuka di 23,5 dtk', 'Mata kanan Maomao tertutup'], $p['klip'][1]['kriteria']);
 
         // Subtitle yang tidak ada di disk tidak ikut; catatan edit diturunkan dari kontinuitas.
         $this->assertSame(['id' => 'Subtitle Indonesia.srt'], $p['subtitle']);
@@ -286,5 +297,173 @@ class PackReaderTest extends TestCase
         $this->assertCount(1, $p['catatan_edit']);
         $this->assertStringStartsWith('Gong pembuka 03 dipukul 23,5 dtk', $p['catatan_edit'][0]);
         $this->assertNotContains('PEMETAAN KLIP - Revisi 4.md', $p['dokumen']);
+
+        // Checklist klip turunan: tiap klip punya, tanpa detik milik tester.
+        $this->assertSame([4, 12, 8, 7, 10, 7], array_map(fn ($k) => count($k['kriteria']), $p['klip']));
+        $semua = implode("\n", array_merge(...array_column($p['klip'], 'kriteria')));
+        $this->assertDoesNotMatchRegularExpression('/detik\s+\d/iu', $semua);
+        $this->assertStringNotContainsString('Dengarkan hasilnya', $semua);
+
+        $k05 = $p['klip'][4]['kriteria'];
+        $this->assertSame(array_slice($k05, 0, 5), array_slice($p['tester'][4]['kriteria'], 0, 5));
+        $this->assertSame('Gong menyisakan 6 detik dengung', $k05[5]);
+        $this->assertSame('Gong penghentian laga 05 dipukul 24 dtk (sisa 6 dtk)', $k05[9]);
+        $this->assertContains('Laga 04–05 hanya dua petinju dan halaman kosong, termasuk luar ring', $k05);
+
+        $k02 = $p['klip'][1]['kriteria'];
+        $this->assertSame('Maomao tampak sangat lelah dan kesakitan, napasnya berat', $k02[9]);
+        $this->assertStringStartsWith('Maomao mulai 02 sudah luka berat', $k02[10]);
+        $this->assertSame('Joka merah-biru hanya merawat Maomao (02/06)', $k02[11]);
+
+        $this->assertContains('Meimei biru-oranye hanya merawat Pairin (03)', $p['klip'][2]['kriteria']);
+        $this->assertContains('Gong besar dipukul dan dengung bertahan sampai akhir', $p['klip'][2]['kriteria']);
+        $this->assertNotContains('Joka merah-biru hanya merawat Maomao (02/06)', $p['klip'][2]['kriteria']);
+    }
+
+    // ---------------------------------------------------------------- checklist klip
+
+    public function test_kriteria_klip_dari_pack_json_dipakai_apa_adanya(): void
+    {
+        $p = (new PackReader())->baca($this->buatPackJsonChecklist('Json vs Kriteria', [
+            ['kode' => 'T01', 'kriteria' => ['Gong pada detik 4', 'Kostum utuh']],
+            ['kode' => 'T02', 'kriteria' => ['Hanya satu Joka']],
+            ['kode' => 'T03', 'kriteria' => ['Hanya Meimei']],
+        ], [
+            ['kode' => '01', 'kriteria' => ['  Tarian 8 detik penuh ', 'Gong pada detik 4 tetap ditulis apa adanya']],
+            ['kode' => '02'],                     // tanpa "kriteria" → diturunkan
+            ['kode' => '03', 'kriteria' => []],   // daftar kosong → diturunkan juga
+        ], ['Joka **hanya** merawat Maomao (02).', 'Pairin *mulai 03* memar rusuk kanan.']));
+
+        $this->assertSame('json', $p['format']);
+        $this->assertSame(['Tarian 8 detik penuh', 'Gong pada detik 4 tetap ditulis apa adanya'], $p['klip'][0]['kriteria']);
+        $this->assertSame(['Hanya satu Joka', 'Joka hanya merawat Maomao (02)'], $p['klip'][1]['kriteria']);
+        $this->assertSame(['Hanya Meimei', 'Pairin mulai 03 memar rusuk kanan'], $p['klip'][2]['kriteria']);
+        $this->assertSame(['Gong pada detik 4', 'Kostum utuh'], $p['tester'][0]['kriteria'], 'kriteria tester tidak diubah');
+    }
+
+    public function test_kriteria_klip_mewarisi_tester_bernomor_sama_tanpa_detik_tester(): void
+    {
+        $p = (new PackReader())->baca($this->buatPackChecklist('Warisan vs Tester', ['01', '02', '05', '11', '11A'], [
+            'T1'   => 'Pairin menari 8 detik penuh; kostum utuh.',
+            'T05'  => 'Empat body hit ke perut; gong besar dipukul pada detik 4 dan dengung bertahan sampai akhir; dengarkan hasilnya. '
+                . 'Di detik 6–10, Maomao tampak lelah. Gong detik 4 menyisakan 6 detik dengung. Hanya dua orang.',
+            'T11A' => 'Sonoko menghentikan laga.',
+        ]));
+
+        $klip = array_column($p['klip'], 'kriteria', 'kode');
+        $this->assertSame(['Pairin menari 8 detik penuh', 'Kostum utuh'], $klip['01'], 'T1 = T01 ↔ klip 01');
+        $this->assertSame([
+            'Empat body hit ke perut',
+            'Gong besar dipukul dan dengung bertahan sampai akhir',
+            'Maomao tampak lelah',
+            'Gong menyisakan 6 detik dengung',
+            'Hanya dua orang',
+        ], $klip['05']);
+        $this->assertSame(['Sonoko menghentikan laga'], $klip['11A']);
+        $this->assertSame([], $klip['11'], 'T11A hanya untuk klip 11A');
+        $this->assertSame([], $klip['02'], 'tanpa tester bernomor sama dan tanpa kontinuitas');
+
+        // Tester sendiri tetap memakai kriteria aslinya.
+        $this->assertSame([
+            'Empat body hit ke perut',
+            'Gong besar dipukul pada detik 4 dan dengung bertahan sampai akhir',
+            'Dengarkan hasilnya',
+            'Di detik 6–10, Maomao tampak lelah',
+            'Gong detik 4 menyisakan 6 detik dengung',
+            'Hanya dua orang',
+        ], $p['tester'][1]['kriteria']);
+    }
+
+    public function test_kriteria_klip_dari_kontinuitas_yang_merujuk_klip_rentang_dan_mulai(): void
+    {
+        $p = (new PackReader())->baca($this->buatPackChecklist('Sambung vs Kontinuitas', ['01', '02', '03', '04', '05', '06'], [], [
+            'Tarian di 01 mendapat 8 detik penuh.',
+            'Maomao **mulai 02** sudah luka berat: mata kanan tertutup; mata kiri membuka. Pada KO kedua mata boleh menutup.',
+            'Joka hanya merawat Maomao (02/06); Meimei hanya merawat Pairin (03). Laga 04–05 hanya dua petinju.',
+            'Gong pembuka 03 dipukul 23,5 dtk (sisa 6,5 dtk); gong penghentian laga 05 dipukul 24 dtk.',
+            'Sarung tetap membulat di klip 3-4. Luar ring kosong pada 04-05. Klip 06 adalah epilog.',
+            'Acuan BG-02.png dipakai di Revisi 12, rasio 16:9, total 2:50.',
+        ]));
+
+        $luka = 'Maomao mulai 02 sudah luka berat: mata kanan tertutup; mata kiri membuka';
+        $this->assertSame([
+            '01' => ['Tarian di 01 mendapat 8 detik penuh'],
+            '02' => [$luka, 'Joka hanya merawat Maomao (02/06)'],
+            '03' => [$luka, 'Meimei hanya merawat Pairin (03)', 'Gong pembuka 03 dipukul 23,5 dtk (sisa 6,5 dtk)', 'Sarung tetap membulat di klip 3-4'],
+            '04' => [$luka, 'Laga 04–05 hanya dua petinju', 'Sarung tetap membulat di klip 3-4', 'Luar ring kosong pada 04-05'],
+            '05' => [$luka, 'Laga 04–05 hanya dua petinju', 'Gong penghentian laga 05 dipukul 24 dtk', 'Luar ring kosong pada 04-05'],
+            '06' => [$luka, 'Joka hanya merawat Maomao (02/06)', 'Klip 06 adalah epilog'],
+        ], array_column($p['klip'], 'kriteria', 'kode'));
+    }
+
+    public function test_kriteria_klip_cadangan_kalimat_pertama_kontinuitas(): void
+    {
+        $p = (new PackReader())->baca($this->buatPackChecklist('Cadangan vs Kontinuitas', ['01', '02'], ['T02' => 'Hanya satu Joka.'], [
+            'Kedua petinju memakai sarung membulat. Pada epilog sarung tetap utuh.',
+            'Maomao mulai 02 luka berat. Mata kanan tertutup.',
+            'Ring biru dan tali putih.',
+        ]));
+
+        // Klip 01: tanpa tester dan tanpa kalimat yang merujuknya → kalimat pertama butir yang tidak merujuk klip lain.
+        $this->assertSame(['Kedua petinju memakai sarung membulat', 'Ring biru dan tali putih'], $p['klip'][0]['kriteria']);
+        $this->assertSame(['Hanya satu Joka', 'Maomao mulai 02 luka berat'], $p['klip'][1]['kriteria']);
+
+        // Semua butir merujuk klip lain → tetap kalimat pertama semua butir.
+        $q = (new PackReader())->baca($this->buatPackChecklist('Semua vs Merujuk', ['01', '02', '03'], [], ['Joka di 02 saja. Tanpa wasit.', 'Gong di 03.']));
+        $this->assertSame(['Joka di 02 saja', 'Gong di 03'], $q['klip'][0]['kriteria']);
+    }
+
+    public function test_kriteria_klip_tanpa_kembar_dan_paling_banyak_dua_belas(): void
+    {
+        $sepuluh = implode('; ', array_map(fn ($i) => "kondisi {$i}", range(1, 10)));
+        $p = (new PackReader())->baca($this->buatPackChecklist('Batas vs Kembar', ['03'], ['T03' => "Gong pembuka 03 terdengar; {$sepuluh}."], [
+            'Gong  pembuka 03 TERDENGAR.',
+            'Meimei di sudut 03.',
+            'Sarung 03 membulat.',
+        ]));
+
+        $k = $p['klip'][0]['kriteria'];
+        $this->assertCount(PackReader::BATAS_KRITERIA_KLIP, $k);
+        $this->assertSame(['Gong pembuka 03 terdengar', 'Kondisi 1'], array_slice($k, 0, 2));
+        $this->assertSame('Meimei di sudut 03', $k[11]);
+        $this->assertNotContains('Sarung 03 membulat', $k);
+    }
+
+    public function test_rujukan_klip_mengabaikan_nama_gambar_waktu_dan_satuan(): void
+    {
+        $kode = ['01', '02', '03', '04', '05', '06', '10', '11', '11A', '12', '15', '16', '24', '30'];
+        $r = fn (string $s) => PackReader::rujukanKlip($s, $kode);
+
+        $this->assertSame(['03'], $r('Meimei merawat Pairin (03).'));
+        $this->assertSame(['02', '06'], $r('Joka merawat Maomao (02/06)'));
+        $this->assertSame(['04', '05'], $r('Laga 04–05 hanya dua petinju'));
+        $this->assertSame(['04', '05'], $r('Laga 04-05 hanya dua petinju'));
+        $this->assertSame(['02', '03', '04'], $r('Robe dipakai 02 s.d. 04'));
+        $this->assertSame(['03', '04'], $r('Sarung di klip 3–4'));
+        $this->assertSame(['03'], $r('Lihat klip 3'));
+        $this->assertSame(['05', '06', '10', '11', '11A', '12', '15', '16', '24', '30'], $r('Pairin mulai 05 memar'));
+        $this->assertSame(['11'], $r('Akhir normal 11.'));
+        $this->assertSame(['11A'], $r('Sonoko menghentikan di 11A.'));
+        $this->assertSame(['10', '11', '11A', '12'], $r('Adegan 10–12 di ring'));
+
+        $this->assertSame([], $r('Acuan BG-02.png dan A-03.png, T05/T06'));
+        $this->assertSame([], $r('Gong dipukul 24 dtk, sisa 6,5 dtk; 30 detik; 23,5 dtk'));
+        $this->assertSame([], $r('Rasio 16:9, total 2:50, 0:30, umur 30-an'));
+        $this->assertSame([], $r('Revisi 12, ronde 10, detik 15–16, tes 03, mulai detik 4'));
+    }
+
+    public function test_kode_klip_lama_tetap_teks_dan_mendapat_kalimat_kontinuitas(): void
+    {
+        // "10 - judul.txt": kunci larik "10" menjadi int di PHP; kode tetap teks supaya cocok dengan rujukan "(klip 04, 09, 10)".
+        $this->tulis('Lama vs Sepuluh' . DIRECTORY_SEPARATOR . 'PROMPT TXT' . DIRECTORY_SEPARATOR . '09 - Insert.txt', "Overall: 20-second scene.\n");
+        $this->tulis('Lama vs Sepuluh' . DIRECTORY_SEPARATOR . 'PROMPT TXT' . DIRECTORY_SEPARATOR . '10 - Insert sarung.txt', "Overall: 20-second scene.\n");
+        $this->tulis('Lama vs Sepuluh' . DIRECTORY_SEPARATOR . 'Lama vs Sepuluh - Prompt Pack (Wan 3.0).md',
+            "# Pack\n\n## Kontinuitas\n\n- Keduanya orthodox. Warna sarung hanya di insert sarung (klip 04, 09, 10).\n");
+
+        $p = (new PackReader())->baca($this->antrian . DIRECTORY_SEPARATOR . 'Lama vs Sepuluh');
+
+        $this->assertSame(['lama', ['09', '10']], [$p['format'], array_column($p['klip'], 'kode')]);
+        $this->assertSame(['Warna sarung hanya di insert sarung (klip 04, 09, 10)'], $p['klip'][1]['kriteria']);
+        $this->assertSame(['10'], PackReader::rujukanKlip('insert (klip 04, 09, 10)', [10]));
     }
 }

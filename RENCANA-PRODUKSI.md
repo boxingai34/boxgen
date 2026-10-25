@@ -95,9 +95,35 @@ ITEM = [
   'gambar'      => ['A-K3-R.png', 'B-K2-R.png', 'BG-02.png'],  // urutan slot = @image1..N
   'prompt'      => '...isi TXT...',
   'prompt_file' => 'TEST REVISI 5/T04.txt', // relatif ke folder pack, pemisah '/'
-  'kriteria'    => ['Gerakan benar-benar cepat, bukan hanya potong kamera cepat', ...], // tester; klip boleh []
+  'kriteria'    => ['Gerakan benar-benar cepat, bukan hanya potong kamera cepat', ...], // checklist Review (lihat bawah)
 ]
 ```
+
+**Checklist (`kriteria`).** Tester: kriteria lulus apa adanya (§3a/§3b). Klip: `kriteria` dari
+pack.json kalau berisi minimal satu teks, dipakai apa adanya. Selain itu (format json, md, dan lama
+sama) diturunkan `PackReader::kriteriaKlip()`, urut, tanpa kembar (huruf besar-kecil/spasi
+diabaikan), paling banyak `BATAS_KRITERIA_KLIP` = 12 butir:
+
+1. **Warisan tester bernomor sama**: T05 ↔ 05, T01 ↔ 01 (angka dibandingkan tanpa nol di depan;
+   huruf ikut: 11A hanya ↔ T11A, klip 11 tidak mewarisi T11A). Rujukan detik milik tester dibuang
+   — "pada detik 4", "di detik 6–10", "Gong detik 4" (kata detik/dtk DIIKUTI angka; "8 detik",
+   "6 detik dengung" tetap) — lalu spasi/koma sisa dirapikan dan huruf pertama dikapitalkan.
+   Kriteria yang jadi kosong atau hanya saran mendengar/menonton ("Dengarkan hasilnya") dilewati.
+2. **Kalimat kontinuitas yang merujuk klip itu**: tiap butir dipecah di `. ` (singkatan "mis.",
+   "s.d." tidak memutus), markdown dibuang; `; ` ikut memecah hanya kalau kedua sisinya merujuk
+   klip yang berbeda ("Gong pembuka 03 …; gong penghentian laga 05 …"). Rujukan
+   (`PackReader::rujukanKlip()`): angka dua digit berdiri sendiri ("(03)", "02/06", "klip 03",
+   "11A" persis), "klip 3", rentang "04–05" / "04-05" / "02 s.d. 04" / "klip 3–4" (berdasarkan
+   angka, 11A ikut 10–12), "mulai 02" / "sejak 02" = 02 sampai klip terakhir. Bukan rujukan: nama
+   gambar ("BG-02.png", "T05"), waktu/satuan ("24 dtk", "23,5", "0:30", "30 detik", "16:9",
+   "30-an"), dan angka sesudah detik/Revisi/ronde/umur/tes. Kalimat tanpa rujukan tidak ikut.
+3. **Cadangan** kalau 1 dan 2 kosong: kalimat pertama tiap butir kontinuitas yang tidak merujuk
+   klip tertentu (semua kalimat pertama kalau setiap butir merujuk klip lain). Tanpa tester
+   bernomor sama dan tanpa kontinuitas → `[]`.
+
+Pack asli Maomao vs Pairin Revisi 5 menghasilkan 4, 12, 8, 7, 10, 7 butir untuk klip 01–06
+(klip 05: enam kriteria T05 dengan "Gong menyisakan 6 detik dengung", lalu kalimat "mulai 02",
+"mulai 03", "Laga 04–05 …", dan "Gong penghentian laga 05 dipukul 24 dtk (sisa 6 dtk)").
 
 ### 3a. `pack.json` (format baru, ditulis skill alur-tanding)
 
@@ -116,14 +142,18 @@ Kalau ada `pack.json` di akar folder pack, itu sumber kebenaran:
               "prompt": "TEST REVISI 5/T01.txt", "gambar": ["A-00.png", "B-00.png", "BG-01.png"],
               "kriteria": ["Pairin benar-benar menari 8 detik", "Kostum utuh"]}],
   "klip": [{"kode": "01", "judul": "Tarian dan taruhan obat", "durasi": 30,
-            "prompt": "PROMPT TXT/01.txt", "gambar": ["A-00.png", "B-00.png", "BG-01.png"]}],
+            "prompt": "PROMPT TXT/01.txt", "gambar": ["A-00.png", "B-00.png", "BG-01.png"],
+            "kriteria": ["Pairin benar-benar menari 8 detik", "Hanya dua orang"]}],
   "subtitle": {"id": "Subtitle Indonesia.srt", "en": "Subtitle Inggris.srt", "ja": "Subtitle Jepang.srt"},
   "kontinuitas": ["..."],
   "catatan_edit": ["..."]
 }
 ```
 `prompt` di pack.json = path berkas relatif; PackReader membaca isinya ke `ITEM.prompt`
-dan menaruh path-nya di `ITEM.prompt_file`.
+dan menaruh path-nya di `ITEM.prompt_file`. `kriteria` klip **opsional** (daftar teks, satu
+kondisi yang bisa dilihat/didengar per entri): kalau berisi, dipakai apa adanya (hanya di-trim);
+kalau tidak ada atau `[]`, checklist klip diturunkan seperti di §3 dari kriteria tester
+pack.json bernomor sama dan `kontinuitas` pack.json.
 
 ### 3b. Format md Revisi 5 (Maomao vs Pairin — dibaca kalau tidak ada pack.json)
 
@@ -141,6 +171,9 @@ dan menaruh path-nya di `ITEM.prompt_file`.
 - **Model** dari nama `(Wan 3.0)` → `wan-3.0`. **Resolusi** dari `720p` di teks.
 - **Kontinuitas** = butir di bagian `## Kontinuitas penting`. **Catatan edit** = butir
   kontinuitas yang menyebut gong, musik, subtitle, atau penyuntingan.
+- **Kriteria klip**: tabel klip tidak punya kolom kriteria, jadi semua klip md (dan lama)
+  memakai checklist turunan §3: kriteria tester bernomor sama tanpa detik tester + kalimat
+  kontinuitas yang merujuk klip itu.
 - **Subtitle**: `Subtitle Indonesia.srt` → id, `Subtitle Inggris.srt` → en, `Subtitle Jepang.srt` → ja.
 - **Karakter**: dari judul folder `A vs B` (tanpa umur).
 
