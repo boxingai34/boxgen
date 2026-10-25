@@ -63,8 +63,9 @@ const RASIO        = ['16:9', '4:3', '1:1', '3:4', '9:16', 'adaptive'];
 const OPSI_SAH     = ['tes', 'gambar', 'durasi', 'resolusi', 'rasio', 'seed', 'model', 'audio', 'kirim', 'lanjut', 'ulang', 'env', 'bantuan', 'help'];
 
 // Tarif USD per detik dari llms.txt model (diambil 2026-10-25), untuk cek silang estimasi API.
+// Wan 3.0 720p sedang promo $0.04/dtk (dari pengguna, 2026-10-25); harga normal $0.10.
 const TARIF = [
-    'wan-3.0'       => ['480p' => 0.05,  '720p' => 0.10, '1080p' => 0.20],
+    'wan-3.0'       => ['480p' => 0.05,  '720p' => 0.04, '1080p' => 0.20],
     'wan-3.0-prime' => ['480p' => 0.068, '720p' => 0.14, '1080p' => 0.28],
 ];
 
