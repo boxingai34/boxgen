@@ -2,6 +2,7 @@
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
 import AksiItem from '@/components/produksi/AksiItem.vue';
+import AlamatFolder from '@/components/produksi/AlamatFolder.vue';
 import BarisCek from '@/components/produksi/BarisCek.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
@@ -174,8 +175,21 @@ function segarkan() {
     jalankan('segarkan', route('produksi.pack.segarkan', { id: props.pack.id }), {}, 'Pack dibaca ulang dari folder.');
 }
 
-function bukaFolder() {
-    jalankan('folder', route('produksi.pack.folder', { id: props.pack.id }), {}, 'Folder pack dibuka di Explorer.', false);
+const alamatFolder = ref('');
+
+async function bukaFolder() {
+    if (sibuk.value) return;
+    sibuk.value = 'folder';
+    pesan.value = null;
+    try {
+        const j = await kirim<{ folder?: string }>(route('produksi.pack.folder', { id: props.pack.id }), {});
+        alamatFolder.value = j?.folder ?? '';
+        pesan.value = { teks: 'Perintah membuka folder sudah dikirim ke Explorer.', galat: false };
+    } catch (e: any) {
+        pesan.value = { teks: e?.message ?? 'Folder tidak bisa dibuka.', galat: true };
+    } finally {
+        sibuk.value = '';
+    }
 }
 
 // ---- Konfirmasi umur ----
@@ -319,6 +333,7 @@ pakaiPolling(async () => {
             >
                 {{ pesan.teks }}
             </p>
+            <AlamatFolder v-if="alamatFolder" :alamat="alamatFolder" />
 
             <Tahapan :tahap="pack.tahap" nomor :awas="pack.tahap === 'cek' && pack.cek.some((c) => c.tingkat !== 'aman')" />
 

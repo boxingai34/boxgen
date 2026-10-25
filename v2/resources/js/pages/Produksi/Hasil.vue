@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Kartu from '@/components/box/Kartu.vue';
 import Tombol from '@/components/box/Tombol.vue';
+import AlamatFolder from '@/components/produksi/AlamatFolder.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
 import KotakYakin from '@/components/produksi/KotakYakin.vue';
@@ -70,14 +71,17 @@ async function ekspor() {
     }
 }
 
+const alamatFolder = ref('');
+
 async function bukaFolder() {
     if (sibuk.value) return;
     sibuk.value = 'folder';
     pesan.value = null;
     try {
         // `sub` opsional: meminta folder FINAL, bukan akar pack (lihat laporan).
-        await kirim(route('produksi.pack.folder', { id: props.pack.id }), { sub: 'FINAL' });
-        pesan.value = { teks: 'Folder dibuka di Explorer.', galat: false };
+        const j = await kirim<{ folder?: string }>(route('produksi.pack.folder', { id: props.pack.id }), { sub: 'FINAL' });
+        alamatFolder.value = j?.folder ?? '';
+        pesan.value = { teks: 'Perintah membuka folder sudah dikirim ke Explorer.', galat: false };
     } catch (e: any) {
         pesan.value = { teks: e?.message ?? 'Folder tidak bisa dibuka.', galat: true };
     } finally {
@@ -176,6 +180,7 @@ async function salinDaftar() {
             >
                 {{ pesan.teks }}
             </p>
+            <AlamatFolder v-if="alamatFolder" :alamat="alamatFolder" />
 
             <Tahapan :tahap="tahap" nomor />
 
