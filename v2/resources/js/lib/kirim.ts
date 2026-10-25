@@ -158,8 +158,9 @@ export async function unggahBerkas<T = any>(alamat: string, nama: string, berkas
             if (xhr.status >= 200 && xhr.status < 300 && j?.ok !== false) {
                 selesai(j as T);
             } else {
+                // Endpoint PRODUKSI menjawab galatnya sebagai { pesan } (RENCANA-PRODUKSI §8), sama seperti kirim().
                 const pesanValidasi = j?.errors ? (Object.values(j.errors)[0] as string[])?.[0] : null;
-                gagal(new GalatKirim(j?.error || pesanValidasi || j?.message || `Gagal (HTTP ${xhr.status}).`, xhr.status));
+                gagal(new GalatKirim(j?.error || j?.pesan || pesanValidasi || j?.message || `Gagal (HTTP ${xhr.status}).`, xhr.status));
             }
         };
         xhr.onerror = () => gagal(new GalatKirim('Sambungan terputus saat mengunggah.', 0));

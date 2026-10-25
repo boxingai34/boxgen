@@ -133,7 +133,7 @@ class EksporTest extends TestCase
     }
 
     /** Klip + (opsional) take terpilihnya. Memulangkan [item_id, take_id|null]. */
-    private function klip(int $packId, string $kode, int $durasi, ?array $take = null, int $urutan = 0, bool $pilih = true): array
+    private function klip(int $packId, string $kode, int $durasi, ?array $take = null, int $urutan = 1, bool $pilih = true): array
     {
         $item = DB::table('produksi_item')->insertGetId([
             'pack_id' => $packId, 'jenis' => 'klip', 'kode' => $kode, 'judul' => "Adegan $kode", 'urutan' => $urutan, 'durasi' => $durasi,
@@ -241,6 +241,25 @@ class EksporTest extends TestCase
         $this->assertSame(['bahasa' => [], 'baris' => 0, 'bergeser' => 0, 'catatan' => 'Pack ini tidak punya subtitle.', 'hilang' => []], $hasil['subtitle']);
         $catatan = file_get_contents($hasil['folder'] . DIRECTORY_SEPARATOR . 'Catatan edit.txt');
         $this->assertStringContainsString("CATATAN EDIT\r\n- (tidak ada)\r\n", $catatan);
+    }
+
+    public function test_klip_yang_sudah_hilang_dari_pack_tidak_ikut_diekspor(): void
+    {
+        $packId = $this->buatPack(['subtitle' => ['id' => 'Subtitle Indonesia.srt'], 'kontinuitas' => [], 'catatan_edit' => []]);
+        // Klip 07 dibuang dari pack (urutan 0) tapi disimpan karena punya take; satu belum dipilih, satu dipilih.
+        $this->klip($packId, '07', 30, null, 0);
+        $this->klip($packId, '08', 30, ['berkas' => 'TAKES/08-1.mp4', 'analisis' => json_encode(['durasi' => 30.0])], 0);
+        $this->klip($packId, '01', 2, ['berkas' => 'TAKES/01-1.mp4', 'analisis' => json_encode(['durasi' => 2.0])], 1);
+        $this->berkasTake('01-1.mp4', 'video');
+        $this->berkasTake('08-1.mp4', 'video');
+        $this->srt('Subtitle Indonesia.srt', "1\n00:00:00,500 --> 00:00:01,000\nSatu.\n");
+
+        $hasil = (new Ekspor())->siapEdit($packId);
+
+        $this->assertSame(['01.mp4', 'Subtitle Indonesia.srt', 'Catatan edit.txt'], $hasil['berkas']);
+        $this->assertSame(['01'], array_column($hasil['urutan'], 'kode'));
+        // Subtitle dihitung dari klip 01 saja, jadi tidak bergeser.
+        $this->assertSame(0, $hasil['subtitle']['bergeser']);
     }
 
     public function test_durasi_dibaca_ffprobe_kalau_analisis_kosong(): void

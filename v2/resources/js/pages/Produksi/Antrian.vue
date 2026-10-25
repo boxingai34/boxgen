@@ -2,10 +2,11 @@
 import BarisTake from '@/components/produksi/BarisTake.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
+import KotakPemantau from '@/components/produksi/KotakPemantau.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { kirim } from '@/lib/kirim';
-import { pakaiPolling, takeAktif } from '@/lib/produksi';
-import type { JawabStatus, PropsAntrian, TakeBaris } from '@/types/produksi';
+import { chipPemantau, pakaiPolling, takeAktif } from '@/lib/produksi';
+import type { InfoPemantau, JawabStatus, PropsAntrian, TakeBaris } from '@/types/produksi';
 import { Head } from '@inertiajs/vue3';
 import { ListVideo } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -17,6 +18,8 @@ import { computed, onMounted, ref, watch } from 'vue';
  * produksi.status (yang aktif + 20 terakhir) dan menimpa baris yang
  * berubah. Pertanyaan itu sekaligus membangunkan pemantau latar kalau ia
  * mati — jadi membiarkan halaman ini terbuka juga menjaga unduhan jalan.
+ * Kalau pemantau tetap tidak berdetak, chip tidak berpura-pura "berjalan":
+ * kotak peringatan menyebut sebabnya dan perintah untuk menyalakannya.
  */
 const props = defineProps<PropsAntrian>();
 
@@ -33,14 +36,17 @@ function gabung(baru: TakeBaris[]) {
 }
 
 const slotTerpakai = ref(0);
-const pemantauHidup = ref(true);
+const pemantau = ref<InfoPemantau | null>(null);
+const perintahPemantau = ref<string | null>(null);
 const sudahDitanya = ref(false);
+const chip = computed(() => chipPemantau(pemantau.value));
 
 const pantau = pakaiPolling(async () => {
     const j = await kirim<JawabStatus>(route('produksi.status'), undefined, 'GET');
     gabung(j.takes);
     slotTerpakai.value = j.slot_terpakai;
-    pemantauHidup.value = Boolean(j.pemantau_hidup);
+    pemantau.value = j.pemantau ?? null;
+    perintahPemantau.value = j.perintah_pemantau ?? null;
     sudahDitanya.value = true;
 }, 5000);
 
@@ -84,11 +90,11 @@ const tampil = computed(() => daftar.value.filter(cocok[saring.value]));
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <ChipStatus nada="jalan">{{ slotTerpakai }} sedang dibuat</ChipStatus>
-                    <ChipStatus v-if="sudahDitanya" :nada="pemantauHidup ? 'lolos' : 'awas'" titik>
-                        {{ pemantauHidup ? 'Pemantau berjalan' : 'Pemantau sedang dinyalakan' }}
-                    </ChipStatus>
+                    <ChipStatus v-if="sudahDitanya && chip" :nada="chip.nada" titik>{{ chip.teks }}</ChipStatus>
                 </div>
             </div>
+
+            <KotakPemantau :info="pemantau" :perintah="perintahPemantau" />
 
             <div class="flex flex-wrap gap-1.5" role="group" aria-label="Saring take">
                 <button

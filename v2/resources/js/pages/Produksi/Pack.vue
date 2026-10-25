@@ -6,17 +6,18 @@ import BarisCek from '@/components/produksi/BarisCek.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
 import KartuTester from '@/components/produksi/KartuTester.vue';
+import KotakPemantau from '@/components/produksi/KotakPemantau.vue';
 import KotakYakin from '@/components/produksi/KotakYakin.vue';
 import PasanganPetinju from '@/components/produksi/PasanganPetinju.vue';
 import SlotGambar from '@/components/produksi/SlotGambar.vue';
 import Tahapan from '@/components/produksi/Tahapan.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { kirim, salin } from '@/lib/kirim';
-import { durasi, labelItem, pakaiPolling, uang } from '@/lib/produksi';
-import type { Cek, ItemHalaman, JawabStatus, PropsPack } from '@/types/produksi';
+import { durasi, labelItem, pakaiPolling, sidikTake, takeAktif, uang } from '@/lib/produksi';
+import type { Cek, InfoPemantau, ItemHalaman, JawabStatus, PropsPack } from '@/types/produksi';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowRight, FileText, FolderOpen, Loader2, Lock, LockOpen, RefreshCw, ShieldAlert, TriangleAlert } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 /**
  * PRODUKSI · Detail pack.
@@ -95,36 +96,47 @@ type Aksi = { label: string; href: string | null; alasan?: string };
 const aksiUtama = computed<Aksi | null>(() => {
     const p = props.pack;
     if (diblokir.value) return null;
-    if (perluUmur.value) return { label: 'Jalankan tester', href: null, alasan: 'Pastikan umur karakter dulu di kotak oranye di bawah.' };
+    const labelAwal = props.tester.length ? 'Jalankan tester' : 'Kirim klip penuh';
+    if (perluUmur.value) return { label: labelAwal, href: null, alasan: 'Pastikan umur karakter dulu di kotak oranye di bawah.' };
     if (cekBlokir.value.length)
         return {
-            label: 'Jalankan tester',
+            label: labelAwal,
             href: null,
             alasan: 'Ada cek yang menghalangi seluruh pack. Betulkan pack-nya, lalu tekan Segarkan pack.',
         };
 
     const keKirim = route('produksi.pack.kirim', { id: p.id });
-    const bisaUlang = (i: ItemHalaman) => ['belum', 'gagal', 'diblokir'].includes(i.status) && Boolean(i.bisa_kirim);
+    const antrian: Aksi = { label: 'Lihat antrian', href: route('produksi.antrian') };
+    const perluKirim = (i: ItemHalaman) => ['belum', 'gagal', 'diblokir'].includes(i.status);
+    const bisaUlang = (i: ItemHalaman) => perluKirim(i) && Boolean(i.bisa_kirim);
     const keReview = (daftar: ItemHalaman[], kata: string): Aksi | null => {
-        const r = daftar.find((i) => i.status === 'review' && i.take_terakhir);
-        return r && r.take_terakhir ? { label: `${kata} ${r.kode}`, href: route('produksi.take', { id: r.take_terakhir.id }) } : null;
+        // Take yang menunggu dinilai, bukan sekadar take bernomor terbesar (yang bisa saja diblokir).
+        const r = daftar.find((i) => i.status === 'review' && (i.take_review ?? i.take_terakhir));
+        const t = r?.take_review ?? r?.take_terakhir;
+        return r && t ? { label: `${kata} ${r.kode}`, href: route('produksi.take', { id: t.id }) } : null;
+    };
+    /** Ada yang perlu dikirim tapi server menahan semuanya (mis. kunci Higgsfield belum siap): tombol mati + alasannya. */
+    const tertahan = (daftar: ItemHalaman[], label: string): Aksi | null => {
+        const i = daftar.find(perluKirim);
+        return i ? { label, href: null, alasan: i.alasan_tidak || `${i.kode} belum bisa dikirim.` } : null;
+    };
+    const langkahKlip = (): Aksi => {
+        if (props.klip.some(bisaUlang)) return { label: 'Kirim klip penuh', href: keKirim };
+        return keReview(props.klip, 'Review klip') ?? tertahan(props.klip, 'Kirim klip penuh') ?? antrian;
     };
 
     switch (p.tahap) {
         case 'cek':
         case 'tester': {
+            // Pack tanpa tester: klip penuh langsung terbuka, jadi langkahnya klip.
+            if (!props.tester.length) return langkahKlip();
             const sisa = props.tester.filter(bisaUlang);
-            if (sisa.length)
-                return {
-                    label: testerLolos.value || props.tester.some((t) => t.jumlah_take) ? 'Jalankan tester tersisa' : 'Jalankan tester',
-                    href: keKirim,
-                };
-            return keReview(props.tester, 'Review') ?? { label: 'Lihat antrian', href: route('produksi.antrian') };
+            const label = testerLolos.value || props.tester.some((t) => t.jumlah_take) ? 'Jalankan tester tersisa' : 'Jalankan tester';
+            if (sisa.length) return { label, href: keKirim };
+            return keReview(props.tester, 'Review') ?? tertahan(props.tester, label) ?? antrian;
         }
-        case 'klip': {
-            if (props.klip.some(bisaUlang)) return { label: 'Kirim klip penuh', href: keKirim };
-            return keReview(props.klip, 'Review klip') ?? { label: 'Lihat antrian', href: route('produksi.antrian') };
-        }
+        case 'klip':
+            return langkahKlip();
         case 'review':
             return (
                 keReview(props.klip, 'Review klip') ??
@@ -222,19 +234,35 @@ const teksRingkasan = computed(() => {
 
 // ---- Pantau take yang sedang dibuat ----
 /*
- * Selama ada item yang "sedang dibuat", tanyakan statusnya tiap 5 detik.
- * Begitu take terakhir sebuah item berganti status di server, data halaman
- * dimuat ulang — kartu berubah sendiri dari "Sedang dibuat" ke "Menunggu
- * review" tanpa perlu menekan apa pun.
+ * Selama ada take pack ini yang masih aktif, tanyakan statusnya tiap 5
+ * detik (produksi.status?pack_id= membawa SEMUA take pack ini). Sidik
+ * "id:status" seluruh take dibandingkan dengan sidik halaman; begitu ada
+ * yang berubah — take mana pun, bukan cuma yang bernomor terbesar, karena
+ * Higgsfield menyelesaikannya dalam urutan apa saja — data halaman dimuat
+ * ulang. Polling berhenti sendiri waktu tidak ada take aktif lagi.
  */
+const sidik = ref(props.pack.sidik_take);
+watch(
+    () => props.pack.sidik_take,
+    (s) => (sidik.value = s),
+);
+const adaTakeAktif = computed(() => sidik.value.split(',').some((x) => takeAktif(x.slice(x.indexOf(':') + 1))));
+const pemantau = ref<InfoPemantau | null>(null);
+const perintahPemantau = ref<string | null>(null);
+
 pakaiPolling(async () => {
-    if (!semuaItem.value.some((i) => i.status === 'berjalan')) return;
-    const j = await kirim<JawabStatus>(route('produksi.status'), undefined, 'GET');
-    const peta = new Map(j.takes.filter((t) => t.pack_id === props.pack.id).map((t) => [t.id, t.status]));
-    const berubah = semuaItem.value.some(
-        (i) => i.take_terakhir && peta.has(i.take_terakhir.id) && peta.get(i.take_terakhir.id) !== i.take_terakhir.status,
-    );
-    if (berubah) router.reload({ only: ['pack', 'tester', 'klip'] });
+    if (!adaTakeAktif.value) {
+        pemantau.value = null;
+        return;
+    }
+    const j = await kirim<JawabStatus>(route('produksi.status', { pack_id: props.pack.id }), undefined, 'GET');
+    pemantau.value = j.pemantau ?? null;
+    perintahPemantau.value = j.perintah_pemantau ?? null;
+    const baru = sidikTake(j.takes.filter((t) => t.pack_id === props.pack.id));
+    if (baru !== sidik.value) {
+        sidik.value = baru; // jangan memuat ulang dua kali selagi muatan pertama belum datang
+        router.reload({ only: ['pack', 'tester', 'klip'] });
+    }
 }, 5000);
 </script>
 
@@ -293,6 +321,8 @@ pakaiPolling(async () => {
             </p>
 
             <Tahapan :tahap="pack.tahap" nomor :awas="pack.tahap === 'cek' && pack.cek.some((c) => c.tingkat !== 'aman')" />
+
+            <KotakPemantau :info="pemantau" :perintah="perintahPemantau" />
 
             <!-- Gerbang umur: diblokir -->
             <section v-if="diblokir" role="alert" class="kartu flex flex-wrap items-start gap-4 border-destructive/45 p-5">
@@ -462,7 +492,9 @@ pakaiPolling(async () => {
                                 <span class="flex flex-wrap gap-1">
                                     <SlotGambar v-for="(g, i) in k.gambar" :key="g.nama + i" :gambar="g" ukuran="kecil" />
                                 </span>
-                                <template v-if="!terkunci">
+                                <!-- Klip yang sudah punya take tetap menampilkan status + Review/Lihat walau klip terkunci lagi;
+                                     kirimnya tetap mati lewat bisa_kirim dari server. -->
+                                <template v-if="!terkunci || k.jumlah_take > 0">
                                     <ChipStatus :nada="labelItem(k.status, 'klip').nada" :titik="k.status === 'berjalan'">{{
                                         labelItem(k.status, 'klip').teks
                                     }}</ChipStatus>

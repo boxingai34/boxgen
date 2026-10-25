@@ -25,7 +25,7 @@ SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `produksi_pack` (
   `id`                 INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `folder`             VARCHAR(255) NOT NULL,
+  `folder`             VARCHAR(255) COLLATE utf8mb4_bin NOT NULL,
   `judul`              VARCHAR(190) NOT NULL DEFAULT '',
   `revisi`             VARCHAR(20)  NOT NULL DEFAULT '',
   `format`             VARCHAR(10)  NOT NULL DEFAULT 'md',

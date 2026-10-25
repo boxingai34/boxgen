@@ -29,7 +29,7 @@ use Throwable;
  *   3. kirim()    POST <endpoint> + Idempotency-Key. Kirim ulang dengan body
  *                 dan kunci yang sama tidak membuat klip (atau tagihan) kedua.
  *   4. status()   GET /requests/{id}/status → status, video.url, error.
- *   5. unduh()    video dari CDN ke <tujuan>.part, lalu ganti nama.
+ *   5. unduh()    video dari CDN ke <tujuan>.<acak>.part, lalu ganti nama.
  *
  * Kelas ini tidak pernah mengulang kiriman sendiri dan tidak tidur lama:
  * setiap kegagalan jadi HiggsfieldGalat (bisaUlang = aman diulang dengan
@@ -316,14 +316,29 @@ class Higgsfield
     // ------------------------------------------------------------------
 
     /**
-     * Unduh video hasil ke $tujuanAbs: dialirkan ke <tujuan>.part, lalu
-     * diganti nama kalau utuh. Tanpa Authorization (CDN bukan API), hanya
-     * https (redirect juga). Berkas yang sudah ada tidak pernah ditimpa.
-     * Folder induk dibuat kalau belum ada (satu tingkat saja, mis. TAKES).
+     * Unduh video hasil ke $tujuanAbs: dialirkan ke <tujuan>.<acak>.part
+     * (nama unik per percobaan, supaya dua proses tidak pernah menulis berkas
+     * yang sama), lalu diganti nama kalau utuh. Tanpa Authorization (CDN
+     * bukan API), hanya https (redirect juga). Berkas yang sudah ada tidak
+     * pernah ditimpa. Folder induk dibuat kalau belum ada (satu tingkat saja,
+     * mis. TAKES).
      *
+     * Ganti nama dicoba beberapa kali dengan jeda pendek: di Windows antivirus
+     * atau pengindeks sering memegang berkas yang baru ditutup. Kalau tetap
+     * gagal, .part yang sudah utuh TIDAK dibuang — ditandai <part>.utuh dan
+     * dipakai lagi pada percobaan berikutnya tanpa mengunduh ulang.
+     *
+     * Galat yang aman diulang (bisaUlang): jaringan, 5xx, 408, 429, isi
+     * kosong, berkas tidak bisa ditulis, ganti nama gagal. 401/403/404/410
+     * berarti alamat videonya kedaluwarsa/ditolak: minta alamat baru lewat
+     * status(), jangan mengulang alamat yang sama.
+     *
+     * @param callable|null $denyut dipanggil berkala selama unduhan (paling
+     *                              sering sekali per detik), untuk memperbarui
+     *                              klaim take dan detak pemantau
      * @return int ukuran berkas dalam byte
      */
-    public function unduh(string $url, string $tujuanAbs): int
+    public function unduh(string $url, string $tujuanAbs, ?callable $denyut = null): int
     {
         if (!self::https($url)) {
             throw new HiggsfieldGalat('Alamat video bukan https; unduhan ditolak.');
@@ -331,17 +346,20 @@ class Higgsfield
         $nama = basename($tujuanAbs);
         $dir = dirname($tujuanAbs);
         if (!is_dir($dir) && !@mkdir($dir, 0775) && !is_dir($dir)) {
-            throw new HiggsfieldGalat("Folder untuk $nama tidak bisa dibuat: $dir");
+            throw new HiggsfieldGalat("Folder untuk $nama tidak bisa dibuat: $dir", 0, true);
         }
         if (file_exists($tujuanAbs)) {
             throw new HiggsfieldGalat("$nama sudah ada di folder take; tidak ditimpa.");
         }
 
-        $part = $tujuanAbs . '.part';
-        if (is_file($part)) {
-            @unlink($part); // sisa unduhan yang terputus
+        // Unduhan utuh dari percobaan sebelumnya yang gagal diganti nama: pakai lagi.
+        $lama = $this->pakaiPartUtuh($tujuanAbs, $denyut);
+        if ($lama !== null) {
+            return $lama;
         }
+        $this->buangPartBasi($tujuanAbs);
 
+        $part = $tujuanAbs . '.' . bin2hex(random_bytes(4)) . '.part';
         $opsi = [
             'sink'            => $part,
             'allow_redirects' => ['max' => 5, 'protocols' => ['https'], 'strict' => false, 'referer' => false],
@@ -350,12 +368,26 @@ class Higgsfield
             // Koneksi macet (< 1 KB/dtk selama 60 dtk) diputus, jangan menunggu 15 menit.
             $opsi['curl'] = [CURLOPT_LOW_SPEED_LIMIT => 1024, CURLOPT_LOW_SPEED_TIME => 60];
         }
+        if ($denyut !== null) {
+            $terakhir = 0.0;
+            $opsi['progress'] = function () use ($denyut, &$terakhir) {
+                $kini = microtime(true);
+                if ($kini - $terakhir >= 1.0) {
+                    $terakhir = $kini;
+                    self::panggilDenyut($denyut);
+                }
+            };
+        }
 
         try {
             $r = $this->klien(900)->withOptions($opsi)->get($url);
         } catch (ConnectionException|RequestException|TransferException $e) {
             @unlink($part);
             throw new HiggsfieldGalat("Unduhan $nama terputus (" . self::sebabJaringan($e) . '). Aman dicoba lagi.', 0, true);
+        } catch (Throwable $e) {
+            // Mis. sink tidak bisa dibuka (berkas dipegang proses lain). Pesan aslinya menyebut path lengkap.
+            @unlink($part);
+            throw new HiggsfieldGalat("Unduhan $nama tidak bisa ditulis ke folder take (" . class_basename($e) . '). Aman dicoba lagi.', 0, true);
         }
 
         // Di Windows berkas yang masih terbuka tidak bisa diganti nama/dihapus.
@@ -365,6 +397,7 @@ class Higgsfield
         } catch (Throwable) {
         }
         unset($r);
+        self::panggilDenyut($denyut);
 
         clearstatcache(true, $part);
         $ukuran = is_file($part) ? (int) filesize($part) : 0;
@@ -373,18 +406,116 @@ class Higgsfield
             [$pesan, $ulang] = match (true) {
                 $kode === 200 => ["Unduhan $nama kosong (0 byte). Aman dicoba lagi.", true],
                 $kode >= 500 => ["Server video Higgsfield sedang gangguan saat mengunduh $nama (HTTP $kode). Aman dicoba lagi.", true],
-                in_array($kode, [401, 403, 404, 410], true) => ["Alamat video untuk $nama sudah kedaluwarsa atau ditolak (HTTP $kode). Unduh manual dari dashboard Higgsfield kalau masih ada.", false],
+                in_array($kode, [408, 429], true) => ["Server video Higgsfield sedang sibuk saat mengunduh $nama (HTTP $kode). Aman dicoba lagi.", true],
+                in_array($kode, [401, 403, 404, 410], true) => ["Alamat video untuk $nama sudah kedaluwarsa atau ditolak (HTTP $kode). Alamat baru diminta lewat status.", false],
                 default => ["Unduhan $nama gagal (HTTP $kode).", false],
             };
             throw new HiggsfieldGalat($pesan, $kode, $ulang);
         }
 
-        if (file_exists($tujuanAbs) || !@rename($part, $tujuanAbs)) {
-            @unlink($part);
-            throw new HiggsfieldGalat("$nama tidak bisa disimpan (sudah ada, atau ganti nama dari .part gagal).");
+        // Utuh: ditandai dulu, supaya tidak dibuang kalau ganti nama gagal.
+        @file_put_contents($part . '.utuh', (string) $ukuran);
+        if ($this->gantiNama($part, $tujuanAbs, $denyut)) {
+            @unlink($part . '.utuh');
+
+            return $ukuran;
         }
 
-        return $ukuran;
+        throw self::galatGantiNama($nama, $tujuanAbs);
+    }
+
+    /**
+     * .part utuh (bertanda <part>.utuh dengan ukuran yang cocok) milik
+     * $tujuan dari percobaan sebelumnya: diganti nama sekarang. Null kalau
+     * tidak ada; tanda yang berkasnya hilang/tidak cocok dibuang.
+     */
+    private function pakaiPartUtuh(string $tujuan, ?callable $denyut): ?int
+    {
+        $dir = dirname($tujuan);
+        $awal = basename($tujuan) . '.';
+        // scandir, bukan glob: nama folder pack boleh memuat [ ] yang dibaca glob sebagai pola.
+        foreach (@scandir($dir) ?: [] as $f) {
+            if (!str_starts_with($f, $awal) || !str_ends_with($f, '.part.utuh')) {
+                continue;
+            }
+            $tanda = $dir . DIRECTORY_SEPARATOR . $f;
+            $part = substr($tanda, 0, -strlen('.utuh'));
+            $ukuran = (int) trim((string) @file_get_contents($tanda));
+            clearstatcache(true, $part);
+            if ($ukuran > 0 && is_file($part) && (int) filesize($part) === $ukuran) {
+                if ($this->gantiNama($part, $tujuan, $denyut)) {
+                    @unlink($tanda);
+
+                    return $ukuran;
+                }
+
+                throw self::galatGantiNama(basename($tujuan), $tujuan);
+            }
+            @unlink($tanda);
+        }
+
+        return null;
+    }
+
+    /** Sisa unduhan terputus milik $tujuan (.part tanpa tanda utuh) yang sudah lama tidak ditulis. */
+    private function buangPartBasi(string $tujuan): void
+    {
+        $dir = dirname($tujuan);
+        $awal = basename($tujuan) . '.';
+        foreach (@scandir($dir) ?: [] as $f) {
+            $p = $dir . DIRECTORY_SEPARATOR . $f;
+            // Yang masih segar mungkin sedang ditulis proses lain: dibiarkan.
+            if (str_starts_with($f, $awal) && str_ends_with($f, '.part') && !is_file($p . '.utuh')
+                && is_file($p) && time() - (int) @filemtime($p) > 3600) {
+                @unlink($p);
+            }
+        }
+    }
+
+    /** Ganti nama .part → tujuan, beberapa kali dengan jeda pendek. Tujuan yang sudah ada tidak pernah ditimpa. */
+    private function gantiNama(string $part, string $tujuan, ?callable $denyut): bool
+    {
+        for ($coba = 1; $coba <= 5; $coba++) {
+            clearstatcache(true, $tujuan);
+            if (file_exists($tujuan)) {
+                return false;
+            }
+            if ($this->pindah($part, $tujuan)) {
+                return true;
+            }
+            self::panggilDenyut($denyut);
+            if ($coba < 5) {
+                $this->tidur(0.5 * $coba);
+            }
+        }
+
+        return false;
+    }
+
+    private static function galatGantiNama(string $nama, string $tujuan): HiggsfieldGalat
+    {
+        return file_exists($tujuan)
+            ? new HiggsfieldGalat("$nama sudah ada di folder take; tidak ditimpa. Dicoba lagi dengan nama lain.", 0, true)
+            : new HiggsfieldGalat("$nama sudah terunduh utuh tapi belum bisa diganti nama dari .part (mungkin sedang dibuka antivirus atau "
+                . 'pengindeks Windows). Dicoba lagi nanti tanpa mengunduh ulang.', 0, true);
+    }
+
+    /** Denyut tidak pernah menggagalkan unduhan. */
+    private static function panggilDenyut(?callable $denyut): void
+    {
+        if ($denyut === null) {
+            return;
+        }
+        try {
+            $denyut();
+        } catch (Throwable) {
+        }
+    }
+
+    /** rename() polos. Tes menggantinya untuk meniru berkas yang sedang dipegang antivirus. */
+    protected function pindah(string $dari, string $ke): bool
+    {
+        return @rename($dari, $ke);
     }
 
     /**
@@ -651,7 +782,7 @@ class Higgsfield
         }
     }
 
-    /** Jeda antar percobaan PUT ke storage. Tes menggantinya supaya tidak menunggu. */
+    /** Jeda antar percobaan PUT ke storage dan ganti nama .part. Tes menggantinya supaya tidak menunggu. */
     protected function tidur(float $detik): void
     {
         usleep((int) round($detik * 1_000_000));

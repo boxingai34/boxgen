@@ -8,6 +8,7 @@ use App\Services\Produksi\Gudang;
 use App\Services\Produksi\Higgsfield;
 use App\Services\Produksi\HiggsfieldGalat;
 use App\Services\Produksi\Media;
+use App\Services\Produksi\Pemantau;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -342,7 +343,9 @@ class ProduksiTest extends TestCase
         $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
             ->where('klip.1.cek', [['kode' => 'prompt', 'tingkat' => 'awas', 'judul' => 'Prompt klip 02 kosong.', 'detail' => '', 'item' => '02']])
             ->where('klip.1.alasan_tidak', 'Klip 02 belum bisa dikirim: Prompt klip 02 kosong.')
-            ->where('klip.0.cek', fn ($c) => $c->isNotEmpty() && $c->every(fn ($x) => $x['item'] === '01'))); // saran "gore" klip 01
+            // Kartu item hanya membawa cek miliknya; saran Negative yang menyebut beberapa item jadi satu baris untuk seluruh pack.
+            ->where('klip.0.cek', fn ($c) => $c->every(fn ($x) => $x['item'] === '01'))
+            ->where('pack.cek', fn ($c) => $c->contains(fn ($x) => $x['kode'] === 'negative' && $x['item'] === null && str_contains($x['judul'], '“gore” di klip 01'))));
     }
 
     // ---------------------------------------------------------------- impor
@@ -444,7 +447,8 @@ class ProduksiTest extends TestCase
             ->has('pack', fn (Assert $k) => $k
                 ->hasAll(['id', 'folder', 'judul', 'revisi', 'model', 'nama_model', 'resolusi', 'rasio', 'jumlah_klip', 'durasi_total', 'tahap',
                     'umur_status', 'umur', 'umur_dikonfirmasi', 'klip_dibuka', 'klip_terkunci', 'kurang', 'cek', 'kontinuitas', 'dokumen',
-                    'biaya_terpakai', 'perkiraan_sisa', 'peringatan'])
+                    'biaya_terpakai', 'perkiraan_sisa', 'peringatan', 'sidik_take'])
+                ->where('sidik_take', '')
                 ->where('nama_model', 'Wan 3.0')
                 ->where('tahap', 'cek')
                 ->where('klip_terkunci', true)
@@ -456,11 +460,14 @@ class ProduksiTest extends TestCase
                 ->where('umur.0.status', 'dewasa'))
             ->has('tester', 2)
             ->has('tester.0', fn (Assert $i) => $i
-                ->hasAll(['id', 'kode', 'judul', 'durasi', 'gambar', 'status', 'take_terakhir', 'jumlah_take', 'biaya', 'cek', 'bisa_kirim', 'alasan_tidak'])
+                ->hasAll(['id', 'kode', 'judul', 'durasi', 'gambar', 'status', 'take_terakhir', 'take_review', 'take_pilihan', 'jumlah_take', 'biaya',
+                    'cek', 'bisa_kirim', 'alasan_tidak'])
                 ->where('kode', 'T01')
                 ->where('durasi', 10)
                 ->where('status', 'belum')
                 ->where('take_terakhir', null)
+                ->where('take_review', null)
+                ->where('take_pilihan', null)
                 ->where('bisa_kirim', true)
                 ->where('alasan_tidak', null)
                 ->where('gambar', [
@@ -478,9 +485,11 @@ class ProduksiTest extends TestCase
             ->where('pack', ['id' => $id, 'judul' => 'Maomao vs Pairin', 'model' => 'wan-3.0', 'nama_model' => 'Wan 3.0', 'resolusi' => '720p', 'rasio' => '16:9'])
             ->has('item', 4)
             ->has('item.0', fn (Assert $i) => $i
-                ->hasAll(['id', 'jenis', 'kode', 'judul', 'durasi', 'gambar', 'ket', 'pilih_awal', 'take_berikut', 'tarif_per_take', 'bisa_kirim', 'alasan_tidak'])
+                ->hasAll(['id', 'jenis', 'kode', 'judul', 'durasi', 'gambar', 'ket', 'peringatan', 'pilih_awal', 'take_berikut', 'tarif_per_take',
+                    'bisa_kirim', 'alasan_tidak'])
                 ->where('jenis', 'tester')
                 ->where('ket', 'Belum pernah dijalankan')
+                ->where('peringatan', null)
                 ->where('pilih_awal', true)
                 ->where('take_berikut', 1)
                 ->where('tarif_per_take', 0.4))
@@ -500,8 +509,10 @@ class ProduksiTest extends TestCase
             ->where('item.0.pilih_awal', false));
         $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
             ->where('pack.tahap', 'tester')
+            ->where('pack.sidik_take', "{$take}:siap")
             ->where('tester.0.status', 'berjalan')
             ->where('tester.0.take_terakhir', ['id' => $take, 'nomor' => 1, 'status' => 'siap'])
+            ->where('tester.0.take_review', null)
             ->where('tester.0.jumlah_take', 1));
 
         $this->actingAs($admin)->get(route('produksi.antrian'))->assertOk()->assertInertia(fn (Assert $p) => $p
@@ -637,15 +648,21 @@ class ProduksiTest extends TestCase
         $this->packMaomao();
         $admin = $this->admin();
 
-        $this->actingAs($admin)->getJson(route('produksi.status'))->assertOk()
-            ->assertExactJson(['takes' => [], 'slot_terpakai' => 0, 'pemantau_hidup' => true]);
+        $r = $this->actingAs($admin)->getJson(route('produksi.status'))->assertOk()
+            ->assertJsonPath('takes', [])
+            ->assertJsonPath('slot_terpakai', 0)
+            // Tanpa take aktif pemantau tidur: tidak "berjalan", tapi juga tidak ada yang perlu diperingatkan.
+            ->assertJsonPath('pemantau', ['hidup' => false, 'pesan' => null, 'detak' => null])
+            ->assertJsonPath('pemantau_hidup', false);
+        $this->assertSame(['takes', 'slot_terpakai', 'pemantau', 'pemantau_hidup', 'perintah_pemantau'], array_keys($r->json()));
+        $this->assertStringContainsString('artisan produksi:pantau', $r->json('perintah_pemantau'));
         $this->assertSame(0, DB::table('produksi_jalan')->count(), 'tanpa take aktif pemantau tidak dinyalakan');
 
         $siap = $this->kirimItem('T01');
         DB::table('produksi_jalan')->delete(); // pemantau "mati"
         $this->actingAs($admin)->getJson(route('produksi.status'))->assertOk()
             ->assertJsonStructure(['takes' => [['id', 'pack_id', 'pack_judul', 'item_kode', 'item_judul', 'nomor', 'status', 'label', 'ket', 'biaya',
-                'bisa_review', 'url_review', 'waktu']], 'slot_terpakai', 'pemantau_hidup'])
+                'bisa_review', 'url_review', 'waktu']], 'slot_terpakai', 'pemantau' => ['hidup', 'pesan', 'detak'], 'pemantau_hidup', 'perintah_pemantau'])
             ->assertJsonPath('takes.0.id', $siap)
             ->assertJsonPath('takes.0.status', 'siap')
             ->assertJsonPath('takes.0.label', 'Menunggu dikirim')
@@ -654,8 +671,17 @@ class ProduksiTest extends TestCase
             ->assertJsonPath('takes.0.bisa_review', false)
             ->assertJsonPath('takes.0.url_review', route('produksi.take', $siap))
             ->assertJsonPath('takes.0.waktu', '08.00')
-            ->assertJsonPath('pemantau_hidup', true);
+            // Baru dinyalakan, belum berdetak sendiri: belum boleh disebut berjalan, dan pesannya menjelaskan.
+            ->assertJsonPath('pemantau.hidup', false)
+            ->assertJsonPath('pemantau_hidup', false)
+            ->assertJsonPath('pemantau.pesan', fn ($p) => is_string($p) && $p !== '');
         $this->assertSame(1, DB::table('produksi_jalan')->whereNull('selesai')->count(), 'status membangunkan pemantau latar');
+
+        // Pemantau latar menulis detaknya sendiri: berjalan, tanpa pesan, jam detaknya ikut.
+        DB::table('produksi_jalan')->whereNull('selesai')->update(['detak' => now()]);
+        $this->actingAs($admin)->getJson(route('produksi.status'))->assertOk()
+            ->assertJsonPath('pemantau', ['hidup' => true, 'pesan' => null, 'detak' => '08.00'])
+            ->assertJsonPath('pemantau_hidup', true);
 
         DB::table('produksi_take')->where('id', $siap)->update(['status' => 'in_progress', 'dikirim_at' => '2026-10-25 07:55:00']);
         $this->actingAs($admin)->getJson(route('produksi.status'))
@@ -694,7 +720,10 @@ class ProduksiTest extends TestCase
             ->component('Produksi/Review')
             ->has('take', fn (Assert $t) => $t
                 ->hasAll(['id', 'nomor', 'status', 'sumber', 'seed', 'model', 'resolusi', 'durasi', 'video_url', 'poster_url', 'bingkai', 'analisis',
-                    'cek', 'nilai', 'catatan', 'keputusan', 'galat'])
+                    'cek', 'nilai', 'catatan', 'keputusan', 'galat', 'request_id', 'biaya', 'bisa_periksa'])
+                ->where('request_id', null)
+                ->where('biaya', 0)
+                ->where('bisa_periksa', false)
                 ->where('status', 'selesai')
                 ->where('sumber', 'manual')
                 ->where('seed', null)
@@ -722,7 +751,10 @@ class ProduksiTest extends TestCase
             ->where('take.catatan', [['t' => 3.5, 'isi' => 'Tangan kiri aneh']]));
 
         $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['nilai' => [], 'catatan' => []])->assertOk();
-        $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['nilai' => ['7' => 'lolos']])
+        // Nilai untuk kriteria yang sudah tidak ada (README direvisi lalu pack disegarkan) dibuang, bukan menggagalkan simpanan.
+        $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['nilai' => ['0' => 'lolos', '7' => 'gagal']])->assertOk();
+        $this->assertSame('{"0":"lolos"}', DB::table('produksi_take')->where('id', $take)->value('nilai'));
+        $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['nilai' => ['x' => 'lolos']])
             ->assertStatus(422)->assertJsonPath('pesan', fn ($p) => str_contains($p, 'kriteria yang tidak ada'));
         $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['nilai' => 'lolos'])->assertStatus(422);
         $this->actingAs($admin)->postJson(route('produksi.take.nilai', $take), ['catatan' => array_fill(0, 51, ['t' => 1, 'isi' => 'x'])])
@@ -836,6 +868,184 @@ class ProduksiTest extends TestCase
         });
         $this->actingAs($this->admin())->postJson(route('produksi.uji'))
             ->assertStatus(422)->assertExactJson(['ok' => false, 'pesan' => 'Kunci API ditolak Higgsfield (HTTP 401).']);
+    }
+
+    // ---------------------------------------------------------------- polling pack, pemulihan, pilihan kirim
+
+    public function test_status_pack_id_membawa_semua_take_pack_itu(): void
+    {
+        $id = $this->packMaomao();
+        $this->buatPackJson();
+        $lain = app(Gudang::class)->impor('Alfa vs Beta');
+        $admin = $this->admin();
+
+        // Take lama pack ini yang sudah berakhir, lalu 25 take pack lain sesudahnya.
+        $itemIni = (int) DB::table('produksi_item')->where('pack_id', $id)->where('kode', 'T01')->value('id');
+        $itemLain = (int) DB::table('produksi_item')->where('pack_id', $lain)->value('id');
+        $lama = (int) DB::table('produksi_take')->insertGetId(['item_id' => $itemIni, 'nomor' => 1, 'status' => 'nsfw', 'biaya_usd' => 0, 'dibuat_at' => now()]);
+        for ($n = 1; $n <= 25; $n++) {
+            DB::table('produksi_take')->insert(['item_id' => $itemLain, 'nomor' => $n, 'status' => 'failed', 'biaya_usd' => 0, 'dibuat_at' => now()]);
+        }
+        $ids = fn ($r) => array_column($r->json('takes'), 'id');
+
+        // Tanpa pack_id: aktif + 20 terakhir saja, jadi take lama pack ini tidak terlihat.
+        $r = $this->actingAs($admin)->getJson(route('produksi.status'))->assertOk();
+        $this->assertCount(20, $r->json('takes'));
+        $this->assertNotContains($lama, $ids($r));
+
+        // Dengan pack_id: semua take pack itu selalu ikut.
+        $r = $this->actingAs($admin)->getJson(route('produksi.status', ['pack_id' => $id]))->assertOk();
+        $this->assertCount(21, $r->json('takes'));
+        $this->assertContains($lama, $ids($r));
+
+        // Sidik yang dihitung halaman dari jawaban ini (lib/produksi.ts sidikTake) sama dengan sidik prop halaman Pack.
+        $sidik = array_map(fn ($t) => $t['id'] . ':' . $t['status'], array_filter($r->json('takes'), fn ($t) => $t['pack_id'] === $id));
+        sort($sidik, SORT_STRING);
+        $this->assertSame("{$lama}:nsfw", implode(',', $sidik));
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p->where('pack.sidik_take', implode(',', $sidik)));
+
+        // pack_id yang tidak sah diabaikan.
+        foreach (['abc', '0', '-1', '1.5'] as $salah) {
+            $this->assertNotContains($lama, $ids($this->actingAs($admin)->getJson(route('produksi.status', ['pack_id' => $salah]))->assertOk()));
+        }
+    }
+
+    public function test_pack_mengarahkan_review_dan_lihat_ke_take_yang_tepat(): void
+    {
+        $id = $this->packMaomao();
+        $admin = $this->admin();
+        $t01 = (int) $this->item('T01')->id;
+
+        // T01: take 1 selesai belum dinilai, take 2 (nomor terbesar) diblokir filter.
+        $satu = $this->manual('T01');
+        $dua = (int) DB::table('produksi_take')->insertGetId(['item_id' => $t01, 'nomor' => 2, 'status' => 'nsfw', 'biaya_usd' => 0, 'dibuat_at' => now()]);
+        app(Pemantau::class)->segarkanItem($t01);
+        $sidik = ["{$satu}:selesai", "{$dua}:nsfw"];
+        sort($sidik, SORT_STRING);
+
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
+            ->where('pack.sidik_take', implode(',', $sidik))
+            ->where('tester.0.status', 'review')
+            ->where('tester.0.take_terakhir', ['id' => $dua, 'nomor' => 2, 'status' => 'nsfw'])
+            ->where('tester.0.take_review', ['id' => $satu, 'nomor' => 1])
+            ->where('tester.0.take_pilihan', null));
+
+        $this->actingAs($admin)->postJson(route('produksi.take.putuskan', $satu), ['keputusan' => 'lolos'])->assertOk();
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
+            ->where('tester.0.status', 'lolos')
+            ->where('tester.0.take_review', null)
+            ->where('tester.0.take_pilihan', ['id' => $satu, 'nomor' => 1]));
+
+        // Klip 01: tiga take, take 1 dipakai. T02 belum lolos, jadi klip terkunci lagi — klip yang sudah
+        // punya take tetap membawa tujuan Review/Lihat-nya (kirimnya saja yang mati).
+        $k1 = $this->manual('01', 'a.mp4');
+        $k2 = $this->manual('01', 'b.mp4');
+        $k3 = $this->manual('01', 'c.mp4');
+        $this->actingAs($admin)->postJson(route('produksi.take.putuskan', $k1), ['keputusan' => 'pakai'])->assertOk();
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
+            ->where('pack.klip_terkunci', true)
+            ->where('klip.0.status', 'lolos')
+            ->where('klip.0.jumlah_take', 3)
+            ->where('klip.0.take_terakhir.id', $k3)
+            ->where('klip.0.take_pilihan', ['id' => $k1, 'nomor' => 1])
+            ->where('klip.0.take_review', ['id' => $k2, 'nomor' => 2])
+            ->where('klip.0.bisa_kirim', false));
+    }
+
+    public function test_periksa_lagi_take_galat_yang_mungkin_sudah_dibayar(): void
+    {
+        $this->packMaomao();
+        $admin = $this->admin();
+        $item = (int) $this->item('T01')->id;
+        $galat = fn (int $nomor, array $kolom) => (int) DB::table('produksi_take')->insertGetId($kolom + [
+            'item_id' => $item, 'nomor' => $nomor, 'status' => 'galat', 'estimasi_usd' => 0.4, 'galat' => 'Galat uji.', 'dicoba' => 4,
+            'dibuat_at' => now(), 'dicek_at' => now(), 'selesai_at' => now(),
+        ]);
+        // Jadi di Higgsfield (ditagih) tapi gagal diunduh / lewat batas tunggu.
+        $jadi = $galat(1, ['request_id' => 'req-uji-1', 'video_url' => 'https://cdn.palsu.test/rahasia.mp4', 'body' => '{"uji":1}',
+            'idem_key' => 'idem-uji-1', 'biaya_usd' => 0.4]);
+        // Kehabisan percobaan kirim: request MUNGKIN sudah diterima.
+        $mungkin = $galat(2, ['body' => '{"uji":2}', 'idem_key' => 'idem-uji-2', 'biaya_usd' => null]);
+        // Pasti ditolak Higgsfield (4xx), tidak ditagih.
+        $ditolak = $galat(3, ['body' => '{"uji":3}', 'idem_key' => 'idem-uji-3', 'biaya_usd' => 0]);
+        // Gagal sebelum body tersimpan: tidak ada yang bisa diperiksa.
+        $kosong = $galat(4, ['biaya_usd' => 0]);
+        $gagal = (int) DB::table('produksi_take')->insertGetId(['item_id' => $item, 'nomor' => 5, 'status' => 'failed', 'biaya_usd' => 0,
+            'request_id' => 'req-uji-5', 'dibuat_at' => now()]);
+
+        // Review: tombol periksa hanya untuk yang mungkin sudah dibayar. request_id boleh tampil; alamat video dan body tidak.
+        $r = $this->actingAs($admin)->get(route('produksi.take', $jadi))->assertOk()->assertInertia(fn (Assert $p) => $p
+            ->where('take.status', 'galat')
+            ->where('take.bisa_periksa', true)
+            ->where('take.request_id', 'req-uji-1')
+            ->where('take.biaya', 0.4));
+        $this->assertStringNotContainsString('cdn.palsu.test', $r->getContent());
+        $this->assertStringNotContainsString('idem-uji-1', $r->getContent());
+        $this->actingAs($admin)->get(route('produksi.take', $mungkin))->assertInertia(fn (Assert $p) => $p
+            ->where('take.bisa_periksa', true)->where('take.request_id', null)->where('take.biaya', null));
+        foreach ([$ditolak, $kosong, $gagal] as $t) {
+            $this->actingAs($admin)->get(route('produksi.take', $t))->assertInertia(fn (Assert $p) => $p->where('take.bisa_periksa', false));
+        }
+
+        // Punya request_id: dipantau lagi dari awal, alamat video diambil ulang dari status Higgsfield.
+        $this->actingAs($admin)->postJson(route('produksi.take.periksa', $jadi))->assertOk()->assertExactJson(['ok' => true]);
+        $t = DB::table('produksi_take')->where('id', $jadi)->first();
+        $this->assertSame(['queued', 0, null, null], [$t->status, (int) $t->dicoba, $t->dicek_at, $t->galat]);
+
+        // Body tersimpan tanpa request_id: dikirim ulang oleh pemantau dengan body + kunci yang sama.
+        $this->actingAs($admin)->postJson(route('produksi.take.periksa', $mungkin))->assertOk()->assertExactJson(['ok' => true]);
+        $t = DB::table('produksi_take')->where('id', $mungkin)->first();
+        $this->assertSame(['unggah', '{"uji":2}', 'idem-uji-2'], [$t->status, $t->body, $t->idem_key]);
+
+        // Pasti ditolak, tanpa apa pun untuk diperiksa, atau bukan galat: 422 dengan pesan, tidak berubah.
+        $this->actingAs($admin)->postJson(route('produksi.take.periksa', $ditolak))
+            ->assertStatus(422)->assertJsonPath('ok', false)->assertJsonPath('pesan', fn ($p) => str_contains($p, 'sudah menolak'));
+        foreach ([$kosong, $gagal] as $t) {
+            $this->actingAs($admin)->postJson(route('produksi.take.periksa', $t))
+                ->assertStatus(422)->assertJsonPath('ok', false)->assertJsonPath('pesan', fn ($p) => is_string($p) && $p !== '');
+        }
+        $this->assertSame(['galat', 'galat', 'failed'], DB::table('produksi_take')->whereIn('id', [$ditolak, $kosong, $gagal])->orderBy('id')->pluck('status')->all());
+        $this->actingAs($admin)->postJson(route('produksi.take.periksa', 999))->assertNotFound();
+
+        // Tombol ini tidak pernah membuat request baru ke Higgsfield.
+        $this->assertSame([], $this->hf->kiriman);
+    }
+
+    public function test_kirim_tidak_mencentang_ulang_yang_mungkin_sudah_ditagih(): void
+    {
+        $id = $this->packMaomao();
+        $admin = $this->admin();
+        $t01 = (int) $this->item('T01')->id;
+        // T01 take 1 kehabisan percobaan kirim: request MUNGKIN sudah diterima dan ditagih (biaya NULL).
+        DB::table('produksi_take')->insert(['item_id' => $t01, 'nomor' => 1, 'status' => 'galat', 'estimasi_usd' => 0.4, 'biaya_usd' => null,
+            'body' => '{"uji":1}', 'idem_key' => 'idem-uji-1', 'dicoba' => 12, 'dibuat_at' => now(),
+            'galat' => 'Request MUNGKIN sudah diterima Higgsfield: cek dashboard-nya sebelum mengirim take baru untuk item ini.']);
+        app(Pemantau::class)->segarkanItem($t01);
+        $this->assertSame('gagal', $this->item('T01')->status);
+
+        $props = fn (array $q = []) => collect($this->actingAs($admin)->get(route('produksi.pack.kirim', ['id' => $id] + $q))->assertOk()
+            ->viewData('page')['props']['item'])->keyBy('kode');
+
+        // Tidak tercentang awal; peringatannya menggantikan keterangan biasa.
+        $item = $props();
+        $this->assertFalse($item['T01']['pilih_awal']);
+        $this->assertIsString($item['T01']['peringatan']);
+        $this->assertNotSame('', $item['T01']['peringatan']);
+        $this->assertSame($item['T01']['peringatan'], $item['T01']['ket']);
+        // Tester lain tetap tercentang seperti biasa.
+        $this->assertTrue($item['T02']['pilih_awal']);
+        $this->assertNull($item['T02']['peringatan']);
+
+        // Lewat ?item= (tombol "Ulangi") juga tidak tercentang.
+        $this->assertFalse($props(['item' => $t01])['T01']['pilih_awal']);
+
+        // Take yang pasti tidak ditagih (diblokir filter) diulang tanpa peringatan.
+        DB::table('produksi_take')->insert(['item_id' => (int) $this->item('T02')->id, 'nomor' => 1, 'status' => 'nsfw', 'biaya_usd' => 0, 'dibuat_at' => now()]);
+        app(Pemantau::class)->segarkanItem((int) $this->item('T02')->id);
+        $item = $props();
+        $this->assertNull($item['T02']['peringatan']);
+        $this->assertTrue($item['T02']['pilih_awal']);
+        $this->assertSame('Ulang dengan seed baru — take 1 diblokir filter', $item['T02']['ket']);
     }
 
     // ---------------------------------------------------------------- siap edit

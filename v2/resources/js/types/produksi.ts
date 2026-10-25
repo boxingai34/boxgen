@@ -87,10 +87,27 @@ export interface TakeBaris {
     waktu: string;
 }
 
+/**
+ * Keadaan pemantau latar (Pemantau::infoPemantau). `hidup` hanya kalau
+ * pemantau sendiri yang menulis detaknya; `pesan` terisi kalau tidak hidup
+ * padahal ada take aktif.
+ */
+export interface InfoPemantau {
+    hidup: Bendera;
+    pesan: string | null;
+    /** Jam detak terakhir "HH.mm", atau null. */
+    detak: string | null;
+}
+
 export interface JawabStatus {
+    /** Take aktif + 20 terakhir; dengan ?pack_id= juga SEMUA take pack itu. */
     takes: TakeBaris[];
     slot_terpakai: number;
+    pemantau: InfoPemantau;
+    /** Nama lama, sama dengan pemantau.hidup. */
     pemantau_hidup: Bendera;
+    /** Perintah Command Prompt untuk menyalakan pemantau sendiri. */
+    perintah_pemantau: string;
 }
 
 // ---- Produksi/Papan ----
@@ -175,12 +192,19 @@ export interface PackDetail {
     biaya_terpakai: Uang;
     perkiraan_sisa: Uang;
     peringatan: string[];
+    /** "id:status" semua take pack, terurut — dibandingkan dengan sidikTake() hasil polling. */
+    sidik_take: string;
 }
 
 export interface TakeRingkas {
     id: number;
     nomor: number;
     status: StatusTake;
+}
+
+export interface TakeSingkat {
+    id: number;
+    nomor: number;
 }
 
 /** ITEM_HALAMAN: satu tester atau klip di halaman pack. */
@@ -191,8 +215,14 @@ export interface ItemHalaman {
     durasi: number;
     gambar: Gambar[];
     status: StatusItem;
+    /** Take bernomor terbesar. */
     take_terakhir: TakeRingkas | null;
+    /** Take selesai pertama yang belum diputuskan (tujuan tombol Review). */
+    take_review: TakeSingkat | null;
+    /** Take yang lolos/dipakai (tujuan tombol Lihat). */
+    take_pilihan: TakeSingkat | null;
     jumlah_take: number;
+    /** Jumlah biaya SEMUA take item ini, bukan harga satu take. */
     biaya: Uang;
     cek: Cek[];
     bisa_kirim: Bendera;
@@ -223,8 +253,13 @@ export interface ItemKirim {
     judul: string;
     durasi: number;
     gambar: Gambar[];
-    /** "Belum pernah dijalankan", "Ulang dengan seed baru — take 1 diblokir filter" */
+    /** "Belum pernah dijalankan", "Ulang dengan seed baru — take 1 diblokir filter" (atau isi `peringatan`) */
     ket: string;
+    /**
+     * Take terakhir item ini mungkin sudah dibuat dan ditagih: tidak pernah
+     * tercentang awal, dan kirim butuh centang "sudah cek dashboard" dulu.
+     */
+    peringatan: string | null;
     pilih_awal: Bendera;
     /** Nomor take berikutnya (take pertama yang akan dibuat). */
     take_berikut: number;
@@ -253,6 +288,13 @@ export interface JawabKirim {
     ok: boolean;
     take_ids: number[];
     total: Uang;
+}
+
+/** POST produksi.item.manual (multipart `berkas`). */
+export interface JawabManual {
+    ok: boolean;
+    take_id: number;
+    url: string;
 }
 
 // ---- Produksi/Antrian ----
@@ -317,6 +359,12 @@ export interface ReviewTake {
     catatan: CatatanWaktu[] | null;
     keputusan: Keputusan | null;
     galat: string | null;
+    /** Untuk dicari di dashboard Higgsfield; null kalau belum pernah diterima. */
+    request_id: string | null;
+    /** Biaya tercatat; null = belum pasti (mungkin ditagih). */
+    biaya: Uang | null;
+    /** Take galat yang mungkin sudah dibayar: tombol "Periksa lagi ke Higgsfield" (POST produksi.take.periksa). */
+    bisa_periksa: Bendera;
 }
 
 export interface ReviewItem {

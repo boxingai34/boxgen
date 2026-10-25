@@ -56,8 +56,10 @@ class Ekspor
         $data = json_decode((string) $pack->data, true);
         $data = is_array($data) ? $data : [];
 
+        // urutan 0 = klip yang sudah hilang dari pack tapi disimpan karena
+        // punya take (lihat Gudang::impor). Tidak ikut diekspor.
         $klip = DB::table('produksi_item')->where('pack_id', $packId)->where('jenis', 'klip')
-            ->orderBy('urutan')->orderBy('kode')->get();
+            ->where('urutan', '>', 0)->orderBy('urutan')->orderBy('kode')->get();
         if ($klip->isEmpty()) {
             throw new ProduksiGalat('Pack ini belum punya klip.');
         }

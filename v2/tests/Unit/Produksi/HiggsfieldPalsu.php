@@ -43,6 +43,15 @@ class HiggsfieldPalsu extends Higgsfield
     /** Dipanggil di awal kirim($model, $body, $idemKey), sebelum apa pun dicatat. */
     public ?Closure $sebelumKirim = null;
 
+    /** Dipanggil di awal unggah($pathAbs) — tes memakainya untuk memajukan waktu selama upload. */
+    public ?Closure $saatUnggah = null;
+
+    /** Dipanggil di awal unduh($tujuanAbs, $denyut) — tes memakainya untuk meniru unduhan yang lama. */
+    public ?Closure $saatUnduh = null;
+
+    /** @var int berapa kali denyut unduh dipanggil */
+    public int $denyutUnduh = 0;
+
     public function __construct()
     {
         parent::__construct(['base' => 'https://api.palsu.test', 'key_id' => 'palsu-key-id-0001', 'key_secret' => 'rahasia-palsu']);
@@ -60,6 +69,9 @@ class HiggsfieldPalsu extends Higgsfield
 
     public function unggah(string $pathAbs): string
     {
+        if ($this->saatUnggah !== null) {
+            ($this->saatUnggah)($pathAbs);
+        }
         $this->lempar('unggah');
         $this->unggahan[] = $pathAbs;
 
@@ -96,8 +108,15 @@ class HiggsfieldPalsu extends Higgsfield
         return $j + ['status' => 'in_progress', 'video_url' => null, 'error' => null];
     }
 
-    public function unduh(string $url, string $tujuanAbs): int
+    public function unduh(string $url, string $tujuanAbs, ?callable $denyut = null): int
     {
+        if ($this->saatUnduh !== null) {
+            ($this->saatUnduh)($tujuanAbs, $denyut);
+        }
+        if ($denyut !== null) {
+            $denyut();
+            $this->denyutUnduh++;
+        }
         $this->lempar('unduh');
         if (file_exists($tujuanAbs)) {
             throw new HiggsfieldGalat(basename($tujuanAbs) . ' sudah ada di folder take; tidak ditimpa.');

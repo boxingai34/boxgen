@@ -174,6 +174,7 @@ Route::prefix('generator')->group(function () {
             Route::get('take/{id}/bingkai/{n}', [ProduksiController::class, 'bingkai'])->whereNumber(['id', 'n'])->name('produksi.take.bingkai');
             Route::post('take/{id}/nilai', [ProduksiController::class, 'nilai'])->whereNumber('id')->name('produksi.take.nilai');
             Route::post('take/{id}/putuskan', [ProduksiController::class, 'putuskan'])->whereNumber('id')->name('produksi.take.putuskan');
+            Route::post('take/{id}/periksa', [ProduksiController::class, 'periksaLagi'])->whereNumber('id')->name('produksi.take.periksa');
         });
 
         // ---- CMS halaman depan (admin) ----

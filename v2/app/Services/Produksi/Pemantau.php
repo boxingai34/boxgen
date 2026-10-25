@@ -2,7 +2,6 @@
 
 namespace App\Services\Produksi;
 
-use App\Services\Discover;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -27,6 +26,7 @@ use Throwable;
  *                     completed → unduh    klaim, unduh ke TAKES\, analisis
  *                   Galat di satu take tidak pernah menahan take lain.
  *   tambahManual()  take dari luar (Luno, web Higgsfield) disalin ke TAKES\.
+ *   periksaLagi()   take galat yang (mungkin) sudah dibayar dipantau lagi.
  *   simpanNilai(), putuskan()   hasil review; segarkanItem() dan tahap()
  *                   menghitung status item dan tahap pack dari take-nya.
  *
@@ -35,14 +35,21 @@ use Throwable;
  *     hilang (jaringan putus, proses mati), kiriman ulang memakai body dan
  *     kunci yang sama persis, jadi Higgsfield mengembalikan request yang
  *     sama tanpa klip atau tagihan kedua. Tidak ada jalur yang membuat
- *     request baru tanpa tombol kirim.
+ *     request baru tanpa tombol kirim. Selama body tersimpan, `dicoba` =
+ *     jumlah kiriman yang hasilnya belum pasti (dinaikkan SEBELUM kirim).
+ *   - Take yang punya request_id mungkin sudah ditagih: galat sementara atau
+ *     lokal (jaringan, 5xx, 401/403/404, kunci belum diisi, folder pack
+ *     sedang dipindah, .part dipegang antivirus) tidak pernah mengakhirinya.
+ *     Yang mengakhiri hanya status terminal dari Higgsfield, batas percobaan
+ *     unduh, atau pantau.batas_pantau_hari (Higgsfield menghapus hasilnya).
  *   - Klaim atomik: UPDATE … WHERE status = 'siap' (atau 'completed'), lanjut
- *     hanya kalau tepat satu baris berubah, supaya dua pemantau yang
- *     kebetulan hidup bersamaan tidak mengerjakan take yang sama.
- *   - Klaim yang macet (proses mati di tengah) dilepas setelah
- *     pantau.klaim_basi_menit. Galat yang aman diulang dicoba lagi lebih
- *     cepat (30 dtk × jumlah percobaan, paling lama klaim_basi_menit),
- *     paling banyak BATAS_COBA kali, lalu take ditandai galat.
+ *     hanya kalau tepat satu baris berubah. Hanya satu pemantau latar yang
+ *     bekerja (kunci berkas seumur proses, kunciPemantau()).
+ *   - Klaim (unggah/unduh) diperbarui selama kerja panjang (denyut), dan
+ *     dianggap macet hanya kalau tidak diperbarui selama
+ *     pantau.klaim_basi_menit. Percobaan ulang dijadwalkan lewat dicek_at:
+ *     nilainya dimundurkan supaya take "jatuh tempo" tepat saat percobaan
+ *     berikutnya (jadwal()).
  *
  * Biaya: estimasi = tarif config × durasi (dibulatkan ke sen). biaya_usd =
  * estimasi begitu Higgsfield menyatakan completed; 0 untuk failed, nsfw,
@@ -69,15 +76,28 @@ class Pemantau
     /** Keputusan review yang berarti "take ini dipakai". */
     private const POSITIF = ['lolos', 'pakai'];
 
-    /** Jeda sesudah galat, per percobaan (30, 60, 90 … dtk, paling lama klaim_basi_menit). */
+    /** Jeda sesudah galat kirim/unduh, per percobaan (30, 60, 90 … dtk, paling lama JEDA_MAKS). */
     private const JEDA_COBA = 30;
+
+    private const JEDA_MAKS = 300;
 
     private const STATUS_UMUR = ['dewasa', 'olahraga', 'tak_dikenal', 'tolak'];
 
+    /** Pesan baris produksi_jalan yang dinyalakan halaman tapi tidak pernah berdetak. */
+    private const PESAN_TAK_BERDETAK = 'Tidak pernah berdetak sejak dinyalakan; perintahnya mungkin langsung mati (php.exe salah versi?).';
+
     private ?Gudang $gudang = null;
 
-    /** Dipanggil sesudah tiap take diproses langkah(); pemantau latar memakainya untuk detak. */
+    /** Dipanggil sesudah tiap take diproses langkah() dan selama kerja panjang; pemantau latar memakainya untuk detak. false = barisnya sudah ditutup. */
     private ?Closure $detak = null;
+
+    /** Take yang sedang diklaim proses ini ({id, status}), untuk denyut selama kerja panjang. */
+    private ?array $kerja = null;
+
+    private int $denyutTerakhir = 0;
+
+    /** Baris pemantau ditutup pihak lain: langkah() berhenti sesudah take yang sedang dikerjakan. */
+    private bool $dihentikan = false;
 
     /** Pesan galat langkah() yang sedang berjalan, untuk ringkasan. */
     private array $pesan = [];
@@ -249,7 +269,11 @@ class Pemantau
 
     /**
      * Satu putaran: lepas klaim basi, lalu majukan tiap take aktif satu
-     * langkah (paling banyak $batas take yang benar-benar dikerjakan).
+     * langkah. Urutannya: siap (kirim), completed (unduh), unggah (kirim
+     * ulang), lalu queued/in_progress yang paling lama tidak ditanya. Paling
+     * banyak $batas take yang benar-benar dikerjakan; cek status tanpa
+     * perubahan ('tunggu') tidak dihitung, supaya take baru tidak kelaparan.
+     * Berhenti lebih awal kalau baris pemantau latar ditutup pihak lain.
      *
      * @return array{diproses:int, dikirim:int, selesai:int, gagal:int, galat:list<string>, aktif:int}
      *         gagal = take yang berakhir failed/nsfw/canceled/galat; galat = pesan putaran ini;
@@ -258,20 +282,24 @@ class Pemantau
     public function langkah(int $batas = 20): array
     {
         $this->pesan = [];
+        $this->dihentikan = false;
         $hitung = ['dikirim' => 0, 'selesai' => 0, 'gagal' => 0];
         $diproses = 0;
 
         $this->lepasKlaimBasi();
 
+        $urutan = ['siap' => 0, 'completed' => 1, 'unggah' => 2, 'queued' => 3, 'in_progress' => 3];
+        $kunci = fn ($t) => [$urutan[$t->status], $urutan[$t->status] === 3 ? (string) $t->dicek_at : '', (int) $t->id];
         $calon = DB::table('produksi_take as t')
             ->leftJoin('produksi_item as i', 'i.id', '=', 't.item_id')
-            ->whereIn('t.status', ['siap', 'unggah', 'queued', 'in_progress', 'completed'])
-            ->orderBy('t.id')
+            ->whereIn('t.status', array_keys($urutan))
             ->select('t.*', 'i.kode as item_kode')
-            ->get();
+            ->get()
+            ->sort(fn ($a, $b) => $kunci($a) <=> $kunci($b))
+            ->values();
 
         foreach ($calon as $t) {
-            if ($diproses >= max(1, $batas)) {
+            if ($diproses >= max(1, $batas) || $this->dihentikan) {
                 break;
             }
             try {
@@ -286,17 +314,19 @@ class Pemantau
                 $hasil = 'ulang';
                 $this->catat($t, self::pesanGalat($e));
                 self::log($e);
+            } finally {
+                $this->kerja = null;
             }
             if ($hasil === null) {
                 continue; // belum waktunya, atau sudah diklaim pihak lain
             }
-            $diproses++;
+            if ($hasil !== 'tunggu') {
+                $diproses++;
+            }
             if (isset($hitung[$hasil])) {
                 $hitung[$hasil]++;
             }
-            if ($this->detak !== null) {
-                ($this->detak)();
-            }
+            $this->denyut(true);
         }
 
         return ['diproses' => $diproses] + $hitung + [
@@ -306,13 +336,17 @@ class Pemantau
     }
 
     /**
-     * Pastikan `artisan produksi:pantau` hidup selama ada take aktif. Hidup
-     * = baris produksi_jalan belum selesai dengan detak lebih muda dari
-     * pantau.detak_mati_detik. Kalau mati: baris yatim ditutup, baris baru
-     * dibuat, dan perintahnya dilepas lewat Discover::lepas(). Tanpa take
-     * aktif tidak ada yang dinyalakan (pemantau toh berhenti sendiri).
+     * Pastikan `artisan produksi:pantau` hidup selama ada take aktif. Tanpa
+     * take aktif tidak ada yang dinyalakan (pemantau toh berhenti sendiri).
      *
-     * @return bool pemantau hidup (atau baru saja dinyalakan)
+     * Tidak menyalakan kalau: detak masih segar; proses pemantau masih
+     * memegang kuncinya (mungkin sedang di langkah panjang); atau baris yang
+     * baru dinyalakan halaman (detak NULL) belum lebih tua dari
+     * pantau.detak_mati_detik. Selain itu baris yatim ditutup, baris baru
+     * dibuat dengan detak NULL — detak hanya ditulis perintahnya sendiri —
+     * lalu perintahnya dilepas lewat Peluncur.
+     *
+     * @return bool pemantau hidup, sedang dinyalakan, atau baru saja dinyalakan
      */
     public function pastikanJalan(): bool
     {
@@ -330,22 +364,30 @@ class Pemantau
         }
 
         try {
-            if ($this->pemantauHidup()) {
+            if ($this->pemantauHidup() || self::pemantauMemegangKunci()) {
                 return true;
             }
-            DB::table('produksi_jalan')->whereNull('selesai')->update([
+            $mati = max(1, (int) self::cfg('detak_mati_detik', 30));
+            if (DB::table('produksi_jalan')->whereNull('selesai')->whereNull('detak')->where('mulai', '>', now()->subSeconds($mati))->exists()) {
+                return true; // baru dinyalakan, belum sempat berdetak
+            }
+
+            DB::table('produksi_jalan')->whereNull('selesai')->whereNotNull('detak')->update([
                 'selesai' => now(),
                 'pesan'   => 'Berhenti tanpa pamit (detaknya hilang); digantikan pemantau baru.',
             ]);
-            // Detak awal = sekarang, supaya permintaan berikutnya tidak menyalakan lagi selagi prosesnya baru mulai.
-            $id = (int) DB::table('produksi_jalan')->insertGetId(['mulai' => now(), 'detak' => now()]);
+            DB::table('produksi_jalan')->whereNull('selesai')->whereNull('detak')->update([
+                'selesai' => now(),
+                'pesan'   => self::PESAN_TAK_BERDETAK,
+            ]);
+            $id = (int) DB::table('produksi_jalan')->insertGetId(['mulai' => now(), 'detak' => null]);
             DB::table('produksi_jalan')->where('id', '<', $id - 200)->delete();
 
-            if (!Discover::lepas('produksi:pantau --jalan=' . $id)) {
+            $sebab = null;
+            if (!Peluncur::lepas('produksi:pantau --jalan=' . $id, $sebab)) {
                 DB::table('produksi_jalan')->where('id', $id)->update([
                     'selesai' => now(),
-                    'pesan'   => 'Pemantau tidak bisa dinyalakan dari halaman (exec()/popen() dimatikan). '
-                        . 'Jalankan `php artisan produksi:pantau` dari Command Prompt.',
+                    'pesan'   => 'Pemantau tidak bisa dinyalakan dari halaman: ' . rtrim((string) $sebab, '.') . '.',
                 ]);
 
                 return false;
@@ -353,25 +395,204 @@ class Pemantau
 
             return true;
         } finally {
-            if (is_resource($kunci)) {
-                flock($kunci, LOCK_UN);
-                fclose($kunci);
-            }
+            self::lepasKunci($kunci);
         }
     }
 
-    /** Ada pemantau latar dengan detak segar? (untuk `pemantau_hidup` di JSON status) */
+    /** Ada pemantau latar yang detaknya — ditulis perintahnya sendiri — masih segar? */
     public function pemantauHidup(): bool
     {
         $mati = max(1, (int) self::cfg('detak_mati_detik', 30));
 
-        return DB::table('produksi_jalan')->whereNull('selesai')->where('detak', '>=', now()->subSeconds($mati))->exists();
+        return DB::table('produksi_jalan')->whereNull('selesai')->whereNotNull('detak')
+            ->where('detak', '>=', now()->subSeconds($mati))->exists();
     }
 
-    /** Fungsi yang dipanggil sesudah tiap take diproses langkah() — pemantau latar memperbarui detaknya di sini. */
+    /**
+     * Keadaan pemantau latar untuk halaman (JSON status).
+     *
+     * @return array{hidup: bool, pesan: ?string, detak: ?string}
+     *   hidup  hanya kalau produksi:pantau sendiri menulis detak yang masih segar
+     *   pesan  kalau tidak hidup padahal ada take aktif: kenapa, dan perintah
+     *          untuk menjalankannya dengan tangan
+     *   detak  'HH.mm' detak terakhir, atau null
+     */
+    public function infoPemantau(): array
+    {
+        $terakhir = DB::table('produksi_jalan')->whereNotNull('detak')->max('detak');
+        $detak = $terakhir !== null ? self::jam($terakhir) : null;
+        if ($this->pemantauHidup()) {
+            return ['hidup' => true, 'pesan' => null, 'detak' => $detak];
+        }
+        if (!DB::table('produksi_take')->whereIn('status', self::AKTIF)->exists()) {
+            return ['hidup' => false, 'pesan' => null, 'detak' => $detak];
+        }
+
+        $perintah = 'Jalankan: ' . (Peluncur::php() ?? 'php') . ' artisan produksi:pantau dari folder v2.';
+        $baris = DB::table('produksi_jalan')->orderByDesc('id')->limit(2)->get();
+        $akhir = $baris[0] ?? null;
+        $sebelum = $baris[1] ?? null;
+        $mati = max(1, (int) self::cfg('detak_mati_detik', 30));
+
+        $pesan = match (true) {
+            $akhir === null => 'Pemantau latar belum berjalan. ' . $perintah,
+            $akhir->selesai === null && $akhir->detak === null && self::umurDetik($akhir->mulai) < $mati
+                && !($sebelum !== null && $sebelum->detak === null && $sebelum->pesan === self::PESAN_TAK_BERDETAK)
+                => 'Pemantau latar sedang dinyalakan (' . self::jam($akhir->mulai) . ').',
+            // Prosesnya masih memegang kunci: hidup, hanya detaknya tertunda oleh langkah yang panjang.
+            self::pemantauMemegangKunci()
+                => 'Pemantau latar sedang mengerjakan langkah yang panjang' . ($detak !== null ? " (detak terakhir {$detak})" : '') . '.',
+            $akhir->selesai === null && $akhir->detak === null
+                => 'Pemantau latar belum berjalan: yang dinyalakan halaman tidak pernah berdetak. ' . $perintah,
+            $akhir->selesai === null => 'Pemantau latar tidak berdetak lagi sejak ' . $detak . '. ' . $perintah,
+            trim((string) $akhir->pesan) !== '' => 'Pemantau latar belum berjalan. ' . rtrim(trim((string) $akhir->pesan), '.') . '. ' . $perintah,
+            default => 'Pemantau latar belum berjalan. ' . $perintah,
+        };
+
+        return ['hidup' => false, 'pesan' => $pesan, 'detak' => $detak];
+    }
+
+    /** Fungsi yang dipanggil sesudah tiap take diproses langkah() dan selama kerja panjang — pemantau latar memperbarui detaknya di sini. */
     public function saatDetak(?callable $fn): void
     {
         $this->detak = $fn === null ? null : Closure::fromCallable($fn);
+    }
+
+    /**
+     * Kunci berkas seumur proses produksi:pantau: hanya satu pemantau latar
+     * yang bekerja. Dicoba beberapa kali sebentar, karena halaman bisa
+     * sedang memeriksanya sekejap (pemantauMemegangKunci).
+     *
+     * @return resource|false|null false = dipegang pemantau lain; null = berkas kunci tidak bisa dibuka
+     */
+    public static function kunciPemantau(int $coba = 5): mixed
+    {
+        $f = self::bukaKunci('pemantau.lock');
+        if ($f === null) {
+            return null;
+        }
+        for ($i = 1; $i <= max(1, $coba); $i++) {
+            if (flock($f, LOCK_EX | LOCK_NB)) {
+                return $f;
+            }
+            if ($i < $coba) {
+                usleep(200_000);
+            }
+        }
+        fclose($f);
+
+        return false;
+    }
+
+    /** Lepas kunci dari kunciPemantau() / kunciMulai(); nilai selain resource diabaikan. */
+    public static function lepasKunci(mixed $kunci): void
+    {
+        if (is_resource($kunci)) {
+            flock($kunci, LOCK_UN);
+            fclose($kunci);
+        }
+    }
+
+    /**
+     * "Periksa lagi" untuk take galat yang (mungkin) sudah dibayar:
+     *   punya request_id       queued lagi (dicoba 0): status ditanya ulang,
+     *                          alamat video baru diambil, lalu diunduh
+     *   body tanpa request_id  unggah, langsung jatuh tempo: dikirim ulang
+     *                          dengan body + Idempotency-Key yang SAMA — kalau
+     *                          kiriman lama sudah diterima, Higgsfield
+     *                          mengembalikan request itu tanpa tagihan kedua
+     * Hanya untuk status galat. Selain itu ProduksiGalat dengan alasannya.
+     */
+    public function periksaLagi(int $takeId): void
+    {
+        $t = $this->takeAtauGalat($takeId);
+        if ($t->status !== 'galat') {
+            throw new ProduksiGalat(match (true) {
+                in_array($t->status, self::AKTIF, true) => 'Take ini masih dikerjakan pemantau; tunggu sampai selesai.',
+                $t->status === 'selesai' => 'Take ini sudah selesai; tidak ada yang perlu diperiksa lagi.',
+                $t->status === 'nsfw' => 'Take ini diblokir filter Higgsfield dan tidak ditagih; tidak ada video yang bisa diambil.',
+                $t->status === 'canceled' => 'Take ini dibatalkan di Higgsfield dan tidak ditagih; tidak ada video yang bisa diambil.',
+                default => 'Take ini gagal dibuat Higgsfield dan tidak ditagih; tidak ada video yang bisa diambil.',
+            });
+        }
+        if ((string) $t->sumber !== 'api') {
+            throw new ProduksiGalat('Take manual tidak dibuat lewat Higgsfield, jadi tidak ada yang bisa diperiksa.');
+        }
+        [, $pack] = $this->itemDanPack($t);
+        if (self::umurStatus($pack) === 'tolak') {
+            throw new ProduksiGalat('Pack ini ditolak aturan umur; take tidak diperiksa lagi.');
+        }
+        $mulai = $t->dikirim_at ?? $t->dibuat_at;
+        $umur = $mulai !== null ? self::umurDetik($mulai) : 0;
+
+        if ((string) $t->request_id !== '') {
+            $hari = $this->batasPantauHari();
+            if ($umur >= $hari * 86400) {
+                throw new ProduksiGalat("Take ini dikirim lebih dari {$hari} hari lalu; Higgsfield sudah menghapus hasilnya.");
+            }
+            $ubah = ['status' => 'queued', 'dicoba' => 0, 'dicek_at' => null, 'galat' => null, 'selesai_at' => null];
+        } elseif ((string) $t->body !== '') {
+            if ($t->biaya_usd !== null && (float) $t->biaya_usd <= 0) {
+                throw new ProduksiGalat('Kiriman take ini ditolak Higgsfield dan tidak ditagih, jadi tidak ada yang bisa diambil. Kirim take baru dari halaman Kirim.');
+            }
+            $jam = $this->batasKirimUlangJam();
+            if ($umur >= $jam * 3600) {
+                throw new ProduksiGalat("Take ini pertama dikirim lebih dari {$jam} jam lalu. Idempotency-Key-nya mungkin sudah tidak berlaku, jadi kiriman "
+                    . 'ulang bisa membuat video (dan tagihan) baru. Cek dashboard Higgsfield; kalau videonya ada, unduh lalu pakai Tambah manual.');
+            }
+            if (($alasan = $this->alasanUmur($pack)) !== null) {
+                throw new ProduksiGalat($alasan);
+            }
+            if (!$this->hf->siap()) {
+                throw new ProduksiGalat('Kunci API Higgsfield belum siap. Isi HIGGSFIELD_KEY_ID dan HIGGSFIELD_KEY_SECRET di .env, lalu coba lagi.');
+            }
+            // dicoba 1: kiriman lama hasilnya tidak pasti, jadi kiriman ini diperlakukan sebagai kiriman ulang.
+            $ubah = ['status' => 'unggah', 'dicoba' => 1, 'dicek_at' => self::jadwal(0, $this->klaimBasiDetik()), 'galat' => null, 'selesai_at' => null];
+        } else {
+            throw new ProduksiGalat('Take ini belum pernah sampai ke Higgsfield (tidak ada request_id maupun body tersimpan), jadi tidak ada yang bisa '
+                . 'diperiksa. Kirim take baru dari halaman Kirim.');
+        }
+
+        if (DB::table('produksi_take')->where('id', $takeId)->where('status', 'galat')->update($ubah) !== 1) {
+            throw new ProduksiGalat('Take ini baru saja berubah. Muat ulang halaman.');
+        }
+        $this->segarkanItem((int) $t->item_id);
+        $this->pastikanJalan();
+    }
+
+    /**
+     * Boleh item ini langsung dicentang untuk take baru (berbayar) di halaman
+     * Kirim? Tidak, kalau ada take galat (dalam batas_pantau_hari) yang
+     * mungkin sudah diterima dan ditagih (biaya null), atau yang sudah dibuat
+     * tapi belum terunduh (punya request_id / video_url): itu dicek atau
+     * dipulihkan dulu, supaya tidak membayar dua kali.
+     *
+     * @return array{boleh: bool, peringatan: ?string}
+     */
+    public function bolehUlang(int $itemId): array
+    {
+        $hari = $this->batasPantauHari();
+        $takes = DB::table('produksi_take')->where('item_id', $itemId)->where('status', 'galat')->where('sumber', 'api')
+            ->orderByDesc('nomor')->orderByDesc('id')
+            ->get(['nomor', 'request_id', 'body', 'video_url', 'biaya_usd', 'dikirim_at', 'dibuat_at']);
+
+        foreach ($takes as $t) {
+            $mulai = $t->dikirim_at ?? $t->dibuat_at;
+            if ($mulai !== null && self::umurDetik($mulai) >= $hari * 86400) {
+                continue; // hasilnya sudah dihapus Higgsfield
+            }
+            $dibuat = (string) $t->request_id !== '' || (string) $t->video_url !== '';
+            if ($t->biaya_usd === null) {
+                return ['boleh' => false, 'peringatan' => "Take {$t->nomor} mungkin sudah diterima dan ditagih Higgsfield. Cek dashboard Higgsfield"
+                    . ($dibuat || (string) $t->body !== '' ? ' atau pakai Periksa lagi' : '') . ' sebelum mengirim take baru.'];
+            }
+            if ($dibuat) {
+                return ['boleh' => false, 'peringatan' => "Take {$t->nomor} sudah dibuat dan ditagih Higgsfield tapi belum terunduh. "
+                    . 'Pakai Periksa lagi untuk mengambil videonya sebelum membayar take baru.'];
+            }
+        }
+
+        return ['boleh' => true, 'peringatan' => null];
     }
 
     /**
@@ -390,20 +611,28 @@ class Pemantau
     // ------------------------------------------------------------------
 
     /**
-     * Klaim lama dilepas: `unduh` yang macet kembali ke `completed`; `unggah`
-     * tanpa body kembali ke `siap`. `unggah` DENGAN body dikirim ulang persis
-     * oleh kirimUlang().
+     * Klaim yang tidak diperbarui selama klaim_basi (proses mati di tengah),
+     * atau percobaan ulang yang sudah jatuh tempo (dicek_at dijadwalkan
+     * mundur): `unduh` kembali ke `completed` (dihitung satu percobaan);
+     * `unggah` tanpa body kembali ke `siap`; `unggah` dengan request_id ke
+     * `queued`. `unggah` DENGAN body dikirim ulang persis oleh kirimUlang().
      */
     private function lepasKlaimBasi(): void
     {
-        DB::table('produksi_take')->where('status', 'unduh')
-            ->where(fn ($q) => $q->whereNull('dicek_at')->orWhere('dicek_at', '<', now()->subSeconds($this->klaimBasiDetik())))
-            ->update(['status' => 'completed']);
+        $basi = now()->subSeconds($this->klaimBasiDetik());
+        $jatuhTempo = fn (string $status) => DB::table('produksi_take')->where('status', $status)
+            ->where(fn ($q) => $q->whereNull('dicek_at')->orWhere('dicek_at', '<=', $basi));
 
-        foreach (DB::table('produksi_take')->where('status', 'unggah')->get(['id', 'request_id', 'body', 'dicek_at', 'dicoba']) as $t) {
-            if (!$this->waktunyaUlang($t, true)) {
-                continue;
-            }
+        foreach ($jatuhTempo('unduh')->get(['id', 'dicoba', 'dicek_at']) as $t) {
+            self::samaDicek(DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh'), $t->dicek_at)->update([
+                'status'   => 'completed',
+                'dicoba'   => (int) $t->dicoba + 1,
+                'galat'    => 'Unduhan sebelumnya terhenti di tengah jalan; dicoba lagi.',
+                'dicek_at' => now(),
+            ]);
+        }
+
+        foreach ($jatuhTempo('unggah')->get(['id', 'request_id', 'body', 'dicek_at']) as $t) {
             $ubah = match (true) {
                 (string) $t->request_id !== '' => ['status' => 'queued'], // jawaban kirim sudah tercatat
                 (string) $t->body === ''       => ['status' => 'siap'],   // belum ada yang dikirim
@@ -421,8 +650,9 @@ class Pemantau
         if (!$this->klaim((int) $t->id, 'siap', 'unggah')) {
             return null;
         }
+        $this->kerja = ['id' => (int) $t->id, 'status' => 'unggah'];
 
-        $bodyTersimpan = false;
+        $terkirim = false;
         try {
             [$item, $pack] = $this->itemDanPack($t);
             // Gerbang umur diperiksa lagi: pack bisa diimpor ulang sesudah take dibuat.
@@ -434,44 +664,65 @@ class Pemantau
             $urls = [];
             foreach ($this->gambarItem($item, $folder) as $path) {
                 $urls[] = $this->hf->unggah($path);
+                $this->denyut(); // satu gambar bisa makan menit: klaimnya jangan sampai dianggap macet
             }
             $body = Higgsfield::bodyWan((string) $item->prompt, $urls, (int) $t->durasi, (string) $t->resolusi,
                 (string) $t->rasio, (int) $t->seed, (bool) $t->audio);
             $json = self::jsonBody($body);
 
-            // Body disimpan SEBELUM kirim: kalau jawaban kirim hilang atau
+            // Body disimpan SEBELUM kirim, bersama hitungan kiriman (dicoba
+            // = 1) dan waktu kiriman pertama: kalau jawabannya hilang atau
             // proses mati di tengah, kiriman ulang memakai body dan
-            // Idempotency-Key yang sama persis (tanpa tagihan kedua).
+            // Idempotency-Key yang sama persis (tanpa tagihan kedua) dan tahu
+            // bahwa kiriman sebelumnya mungkin sudah sampai.
             $n = DB::table('produksi_take')->where('id', $t->id)->where('status', 'unggah')->whereNull('request_id')
-                ->update(['body' => $json, 'dicek_at' => now()]);
+                ->update(['body' => $json, 'dicoba' => 1, 'dicek_at' => now(), 'dikirim_at' => now()]);
             if ($n !== 1) {
                 return null; // sudah diambil alih
             }
-            $bodyTersimpan = true;
+            $terkirim = true;
 
             return $this->kirimBody($t, $json);
         } catch (Throwable $e) {
-            return $this->gagalKirim($t, $e, $bodyTersimpan);
+            return $this->gagalKirim($t, $e, $terkirim, 0);
         }
     }
 
-    /** `unggah` yang macet atau gagal dengan body tersimpan: kirim ulang body + kunci yang sama. */
+    /**
+     * `unggah` dengan body tersimpan yang jatuh tempo (percobaan ulang, atau
+     * klaim yang macet karena proses mati): kirim ulang body + kunci yang
+     * sama. Tidak dikirim lagi setelah pantau.batas_kirim_ulang_jam sejak
+     * kiriman pertama — Idempotency-Key mungkin sudah tidak berlaku, dan
+     * kiriman ulang bisa jadi request (dan tagihan) baru.
+     */
     private function kirimUlang(object $t): ?string
     {
-        if ((string) $t->body === '' || (string) $t->request_id !== '' || !$this->waktunyaUlang($t, true)) {
+        if ((string) $t->body === '' || (string) $t->request_id !== '' || !self::jatuhTempo($t->dicek_at, $this->klaimBasiDetik())) {
             return null;
         }
-        // Klaim ulang: hanya kalau dicek_at belum disentuh pihak lain sejak dibaca.
+        $sebelumnya = (int) $t->dicoba;
+        // Klaim ulang: hanya kalau dicek_at belum disentuh pihak lain sejak dibaca. dicoba naik SEBELUM kirim.
         $n = self::samaDicek(DB::table('produksi_take')->where('id', $t->id)->where('status', 'unggah')->whereNull('request_id'), $t->dicek_at)
-            ->update(['dicek_at' => now()]);
+            ->update(['dicek_at' => now(), 'dicoba' => $sebelumnya + 1]);
         if ($n !== 1) {
             return null;
+        }
+        $this->kerja = ['id' => (int) $t->id, 'status' => 'unggah'];
+
+        $jam = $this->batasKirimUlangJam();
+        $mulai = $t->dikirim_at ?? $t->dibuat_at;
+        if ($mulai !== null && self::umurDetik($mulai) >= $jam * 3600) {
+            $terakhir = trim((string) $t->galat);
+
+            return $this->akhiriKirim($t, "Kiriman take ini belum terjawab Higgsfield setelah {$jam} jam, jadi tidak dikirim ulang lagi "
+                . '(Idempotency-Key-nya mungkin sudah tidak berlaku).' . ($terakhir !== '' ? ' Galat terakhir: ' . rtrim($terakhir, '.') . '.' : ''),
+                $sebelumnya, ['dicoba' => $sebelumnya]);
         }
 
         try {
             return $this->kirimBody($t, (string) $t->body);
         } catch (Throwable $e) {
-            return $this->gagalKirim($t, $e, true);
+            return $this->gagalKirim($t, $e, true, $sebelumnya);
         }
     }
 
@@ -500,39 +751,82 @@ class Pemantau
     }
 
     /**
-     * Galat di fase unggah/kirim. Yang aman diulang: status tetap `unggah`,
-     * dicoba lagi lewat lepasKlaimBasi()/kirimUlang(). Yang lain: galat.
-     * Galat tak terduga SESUDAH body tersimpan dianggap aman diulang —
-     * request mungkin sudah sampai, dan kiriman ulang dengan kunci yang sama
-     * tidak menagih dua kali.
+     * Galat di fase unggah/kirim.
+     *
+     * Sebelum body tersimpan ($terkirim false) belum ada yang sampai ke
+     * Higgsfield: galat yang aman diulang menunggu lalu upload diulang dari
+     * awal (take kembali ke siap), paling banyak BATAS_COBA kali; yang lain
+     * langsung galat dengan biaya 0.
+     *
+     * Sesudah body tersimpan, dicoba = jumlah kiriman body + kunci ini yang
+     * hasilnya tidak pasti (dinaikkan SEBELUM tiap kiriman); $sebelumnya =
+     * hitungan itu sebelum kiriman yang barusan gagal (0 = kiriman pertama):
+     *   429              pasti tidak dibuat: hitungan kembali ke $sebelumnya
+     *                    (tidak memakan jatah), dicoba lagi sesudah Retry-After
+     *   jaringan, 5xx,   mungkin sudah diterima: tetap dihitung, dicoba lagi
+     *   galat tak terduga sampai BATAS_COBA, lalu galat dengan biaya null
+     *   401/403, kunci   pada kiriman ulang: tunggu kuncinya dibereskan (seperti
+     *   belum siap       cekStatus) — kiriman sebelumnya mungkin sudah jalan
+     *   ditolak lainnya  kiriman pertama: pasti tidak diterima, biaya 0.
+     *                    Kiriman ulang: tidak pasti, biaya null + "MUNGKIN"
      */
-    private function gagalKirim(object $t, Throwable $e, bool $bodyTersimpan): string
+    private function gagalKirim(object $t, Throwable $e, bool $terkirim, int $sebelumnya): string
     {
         $pesan = self::pesanGalat($e);
-        $ulang = $e instanceof HiggsfieldGalat ? $e->bisaUlang : ($bodyTersimpan && !$e instanceof ProduksiGalat);
-        $dicoba = (int) $t->dicoba + 1;
-        if (!$e instanceof HiggsfieldGalat && !$e instanceof ProduksiGalat) {
+        $hg = $e instanceof HiggsfieldGalat ? $e : null;
+        if ($hg === null && !$e instanceof ProduksiGalat) {
             self::log($e);
         }
 
-        if ($ulang && $dicoba < self::BATAS_COBA) {
-            DB::table('produksi_take')->where('id', $t->id)->where('status', 'unggah')
-                ->update(['dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => now()]);
-            $this->catat($t, $pesan . ' Dicoba lagi nanti.');
+        if (!$terkirim) {
+            $dicoba = (int) $t->dicoba + 1;
+            if ($hg !== null && $hg->bisaUlang && $dicoba < self::BATAS_COBA) {
+                return $this->ulangKirim($t, $pesan, $dicoba, max($hg->tunggu, self::jedaCoba($dicoba)));
+            }
 
-            return 'ulang';
+            return $this->akhiriKirim($t, $pesan . ($hg !== null && $hg->bisaUlang ? " Sudah dicoba {$dicoba} kali." : ''), 0, ['dicoba' => $dicoba]);
         }
 
+        $n = $sebelumnya + 1;
+        if ($hg !== null && $hg->kode === 429) {
+            return $this->ulangKirim($t, $pesan, $sebelumnya, max($hg->tunggu, self::JEDA_COBA));
+        }
+        $kunciDitolak = $hg !== null && (in_array($hg->kode, [401, 403], true) || ($hg->kode === 0 && !$hg->bisaUlang && !$this->hf->siap()));
+        if ($sebelumnya > 0 && $kunciDitolak) {
+            return $this->ulangKirim($t, $pesan . ' Kiriman sebelumnya mungkin sudah diterima, jadi take ini menunggu lalu dikirim ulang persis.',
+                $sebelumnya, self::jedaCoba($n));
+        }
+
+        $ulang = $hg !== null ? $hg->bisaUlang : !$e instanceof ProduksiGalat;
+        if ($ulang && $n < self::BATAS_COBA) {
+            return $this->ulangKirim($t, $pesan, $n, self::jedaCoba($n));
+        }
         if ($ulang) {
-            $pesan .= " Sudah dicoba {$dicoba} kali.";
+            return $this->akhiriKirim($t, $pesan . " Sudah dicoba {$n} kali.", $n, ['dicoba' => $n]);
         }
-        // Ditolak Higgsfield (4xx) atau gagal sebelum body terkirim = pasti tidak ditagih.
-        $tidakDiterima = !$bodyTersimpan || ($e instanceof HiggsfieldGalat && !$e->bisaUlang);
-        if (!$tidakDiterima) {
+
+        // Ditolak: kiriman ini pasti tidak diterima, tapi kiriman sebelumnya (kalau ada) belum tentu.
+        return $this->akhiriKirim($t, $pesan, $sebelumnya, ['dicoba' => $n]);
+    }
+
+    /** Tetap `unggah`, dicoba lagi $tunggu detik lagi: dicek_at dimundurkan supaya klaimnya jatuh tempo tepat saat itu. */
+    private function ulangKirim(object $t, string $pesan, int $dicoba, int $tunggu): string
+    {
+        DB::table('produksi_take')->where('id', $t->id)->where('status', 'unggah')
+            ->update(['dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => self::jadwal($tunggu, $this->klaimBasiDetik())]);
+        $this->catat($t, $pesan . ' Dicoba lagi nanti.');
+
+        return 'ulang';
+    }
+
+    /** Kiriman diakhiri galat. $tidakPasti > 0 = ada kiriman yang mungkin sudah diterima: biaya null + peringatan. */
+    private function akhiriKirim(object $t, string $pesan, int $tidakPasti, array $tambahan): string
+    {
+        if ($tidakPasti > 0) {
             $pesan .= ' Request MUNGKIN sudah diterima Higgsfield: cek dashboard-nya sebelum mengirim take baru untuk item ini.';
         }
 
-        return $this->akhiri($t, ['unggah'], 'galat', $pesan, $tidakDiterima ? 0.0 : null, ['dicoba' => $dicoba]);
+        return $this->akhiri($t, ['unggah'], 'galat', $pesan, $tidakPasti > 0 ? null : 0.0, $tambahan);
     }
 
     /** queued/in_progress: tanya status, paling sering tiap pantau.cek_status_detik. */
@@ -557,20 +851,23 @@ class Pemantau
             $s = $this->hf->status((string) $t->request_id);
         } catch (Throwable $e) {
             $pesan = self::pesanGalat($e);
-            // Request yang sudah diterima tetap jalan di Higgsfield walau kunci
-            // ditolak (401/403): tunggu sampai kuncinya dibereskan.
-            $tunggu = !$e instanceof HiggsfieldGalat || $e->bisaUlang || in_array($e->kode, [401, 403], true);
             if (!$e instanceof HiggsfieldGalat) {
                 self::log($e);
             }
-            if (!$tunggu) {
-                return $this->akhiri($t, $dari, 'galat', $pesan . ' Biaya dihitung terpakai karena request sudah diterima.', $estimasi);
+            if ($this->lewatBatasPantau($t)) {
+                return $this->akhiriPantau($t, $pesan);
             }
-            if ($this->lewatBatasTunggu($t)) {
-                return $this->akhiriTunggu($t, $pesan);
-            }
-            DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)
-                ->update(['dicoba' => (int) $t->dicoba + 1, 'galat' => $pesan]);
+            // Request yang sudah diterima tetap jalan (dan ditagih) di Higgsfield
+            // apa pun sebab galatnya — jaringan, server, kunci ditolak atau belum
+            // diisi, 404 — jadi galat di sini tidak pernah mengakhiri take.
+            // Bertanya status itu gratis: diulang dengan jeda yang makin panjang.
+            $dicoba = (int) $t->dicoba + 1;
+            $tunggu = max($e instanceof HiggsfieldGalat ? $e->tunggu : 0, self::jedaStatus($jeda, $dicoba));
+            DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)->update([
+                'dicoba'   => $dicoba,
+                'galat'    => $pesan . ' Request sudah diterima Higgsfield, jadi tetap diperiksa lagi nanti.',
+                'dicek_at' => self::jadwal($tunggu, $jeda),
+            ]);
             $this->catat($t, $pesan . ' Diperiksa lagi nanti.');
 
             return 'ulang';
@@ -581,8 +878,10 @@ class Pemantau
                 'status'    => 'completed',
                 'video_url' => $s['video_url'],
                 'biaya_usd' => $estimasi,
-                'dicoba'    => 0,
+                // Alamat baru sesudah alamat lama ditolak CDN: hitungan percobaan unduh tidak direset.
+                'dicoba'    => (string) $t->video_url !== '' ? (int) $t->dicoba : 0,
                 'galat'     => null,
+                'dicek_at'  => now(),
             ]);
 
             return 'completed';
@@ -600,55 +899,58 @@ class Pemantau
         }
 
         // Masih queued / in_progress (atau completed tanpa alamat video).
-        $aneh = $s['status'] === 'completed' ? 'Higgsfield menyatakan selesai tapi belum memberi alamat video.' : null;
-        if ($this->lewatBatasTunggu($t)) {
-            return $this->akhiriTunggu($t, $aneh);
+        if ($this->lewatBatasPantau($t)) {
+            return $this->akhiriPantau($t, null);
         }
-        DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)->update($aneh === null
-            ? ['status' => $s['status'], 'dicoba' => 0, 'galat' => null]
-            : ['dicoba' => (int) $t->dicoba + 1, 'galat' => $aneh]);
+        if ($s['status'] === 'completed') {
+            $dicoba = (int) $t->dicoba + 1;
+            DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)->update([
+                'dicoba'   => $dicoba,
+                'galat'    => 'Higgsfield menyatakan selesai tapi belum memberi alamat video. Diperiksa lagi nanti.',
+                'dicek_at' => self::jadwal(self::jedaStatus($jeda, $dicoba), $jeda),
+            ]);
 
-        return $aneh === null ? 'tunggu' : 'ulang';
+            return 'ulang';
+        }
+        // Lewat batas_tunggu_menit hanya diberi peringatan: request yang masih
+        // antre/jalan tetap selesai (dan ditagih) di Higgsfield.
+        $menit = max(1, (int) self::cfg('batas_tunggu_menit', 40));
+        $peringatan = $this->lewatBatasTunggu($t)
+            ? "Higgsfield belum menyelesaikan take ini setelah {$menit} menit. Pemantau tetap memeriksanya sampai {$this->batasPantauHari()} hari; "
+                . 'biaya baru dihitung kalau selesai.'
+            : null;
+        DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)
+            ->update(['status' => $s['status'], 'dicoba' => 0, 'galat' => $peringatan]);
+
+        return 'tunggu';
     }
 
     /** completed → unduh → selesai: unduh ke TAKES\<kode>-<nomor>.mp4, analisis, catat biaya. */
     private function unduhTake(object $t): ?string
     {
-        if ((int) $t->dicoba > 0 && !$this->waktunyaUlang($t, false)) {
+        // Untuk completed, dicek_at = kapan unduhan boleh dicoba (lagi).
+        if (!self::jatuhTempo($t->dicek_at, 0)) {
             return null;
         }
         if (!$this->klaim((int) $t->id, 'completed', 'unduh')) {
             return null;
         }
+        $this->kerja = ['id' => (int) $t->id, 'status' => 'unduh'];
 
         try {
             [$item, $pack] = $this->itemDanPack($t);
             if ((string) $t->video_url === '') {
-                throw new ProduksiGalat('Higgsfield tidak memberi alamat video untuk take ini.');
+                throw new HiggsfieldGalat('Higgsfield belum memberi alamat video untuk take ini.', 404);
             }
             $dir = $this->folderTakes($this->folderPackSah($pack));
             // Berkas yang sudah ada tidak pernah ditimpa: nama berikutnya diberi akhiran " (2)".
             $tujuan = self::namaBebas($dir, self::namaKode($item) . '-' . (int) $t->nomor, 'mp4');
-            $this->hf->unduh((string) $t->video_url, $tujuan);
+            $this->hf->unduh((string) $t->video_url, $tujuan, fn () => $this->denyut());
         } catch (Throwable $e) {
-            $pesan = self::pesanGalat($e);
-            $dicoba = (int) $t->dicoba + 1;
-            if ($e instanceof HiggsfieldGalat && $e->bisaUlang && $dicoba < self::BATAS_COBA) {
-                DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh')
-                    ->update(['status' => 'completed', 'dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => now()]);
-                $this->catat($t, $pesan . ' Dicoba lagi nanti.');
-
-                return 'ulang';
-            }
-            if (!$e instanceof HiggsfieldGalat && !$e instanceof ProduksiGalat) {
-                self::log($e);
-            }
-
-            // Videonya sudah jadi (dan ditagih): biaya tetap, alamatnya tetap tersimpan untuk unduh manual.
-            return $this->akhiri($t, ['unduh'], 'galat', $pesan . ($dicoba >= self::BATAS_COBA ? " Sudah dicoba {$dicoba} kali." : ''),
-                (float) $t->estimasi_usd, ['dicoba' => $dicoba]);
+            return $this->gagalUnduh($t, $e);
         }
 
+        $this->denyut(true); // analisis ffmpeg bisa makan waktu
         $analisis = $this->analisisTake($t, $item, $tujuan, false);
         DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh')->update([
             'status'     => 'selesai',
@@ -681,15 +983,53 @@ class Pemantau
         return 'gagal';
     }
 
-    /** Request lebih lama dari pantau.batas_tunggu_menit: galat, biaya dianggap terpakai. */
-    private function akhiriTunggu(object $t, ?string $sebab): string
+    /**
+     * Unduhan gagal. Videonya sudah jadi dan ditagih, jadi galat yang bisa
+     * beres sendiri (folder pack sedang dipindah/diganti nama, .part dipegang
+     * antivirus, jaringan, CDN sibuk) tidak mengakhiri take: kembali ke
+     * completed dengan jeda. Alamat video yang ditolak CDN (401/403/404/410,
+     * mis. kedaluwarsa) → kembali ke queued, supaya status() memberi alamat
+     * baru. Sesudah BATAS_COBA: galat (biaya tetap), dan periksaLagi() bisa
+     * memulainya lagi.
+     */
+    private function gagalUnduh(object $t, Throwable $e): string
     {
-        $menit = (int) self::cfg('batas_tunggu_menit', 40);
+        $pesan = self::pesanGalat($e);
+        $dicoba = (int) $t->dicoba + 1;
+        if (!$e instanceof HiggsfieldGalat && !$e instanceof ProduksiGalat) {
+            self::log($e);
+        }
+
+        if ($dicoba >= self::BATAS_COBA) {
+            return $this->akhiri($t, ['unduh'], 'galat', $pesan . " Sudah dicoba {$dicoba} kali. Videonya sudah jadi dan ditagih: pakai Periksa lagi "
+                . "untuk mengunduhnya lagi (Higgsfield menyimpannya {$this->batasPantauHari()} hari sejak dikirim).", (float) $t->estimasi_usd, ['dicoba' => $dicoba]);
+        }
+
+        if ($e instanceof HiggsfieldGalat && in_array($e->kode, [401, 403, 404, 410], true) && (string) $t->request_id !== '') {
+            DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh')
+                ->update(['status' => 'queued', 'dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => null]);
+            $this->catat($t, $pesan . ' Alamat video baru diminta lewat status.');
+
+            return 'ulang';
+        }
+
+        $tunggu = max($e instanceof HiggsfieldGalat ? $e->tunggu : 0, self::jedaCoba($dicoba));
+        DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh')
+            ->update(['status' => 'completed', 'dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => self::jadwal($tunggu, 0)]);
+        $this->catat($t, $pesan . ' Dicoba lagi nanti.');
+
+        return 'ulang';
+    }
+
+    /** Lewat pantau.batas_pantau_hari tanpa status terminal: hasilnya (kalau ada) sudah dihapus Higgsfield. */
+    private function akhiriPantau(object $t, ?string $sebab): string
+    {
+        $hari = $this->batasPantauHari();
 
         return $this->akhiri($t, ['queued', 'in_progress'], 'galat',
-            "Higgsfield belum menyelesaikan take ini setelah {$menit} menit" . ($sebab !== null ? ' (' . rtrim($sebab, '.') . ')' : '') . '. '
-            . 'Kalau nanti selesai di dashboard Higgsfield, unduh manual lalu pakai Tambah manual. Biaya dihitung terpakai.',
-            (float) $t->estimasi_usd);
+            "Higgsfield tidak menyelesaikan take ini dalam {$hari} hari sejak dikirim" . ($sebab !== null ? ' (' . rtrim($sebab, '.') . ')' : '') . '. '
+            . 'Hasilnya, kalau ada, sudah dihapus Higgsfield. Cek dashboard Higgsfield sebelum mengirim take baru untuk item ini.',
+            null);
     }
 
     private function lewatBatasTunggu(object $t): bool
@@ -699,26 +1039,75 @@ class Pemantau
         return $mulai !== null && self::umurDetik($mulai) >= max(1, (int) self::cfg('batas_tunggu_menit', 40)) * 60;
     }
 
-    /**
-     * Sudah waktunya mencoba lagi? Sesudah galat (dicoba > 0): 30 dtk ×
-     * percobaan, paling lama klaim_basi. Tanpa galat: klaim dianggap masih
-     * dikerjakan sampai klaim_basi lewat ($klaim), atau langsung (unduh).
-     */
-    private function waktunyaUlang(object $t, bool $klaim): bool
+    private function lewatBatasPantau(object $t): bool
     {
-        if ($t->dicek_at === null) {
-            return true;
-        }
-        $basi = $this->klaimBasiDetik();
-        $dicoba = (int) $t->dicoba;
-        $tunggu = $dicoba > 0 ? min($basi, self::JEDA_COBA * $dicoba) : ($klaim ? $basi : 0);
+        $mulai = $t->dikirim_at ?? $t->dibuat_at;
 
-        return self::umurDetik($t->dicek_at) >= $tunggu;
+        return $mulai !== null && self::umurDetik($mulai) >= $this->batasPantauHari() * 86400;
+    }
+
+    /**
+     * Tanda hidup selama kerja panjang: dicek_at take yang sedang diklaim
+     * proses ini diperbarui (klaimnya tidak dianggap macet) dan detak
+     * pemantau latar ikut diperbarui. Paling sering tiap pantau.denyut_detik,
+     * kecuali $paksa. Kalau baris pemantau ternyata sudah ditutup, langkah()
+     * berhenti sesudah take yang sedang dikerjakan.
+     */
+    private function denyut(bool $paksa = false): void
+    {
+        $kini = now()->getTimestamp();
+        if (!$paksa && $kini - $this->denyutTerakhir < max(1, (int) self::cfg('denyut_detik', 15))) {
+            return;
+        }
+        $this->denyutTerakhir = $kini;
+        if ($this->kerja !== null) {
+            DB::table('produksi_take')->where('id', $this->kerja['id'])->where('status', $this->kerja['status'])->update(['dicek_at' => now()]);
+        }
+        if ($this->detak !== null && ($this->detak)() === false) {
+            $this->dihentikan = true;
+        }
+    }
+
+    /**
+     * dicek_at yang membuat take jatuh tempo tepat $tunggu detik lagi, untuk
+     * aturan "jatuh tempo kalau dicek_at sudah $ambang detik atau lebih tua"
+     * (jatuhTempo). Hasilnya bisa di masa lalu (klaim) atau masa depan.
+     */
+    private static function jadwal(int $tunggu, int $ambang): Carbon
+    {
+        return now()->addSeconds($tunggu - $ambang);
+    }
+
+    private static function jatuhTempo(mixed $dicekAt, int $ambang): bool
+    {
+        return $dicekAt === null || self::umurDetik($dicekAt) >= $ambang;
+    }
+
+    /** Jeda kirim/unduh sesudah percobaan ke-$n yang gagal: 30, 60, 90 … dtk, paling lama JEDA_MAKS. */
+    private static function jedaCoba(int $n): int
+    {
+        return min(self::JEDA_MAKS, self::JEDA_COBA * max(1, $n));
+    }
+
+    /** Jeda cek status sesudah galat ke-$n: cek_status_detik, lalu berlipat dua, paling lama JEDA_MAKS. */
+    private static function jedaStatus(int $jeda, int $n): int
+    {
+        return min(self::JEDA_MAKS, $jeda * 2 ** min(10, max(0, $n - 1)));
     }
 
     private function klaimBasiDetik(): int
     {
-        return max(1, (int) self::cfg('klaim_basi_menit', 5)) * 60;
+        return max(1, (int) self::cfg('klaim_basi_menit', 20)) * 60;
+    }
+
+    private function batasPantauHari(): int
+    {
+        return max(1, (int) self::cfg('batas_pantau_hari', 7));
+    }
+
+    private function batasKirimUlangJam(): int
+    {
+        return max(1, (int) self::cfg('batas_kirim_ulang_jam', 12));
     }
 
     // ------------------------------------------------------------------
@@ -881,7 +1270,8 @@ class Pemantau
     /**
      * Simpan checklist kriteria + catatan per waktu dari halaman Review.
      *
-     * @param array<int|string, 'lolos'|'gagal'|null> $nilai   kunci = indeks kriteria item; null = belum dinilai
+     * @param array<int|string, 'lolos'|'gagal'|null> $nilai   kunci = indeks kriteria item; null = belum dinilai;
+     *                                                         indeks ≥ jumlah kriteria (dipangkas dari pack) dibuang
      * @param list<array{t: int|float|string, isi: string}> $catatan paling banyak 50; t ≤ 12 karakter, isi ≤ 500
      */
     public function simpanNilai(int $takeId, array $nilai, array $catatan): void
@@ -893,8 +1283,12 @@ class Pemantau
         $bersih = [];
         foreach ($nilai as $k => $v) {
             $i = is_int($k) ? $k : (is_string($k) && ctype_digit($k) ? (int) $k : -1);
-            if ($i < 0 || $i >= $jumlah) {
+            if ($i < 0) {
                 throw new ProduksiGalat('Penilaian menyebut kriteria yang tidak ada di item ini. Muat ulang halaman.');
+            }
+            if ($i >= $jumlah) {
+                // Nilai lama untuk kriteria yang sudah dipangkas dari pack (segarkan): dibuang, bukan menggagalkan simpanan.
+                continue;
             }
             if ($v === null || $v === '') {
                 continue;
@@ -1420,12 +1814,8 @@ class Pemantau
      */
     private static function kunciMulai(): mixed
     {
-        $dir = storage_path('app' . DIRECTORY_SEPARATOR . 'produksi');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0775, true);
-        }
-        $f = @fopen($dir . DIRECTORY_SEPARATOR . 'pantau.lock', 'c');
-        if ($f === false) {
+        $f = self::bukaKunci('pantau.lock');
+        if ($f === null) {
             return null;
         }
         if (!flock($f, LOCK_EX | LOCK_NB)) {
@@ -1435,6 +1825,38 @@ class Pemantau
         }
 
         return $f;
+    }
+
+    /**
+     * Ada proses produksi:pantau yang memegang kunci seumur prosesnya
+     * (kunciPemantau)? Diperiksa dengan mencoba mengunci sekejap. false juga
+     * kalau berkas kuncinya tidak bisa dibuka (tidak bisa dipastikan).
+     */
+    private static function pemantauMemegangKunci(): bool
+    {
+        $f = self::bukaKunci('pemantau.lock');
+        if ($f === null) {
+            return false;
+        }
+        $bebas = flock($f, LOCK_EX | LOCK_NB);
+        if ($bebas) {
+            flock($f, LOCK_UN);
+        }
+        fclose($f);
+
+        return !$bebas;
+    }
+
+    /** @return resource|null berkas kunci di storage/app/produksi, atau null kalau tidak bisa dibuka */
+    private static function bukaKunci(string $nama): mixed
+    {
+        $dir = storage_path('app' . DIRECTORY_SEPARATOR . 'produksi');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        $f = @fopen($dir . DIRECTORY_SEPARATOR . $nama, 'c');
+
+        return $f === false ? null : $f;
     }
 
     // ------------------------------------------------------------------
@@ -1455,6 +1877,12 @@ class Pemantau
     private static function umurDetik(mixed $waktu): int
     {
         return now()->getTimestamp() - Carbon::parse($waktu)->getTimestamp();
+    }
+
+    /** "08.05" */
+    private static function jam(mixed $waktu): string
+    {
+        return Carbon::parse($waktu)->format('H.i');
     }
 
     /** Pesan untuk kolom galat: pesan kelas produksi apa adanya, galat lain diberi nama kelasnya. */

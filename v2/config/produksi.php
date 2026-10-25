@@ -74,6 +74,13 @@ return [
     // Higgsfield menyimpan file input sampai 7 hari.
     'unggahan_berlaku_hari' => 6,
 
+    // php.exe (CLI, PHP 8.2+) untuk menyalakan pemantau latar dari halaman.
+    // Kosong = dicari sendiri: PHP_BINARY kalau itu php.exe, lalu php.exe di
+    // PHP_BINDIR dan di sebelah php.ini yang dimuat. Di bawah Apache XAMPP
+    // PHP_BINARY adalah httpd.exe, dan "php" di PATH bisa PHP lain (C:\xampp3,
+    // 8.1) yang langsung mati di cek platform Composer.
+    'php' => (string) env('PRODUKSI_PHP', ''),
+
     // Pemantau latar: jeda antar langkah dan kapan ia berhenti sendiri.
     'pantau' => [
         'jeda_detik'        => 5,
@@ -81,8 +88,17 @@ return [
         'diam_berhenti'     => 90,   // berhenti kalau tidak ada take aktif selama ini
         'umur_maks_menit'   => 120,  // berhenti paksa supaya tidak jadi proses yatim
         'detak_mati_detik'  => 30,   // detak lebih tua dari ini = pemantau dianggap mati
-        'klaim_basi_menit'  => 5,    // klaim unggah/unduh yang macet dilepas lagi
-        'batas_tunggu_menit' => 40,  // request Higgsfield lebih lama dari ini ditandai galat
+        // Klaim unggah/unduh yang macet dilepas lagi. Klaim diperbarui selama
+        // kerja panjang (tiap gambar acuan, selama unduhan), jadi angka ini cukup
+        // melebihi satu langkah terpanjang tanpa denyut: satu gambar acuan
+        // (60 dtk + 3 × 180 dtk PUT) atau analisis ffmpeg.
+        'klaim_basi_menit'  => 20,
+        'denyut_detik'      => 15,   // selang pembaruan klaim + detak selama kerja panjang
+        'batas_tunggu_menit' => 40,  // request lebih lama dari ini diberi peringatan (tetap dipantau)
+        'batas_pantau_hari' => 7,    // Higgsfield menghapus hasil setelah 7 hari: request yang belum selesai diakhiri
+        // Kiriman ulang body + Idempotency-Key yang sama hanya dalam selang ini
+        // sejak kiriman pertama; sesudahnya kuncinya mungkin sudah tidak berlaku.
+        'batas_kirim_ulang_jam' => 12,
     ],
 
     /*

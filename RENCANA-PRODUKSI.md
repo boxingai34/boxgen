@@ -59,6 +59,7 @@ penanganan galatnya.
 | `v2/app/Services/Produksi/Pemantau.php` | Siklus take: buat → upload → kirim → pantau → unduh → analisis; keputusan review; tahap pack. |
 | `v2/app/Services/Produksi/Gudang.php` | Akses DB pack/item/take (impor, ringkasan untuk halaman). |
 | `v2/app/Console/Commands/ProduksiPantau.php` | `php artisan produksi:pantau --jalan=ID` (pemantau latar). |
+| `v2/app/Services/Produksi/Peluncur.php` | Menyalakan pemantau latar dengan php.exe yang pasti (bukan `php` dari PATH). |
 | `v2/app/Http/Controllers/ProduksiController.php` | Halaman Inertia + endpoint JSON. |
 | `v2/app/Http/Middleware/ProduksiLokal.php` | 404 kalau folder produksi tidak ada. Alias `produksi.lokal`. |
 | `v2/routes/web.php` | Grup rute (lihat §7). |
@@ -175,13 +176,34 @@ Status umur pack = yang terburuk dari karakternya (tolak > tak_dikenal > olahrag
   `selesai` (sudah di `TAKES\` dan dianalisis). Terminal lain: `failed`, `nsfw`,
   `canceled`, `galat` (galat lokal, pesan di kolom `galat`).
   Aktif = `siap, unggah, queued, in_progress, completed, unduh`.
+- Take yang punya `request_id` mungkin sudah ditagih, jadi galat sementara/lokal tidak
+  pernah mengakhirinya: galat cek status apa pun (jaringan, 5xx, 401/403/404, kunci belum
+  diisi) → tetap `queued/in_progress`, dicek lagi dengan jeda 8, 16, 32 … dtk (maks 5 menit)
+  dan pesan di `galat`. Lewat `pantau.batas_tunggu_menit` (40) hanya peringatan; yang
+  mengakhiri hanya status terminal Higgsfield atau `pantau.batas_pantau_hari` (7, hasil
+  dihapus Higgsfield) → `galat`, biaya NULL.
+- Unduhan gagal (folder pack sedang dipindah, `.part` dipegang antivirus, jaringan, CDN
+  408/429/5xx) → kembali `completed` dengan jeda 30 × n dtk (maks 5 menit) sampai
+  `BATAS_COBA` (12), lalu `galat` dengan biaya = estimasi. CDN 401/403/404/410 (alamat
+  kedaluwarsa) → kembali `queued` supaya status memberi `video_url` baru.
+- Kirim: selama body tersimpan, `dicoba` = jumlah kiriman body + kunci itu yang hasilnya
+  belum pasti (dinaikkan SEBELUM kirim). 429 tidak memakan jatah (dicoba lagi sesudah
+  Retry-After). Kiriman ulang yang ditolak (4xx) = tidak pasti (biaya NULL + "MUNGKIN sudah
+  diterima"); 401/403 pada kiriman ulang = tunggu kuncinya dibereskan. Hanya kiriman pertama
+  yang boleh mencatat biaya 0. Kiriman ulang berhenti setelah `pantau.batas_kirim_ulang_jam`
+  (12) sejak kiriman pertama (`dikirim_at` diisi saat body disimpan); kalau semua kegagalan
+  429, biaya 0 tanpa kalimat "MUNGKIN".
+- `galat` yang mungkin sudah dibayar bisa dipulihkan dengan `Pemantau::periksaLagi()`
+  (tombol "Periksa lagi"); `Pemantau::bolehUlang()` menahan centang awal take baru berbayar
+  untuk item seperti itu.
 - Tahap pack (dihitung, tidak disimpan): `diblokir` (umur tolak) → `cek` (ada cek
   `awas/blokir`, atau belum ada tester berjalan dan belum ada yang lolos) → `tester`
   → `klip` (semua tester lolos atau dibuka paksa) → `review` (semua klip punya take
   selesai, ada yang belum dipilih) → `siap` (semua klip punya take terpilih) →
   `selesai` (`diserahkan_at` terisi).
 - Biaya: `biaya_usd` = `estimasi_usd` saat take `completed/selesai`; 0 untuk
-  `failed/nsfw/canceled`. Estimasi = tarif model×resolusi × durasi (config).
+  `failed/nsfw/canceled` dan galat sebelum request diterima; NULL kalau belum pasti
+  apakah request sempat diterima. Estimasi = tarif model×resolusi × durasi (config).
 
 ## 6. Kontrak kelas
 
@@ -202,7 +224,11 @@ class Higgsfield {
   public function estimasi(string $model, array $body): ?float; // null kalau API tidak memberi angka
   public function kirim(string $model, array $body, string $idemKey): array; // ['request_id','status']
   public function status(string $requestId): array;           // ['status', 'video_url'=>?string, 'error'=>?string]
-  public function unduh(string $url, string $tujuanAbs): int; // byte; tulis ke .part lalu rename
+  public function unduh(string $url, string $tujuanAbs, ?callable $denyut = null): int;
+    // byte; tulis ke <tujuan>.<acak>.part (unik per percobaan) lalu rename (5× dengan jeda
+    // pendek). .part utuh yang gagal di-rename disimpan (+ tanda .utuh) dan dipakai lagi.
+    // $denyut dipanggil berkala selama unduhan. bisaUlang: jaringan, 5xx, 408, 429, kosong,
+    // gagal tulis/rename; 401/403/404/410 = alamat kedaluwarsa (minta alamat baru).
   public function uji(): array;                               // ['ok'=>bool, 'pesan'=>string] — panggilan terautentikasi murah
   public static function bodyWan(string $prompt, array $imageUrls, int $durasi, string $resolusi, string $rasio, int $seed, bool $audio): array;
 }
@@ -247,10 +273,20 @@ class Pemantau {
   public function __construct(Higgsfield $hf, Media $media);
   public function perkiraan(array $pilihan): array; // pilihan = [['item_id'=>int,'takes'=>int]] → ['total'=>float,'rincian'=>[...]]
   public function kirim(int $packId, array $pilihan): array;  // validasi gerbang, buat take 'siap', pastikanJalan(); ['take_ids'=>[...],'total'=>float]
-  public function langkah(int $batas = 20): array;  // proses take aktif sekali jalan; ringkasan
-  public function pastikanJalan(): bool;            // nyalakan produksi:pantau lewat Discover::lepas() bila detak mati
+  public function langkah(int $batas = 20): array;  // proses take aktif sekali jalan; ringkasan. Urutan: siap, completed,
+                                                    // unggah, lalu queued/in_progress (dicek_at tertua). 'tunggu' tidak dihitung
+                                                    // ke $batas. Berhenti kalau detak pemantau melapor barisnya ditutup.
+  public function pastikanJalan(): bool;            // nyalakan produksi:pantau lewat Peluncur bila tidak ada yang hidup (lihat bawah)
+  public function pemantauHidup(): bool;            // baris terbuka dengan detak segar YANG DITULIS perintahnya sendiri
+  public function infoPemantau(): array;            // {hidup: bool, pesan: ?string, detak: ?'HH.mm'} untuk JSON status
+  public function periksaLagi(int $takeId): void;   // hanya 'galat': punya request_id → queued (dicoba 0, dicek_at NULL);
+                                                    // body tanpa request_id (biaya NULL) → unggah, dikirim ulang dengan body +
+                                                    // Idempotency-Key yang SAMA; selain itu ProduksiGalat beralasan
+  public function bolehUlang(int $itemId): array;   // {boleh, peringatan}: false kalau ada take galat (≤ 7 hari) dengan biaya
+                                                    // NULL atau dengan request_id/video_url (dibayar, belum terunduh)
+  public static function kunciPemantau(): mixed;    // kunci berkas seumur proses produksi:pantau (hanya satu pemantau)
   public function tambahManual(int $itemId, string $pathSumberAbs): int; // salin ke TAKES, analisis, status selesai, sumber manual
-  public function simpanNilai(int $takeId, array $nilai, array $catatan): void;
+  public function simpanNilai(int $takeId, array $nilai, array $catatan): void; // indeks ≥ jumlah kriteria dibuang (bukan galat)
   public function putuskan(int $takeId, string $keputusan): void; // 'lolos'|'pakai'|'gagal'
   public function segarkanItem(int $itemId): void;
   public function tahap(int $packId): string;
@@ -262,10 +298,29 @@ Pemantau dibuat lewat container (`app(Pemantau::class)`), jadi tes bisa menggant
 
 **Klaim atomik** (pemantau latar dan halaman bisa jalan bersamaan):
 `UPDATE produksi_take SET status='unggah', dicek_at=NOW() WHERE id=? AND status='siap'`
-— lanjut hanya kalau baris terpengaruh = 1. Sama untuk `completed`→`unduh`. Klaim
-yang macet lebih tua dari `pantau.klaim_basi_menit` dilepas: `unggah` tanpa
-`request_id` dikirim ulang dengan `body` + `idem_key` tersimpan (body disimpan
-SEBELUM kirim); `unduh` kembali ke `completed`.
+— lanjut hanya kalau baris terpengaruh = 1. Sama untuk `completed`→`unduh`. Selama kerja
+panjang klaimnya diperbarui (denyut tiap `pantau.denyut_detik`: sesudah tiap gambar acuan,
+lewat callback progress unduhan, sebelum analisis), bersama detak pemantau. Klaim yang
+tidak diperbarui selama `pantau.klaim_basi_menit` (20) dilepas: `unggah` tanpa
+`request_id` dikirim ulang dengan `body` + `idem_key` tersimpan (body disimpan SEBELUM
+kirim); `unduh` kembali ke `completed` (dihitung satu percobaan). Percobaan ulang
+dijadwalkan lewat `dicek_at`: nilainya dimundurkan supaya take jatuh tempo tepat saat
+percobaan berikutnya (aturan "dicek_at lebih tua dari ambang").
+
+**Satu pemantau latar.** `produksi:pantau` memegang kunci berkas
+`storage/app/produksi/pemantau.lock` seumur prosesnya dan langsung berhenti kalau kunci
+dipegang proses lain atau ada baris `produksi_jalan` lain dengan detak segar.
+`pastikanJalan()` tidak menyalakan apa pun selama kunci itu dipegang, atau selama baris
+yang baru dibuatnya (detak NULL) lebih muda dari `pantau.detak_mati_detik`. Baris baru
+dibuat dengan detak NULL — detak hanya ditulis perintahnya sendiri.
+
+**Peluncur** (`Peluncur::lepas($perintah, &$sebab)`, `Peluncur::php()`): menyalakan
+`php artisan produksi:pantau --jalan=ID` terlepas (Windows `start "" /B`, selain itu
+`nohup … &`; di tes unit tidak menjalankan apa pun). php.exe dicari dari
+`config('produksi.php')` (env `PRODUKSI_PHP`), PHP_BINARY kalau namanya php(.exe),
+`PHP_BINDIR/php.exe`, lalu php.exe di sebelah php.ini yang dimuat — tidak pernah "php"
+polos dari PATH (di PC produksi itu PHP 8.1 C:\xampp3 yang mati di cek platform
+Composer). Tidak ketemu → false + sebab, dan halaman menampilkan perintah manualnya.
 
 **Seed**: acak 1…2147483647, berbeda dari seed take lain di item yang sama.
 
@@ -297,6 +352,7 @@ Route::middleware(['admin', 'produksi.lokal'])->prefix('produksi')->group(functi
   Route::get('take/{id}/bingkai/{n}',     [ProduksiController::class, 'bingkai'])->whereNumber(['id', 'n'])->name('produksi.take.bingkai');
   Route::post('take/{id}/nilai',          [ProduksiController::class, 'nilai'])->whereNumber('id')->name('produksi.take.nilai');
   Route::post('take/{id}/putuskan',       [ProduksiController::class, 'putuskan'])->whereNumber('id')->name('produksi.take.putuskan');
+  Route::post('take/{id}/periksa',        [ProduksiController::class, 'periksaLagi'])->whereNumber('id')->name('produksi.take.periksa');
 });
 ```
 
@@ -313,30 +369,54 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
 - **Produksi/Pack**: `pack` {id, folder, judul, revisi, model, nama_model, resolusi,
   rasio, jumlah_klip, durasi_total, tahap, umur_status, umur, umur_dikonfirmasi,
   klip_dibuka, klip_terkunci, kurang[] (kode tester yang belum lolos), cek[] (§4),
-  kontinuitas[], dokumen[], biaya_terpakai, perkiraan_sisa, peringatan[]};
+  kontinuitas[], dokumen[], biaya_terpakai, perkiraan_sisa, peringatan[], sidik_take
+  ("id:status" semua take pack, terurut, digabung koma — polling membandingkannya dengan
+  sidik dari `produksi.status?pack_id=` dan memuat ulang begitu berbeda)};
   `tester[]`, `klip[]` = ITEM_HALAMAN {id, kode, judul, durasi, gambar[] {nama, url},
-  status, take_terakhir {id, nomor, status}|null, jumlah_take, biaya, cek[] (cek item ini),
-  bisa_kirim, alasan_tidak}.
+  status, take_terakhir {id, nomor, status}|null (nomor terbesar), take_review {id, nomor}|null
+  (take selesai pertama tanpa keputusan — tujuan Review), take_pilihan {id, nomor}|null
+  (take lolos/dipakai — tujuan Lihat), jumlah_take, biaya (jumlah SEMUA take item), cek[]
+  (cek item ini), bisa_kirim, alasan_tidak}. Klip yang sudah punya take tetap menampilkan
+  status + Review/Lihat walau klip terkunci lagi.
 - **Produksi/Kirim**: `pack` {id, judul, model, nama_model, resolusi, rasio};
-  `item[]` {id, jenis, kode, judul, durasi, gambar[] {nama, url}, ket, pilih_awal,
+  `item[]` {id, jenis, kode, judul, durasi, gambar[] {nama, url}, ket, peringatan, pilih_awal,
   take_berikut, tarif_per_take, bisa_kirim, alasan_tidak}; `?item=ID` di URL membuat
-  item itu tercentang awal. POST `produksi.perkiraan` {pilihan[]} → {total, rincian[]};
-  POST `produksi.kirim` {pack_id, pilihan[] {item_id, takes 1..3}, konfirmasi: true} →
-  {ok, take_ids[], total} atau 422 {pesan}.
+  item itu tercentang awal. `peringatan` (dari `Pemantau::bolehUlang`) terisi kalau take
+  terakhir item mungkin sudah dibuat dan ditagih: `ket` = peringatan itu, `pilih_awal`
+  selalu false (juga lewat `?item=`), dan halaman meminta centang "sudah cek dashboard
+  Higgsfield" sebelum item itu bisa ikut dikirim. POST `produksi.perkiraan` {pilihan[]} →
+  {total, rincian[]}; POST `produksi.kirim` {pack_id, pilihan[] {item_id, takes 1..3},
+  konfirmasi: true} → {ok, take_ids[], total} atau 422 {pesan}.
 - **Produksi/Antrian**: `takes[]` TAKE_BARIS {id, pack_id, pack_judul, item_kode,
   item_judul, nomor, status, label, ket, biaya, bisa_review, url_review, waktu}.
-  GET `produksi.status` (polling 5 dtk, juga dipakai Pack/Kirim) → {takes[] TAKE_BARIS
-  aktif + 20 terakhir, slot_terpakai, pemantau_hidup}. Endpoint ini memanggil
-  `Pemantau::pastikanJalan()`.
+  GET `produksi.status` (polling 5 dtk, juga dipakai Pack/Kirim/Review) → {takes[]
+  TAKE_BARIS aktif + 20 terakhir (dengan `?pack_id=ID`: plus SEMUA take pack itu),
+  slot_terpakai, pemantau {hidup, pesan, detak} (`Pemantau::infoPemantau`: hidup hanya
+  kalau pemantau sendiri menulis detaknya; pesan terisi kalau tidak hidup padahal ada take
+  aktif; detak "HH.mm"|null), pemantau_hidup (= pemantau.hidup, nama lama),
+  perintah_pemantau (perintah Command Prompt untuk menyalakan `artisan produksi:pantau`
+  dengan php.exe aplikasi ini)}. Endpoint ini memanggil `Pemantau::pastikanJalan()`.
+  Antrian/Kirim/Pack tidak pernah menulis "Pemantau berjalan" kalau `pemantau.hidup`
+  false; kalau ada `pesan`, kotak peringatan menampilkannya bersama perintahnya.
 - **Produksi/Review**: `take` {id, nomor, status, sumber, seed, model, resolusi,
   durasi, video_url, poster_url, bingkai[] {url, t}, analisis {durasi, lebar, tinggi,
   fps, audio, puncak_db, mirip[] {take_id, nomor, skor}}, cek[] {tingkat, teks, detail},
-  nilai {index: 'lolos'|'gagal'}, catatan[] {t, isi}, keputusan, galat};
+  nilai {index: 'lolos'|'gagal'}, catatan[] {t, isi}, keputusan, galat, request_id|null,
+  biaya|null (null = belum pasti), bisa_periksa};
   `item` {id, jenis, kode, judul, durasi, kriteria[], gambar[] {nama, url}};
   `takes[]` {id, nomor, status, keputusan} (take lain di item ini);
   `pack` {id, judul, revisi, kontinuitas[]}.
   POST `produksi.take.nilai` {nilai, catatan} → {ok}; POST `produksi.take.putuskan`
-  {keputusan} → {ok, item_status}.
+  {keputusan} → {ok, item_status}. Nilai berkunci indeks yang tidak ada lagi di
+  `kriteria` dibuang halaman saat dimuat.
+  Take berakhir tanpa video (galat/failed/nsfw/canceled) menampilkan "Tambah take dari
+  berkas" (POST `produksi.item.manual`, multipart `berkas` → {ok, take_id, url} atau 422
+  {pesan}; juga ada di kartu item gagal/diblokir di halaman Pack) dan, kalau
+  `bisa_periksa` (galat dengan request_id, atau body tersimpan dengan biaya NULL),
+  "Periksa lagi ke Higgsfield": POST `produksi.take.periksa` → {ok} atau 422 {pesan}
+  (`Pemantau::periksaLagi`; body yang pasti ditolak — biaya 0 tanpa request_id — ditolak
+  controller karena itu kiriman baru). `request_id` boleh tampil; alamat video dan body
+  tidak pernah dikirim ke browser.
   `analisis.cek` dibuat Media: durasi vs rencana (±0,3 dtk), resolusi sesuai, ada suara,
   puncak ≥ -0,5 dB → "mungkin pecah, dengarkan", mirip > 0,9 dengan take lain.
 - **Produksi/Hasil**: `pack` {id, judul, folder}; `urutan[]` {kode, judul, take_id,

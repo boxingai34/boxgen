@@ -6,6 +6,7 @@ use App\Services\Produksi\Ekspor;
 use App\Services\Produksi\Gudang;
 use App\Services\Produksi\Higgsfield;
 use App\Services\Produksi\HiggsfieldGalat;
+use App\Services\Produksi\Peluncur;
 use App\Services\Produksi\Pemantau;
 use App\Services\Produksi\ProduksiGalat;
 use App\Services\Produksi\Subtitle;
@@ -177,6 +178,8 @@ class ProduksiController extends Controller
                 'biaya_terpakai'    => self::jumlahBiaya($take),
                 'perkiraan_sisa'    => self::perkiraanSisa($item, $m),
                 'peringatan'        => self::daftarTeks($data['peringatan'] ?? []),
+                // Polling halaman Pack membandingkan sidik ini dengan jawaban produksi.status?pack_id=.
+                'sidik_take'        => self::sidikTake($take),
             ],
             'tester' => $item->where('jenis', 'tester')->map($halaman)->values()->all(),
             'klip'   => $klip->map($halaman)->values()->all(),
@@ -188,6 +191,11 @@ class ProduksiController extends Controller
      * membuat item itu saja tercentang awal (tombol "Ulangi" di Review);
      * tanpa itu yang tercentang adalah langkah berikutnya — tester yang
      * belum lolos, atau kalau tester sudah beres, klip yang belum punya take.
+     *
+     * Item yang take terakhirnya mungkin sudah dibuat dan ditagih
+     * (Pemantau::bolehUlang) tidak pernah tercentang awal: peringatannya
+     * menggantikan `ket`, dan halaman Kirim meminta centang tambahan
+     * sebelum item itu bisa ikut dikirim.
      */
     public function halamanKirim(Request $request, int $id): Response
     {
@@ -199,6 +207,7 @@ class ProduksiController extends Controller
         $baris = $item->map(function (object $i) use ($p, $take) {
             $milik = $take->where('item_id', (int) $i->id)->sortBy('nomor')->values();
             $alasan = $this->pemantau->alasanTidakKirim((int) $i->id);
+            $peringatan = $milik->isNotEmpty() ? $this->peringatanUlang((int) $i->id) : null;
 
             return [
                 'id'             => (int) $i->id,
@@ -207,7 +216,8 @@ class ProduksiController extends Controller
                 'judul'          => (string) $i->judul,
                 'durasi'         => (int) $i->durasi,
                 'gambar'         => $this->gambarItem($p, $i),
-                'ket'            => self::ketKirim($i, $milik),
+                'ket'            => $peringatan ?? self::ketKirim($i, $milik),
+                'peringatan'     => $peringatan,
                 'pilih_awal'     => false,
                 'take_berikut'   => (int) $milik->max('nomor') + 1,
                 'tarif_per_take' => $this->tarifPerTake((int) $i->id),
@@ -223,9 +233,10 @@ class ProduksiController extends Controller
         $ulang = fn (array $b) => $b['bisa_kirim'] && in_array($b['status'], ['belum', 'gagal', 'diblokir'], true);
         $adaTester = (bool) array_filter($baris, fn ($b) => $b['jenis'] === 'tester' && $ulang($b));
         foreach ($baris as &$b) {
-            $b['pilih_awal'] = $diminta
+            // Yang mungkin sudah ditagih tidak pernah dicentang otomatis, juga lewat ?item=.
+            $b['pilih_awal'] = $b['peringatan'] === null && ($diminta
                 ? $b['id'] === $minta && $b['bisa_kirim']
-                : $ulang($b) && $b['jenis'] === ($adaTester ? 'tester' : 'klip');
+                : $ulang($b) && $b['jenis'] === ($adaTester ? 'tester' : 'klip'));
             unset($b['status']);
         }
         unset($b);
@@ -283,6 +294,11 @@ class ProduksiController extends Controller
                 'catatan'    => array_values(array_filter(Gudang::urai($t->catatan), 'is_array')),
                 'keputusan'  => $t->keputusan !== null && $t->keputusan !== '' ? (string) $t->keputusan : null,
                 'galat'      => $t->galat !== null && $t->galat !== '' ? (string) $t->galat : null,
+                // Pemulihan take galat: request_id boleh tampil (untuk dicari di dashboard
+                // Higgsfield); alamat video dan body tidak pernah dikirim ke browser.
+                'request_id'   => trim((string) $t->request_id) !== '' ? (string) $t->request_id : null,
+                'biaya'        => $t->biaya_usd !== null ? round((float) $t->biaya_usd, 2) : null,
+                'bisa_periksa' => self::bisaPeriksa($t),
             ],
             'item'  => [
                 'id'       => (int) $i->id,
@@ -427,17 +443,31 @@ class ProduksiController extends Controller
     /**
      * Polling 5 detik dari Antrian, Pack, Kirim, dan Review. Sekalian
      * membangunkan pemantau latar kalau ada take aktif tapi detaknya mati.
+     *
+     * `?pack_id=` (Pack, Kirim, Review) membuat SEMUA take pack itu ikut,
+     * bukan hanya yang aktif + 20 terakhir — take yang baru selesai tetap
+     * terlihat walau pack lain sudah mengirim banyak take sesudahnya.
+     * `pemantau` jujur: hidup hanya kalau pemantau latar sendiri yang
+     * menulis detaknya; kalau tidak, `pesan` menjelaskan kenapa dan
+     * `perintah_pemantau` adalah perintah untuk menyalakannya sendiri.
      */
-    public function status(): JsonResponse
+    public function status(Request $request): JsonResponse
     {
-        $hidup = $this->pemantau->pastikanJalan();
-        $aktif = DB::table('produksi_take')->whereIn('status', Pemantau::AKTIF)->exists();
+        $this->pemantau->pastikanJalan();
+        $info = (array) $this->pemantau->infoPemantau();
+        $packId = filter_var($request->query('pack_id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $pemantau = [
+            'hidup' => (bool) ($info['hidup'] ?? false),
+            'pesan' => is_string($info['pesan'] ?? null) && trim($info['pesan']) !== '' ? $info['pesan'] : null,
+            'detak' => is_string($info['detak'] ?? null) && $info['detak'] !== '' ? $info['detak'] : null,
+        ];
 
         return response()->json([
-            'takes'          => $this->barisTake(self::BATAS_STATUS),
-            'slot_terpakai'  => $this->slotTerpakai(),
-            // Tanpa take aktif pemantau memang tidur (berhenti sendiri); itu bukan masalah.
-            'pemantau_hidup' => $hidup || !$aktif,
+            'takes'             => $this->barisTake(self::BATAS_STATUS, $packId === false ? null : $packId),
+            'slot_terpakai'     => $this->slotTerpakai(),
+            'pemantau'          => $pemantau,
+            'pemantau_hidup'    => $pemantau['hidup'], // nama lama, sama dengan pemantau.hidup
+            'perintah_pemantau' => self::perintahPemantau(),
         ]);
     }
 
@@ -585,6 +615,29 @@ class ProduksiController extends Controller
         });
     }
 
+    /**
+     * "Periksa lagi ke Higgsfield" untuk take galat yang mungkin sudah
+     * dibayar: Pemantau mengembalikannya ke antrean pantau (punya
+     * request_id) atau ke kiriman ulang dengan body + Idempotency-Key yang
+     * sama (body tersimpan, request_id belum ada). Tidak pernah membuat
+     * request baru. Body yang pasti ditolak Higgsfield (biaya 0, tanpa
+     * request_id) tidak dikirim ulang dari sini: itu kiriman baru yang
+     * harus lewat halaman Kirim dengan harga dan konfirmasi.
+     */
+    public function periksaLagi(int $id): JsonResponse
+    {
+        $t = $this->takeAtau404($id);
+
+        return $this->coba(function () use ($t) {
+            if ($t->status === 'galat' && trim((string) $t->request_id) === '' && trim((string) ($t->body ?? '')) !== '' && $t->biaya_usd !== null) {
+                throw new ProduksiGalat('Higgsfield sudah menolak take ini (tidak ditagih), jadi tidak ada yang bisa diperiksa. Kirim take baru dari halaman Kirim.');
+            }
+            $this->pemantau->periksaLagi((int) $t->id);
+
+            return ['ok' => true];
+        });
+    }
+
     /** Simpan checklist kriteria + catatan per waktu (disimpan otomatis dari Review). */
     public function nilai(Request $request, int $id): JsonResponse
     {
@@ -727,12 +780,22 @@ class ProduksiController extends Controller
         ];
     }
 
-    /** ITEM_HALAMAN (§8): satu tester atau klip di halaman pack. */
+    /**
+     * ITEM_HALAMAN (§8): satu tester atau klip di halaman pack.
+     * `take_review` = take selesai pertama yang belum diputuskan (tujuan
+     * tombol Review), `take_pilihan` = take yang lolos/dipakai (tujuan
+     * Lihat); keduanya bisa berbeda dari take_terakhir (nomor terbesar).
+     */
     private function itemHalaman(object $p, object $i, Collection $take, array $cek): array
     {
         $milik = $take->where('item_id', (int) $i->id)->sortBy('nomor')->values();
         $akhir = $milik->last();
+        $review = $milik->first(fn ($t) => $t->status === 'selesai' && (string) $t->keputusan === '');
+        $pilihan = $i->take_pilihan !== null
+            ? $milik->first(fn ($t) => (int) $t->id === (int) $i->take_pilihan && $t->status === 'selesai')
+            : null;
         $alasan = $this->pemantau->alasanTidakKirim((int) $i->id);
+        $singkat = fn (?object $t) => $t ? ['id' => (int) $t->id, 'nomor' => (int) $t->nomor] : null;
 
         return [
             'id'            => (int) $i->id,
@@ -742,6 +805,8 @@ class ProduksiController extends Controller
             'gambar'        => $this->gambarItem($p, $i),
             'status'        => (string) $i->status,
             'take_terakhir' => $akhir ? ['id' => (int) $akhir->id, 'nomor' => (int) $akhir->nomor, 'status' => (string) $akhir->status] : null,
+            'take_review'   => $singkat($review),
+            'take_pilihan'  => $singkat($pilihan),
             'jumlah_take'   => $milik->count(),
             'biaya'         => self::jumlahBiaya($milik),
             'cek'           => array_values(array_filter($cek, fn ($c) => $c['item'] !== null && $c['item'] === (string) $i->kode)),
@@ -791,9 +856,10 @@ class ProduksiController extends Controller
 
     /**
      * TAKE_BARIS (§8) untuk Antrian dan polling status: semua take aktif +
-     * $batas take terakhir, terbaru di atas.
+     * $batas take terakhir, terbaru di atas; dengan $packId juga semua take
+     * pack itu.
      */
-    private function barisTake(int $batas): array
+    private function barisTake(int $batas, ?int $packId = null): array
     {
         $dasar = fn () => DB::table('produksi_take as t')
             ->join('produksi_item as i', 'i.id', '=', 't.item_id')
@@ -802,9 +868,13 @@ class ProduksiController extends Controller
                 't.galat', 't.analisis', 't.dibuat_at', 't.dikirim_at', 't.selesai_at',
                 'i.kode as item_kode', 'i.judul as item_judul', 'i.jenis as item_jenis', 'i.pack_id', 'p.judul as pack_judul', 'p.folder as pack_folder');
 
-        return $dasar()->whereIn('t.status', Pemantau::AKTIF)->get()
-            ->merge($dasar()->orderByDesc('t.id')->limit($batas)->get())
-            ->unique('id')->sortByDesc('id')->values()
+        $baris = $dasar()->whereIn('t.status', Pemantau::AKTIF)->get()
+            ->merge($dasar()->orderByDesc('t.id')->limit($batas)->get());
+        if ($packId !== null) {
+            $baris = $baris->merge($dasar()->where('i.pack_id', $packId)->get());
+        }
+
+        return $baris->unique('id')->sortByDesc('id')->values()
             ->map(fn (object $t) => [
                 'id'          => (int) $t->id,
                 'pack_id'     => (int) $t->pack_id,
@@ -1129,6 +1199,62 @@ class ProduksiController extends Controller
         } catch (ProduksiGalat) {
             return 0.0; // tarif belum ada di config; alasannya muncul lagi saat kirim
         }
+    }
+
+    /**
+     * Peringatan halaman Kirim kalau take terakhir item ini mungkin sudah
+     * dibuat dan ditagih (Pemantau::bolehUlang); null kalau aman diulang.
+     */
+    private function peringatanUlang(int $itemId): ?string
+    {
+        $hasil = (array) $this->pemantau->bolehUlang($itemId);
+        if ($hasil['boleh'] ?? true) {
+            return null;
+        }
+        $teks = trim((string) ($hasil['peringatan'] ?? ''));
+
+        return $teks !== '' ? $teks : 'Take terakhir item ini mungkin sudah dibuat dan ditagih Higgsfield. Cek dashboard-nya dulu sebelum mengirim take baru.';
+    }
+
+    /**
+     * Take galat yang mungkin sudah dibuat (dan ditagih) di Higgsfield, jadi
+     * layak "Periksa lagi": punya request_id, atau body tersimpan yang belum
+     * pasti ditolak (biaya NULL). Lihat periksaLagi().
+     */
+    private static function bisaPeriksa(object $t): bool
+    {
+        if ($t->status !== 'galat') {
+            return false;
+        }
+        if (trim((string) $t->request_id) !== '') {
+            return true;
+        }
+
+        return trim((string) ($t->body ?? '')) !== '' && $t->biaya_usd === null;
+    }
+
+    /** Sidik semua take pack: "id:status" terurut, digabung koma — sama persis dengan sidikTake() di lib/produksi.ts. */
+    private static function sidikTake(Collection $take): string
+    {
+        $bagian = $take->map(fn ($t) => (int) $t->id . ':' . (string) $t->status)->all();
+        sort($bagian, SORT_STRING);
+
+        return implode(',', $bagian);
+    }
+
+    /**
+     * Perintah Command Prompt untuk menyalakan pemantau sendiri, memakai
+     * php.exe yang sama dengan yang dipakai Peluncur (satu instalasi dengan
+     * PHP aplikasi ini; di bawah Apache bukan httpd.exe, dan bukan "php" dari
+     * PATH yang di PC ini bisa PHP versi lain).
+     */
+    private static function perintahPemantau(): string
+    {
+        $php = Peluncur::php() ?? 'php';
+
+        return PHP_OS_FAMILY === 'Windows'
+            ? 'cd /d "' . base_path() . '" && "' . $php . '" artisan produksi:pantau'
+            : 'cd ' . escapeshellarg(base_path()) . ' && ' . escapeshellarg($php) . ' artisan produksi:pantau';
     }
 
     /**

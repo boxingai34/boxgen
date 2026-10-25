@@ -92,6 +92,47 @@ class HiggsfieldTest extends TestCase
         };
     }
 
+    /** Klien yang ganti nama .part-nya gagal $gagal kali dulu (berkas dipegang antivirus); jeda dicatat, tidak ditunggu. */
+    private function hfTerkunci(int $gagal): Higgsfield
+    {
+        return new class(['base' => self::API, 'key_id' => self::ID, 'key_secret' => self::RAHASIA], $gagal) extends Higgsfield {
+            public array $jeda = [];
+
+            public int $pindah = 0;
+
+            public function __construct(array $cfg, public int $gagal)
+            {
+                parent::__construct($cfg);
+            }
+
+            protected function tidur(float $detik): void
+            {
+                $this->jeda[] = $detik;
+            }
+
+            protected function pindah(string $dari, string $ke): bool
+            {
+                $this->pindah++;
+                if ($this->gagal > 0) {
+                    $this->gagal--;
+
+                    return false;
+                }
+
+                return parent::pindah($dari, $ke);
+            }
+        };
+    }
+
+    /** Nama berkas di folder tes yang diawali $awal, urut. */
+    private function sisa(string $awal): array
+    {
+        $hasil = array_values(array_filter(scandir($this->dir) ?: [], fn ($f) => str_starts_with($f, $awal)));
+        sort($hasil);
+
+        return $hasil;
+    }
+
     private function berkas(string $nama, string $isi): string
     {
         $path = $this->dir . '/' . $nama;
@@ -599,6 +640,8 @@ class HiggsfieldTest extends TestCase
         Http::fake([
             'https://cdn.example.test/kedaluwarsa.mp4' => Http::response('<Error>AccessDenied</Error>', 403),
             'https://cdn.example.test/sibuk.mp4'       => Http::response('Service Unavailable', 503),
+            'https://cdn.example.test/penuh.mp4'       => Http::response('Too Many Requests', 429),
+            'https://cdn.example.test/lambat.mp4'      => Http::response('Request Timeout', 408),
             'https://cdn.example.test/kosong.mp4'      => Http::response('', 200),
             'https://cdn.example.test/putus.mp4'       => Http::failedConnection(),
         ]);
@@ -606,14 +649,77 @@ class HiggsfieldTest extends TestCase
         $tujuan = $this->dir . '/01-1.mp4';
 
         $hasil = [];
-        foreach (['kedaluwarsa', 'sibuk', 'kosong', 'putus'] as $n) {
+        foreach (['kedaluwarsa', 'sibuk', 'penuh', 'lambat', 'kosong', 'putus'] as $n) {
             $e = $this->tangkap(fn () => $hf->unduh("https://cdn.example.test/$n.mp4", $tujuan));
             $hasil[$n] = [$e->kode, $e->bisaUlang];
-            $this->assertFileDoesNotExist($tujuan);
-            $this->assertFileDoesNotExist($tujuan . '.part');
+            $this->assertSame([], $this->sisa('01-1.mp4'), "tidak ada sisa berkas ($n)");
         }
 
-        $this->assertSame(['kedaluwarsa' => [403, false], 'sibuk' => [503, true], 'kosong' => [200, true], 'putus' => [0, true]], $hasil);
+        // 401/403/404/410 tidak diulang dengan alamat yang sama: pemanggil meminta alamat baru lewat status().
+        $this->assertSame(['kedaluwarsa' => [403, false], 'sibuk' => [503, true], 'penuh' => [429, true], 'lambat' => [408, true],
+            'kosong' => [200, true], 'putus' => [0, true]], $hasil);
+    }
+
+    public function test_unduh_ganti_nama_dicoba_lagi_dengan_jeda_pendek(): void
+    {
+        // Antivirus/pengindeks memegang berkas yang baru ditutup: dua ganti nama pertama gagal.
+        $mp4 = "\x00\x00\x00\x18ftypmp42" . str_repeat('video', 100);
+        Http::fake(['https://cdn.example.test/*' => Http::response($mp4, 200)]);
+        $hf = $this->hfTerkunci(2);
+        $tujuan = $this->dir . '/T04-3.mp4';
+        $denyut = 0;
+
+        $this->assertSame(strlen($mp4), $hf->unduh('https://cdn.example.test/hasil.mp4', $tujuan, function () use (&$denyut) {
+            $denyut++;
+        }));
+        $this->assertSame($mp4, file_get_contents($tujuan));
+        $this->assertSame([3, [0.5, 1.0]], [$hf->pindah, $hf->jeda]);
+        $this->assertSame(['T04-3.mp4'], $this->sisa('T04-3'));
+        $this->assertGreaterThanOrEqual(1, $denyut, 'denyut dipanggil selama unduhan');
+    }
+
+    public function test_unduhan_utuh_yang_gagal_diganti_nama_disimpan_dan_dipakai_lagi(): void
+    {
+        $mp4 = "\x00\x00\x00\x18ftypmp42" . str_repeat('video', 100);
+        Http::fake(['https://cdn.example.test/*' => Http::response($mp4, 200)]);
+        $hf = $this->hfTerkunci(99);
+        $tujuan = $this->dir . '/T04-3.mp4';
+
+        $e = $this->tangkap(fn () => $hf->unduh('https://cdn.example.test/hasil.mp4', $tujuan));
+        $this->assertSame([0, true], [$e->kode, $e->bisaUlang]);
+        $this->assertStringContainsString('belum bisa diganti nama', $e->getMessage());
+        $this->assertSame(5, $hf->pindah);
+        $this->assertFileDoesNotExist($tujuan);
+        $sisa = $this->sisa('T04-3.mp4');
+        $this->assertCount(2, $sisa, '.part utuh tidak dibuang, dan diberi tanda');
+        $this->assertMatchesRegularExpression('/^T04-3\.mp4\.[0-9a-f]{8}\.part$/', $sisa[0]);
+        $this->assertSame($sisa[0] . '.utuh', $sisa[1]);
+
+        // Percobaan berikutnya memakai .part itu tanpa mengunduh ulang.
+        $hf->gagal = 0;
+        $this->assertSame(strlen($mp4), $hf->unduh('https://cdn.example.test/hasil.mp4', $tujuan));
+        $this->assertSame($mp4, file_get_contents($tujuan));
+        $this->assertSame(['T04-3.mp4'], $this->sisa('T04-3'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_unduh_tidak_mengganggu_part_proses_lain_dan_membuang_sisa_lama(): void
+    {
+        $mp4 = "\x00\x00\x00\x18ftypmp42" . str_repeat('video', 100);
+        Http::fake(['https://cdn.example.test/*' => Http::response($mp4, 200)]);
+        $tujuan = $this->dir . '/T04-3.mp4';
+        // .part milik unduhan lain yang sedang berjalan (segar), dan sisa unduhan terputus yang sudah lama.
+        $this->berkas('T04-3.mp4.1a2b3c4d.part', 'sedang ditulis proses lain');
+        $this->berkas('T04-3.mp4.part', 'sisa lama');
+        $this->berkas('T04-3.mp4.99999999.part', 'sisa lama');
+        touch($this->dir . '/T04-3.mp4.part', time() - 7200);
+        touch($this->dir . '/T04-3.mp4.99999999.part', time() - 7200);
+
+        $this->hf()->unduh('https://cdn.example.test/hasil.mp4', $tujuan);
+
+        $this->assertSame($mp4, file_get_contents($tujuan));
+        $this->assertSame(['T04-3.mp4', 'T04-3.mp4.1a2b3c4d.part'], $this->sisa('T04-3'));
+        $this->assertSame('sedang ditulis proses lain', file_get_contents($this->dir . '/T04-3.mp4.1a2b3c4d.part'));
     }
 
     // ---------------------------------------------------------------- body Wan

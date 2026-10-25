@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Tombol from '@/components/box/Tombol.vue';
+import TambahBerkas from '@/components/produksi/TambahBerkas.vue';
 import { labelTake, uang } from '@/lib/produksi';
 import type { ItemHalaman, Jenis } from '@/types/produksi';
 import { Link } from '@inertiajs/vue3';
@@ -8,8 +9,9 @@ import { computed } from 'vue';
 /**
  * Keterangan + satu tombol untuk satu tester/klip, menurut statusnya.
  *
- *   review    "Review" (tombol utama — inilah yang sedang ditunggu)
- *   lolos     "Lihat" take yang lolos/terpilih
+ *   review    "Review" take yang menunggu dinilai (take_review, bukan
+ *             sekadar nomor terbesar) — tombol utama, inilah yang ditunggu
+ *   lolos     "Lihat" take yang lolos/terpilih (take_pilihan)
  *   berjalan  "Lihat antrian"
  *   diblokir  "Ulangi" (kirim lagi dengan seed baru; yang diblokir tidak ditagih)
  *   gagal     "Ulangi", plus tautan kecil ke take yang gagal
@@ -19,6 +21,10 @@ import { computed } from 'vue';
  * tercentang — uang baru terpakai di sana, sesudah harga ditampilkan dan
  * dikonfirmasi. Kalau server bilang item ini tidak bisa dikirim, tombolnya
  * mati dan alasannya ditulis di bawahnya.
+ *
+ * Item gagal/diblokir juga bisa diberi take dari berkas (video yang
+ * diunduh manual dari dashboard Higgsfield atau dibuat di tempat lain),
+ * tanpa biaya.
  */
 const props = withDefaults(
     defineProps<{
@@ -36,28 +42,34 @@ type Aksi = { ket: string; label: string; href: string | null; utama: boolean; k
 const aksi = computed<Aksi>(() => {
     const i = props.item;
     const t = i.take_terakhir;
-    const keTake = t ? route('produksi.take', { id: t.id }) : null;
+    const keTake = (x: { id: number } | null | undefined) => (x ? route('produksi.take', { id: x.id }) : null);
     const keKirim = route('produksi.pack.kirim', { id: props.packId, item: i.id });
+    // Biaya item = jumlah semua take-nya; dengan beberapa take ditulis sebagai total, bukan harga satu take.
+    const biaya = i.jumlah_take > 1 ? `${i.jumlah_take} take, total ${uang(i.biaya)}` : uang(i.biaya);
 
     switch (i.status) {
-        case 'review':
+        case 'review': {
+            const r = i.take_review ?? t;
             return {
-                ket: i.jumlah_take > 1 ? `${i.jumlah_take} take, menunggu review` : `Take ${t?.nomor ?? 1} siap dinilai`,
+                ket: `Take ${r?.nomor ?? 1} siap dinilai${i.jumlah_take > 1 ? ` · ${i.jumlah_take} take` : ''}`,
                 label: 'Review',
-                href: keTake,
+                href: keTake(r),
                 utama: true,
                 kirim: false,
                 lihat: null,
             };
-        case 'lolos':
+        }
+        case 'lolos': {
+            const p = i.take_pilihan ?? t;
             return {
-                ket: `Take ${t?.nomor ?? '?'} · ${uang(i.biaya)}`,
+                ket: `${props.jenis === 'klip' ? `Take ${p?.nomor ?? '?'} dipakai` : `Lolos dengan take ${p?.nomor ?? '?'}`} · ${biaya}`,
                 label: 'Lihat',
-                href: keTake,
+                href: keTake(p),
                 utama: false,
                 kirim: false,
                 lihat: null,
             };
+        }
         case 'berjalan':
             return {
                 ket: t ? `Take ${t.nomor} · ${labelTake(t.status).teks}` : 'Sedang dibuat',
@@ -68,9 +80,9 @@ const aksi = computed<Aksi>(() => {
                 lihat: null,
             };
         case 'diblokir':
-            return { ket: 'Diblokir filter · tidak ditagih', label: 'Ulangi', href: keKirim, utama: false, kirim: true, lihat: null };
+            return { ket: 'Diblokir filter · tidak ditagih', label: 'Ulangi', href: keKirim, utama: false, kirim: true, lihat: keTake(t) };
         case 'gagal':
-            return { ket: t ? `Take ${t.nomor} gagal` : 'Gagal', label: 'Ulangi', href: keKirim, utama: false, kirim: true, lihat: keTake };
+            return { ket: t ? `Take ${t.nomor} gagal` : 'Gagal', label: 'Ulangi', href: keKirim, utama: false, kirim: true, lihat: keTake(t) };
         default:
             return { ket: `${i.durasi} detik · belum ada take`, label: 'Jalankan', href: keKirim, utama: false, kirim: true, lihat: null };
     }
@@ -78,6 +90,8 @@ const aksi = computed<Aksi>(() => {
 
 const tertahan = computed(() => aksi.value.kirim && (!props.item.bisa_kirim || Boolean(props.kunci)));
 const alasan = computed(() => props.kunci || props.item.alasan_tidak || '');
+/** Take dari berkas: hanya untuk yang gagal/diblokir, dan tidak selama seluruh pack tertahan (mis. aturan umur). */
+const bolehBerkas = computed(() => ['gagal', 'diblokir'].includes(props.item.status) && !props.kunci);
 </script>
 
 <template>
@@ -92,5 +106,6 @@ const alasan = computed(() => props.kunci || props.item.alasan_tidak || '');
         </div>
         <!-- Alasan seluruh pack sudah tertulis di atas halaman; di sini cukup alasan item ini sendiri. -->
         <p v-if="tertahan && alasan && !kunci" class="m-0 text-[12px] leading-snug text-[hsl(var(--kanvas))]">{{ alasan }}</p>
+        <TambahBerkas v-if="bolehBerkas" class="self-end" :item-id="item.id" jenis="sunyi" label="Tambah take dari berkas" />
     </div>
 </template>

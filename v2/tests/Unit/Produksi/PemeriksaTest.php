@@ -277,10 +277,18 @@ class PemeriksaTest extends TestCase
 
         $h = $this->periksa($p);
 
-        $this->assertSame('Kata sensitif “gore” ada di baris Negative T04.', $this->cek($h, 'negative', 'T04')[0]['judul']);
-        $this->assertSame('Catatan jebakan Wan: kata sensitif lebih aman tidak ditaruh di Negative.', $this->cek($h, 'negative', 'T04')[0]['detail']);
-        $this->assertSame('Kata sensitif “blood” dan “nsfw” ada di baris Negative klip 01.', $this->cek($h, 'negative', '01')[0]['judul']);
-        $this->assertSame(['saran', 'saran'], array_column($this->cek($h, 'negative'), 'tingkat'));
+        // Satu baris gabungan untuk seluruh pack.
+        $c = $this->cek($h, 'negative');
+        $this->assertCount(1, $c);
+        $this->assertSame('saran', $c[0]['tingkat']);
+        $this->assertNull($c[0]['item']);
+        $this->assertSame('Kata sensitif ada di baris Negative: “gore” di T04; “blood” di klip 01; “nsfw” di klip 01.', $c[0]['judul']);
+        $this->assertSame('Catatan jebakan Wan: kata sensitif lebih aman tidak ditaruh di Negative. Tidak menghalangi kirim.', $c[0]['detail']);
+
+        // Temuan di satu item saja tetap menunjuk item itu.
+        $p['klip'][0]['prompt'] = "Overall: 30 seconds. @image1 @image2 @image3.\n[0-30s] a\nNegative: bloodline.";
+        $c = $this->cek($this->periksa($p), 'negative');
+        $this->assertSame('T04', $c[0]['item']);
     }
 
     // ---------------------------------------------------------------- waktu
@@ -346,7 +354,7 @@ class PemeriksaTest extends TestCase
         $dir = self::ANTRIAN_ASLI . '\Maomao vs Pairin';
         $h = (new Pemeriksa())->periksa((new PackReader())->baca($dir), $dir);
         $this->assertEmpty(array_filter($h['cek'], fn ($c) => in_array($c['tingkat'], ['awas', 'blokir'], true)));
-        $this->assertSame('Kata sensitif “gore” ada di baris Negative T04.', $this->cek($h, 'negative', 'T04')[0]['judul']);
+        $this->assertStringContainsString('“gore” di T04, T05, T06', $this->cek($h, 'negative')[0]['judul']);
         $this->assertSame('Subtitle 3 bahasa lengkap.', $this->cek($h, 'subtitle')[0]['judul']);
         $this->assertSame('Gambar disebut dengan @image1–@image4.', $this->cek($h, 'sebutan')[0]['judul']);
     }

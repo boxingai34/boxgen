@@ -3,14 +3,15 @@ import Tombol from '@/components/box/Tombol.vue';
 import BarisTake from '@/components/produksi/BarisTake.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
+import KotakPemantau from '@/components/produksi/KotakPemantau.vue';
 import KotakYakin from '@/components/produksi/KotakYakin.vue';
 import SlotGambar from '@/components/produksi/SlotGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim } from '@/lib/kirim';
-import { kueri, pakaiPolling, uang } from '@/lib/produksi';
-import type { ItemKirim, JawabKirim, JawabPerkiraan, JawabStatus, PilihanKirim, PropsKirim, TakeBaris, Uang } from '@/types/produksi';
+import { chipPemantau, kueri, pakaiPolling, uang } from '@/lib/produksi';
+import type { InfoPemantau, ItemKirim, JawabKirim, JawabPerkiraan, JawabStatus, PilihanKirim, PropsKirim, TakeBaris, Uang } from '@/types/produksi';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Loader2, Minus, Plus } from 'lucide-vue-next';
+import { Loader2, Minus, Plus, TriangleAlert } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 /**
@@ -27,6 +28,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
  *
  * Mengubah centang atau jumlah take di langkah 2/3 mengembalikan ke langkah
  * 1, jadi harga yang dikonfirmasi selalu harga pilihan yang sedang tampil.
+ *
+ * Item ber-`peringatan` (take terakhirnya mungkin sudah dibuat dan ditagih)
+ * tidak pernah tercentang otomatis, peringatannya tampil mencolok di
+ * barisnya, dan tombol kirim mati sampai pengguna mencentang "sudah cek
+ * dashboard Higgsfield" untuk setiap item seperti itu yang dipilih.
  */
 const props = defineProps<PropsKirim>();
 
@@ -36,15 +42,21 @@ const itemDariUrl = kueri(halaman.url, 'item');
 // ---- Pilihan per item ----
 type Baris = { pilih: boolean; takes: number };
 const pilihan = reactive<Record<number, Baris>>({});
+/** Centang "sudah cek dashboard" untuk item ber-peringatan. */
+const yakin = reactive<Record<number, boolean>>({});
 
 /** Item baru diberi pilihan awal; item yang sudah ada dibiarkan seperti yang diatur pengguna. */
 function rapikanPilihan(daftar: ItemKirim[]) {
     for (const i of daftar) {
+        if (!i.peringatan) delete yakin[i.id];
         if (pilihan[i.id]) {
             if (!i.bisa_kirim) pilihan[i.id].pilih = false;
             continue;
         }
-        pilihan[i.id] = { pilih: Boolean(i.bisa_kirim) && (Boolean(i.pilih_awal) || String(i.id) === itemDariUrl), takes: 1 };
+        pilihan[i.id] = {
+            pilih: Boolean(i.bisa_kirim) && !i.peringatan && (Boolean(i.pilih_awal) || String(i.id) === itemDariUrl),
+            takes: 1,
+        };
     }
 }
 rapikanPilihan(props.item);
@@ -78,6 +90,14 @@ const jumlah = computed(() => daftarPilihan.value.reduce((a, p) => a + p.takes, 
 const total = computed(() =>
     props.item.reduce((a, i) => (i.bisa_kirim && pilihan[i.id]?.pilih ? a + Number(i.tarif_per_take) * pilihan[i.id].takes : a), 0),
 );
+/** Item ber-peringatan yang dipilih tapi belum dicentang "sudah cek dashboard". */
+const belumYakin = computed(() => props.item.filter((i) => i.peringatan && i.bisa_kirim && pilihan[i.id]?.pilih && !yakin[i.id]));
+
+function tukarYakin(i: ItemKirim) {
+    if (mengirim.value) return;
+    yakin[i.id] = !yakin[i.id];
+    sesudahUbah();
+}
 
 // ---- Langkah ----
 const tahap = ref<'pilih' | 'yakin' | 'terkirim'>('pilih');
@@ -108,7 +128,7 @@ function ubahTake(i: ItemKirim, beda: number) {
 }
 
 async function minta() {
-    if (!jumlah.value || menghitung.value) return;
+    if (!jumlah.value || menghitung.value || belumYakin.value.length) return;
     galat.value = '';
     menghitung.value = true;
     totalYakin.value = total.value;
@@ -129,7 +149,7 @@ async function minta() {
 const totalBerbeda = computed(() => Math.abs(Number(totalYakin.value) - total.value) > 0.005);
 
 async function kirimSekarang() {
-    if (mengirim.value || !jumlah.value) return;
+    if (mengirim.value || !jumlah.value || belumYakin.value.length) return;
     mengirim.value = true;
     galat.value = '';
     try {
@@ -139,6 +159,7 @@ async function kirimSekarang() {
             b.pilih = false;
             b.takes = 1;
         }
+        for (const k of Object.keys(yakin)) delete yakin[Number(k)];
         tahap.value = 'terkirim';
         router.reload({ only: ['item'] });
         pantau.segera();
@@ -161,14 +182,18 @@ function kirimLagi() {
 // ---- Antrian pack ini (polling 5 detik) ----
 const antrian = ref<TakeBaris[]>([]);
 const slotTerpakai = ref(0);
-const pemantauHidup = ref(true);
+const pemantau = ref<InfoPemantau | null>(null);
+const perintahPemantau = ref<string | null>(null);
 const sudahDitanya = ref(false);
+const chip = computed(() => chipPemantau(pemantau.value));
 
 const pantau = pakaiPolling(async () => {
-    const j = await kirim<JawabStatus>(route('produksi.status'), undefined, 'GET');
+    // pack_id: semua take pack ini ikut, bukan cuma yang aktif + 20 terakhir dari semua pack.
+    const j = await kirim<JawabStatus>(route('produksi.status', { pack_id: props.pack.id }), undefined, 'GET');
     antrian.value = j.takes.filter((t) => t.pack_id === props.pack.id);
     slotTerpakai.value = j.slot_terpakai;
-    pemantauHidup.value = Boolean(j.pemantau_hidup);
+    pemantau.value = j.pemantau ?? null;
+    perintahPemantau.value = j.perintah_pemantau ?? null;
     sudahDitanya.value = true;
 }, 5000);
 
@@ -191,6 +216,8 @@ onMounted(() => pantau.segera());
                 <h2 class="m-0 text-[26px] font-bold tracking-[-0.03em] sm:text-[30px]">Kirim ke Higgsfield</h2>
                 <p class="mt-1.5 text-[15px] text-muted-foreground">Centang yang mau dibuat. Biaya tampil sebelum ada uang yang terpakai.</p>
             </div>
+
+            <KotakPemantau :info="pemantau" :perintah="perintahPemantau" />
 
             <div class="flex flex-wrap items-start gap-6">
                 <!-- Pilihan -->
@@ -226,9 +253,10 @@ onMounted(() => pantau.segera());
                                             <span class="font-mono font-semibold">{{ i.kode }}</span>
                                             <span class="text-[14px] font-semibold">{{ i.judul }}</span>
                                         </span>
-                                        <span class="text-[13px] text-muted-foreground"
+                                        <span v-if="!i.peringatan" class="text-[13px] text-muted-foreground"
                                             >{{ i.ket }}<template v-if="i.bisa_kirim"> · {{ nomorTake(i) }}</template></span
                                         >
+                                        <span v-else-if="i.bisa_kirim" class="text-[13px] text-muted-foreground">{{ nomorTake(i) }}</span>
                                         <span v-if="!i.bisa_kirim && i.alasan_tidak" class="text-[13px] text-[hsl(var(--kanvas))]">{{
                                             i.alasan_tidak
                                         }}</span>
@@ -263,6 +291,29 @@ onMounted(() => pantau.segera());
                                 <span class="min-w-[64px] text-right font-mono font-semibold">
                                     {{ pilihan[i.id]?.pilih && i.bisa_kirim ? uang(Number(i.tarif_per_take) * (pilihan[i.id]?.takes ?? 1)) : '—' }}
                                 </span>
+                                <!-- Take terakhir mungkin sudah ditagih: peringatan mencolok + centang tambahan sebelum bisa ikut dikirim. -->
+                                <div
+                                    v-if="i.peringatan"
+                                    class="flex w-full flex-col gap-2.5 rounded-xl border border-[hsl(var(--kanvas)/0.55)] bg-[hsl(var(--kanvas)/0.1)] px-3.5 py-3 text-[13px] leading-normal"
+                                >
+                                    <p class="m-0 flex items-start gap-2">
+                                        <TriangleAlert class="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--kanvas))]" aria-hidden="true" />
+                                        <span><strong>Mungkin sudah ditagih.</strong> {{ i.peringatan }}</span>
+                                    </p>
+                                    <label v-if="i.bisa_kirim" class="flex cursor-pointer items-start gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            class="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-[hsl(var(--kanvas))] disabled:cursor-not-allowed"
+                                            :checked="Boolean(yakin[i.id])"
+                                            :disabled="mengirim"
+                                            @change="tukarYakin(i)"
+                                        />
+                                        <span
+                                            >Saya sudah memeriksa dashboard Higgsfield dan tetap mau membuat take baru {{ i.kode }} — take baru
+                                            ditagih lagi.</span
+                                        >
+                                    </label>
+                                </div>
                             </li>
                         </ul>
                     </section>
@@ -293,9 +344,21 @@ onMounted(() => pantau.segera());
                             <span class="text-[30px] font-bold tracking-[-0.03em]" aria-live="polite">{{ uang(total) }}</span>
                         </div>
 
-                        <Tombol v-if="tahap === 'pilih'" ukuran="besar" penuh :nonaktif="jumlah === 0 || menghitung" @click="minta">
+                        <Tombol
+                            v-if="tahap === 'pilih'"
+                            ukuran="besar"
+                            penuh
+                            :nonaktif="jumlah === 0 || menghitung || belumYakin.length > 0"
+                            @click="minta"
+                        >
                             <Loader2 v-if="menghitung" class="h-4 w-4 animate-spin" />
-                            {{ jumlah === 0 ? 'Pilih minimal satu' : `Kirim ${jumlah} video — ${uang(total)}` }}
+                            {{
+                                jumlah === 0
+                                    ? 'Pilih minimal satu'
+                                    : belumYakin.length
+                                      ? `Centang dulu peringatan ${belumYakin.map((i) => i.kode).join(', ')}`
+                                      : `Kirim ${jumlah} video — ${uang(total)}`
+                            }}
                         </Tombol>
 
                         <KotakYakin v-else-if="tahap === 'yakin'" ya="Ya, kirim" :sibuk="mengirim" @ya="kirimSekarang" @batal="tahap = 'pilih'">
@@ -330,8 +393,8 @@ onMounted(() => pantau.segera());
                         </p>
 
                         <p class="m-0 text-[12px] leading-normal text-muted-foreground">
-                            Video gagal atau diblokir filter tidak ditagih. Higgsfield menghapus hasil setelah 7 hari, jadi aplikasi langsung
-                            menyimpannya ke folder pack.
+                            Video yang gagal dibuat Higgsfield atau diblokir filter tidak ditagih; video yang sudah jadi tetap ditagih walau gagal
+                            diunduh. Higgsfield menghapus hasil setelah 7 hari, jadi aplikasi langsung menyimpannya ke folder pack.
                         </p>
                     </section>
                 </aside>
@@ -347,9 +410,7 @@ onMounted(() => pantau.segera());
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
-                        <ChipStatus v-if="sudahDitanya" :nada="pemantauHidup ? 'lolos' : 'awas'" titik>
-                            {{ pemantauHidup ? 'Pemantau berjalan' : 'Pemantau sedang dinyalakan' }}
-                        </ChipStatus>
+                        <ChipStatus v-if="sudahDitanya && chip" :nada="chip.nada" titik>{{ chip.teks }}</ChipStatus>
                         <Link :href="route('produksi.antrian')" class="text-[13px] font-semibold text-[hsl(var(--sorot))] hover:underline"
                             >Semua pack</Link
                         >

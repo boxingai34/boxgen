@@ -7,7 +7,7 @@ import { computed } from 'vue';
 
 /**
  * Satu baris antrian: "T04 · take 2", chip status, keterangan, dan tombol
- * Review kalau take-nya sudah bisa dinilai. Dipakai di halaman Kirim
+ * Review kalau take-nya sudah bisa dinilai (Pulihkan kalau galat). Dipakai di halaman Kirim
  * (take pack itu saja) dan halaman Antrian (semua pack, `pack` menyala).
  */
 const props = withDefaults(defineProps<{ take: TakeBaris; pack?: boolean }>(), { pack: false });
@@ -34,5 +34,7 @@ const urlReview = computed(() => props.take.url_review || route('produksi.take',
             <span v-if="take.waktu">{{ take.waktu }}</span>
         </span>
         <Tombol v-if="take.bisa_review" :href="urlReview">Review</Tombol>
+        <!-- Galat bisa saja sudah dibayar: halaman Review-nya punya "Periksa lagi ke Higgsfield" dan "Tambah take dari berkas". -->
+        <Tombol v-else-if="take.status === 'galat'" jenis="garis" :href="urlReview">Pulihkan</Tombol>
     </li>
 </template>

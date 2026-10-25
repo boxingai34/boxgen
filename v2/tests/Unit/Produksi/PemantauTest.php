@@ -6,6 +6,7 @@ use App\Services\Produksi\Gudang;
 use App\Services\Produksi\Higgsfield;
 use App\Services\Produksi\HiggsfieldGalat;
 use App\Services\Produksi\Media;
+use App\Services\Produksi\Peluncur;
 use App\Services\Produksi\Pemantau;
 use App\Services\Produksi\ProduksiGalat;
 use Illuminate\Database\Schema\Blueprint;
@@ -506,29 +507,88 @@ class PemantauTest extends TestCase
         $this->assertSame('Higgsfield gagal membuat video: Model error. Tidak ditagih.', $ta->galat);
     }
 
-    public function test_kunci_ditolak_saat_cek_status_menunggu_dan_404_mengakhiri(): void
+    public function test_galat_cek_status_apa_pun_tidak_pernah_mengakhiri_take_yang_sudah_diterima(): void
     {
         $packId = $this->packMaomao();
         $pm = $this->pemantau();
-        [$a, $b] = $pm->kirim($packId, self::pilih($this->item('T01'), 2))['take_ids'];
+        [$a, $b, $c] = $pm->kirim($packId, self::pilih($this->item('T01'), 3))['take_ids'];
         $pm->langkah();
 
-        // 401 untuk take a: request tetap jalan di Higgsfield, jadi ditunggu. 404 untuk take b: diakhiri.
+        // 401, 404, dan kunci yang belum siap (galat lokal, kode 0): request tetap jalan (dan ditagih) di Higgsfield, jadi ditunggu.
         $this->travel(10)->seconds();
-        $this->hf->galat['status'] = [HiggsfieldGalat::dariHttp('memeriksa status', 401), HiggsfieldGalat::dariHttp('memeriksa status', 404)];
-        $pm->langkah();
-        $ta = $this->take($a);
-        $this->assertSame(['queued', 1], [$ta->status, (int) $ta->dicoba]);
-        $this->assertStringContainsString('HTTP 401', $ta->galat);
-        $tb = $this->take($b);
-        $this->assertSame('galat', $tb->status);
-        $this->assertStringContainsString('HTTP 404', $tb->galat);
-        $this->assertSame(0.4, (float) $tb->biaya_usd, 'request sudah diterima: biaya dianggap terpakai');
+        $this->hf->galat['status'] = [
+            HiggsfieldGalat::dariHttp('memeriksa status', 401),
+            HiggsfieldGalat::dariHttp('memeriksa status', 404),
+            new HiggsfieldGalat('Kunci API Higgsfield belum siap: HIGGSFIELD_KEY_SECRET di .env masih kosong.'),
+        ];
+        $l = $pm->langkah();
+        $this->assertSame(0, $l['gagal']);
+        foreach ([[$a, 'HTTP 401'], [$b, 'HTTP 404'], [$c, 'belum siap']] as [$id, $potongan]) {
+            $t = $this->take($id);
+            $this->assertSame(['queued', 1, null], [$t->status, (int) $t->dicoba, $t->biaya_usd]);
+            $this->assertStringContainsString($potongan, $t->galat);
+            $this->assertStringContainsString('tetap diperiksa lagi nanti', $t->galat);
+        }
 
         $this->travel(10)->seconds();
-        $this->hf->antreStatus[] = ['status' => 'in_progress'];
+        $this->hf->antreStatus = [['status' => 'in_progress'], ['status' => 'in_progress'], ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/c.mp4']];
         $pm->langkah();
         $this->assertSame(['in_progress', 0, null], [$this->take($a)->status, (int) $this->take($a)->dicoba, $this->take($a)->galat]);
+        $this->assertSame('in_progress', $this->take($b)->status);
+        $this->assertSame(['completed', 0.4], [$this->take($c)->status, (float) $this->take($c)->biaya_usd]);
+    }
+
+    public function test_galat_cek_status_beruntun_diberi_jeda_makin_panjang(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $pm->langkah();
+
+        // Cek pertama sesudah 8 dtk, lalu jeda 8, 16, 32 … dtk sesudah galat ke-1, 2, 3 (cek_status_detik = 8).
+        $this->hf->galat['status'] = array_fill(0, 3, HiggsfieldGalat::jaringan('memeriksa status', 'koneksi terputus'));
+        foreach ([8, 8, 16] as $jeda) {
+            $this->travel($jeda - 1)->seconds();
+            $jumlah = count($this->hf->ditanya);
+            $pm->langkah();
+            $this->assertCount($jumlah, $this->hf->ditanya, "belum {$jeda} dtk");
+            $this->travel(1)->seconds();
+            $pm->langkah();
+        }
+        $this->assertCount(3, $this->hf->ditanya);
+        $this->assertSame(3, (int) $this->take($id)->dicoba);
+
+        $this->travel(31)->seconds();
+        $pm->langkah();
+        $this->assertCount(3, $this->hf->ditanya, 'jeda sesudah galat ke-3 = 32 dtk');
+        $this->travel(1)->seconds();
+        $pm->langkah();
+        $this->assertCount(4, $this->hf->ditanya);
+        $this->assertSame(['in_progress', 0], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+    }
+
+    public function test_putus_jaringan_sesudah_40_menit_tidak_mengakhiri_take_yang_sudah_dibayar(): void
+    {
+        // Skenario UANG-1/LC-2: dikirim 08.00, PC tidur, bangun 09.00, cek status pertama kena DNS.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $pm->langkah();
+
+        $this->travel(60)->minutes();
+        $this->hf->galat['status'] = [HiggsfieldGalat::jaringan('memeriksa status', 'alamat server tidak ditemukan, cek internet/DNS')];
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['queued', null], [$t->status, $t->biaya_usd]);
+        $this->assertStringContainsString('DNS', $t->galat);
+
+        $this->travel(10)->seconds();
+        $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/t01.mp4'];
+        $pm->langkah();
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['selesai', 'TAKES/T01-1.mp4', 0.4], [$t->status, $t->berkas, (float) $t->biaya_usd]);
+        $this->assertSame('review', $this->item('T01')->status);
     }
 
     public function test_kirim_yang_terus_putus_berhenti_di_batas_coba(): void
@@ -577,7 +637,7 @@ class PemantauTest extends TestCase
         Log::shouldHaveReceived('warning')->atLeast()->once();
     }
 
-    public function test_request_terlalu_lama_ditandai_galat_dengan_biaya_terpakai(): void
+    public function test_request_lama_hanya_diberi_peringatan_dan_diakhiri_sesudah_7_hari(): void
     {
         $packId = $this->packMaomao();
         $pm = $this->pemantau();
@@ -586,14 +646,33 @@ class PemantauTest extends TestCase
 
         $this->travel(39)->minutes();
         $pm->langkah();
-        $this->assertSame('in_progress', $this->take($id)->status);
+        $this->assertSame(['in_progress', null], [$this->take($id)->status, $this->take($id)->galat]);
 
+        // Lewat 40 menit: tetap dipantau, hanya diberi peringatan, belum ada biaya.
         $this->travel(2)->minutes();
-        $pm->langkah();
+        $l = $pm->langkah();
         $t = $this->take($id);
-        $this->assertSame('galat', $t->status);
+        $this->assertSame(['in_progress', null, 0], [$t->status, $t->biaya_usd, $l['gagal']]);
         $this->assertStringContainsString('setelah 40 menit', $t->galat);
-        $this->assertSame(0.4, (float) $t->biaya_usd);
+        $this->assertStringContainsString('tetap memeriksanya sampai 7 hari', $t->galat);
+
+        // Selesai jauh sesudahnya: diunduh seperti biasa.
+        $this->travel(3)->hours();
+        $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/lama.mp4'];
+        $pm->langkah();
+        $pm->langkah();
+        $this->assertSame(['selesai', 0.4, null], [$this->take($id)->status, (float) $this->take($id)->biaya_usd, $this->take($id)->galat]);
+
+        // Take lain yang tidak pernah selesai: diakhiri sesudah 7 hari (Higgsfield menghapus hasilnya), biaya tidak pasti.
+        $lain = $pm->kirim($packId, self::pilih($this->item('T02')))['take_ids'][0];
+        $pm->langkah();
+        $this->travel(7)->days();
+        $l = $pm->langkah();
+        $t = $this->take($lain);
+        $this->assertSame(['galat', null, 1], [$t->status, $t->biaya_usd, $l['gagal']]);
+        $this->assertStringContainsString('dalam 7 hari', $t->galat);
+        $this->assertStringContainsString('sudah dihapus Higgsfield', $t->galat);
+        $this->harusGalat(fn () => $pm->periksaLagi($lain), 'lebih dari 7 hari');
     }
 
     public function test_unduh_gagal_sementara_dicoba_lagi_dan_klaim_unduh_basi_dilepas(): void
@@ -646,6 +725,345 @@ class PemantauTest extends TestCase
 
         $this->assertSame('TAKES/T01-1 (2).mp4', $this->take($id)->berkas);
         $this->assertSame('MILIK PENGGUNA', file_get_contents($this->dir() . '/TAKES/T01-1.mp4'));
+    }
+
+    public function test_folder_pack_hilang_sementara_saat_unduh_dicoba_lagi(): void
+    {
+        // UANG-2 (a): folder pack diganti nama selagi take dibuat, lalu dikembalikan.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $asli = $this->dir();
+        rename($asli, $asli . ' [done]');
+        $l = $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['completed', 1, 0], [$t->status, (int) $t->dicoba, $l['gagal']]);
+        $this->assertStringContainsString('tidak ada lagi di 1 - ANTRIAN', $t->galat);
+        $this->assertSame(0.4, (float) $t->biaya_usd);
+
+        rename($asli . ' [done]', $asli);
+        $this->travel(31)->seconds();
+        $pm->langkah();
+        $this->assertSame(['selesai', 'TAKES/T01-1.mp4'], [$this->take($id)->status, $this->take($id)->berkas]);
+    }
+
+    public function test_ganti_nama_part_yang_gagal_dicoba_lagi_tanpa_mengakhiri_take(): void
+    {
+        // UANG-2 (b) / LC-3: Higgsfield::unduh kini melempar bisaUlang untuk ganti nama yang gagal.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $this->hf->galat['unduh'] = [new HiggsfieldGalat('T01-1.mp4 sudah terunduh utuh tapi belum bisa diganti nama dari .part.', 0, true)];
+        $pm->langkah();
+        $this->assertSame(['completed', 1], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+
+        $this->travel(31)->seconds();
+        $pm->langkah();
+        $this->assertSame('selesai', $this->take($id)->status);
+    }
+
+    public function test_alamat_video_ditolak_cdn_meminta_alamat_baru_lewat_status(): void
+    {
+        // UANG-2 (c): alamat video kedaluwarsa (CDN 403) → queued, status() memberi alamat baru.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $this->hf->galat['unduh'] = [new HiggsfieldGalat('Alamat video untuk T01-1.mp4 sudah kedaluwarsa atau ditolak (HTTP 403).', 403, false)];
+        $l = $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['queued', 1, 0, 0.4], [$t->status, (int) $t->dicoba, $l['gagal'], (float) $t->biaya_usd]);
+
+        $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/baru.mp4'];
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['completed', 'https://cdn.palsu.test/hasil/baru.mp4', 1], [$t->status, $t->video_url, (int) $t->dicoba],
+            'hitungan percobaan unduh tidak direset oleh alamat baru');
+        $pm->langkah();
+        $this->assertSame('selesai', $this->take($id)->status);
+        $this->assertSame('https://cdn.palsu.test/hasil/baru.mp4', end($this->hf->unduhan)['url']);
+    }
+
+    public function test_unduh_gagal_terus_berhenti_di_batas_coba_lalu_bisa_diperiksa_lagi(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $t01 = (int) $this->item('T01')->id;
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $this->hf->galat['unduh'] = array_fill(0, Pemantau::BATAS_COBA, new HiggsfieldGalat('Unduhan T01-1.mp4 terputus (koneksi terputus). Aman dicoba lagi.', 0, true));
+        for ($i = 1; $i <= Pemantau::BATAS_COBA; $i++) {
+            $pm->langkah();
+            $this->travel(5)->minutes();
+        }
+        $t = $this->take($id);
+        $this->assertSame(['galat', Pemantau::BATAS_COBA, 0.4], [$t->status, (int) $t->dicoba, (float) $t->biaya_usd]);
+        $this->assertStringContainsString('pakai Periksa lagi', $t->galat);
+        $this->assertSame('gagal', $this->item('T01')->status);
+
+        // Halaman Kirim tidak boleh mencentang take baru berbayar untuk item ini.
+        $boleh = $pm->bolehUlang($t01);
+        $this->assertFalse($boleh['boleh']);
+        $this->assertStringContainsString('Take 1 sudah dibuat dan ditagih', $boleh['peringatan']);
+
+        $pm->periksaLagi($id);
+        $t = $this->take($id);
+        $this->assertSame(['queued', 0, null, null], [$t->status, (int) $t->dicoba, $t->dicek_at, $t->galat]);
+        $this->assertSame('berjalan', $this->item('T01')->status);
+        $this->assertTrue($pm->bolehUlang($t01)['boleh']);
+
+        $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/segar.mp4'];
+        $pm->langkah();
+        $pm->langkah();
+        $this->assertSame(['selesai', 'TAKES/T01-1.mp4'], [$this->take($id)->status, $this->take($id)->berkas]);
+    }
+
+    public function test_klaim_unduh_diperbarui_selama_unduhan_panjang(): void
+    {
+        // UANG-5 / LC-6: unduhan 10 menit (klaim_basi 5 menit) tidak boleh direbut pemantau kedua.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $hf2 = new HiggsfieldPalsu();
+        $saatUnduh = [];
+        $this->hf->saatUnduh = function (string $tujuan, ?callable $denyut) use ($id, $hf2, &$saatUnduh) {
+            $this->travel(4)->minutes();
+            $denyut();                              // progress unduhan
+            $this->travel(4)->minutes();
+            $denyut();
+            $this->travel(4)->minutes();            // 12 menit sejak klaim, 4 menit sejak denyut terakhir
+            (new Pemantau($hf2, $this->media))->langkah();
+            $saatUnduh = [$this->take($id)->status, $this->take($id)->dicek_at];
+        };
+        $pm->langkah();
+
+        $this->assertSame(['unduh', '2026-10-25 08:08:10'], $saatUnduh, 'klaim diperbarui oleh denyut, tidak dilepas');
+        $this->assertSame([], $hf2->unduhan, 'pemantau kedua tidak ikut mengunduh');
+        $this->assertSame(['selesai', 'TAKES/T01-1.mp4'], [$this->take($id)->status, $this->take($id)->berkas]);
+    }
+
+    public function test_klaim_unggah_diperbarui_tiap_gambar_acuan(): void
+    {
+        // UANG-5: upload acuan yang lama tidak boleh direbut pemantau kedua (yang lalu mengirim body lain).
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+
+        $hf2 = new HiggsfieldPalsu();
+        $diperiksa = [];
+        $this->hf->saatUnggah = function (string $path) use ($id, $hf2, &$diperiksa) {
+            $this->travel(4)->minutes();            // tiap gambar 4 menit; klaim_basi 5 menit
+            if (str_contains($path, 'B-00')) {
+                (new Pemantau($hf2, $this->media))->langkah();
+                $diperiksa = [$this->take($id)->status, $this->take($id)->dicek_at];
+            }
+        };
+        $pm->langkah();
+
+        $this->assertSame(['unggah', '2026-10-25 08:04:00'], $diperiksa, 'klaim diperbarui sesudah gambar pertama');
+        $this->assertSame([[], []], [$hf2->unggahan, $hf2->kiriman], 'pemantau kedua tidak ikut upload atau kirim');
+        $this->assertSame('queued', $this->take($id)->status);
+        $this->assertCount(1, $this->hf->kiriman);
+    }
+
+    public function test_cek_status_tanpa_perubahan_tidak_dihitung_ke_batas_dan_siap_didahulukan(): void
+    {
+        // LC-9: 3 take yang sedang dibuat tidak menghabiskan jatah putaran untuk take baru.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $lama = $pm->kirim($packId, self::pilih($this->item('T01'), 3))['take_ids'];
+        $pm->langkah();
+        $baru = $pm->kirim($packId, self::pilih($this->item('T02')))['take_ids'][0];
+
+        $this->travel(10)->seconds();
+        $l = $pm->langkah(1);
+        $this->assertSame([1, 1], [$l['diproses'], $l['dikirim']]);
+        $this->assertSame('queued', $this->take($baru)->status, 'take siap dikirim lebih dulu');
+        $this->assertSame([], $this->hf->ditanya, 'jatah 1 habis untuk kiriman');
+
+        $this->travel(10)->seconds();
+        $l = $pm->langkah(1);
+        $this->assertSame(0, $l['diproses']);
+        $this->assertCount(4, $this->hf->ditanya, 'semua cek status jalan walau batasnya 1');
+        foreach ($lama as $id) {
+            $this->assertSame('in_progress', $this->take($id)->status);
+        }
+    }
+
+    // ---------------------------------------------------------------- kiriman ulang
+
+    public function test_kiriman_ulang_yang_ditolak_dianggap_mungkin_sudah_diterima(): void
+    {
+        // UANG-3: kiriman pertama terputus (mungkin sudah diterima), kiriman ulang dengan kunci yang sama ditolak 422.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->hf->galat['kirim'] = [
+            HiggsfieldGalat::jaringan('mengirim generate', 'waktu tunggu habis'),
+            HiggsfieldGalat::dariHttp('mengirim generate', 422, 'duration: invalid'),
+        ];
+
+        $pm->langkah();
+        $this->assertSame(['unggah', 1], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+        $this->travel(31)->seconds();
+        $pm->langkah();
+
+        $t = $this->take($id);
+        $this->assertCount(2, $this->hf->kiriman);
+        $this->assertSame(['galat', null], [$t->status, $t->biaya_usd]);
+        $this->assertStringContainsString('HTTP 422', $t->galat);
+        $this->assertStringContainsString('MUNGKIN sudah diterima', $t->galat);
+
+        $boleh = $pm->bolehUlang((int) $this->item('T01')->id);
+        $this->assertFalse($boleh['boleh']);
+        $this->assertStringContainsString('Take 1 mungkin sudah diterima dan ditagih', $boleh['peringatan']);
+    }
+
+    public function test_kunci_ditolak_pada_kiriman_ulang_menunggu_lalu_dikirim_ulang_persis(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->hf->galat['kirim'] = [
+            HiggsfieldGalat::jaringan('mengirim generate', 'waktu tunggu habis'),
+            HiggsfieldGalat::dariHttp('mengirim generate', 401),
+            HiggsfieldGalat::dariHttp('mengirim generate', 403),
+        ];
+
+        $pm->langkah();
+        foreach ([31, 61] as $jeda) {
+            $this->travel($jeda)->seconds();
+            $pm->langkah();
+            $t = $this->take($id);
+            $this->assertSame(['unggah', 1, null], [$t->status, (int) $t->dicoba, $t->request_id], 'kunci ditolak tidak memakan jatah dan tidak mengakhiri');
+        }
+        $this->assertStringContainsString('HTTP 403', $this->take($id)->galat);
+        $this->assertStringContainsString('mungkin sudah diterima', $this->take($id)->galat);
+
+        $this->travel(61)->seconds();
+        $pm->langkah();
+        $this->assertSame('queued', $this->take($id)->status);
+        $this->assertCount(4, $this->hf->kiriman);
+        $this->assertCount(1, array_unique(array_column($this->hf->kiriman, 'json')), 'selalu body yang sama');
+        $this->assertCount(1, array_unique(array_column($this->hf->kiriman, 'idem')), 'selalu kunci yang sama');
+    }
+
+    public function test_429_tidak_memakan_jatah_dan_mengikuti_retry_after(): void
+    {
+        // LC-5: antrean akun penuh. 429 berarti tidak ada yang dibuat.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $penuh = HiggsfieldGalat::dariHttp('mengirim generate', 429, '', null, 45);
+        $this->hf->galat['kirim'] = array_fill(0, Pemantau::BATAS_COBA + 3, $penuh);
+
+        $pm->langkah();
+        $this->assertSame(['unggah', 0], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+        $this->travel(44)->seconds();
+        $pm->langkah();
+        $this->assertCount(1, $this->hf->kiriman, 'Retry-After 45 dtk dihormati');
+        $this->travel(1)->seconds();
+        $pm->langkah();
+        $this->assertCount(2, $this->hf->kiriman);
+
+        for ($i = 3; $i <= Pemantau::BATAS_COBA + 3; $i++) {
+            $this->travel(45)->seconds();
+            $pm->langkah();
+        }
+        $t = $this->take($id);
+        $this->assertCount(Pemantau::BATAS_COBA + 3, $this->hf->kiriman);
+        $this->assertSame(['unggah', 0], [$t->status, (int) $t->dicoba], 'lebih dari BATAS_COBA kali 429 tetap belum diakhiri');
+        $this->assertStringContainsString('HTTP 429', $t->galat);
+
+        // Masih 429 sampai batas_kirim_ulang_jam: diakhiri tanpa biaya dan tanpa peringatan "MUNGKIN".
+        $this->travel(12)->hours();
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['galat', 0.0], [$t->status, (float) $t->biaya_usd]);
+        $this->assertNotNull($t->biaya_usd);
+        $this->assertStringNotContainsString('MUNGKIN', $t->galat);
+        $this->assertStringContainsString('12 jam', $t->galat);
+        $this->assertCount(Pemantau::BATAS_COBA + 3, $this->hf->kiriman, 'tidak dikirim lagi sesudah batasnya');
+        $this->assertTrue($pm->bolehUlang((int) $this->item('T01')->id)['boleh']);
+        $this->harusGalat(fn () => $pm->periksaLagi($id), 'tidak ditagih');
+    }
+
+    public function test_429_sesudah_kiriman_yang_tidak_pasti_tetap_dianggap_mungkin_diterima(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->hf->galat['kirim'] = [HiggsfieldGalat::jaringan('mengirim generate', 'waktu tunggu habis'), HiggsfieldGalat::dariHttp('mengirim generate', 429, '', null, 30)];
+
+        $pm->langkah();
+        $this->travel(31)->seconds();
+        $pm->langkah();
+        $this->assertSame(['unggah', 1], [$this->take($id)->status, (int) $this->take($id)->dicoba], '429 mengembalikan hitungan ke kiriman yang tidak pasti');
+
+        DB::table('produksi_take')->where('id', $id)->update(['dikirim_at' => now()->subHours(13)]);
+        $this->travel(31)->seconds();
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['galat', null], [$t->status, $t->biaya_usd]);
+        $this->assertStringContainsString('MUNGKIN sudah diterima', $t->galat);
+        $this->assertCount(2, $this->hf->kiriman);
+
+        // Periksa lagi: tidak dikirim ulang karena kuncinya mungkin sudah kedaluwarsa.
+        $this->harusGalat(fn () => $pm->periksaLagi($id), 'lebih dari 12 jam');
+    }
+
+    public function test_periksa_lagi_mengirim_ulang_body_yang_sama_dan_menolak_yang_tidak_bisa(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->hf->galat['kirim'] = array_fill(0, Pemantau::BATAS_COBA, HiggsfieldGalat::dariHttp('mengirim generate', 502));
+        for ($i = 1; $i <= Pemantau::BATAS_COBA; $i++) {
+            $pm->langkah();
+            $this->travel(5)->minutes();
+        }
+        $this->assertSame(['galat', null], [$this->take($id)->status, $this->take($id)->biaya_usd]);
+
+        // Body tersimpan tanpa request_id: dikirim ulang persis (body + Idempotency-Key yang sama).
+        $pm->periksaLagi($id);
+        $t = $this->take($id);
+        $this->assertSame(['unggah', 1, null], [$t->status, (int) $t->dicoba, $t->galat]);
+        $pm->langkah();
+        $this->assertSame('queued', $this->take($id)->status);
+        $this->assertCount(Pemantau::BATAS_COBA + 1, $this->hf->kiriman);
+        $this->assertCount(1, array_unique(array_column($this->hf->kiriman, 'json')));
+        $this->assertCount(1, array_unique(array_column($this->hf->kiriman, 'idem')));
+
+        // Yang tidak bisa diperiksa lagi.
+        $this->harusGalat(fn () => $pm->periksaLagi($id), 'masih dikerjakan pemantau');
+        $this->harusGalat(fn () => $pm->periksaLagi(999), 'Take tidak ditemukan');
+        $manual = $pm->tambahManual((int) $this->item('T02')->id, $this->videoLuar('a.mp4'));
+        $this->harusGalat(fn () => $pm->periksaLagi($manual), 'sudah selesai');
+        DB::table('produksi_take')->where('id', $manual)->update(['status' => 'galat']);
+        $this->harusGalat(fn () => $pm->periksaLagi($manual), 'Take manual');
+        DB::table('produksi_take')->where('id', $id)->update(['status' => 'failed']);
+        $this->harusGalat(fn () => $pm->periksaLagi($id), 'tidak ditagih');
+
+        // Galat sebelum ada yang sampai ke Higgsfield.
+        $belum = $pm->kirim($packId, self::pilih($this->item('T02')))['take_ids'][0];
+        $this->hf->galat['unggah'] = [new \RuntimeException('meledak')];
+        $pm->langkah();
+        $this->assertSame('galat', $this->take($belum)->status);
+        $this->harusGalat(fn () => $pm->periksaLagi($belum), 'belum pernah sampai ke Higgsfield');
+        $this->assertTrue($pm->bolehUlang((int) $this->item('T02')->id)['boleh'], 'galat sebelum dikirim tidak menahan take baru');
+
+        // Pack yang kemudian ditolak aturan umur.
+        DB::table('produksi_take')->where('id', $id)->update(['status' => 'galat']);
+        DB::table('produksi_pack')->update(['umur_status' => 'tolak']);
+        $this->harusGalat(fn () => $pm->periksaLagi($id), 'ditolak aturan umur');
     }
 
     // ---------------------------------------------------------------- gerbang kirim
@@ -867,8 +1285,13 @@ class PemantauTest extends TestCase
         $pm->simpanNilai($id, [], []);
         $this->assertSame(['{}', '[]'], [$this->take($id)->nilai, $this->take($id)->catatan]);
 
-        $this->harusGalat(fn () => $pm->simpanNilai($id, [3 => 'lolos'], []), 'kriteria yang tidak ada');
+        // Nilai lama untuk kriteria yang sudah dipangkas dari pack dibuang, catatannya tetap tersimpan (P6).
+        $pm->simpanNilai($id, [1 => 'lolos', 3 => 'gagal', '5' => 'lolos'], [['t' => 2, 'isi' => 'Catatan baru']]);
+        $this->assertSame(['{"1":"lolos"}', [['t' => 2, 'isi' => 'Catatan baru']]], [$this->take($id)->nilai, json_decode($this->take($id)->catatan, true)]);
+        $pm->simpanNilai($id, [], []);
+
         $this->harusGalat(fn () => $pm->simpanNilai($id, ['x' => 'lolos'], []), 'kriteria yang tidak ada');
+        $this->harusGalat(fn () => $pm->simpanNilai($id, [-1 => 'lolos'], []), 'kriteria yang tidak ada');
         $this->harusGalat(fn () => $pm->simpanNilai($id, [0 => 'bagus'], []), 'hanya boleh lolos atau gagal');
         $this->harusGalat(fn () => $pm->simpanNilai($id, [], array_fill(0, 51, ['t' => 1, 'isi' => 'x'])), 'Paling banyak 50 catatan');
         $this->harusGalat(fn () => $pm->simpanNilai($id, [], [['t' => '1234567890123', 'isi' => 'x']]), '12 karakter');
@@ -878,9 +1301,10 @@ class PemantauTest extends TestCase
         $pm->simpanNilai($id, [], array_fill(0, 50, ['t' => '00:12.5', 'isi' => str_repeat('é', 500)]));
         $this->assertSame('00:12.5', json_decode($this->take($id)->catatan, true)[0]['t']);
 
-        // Klip tidak punya kriteria: indeks apa pun ditolak.
+        // Klip tidak punya kriteria: nilai apa pun dibuang, catatan tetap tersimpan.
         $klip = $pm->tambahManual((int) $this->item('01')->id, $this->videoLuar('b.mp4'));
-        $this->harusGalat(fn () => $pm->simpanNilai($klip, [0 => 'lolos'], []), 'kriteria yang tidak ada');
+        $pm->simpanNilai($klip, [0 => 'lolos'], [['t' => 1, 'isi' => 'Bagus']]);
+        $this->assertSame(['{}', [['t' => 1, 'isi' => 'Bagus']]], [$this->take($klip)->nilai, json_decode($this->take($klip)->catatan, true)]);
     }
 
     public function test_putuskan_dan_status_item(): void
@@ -984,12 +1408,25 @@ class PemantauTest extends TestCase
         $this->assertFalse($pm->pastikanJalan(), 'tanpa take aktif tidak ada yang dinyalakan');
         $this->assertSame(0, DB::table('produksi_jalan')->count());
 
+        // Baris yang dibuat halaman belum berdetak: belum "hidup", tapi juga tidak dinyalakan lagi selama detak_mati_detik.
         $pm->kirim($packId, self::pilih($this->item('T01')));
-        $this->assertSame(1, DB::table('produksi_jalan')->count());
+        $baris = DB::table('produksi_jalan')->get();
+        $this->assertCount(1, $baris);
+        $this->assertNull($baris[0]->detak, 'detak hanya ditulis perintahnya sendiri');
+        $this->assertFalse($pm->pemantauHidup());
         $this->assertTrue($pm->pastikanJalan());
+        $this->assertSame(1, DB::table('produksi_jalan')->count(), 'baru dinyalakan: tidak menyalakan lagi');
+        $this->assertSame(['hidup' => false, 'pesan' => 'Pemantau latar sedang dinyalakan (08.00).', 'detak' => null], $pm->infoPemantau());
+
+        // Perintahnya berdetak: hidup.
+        $this->travel(2)->seconds();
+        DB::table('produksi_jalan')->update(['detak' => now()]);
         $this->assertTrue($pm->pemantauHidup());
+        $this->assertSame(['hidup' => true, 'pesan' => null, 'detak' => '08.00'], $pm->infoPemantau());
+        $this->assertTrue($pm->pastikanJalan());
         $this->assertSame(1, DB::table('produksi_jalan')->count(), 'detak masih segar: tidak menyalakan lagi');
 
+        // Detak hilang: baris yatim ditutup, yang baru dinyalakan.
         $this->travel(31)->seconds();
         $this->assertFalse($pm->pemantauHidup());
         $this->assertTrue($pm->pastikanJalan());
@@ -997,7 +1434,116 @@ class PemantauTest extends TestCase
         $this->assertCount(2, $baris);
         $this->assertNotNull($baris[0]->selesai);
         $this->assertStringContainsString('tanpa pamit', $baris[0]->pesan);
-        $this->assertNull($baris[1]->selesai);
+        $this->assertSame([null, null], [$baris[1]->selesai, $baris[1]->detak]);
+
+        // Yang baru tidak pernah berdetak (mis. php.exe salah versi langsung mati): ditutup dengan pesan itu,
+        // dinyalakan lagi, dan halaman diberi tahu cara menjalankannya dengan tangan.
+        $this->travel(31)->seconds();
+        $this->assertTrue($pm->pastikanJalan());
+        $baris = DB::table('produksi_jalan')->orderBy('id')->get();
+        $this->assertCount(3, $baris);
+        $this->assertStringContainsString('Tidak pernah berdetak', $baris[1]->pesan);
+        $info = $pm->infoPemantau();
+        $this->assertSame([false, '08.00'], [$info['hidup'], $info['detak']]);
+        $this->assertStringStartsWith('Pemantau latar belum berjalan: yang dinyalakan halaman tidak pernah berdetak. Jalankan: ', $info['pesan']);
+        $this->assertStringEndsWith(' artisan produksi:pantau dari folder v2.', $info['pesan']);
+
+        // Tanpa take aktif: tidak ada pesan.
+        DB::table('produksi_take')->update(['status' => 'failed']);
+        $this->assertNull($pm->infoPemantau()['pesan']);
+    }
+
+    public function test_pastikan_jalan_tidak_menyalakan_kedua_selagi_pemantau_memegang_kuncinya(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $pm->kirim($packId, self::pilih($this->item('T01')));
+        DB::table('produksi_jalan')->update(['detak' => now()]);
+
+        // Pemantau sedang di langkah panjang: detaknya basi, tapi prosesnya masih memegang kunci.
+        $kunci = Pemantau::kunciPemantau(1);
+        $this->assertIsResource($kunci);
+        try {
+            $this->travel(2)->minutes();
+            $this->assertFalse($pm->pemantauHidup());
+            $this->assertTrue($pm->pastikanJalan());
+            $this->assertSame(1, DB::table('produksi_jalan')->count());
+            $this->assertNull(DB::table('produksi_jalan')->value('selesai'), 'barisnya tidak ditutup');
+            $this->assertStringContainsString('sedang mengerjakan langkah yang panjang', $pm->infoPemantau()['pesan']);
+            $this->assertFalse(Pemantau::kunciPemantau(1), 'pemantau kedua tidak mendapat kunci');
+        } finally {
+            Pemantau::lepasKunci($kunci);
+        }
+
+        // Prosesnya sudah mati (kunci lepas): diganti.
+        $this->assertTrue($pm->pastikanJalan());
+        $this->assertSame(2, DB::table('produksi_jalan')->count());
+    }
+
+    public function test_perintah_pantau_berhenti_kalau_pemantau_lain_sudah_jalan(): void
+    {
+        $packId = $this->packMaomao();
+        $id = $this->pemantau()->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $jalan = (int) DB::table('produksi_jalan')->value('id');
+
+        // Kunci dipegang proses lain.
+        $kunci = Pemantau::kunciPemantau(1);
+        try {
+            $this->artisan('produksi:pantau', ['--jalan' => $jalan])->assertExitCode(0);
+        } finally {
+            Pemantau::lepasKunci($kunci);
+        }
+        $baris = DB::table('produksi_jalan')->where('id', $jalan)->first();
+        $this->assertNotNull($baris->selesai);
+        $this->assertStringContainsString('Pemantau lain masih berjalan', $baris->pesan);
+        $this->assertSame([], $this->hf->kiriman, 'tidak mengerjakan apa pun');
+        $this->assertSame('siap', $this->take($id)->status);
+
+        // Baris pemantau lain (mis. salinan aplikasi lain di database yang sama) masih berdetak.
+        $lain = (int) DB::table('produksi_jalan')->insertGetId(['mulai' => now(), 'detak' => now()]);
+        $this->artisan('produksi:pantau', ['--sekali' => true])->assertExitCode(0);
+        $sendiri = DB::table('produksi_jalan')->orderByDesc('id')->first();
+        $this->assertStringContainsString("Pemantau lain (#{$lain}) masih berdetak", $sendiri->pesan);
+        $this->assertSame([], $this->hf->kiriman);
+    }
+
+    public function test_langkah_berhenti_kalau_baris_pemantau_ditutup(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        [$a, $b] = $pm->kirim($packId, self::pilih($this->item('T01'), 2))['take_ids'];
+
+        $detak = 0;
+        $pm->saatDetak(function () use (&$detak) {
+            $detak++;
+
+            return false; // barisnya sudah ditutup (digantikan pemantau lain)
+        });
+        $l = $pm->langkah();
+        $this->assertSame(1, $l['diproses']);
+        $this->assertGreaterThanOrEqual(1, $detak);
+        $this->assertSame(['queued', 'siap'], [$this->take($a)->status, $this->take($b)->status], 'take yang sedang dikerjakan diselesaikan, sisanya ditinggal');
+    }
+
+    public function test_peluncur_menjalankan_artisan_pantau_lewat_php_cli_yang_sah(): void
+    {
+        // Di tes unit tidak ada yang dijalankan.
+        $this->assertTrue(Peluncur::lepas('produksi:pantau --jalan=12', $sebab));
+        $this->assertNull($sebab);
+        $this->assertFalse(Peluncur::lepas('produksi:pantau & del *', $sebab));
+        $this->assertSame('Perintah pemantau tidak sah.', $sebab);
+
+        // Tes berjalan dengan php CLI: PHP_BINARY sendiri yang dipakai.
+        config(['produksi.php' => '']);
+        $this->assertSame(realpath(PHP_BINARY), Peluncur::php());
+
+        // PRODUKSI_PHP yang menunjuk berkas yang ada didahulukan; yang tidak ada dilewati.
+        $palsu = $this->akar . DIRECTORY_SEPARATOR . 'php-lain.exe';
+        file_put_contents($palsu, '');
+        config(['produksi.php' => $palsu]);
+        $this->assertSame(realpath($palsu), Peluncur::php());
+        config(['produksi.php' => $this->akar . DIRECTORY_SEPARATOR . 'tidak-ada' . DIRECTORY_SEPARATOR . 'php.exe']);
+        $this->assertSame(realpath(PHP_BINARY), Peluncur::php());
     }
 
     public function test_perintah_pantau_sekali_menjalankan_satu_langkah(): void

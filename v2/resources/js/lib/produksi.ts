@@ -150,16 +150,47 @@ export const BAHASA: Record<string, string> = { id: 'Indonesia', en: 'Inggris', 
  * Penilaian checklist selalu jadi objek berkunci indeks ("0", "1", …).
  * PHP mengirim array berurutan sebagai JSON array dan array kosong sebagai [],
  * jadi keduanya dirapikan di sini sebelum dipakai.
+ *
+ * Dengan `jumlahKriteria`, kunci yang bukan indeks kriteria yang ada
+ * (bukan bilangan bulat, atau ≥ jumlah kriteria sesudah README direvisi)
+ * dibuang: barisnya tidak tampil jadi tidak bisa dihapus, dan server menolak
+ * setiap simpanan yang masih menyebutnya.
  */
-export function rapikanNilai(nilai: NilaiTake | null | undefined): Record<string, NilaiKriteria> {
+export function rapikanNilai(nilai: NilaiTake | null | undefined, jumlahKriteria?: number): Record<string, NilaiKriteria> {
     const hasil: Record<string, NilaiKriteria> = {};
     if (!nilai) return hasil;
 
     for (const [kunci, v] of Object.entries(nilai)) {
-        if (v === 'lolos' || v === 'gagal') hasil[String(kunci)] = v;
+        if (v !== 'lolos' && v !== 'gagal') continue;
+        if (jumlahKriteria === undefined) {
+            hasil[String(kunci)] = v;
+        } else if (/^\d+$/.test(kunci) && Number(kunci) < jumlahKriteria) {
+            hasil[String(Number(kunci))] = v;
+        }
     }
 
     return hasil;
+}
+
+/** Sidik take satu pack: "id:status" terurut, digabung koma — sama persis dengan ProduksiController::sidikTake(). */
+export function sidikTake(takes: Array<{ id: number; status: string }>): string {
+    return takes
+        .map((t) => `${t.id}:${t.status}`)
+        .sort()
+        .join(',');
+}
+
+/**
+ * Chip keadaan pemantau latar dari produksi.status. Tidak pernah berkata
+ * "berjalan" kalau pemantaunya sendiri tidak berdetak; tanpa take aktif ia
+ * memang tidur (berhenti sendiri), dan itu bukan masalah.
+ */
+export function chipPemantau(info: { hidup: unknown; pesan: string | null } | null | undefined): Label | null {
+    if (!info) return null;
+    if (info.hidup) return { teks: 'Pemantau berjalan', nada: 'lolos' };
+    if (info.pesan) return { teks: 'Pemantau belum berdetak', nada: 'awas' };
+
+    return { teks: 'Pemantau diam · tidak ada take aktif', nada: 'belum' };
 }
 
 // ---- Polling ----

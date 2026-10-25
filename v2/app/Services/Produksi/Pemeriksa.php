@@ -420,8 +420,11 @@ class Pemeriksa
     {
         $kata = array_filter(array_map('strval', (array) ($this->cfg['kata_sensitif_negative'] ?? [])));
 
-        $cek = [];
+        // Satu baris untuk seluruh pack: kata yang sama biasanya muncul di
+        // banyak prompt, dan tujuh saran terpisah membuat papan terlihat ramai.
         $diperiksa = 0;
+        $perKata = [];   // kata => [label item, ...]
+        $kodeSemua = []; // kode item yang punya temuan
         foreach ($item as $it) {
             if ($it['prompt'] === '') {
                 continue;
@@ -438,18 +441,28 @@ class Pemeriksa
                     }
                 }
             }
-            if ($temu) {
-                $cek[] = self::cek('negative', 'saran',
-                    'Kata sensitif ' . self::gabung(array_map(fn ($k) => "“{$k}”", array_values($temu))) . ' ada di baris Negative ' . self::label($it) . '.',
-                    'Catatan jebakan Wan: kata sensitif lebih aman tidak ditaruh di Negative.', $it['kode']);
+            foreach ($temu as $k) {
+                $perKata[$k][] = self::label($it);
+                $kodeSemua[$it['kode']] = true;
             }
         }
 
-        if (!$cek && $diperiksa > 0) {
-            $cek[] = self::cek('negative', 'aman', 'Baris Negative bersih.', 'Tidak ada kata sensitif di baris Negative.');
+        if ($perKata) {
+            $bagian = [];
+            foreach ($perKata as $k => $label) {
+                $bagian[] = "“{$k}” di " . self::gabung($label);
+            }
+            $kodeSemua = array_keys($kodeSemua);
+
+            return [self::cek('negative', 'saran',
+                'Kata sensitif ada di baris Negative: ' . implode('; ', $bagian) . '.',
+                'Catatan jebakan Wan: kata sensitif lebih aman tidak ditaruh di Negative. Tidak menghalangi kirim.',
+                count($kodeSemua) === 1 ? $kodeSemua[0] : null)];
         }
 
-        return $cek;
+        return $diperiksa > 0
+            ? [self::cek('negative', 'aman', 'Baris Negative bersih.', 'Tidak ada kata sensitif di baris Negative.')]
+            : [];
     }
 
     private function cekWaktu(array $item): array

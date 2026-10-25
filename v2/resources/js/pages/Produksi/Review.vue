@@ -5,12 +5,25 @@ import BarisCek from '@/components/produksi/BarisCek.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
 import PemutarTake from '@/components/produksi/PemutarTake.vue';
+import TambahBerkas from '@/components/produksi/TambahBerkas.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { kirim, salin } from '@/lib/kirim';
-import { koma, labelItem, labelTake, namaModel, pakaiPolling, rapikanNilai, seedRapi, takeAktif, tanpaEkstensi, waktuVideo } from '@/lib/produksi';
+import {
+    koma,
+    labelItem,
+    labelTake,
+    namaModel,
+    pakaiPolling,
+    rapikanNilai,
+    seedRapi,
+    takeAktif,
+    tanpaEkstensi,
+    uang,
+    waktuVideo,
+} from '@/lib/produksi';
 import type { CatatanWaktu, JawabPutuskan, JawabStatus, Keputusan, NilaiKriteria, PropsReview, StatusItem } from '@/types/produksi';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Check, Copy, Loader2, Plus, X } from 'lucide-vue-next';
+import { Check, Copy, Loader2, Plus, RefreshCw, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 /**
@@ -42,7 +55,9 @@ const statusItem = ref<StatusItem | null>(null);
 
 function isiDariProps() {
     for (const k of Object.keys(nilai)) delete nilai[k];
-    Object.assign(nilai, rapikanNilai(props.take.nilai));
+    // Nilai untuk kriteria yang sudah tidak ada (README direvisi) dibuang di sini: barisnya
+    // tidak tampil, dan server menolak setiap simpanan yang masih menyebutnya.
+    Object.assign(nilai, rapikanNilai(props.take.nilai, props.item.kriteria.length));
     catatan.value = [...(props.take.catatan ?? [])].map((c) => ({ t: Number(c.t) || 0, isi: String(c.isi ?? '') })).sort((a, b) => a.t - b.t);
     keputusan.value = props.take.keputusan;
     statusItem.value = null;
@@ -225,10 +240,39 @@ watch(teksClaude, () => {
     if (salinan.value === 'ok') salinan.value = '';
 });
 
+// ---- Take yang berakhir tanpa video: pulihkan ----
+/*
+ * galat/failed/nsfw/canceled tidak bisa dinilai. Dua jalan keluar:
+ *   - "Periksa lagi ke Higgsfield" untuk take galat yang mungkin sudah
+ *     dibayar (punya request, atau body tersimpan yang belum pasti
+ *     ditolak): take kembali dipantau dan videonya diambil lagi. Tidak
+ *     membuat request baru, jadi tidak menagih lagi.
+ *   - "Tambah take dari berkas": video yang diunduh manual dari dashboard
+ *     Higgsfield masuk sebagai take baru item ini.
+ */
+const berakhirTanpaVideo = computed(() => props.take.status !== 'selesai' && !takeAktif(props.take.status));
+const memeriksa = ref(false);
+const pesanPeriksa = ref('');
+
+async function periksaLagi() {
+    if (memeriksa.value || !props.take.bisa_periksa) return;
+    memeriksa.value = true;
+    pesanPeriksa.value = '';
+    try {
+        await kirim(route('produksi.take.periksa', { id: props.take.id }));
+        router.reload({ only: ['take', 'takes'] });
+    } catch (e: any) {
+        pesanPeriksa.value = e?.message ?? 'Take ini tidak bisa diperiksa lagi.';
+    } finally {
+        memeriksa.value = false;
+    }
+}
+
 // ---- Take yang belum selesai: tunggu sampai videonya datang ----
 pakaiPolling(async () => {
     if (!takeAktif(props.take.status)) return;
-    const j = await kirim<JawabStatus>(route('produksi.status'), undefined, 'GET');
+    // pack_id: semua take pack ini selalu ikut, walau pack lain sudah mengirim lebih dari 20 take sesudahnya.
+    const j = await kirim<JawabStatus>(route('produksi.status', { pack_id: props.pack.id }), undefined, 'GET');
     const baru = j.takes.find((t) => t.id === props.take.id);
     if (baru && baru.status !== props.take.status) router.reload({ only: ['take', 'takes'] });
 }, 5000);
@@ -463,10 +507,48 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                     <section class="kartu flex flex-col gap-3 p-5" aria-labelledby="judul-keputusan">
                         <h2 id="judul-keputusan" class="m-0 text-[14px] font-semibold">Keputusan</h2>
 
-                        <p v-if="!bisaPutus" class="m-0 text-[13px] leading-normal text-muted-foreground">
-                            Take ini belum bisa dinilai (status: {{ labelTake(take.status).teks }}). Keputusan bisa diambil setelah videonya ada di PC
-                            ini.
-                        </p>
+                        <template v-if="!bisaPutus">
+                            <p v-if="!berakhirTanpaVideo" class="m-0 text-[13px] leading-normal text-muted-foreground">
+                                Take ini belum bisa dinilai (status: {{ labelTake(take.status).teks }}). Keputusan bisa diambil setelah videonya ada
+                                di PC ini.
+                            </p>
+
+                            <!-- Berakhir tanpa video: pulihkan dari Higgsfield atau dari berkas -->
+                            <div
+                                v-else
+                                class="flex flex-col gap-3 rounded-xl border border-[hsl(var(--kanvas)/0.4)] bg-[hsl(var(--kanvas)/0.06)] p-3.5 text-[13px] leading-normal"
+                            >
+                                <p class="m-0">
+                                    Take ini berakhir tanpa video ({{ labelTake(take.status).teks }}), jadi tidak bisa dinilai.
+                                    <template v-if="take.bisa_periksa">
+                                        Higgsfield mungkin sudah membuatnya<template v-if="take.biaya === null">, dan biayanya belum pasti</template
+                                        ><template v-else-if="Number(take.biaya) > 0"> — biaya {{ uang(take.biaya) }} sudah tercatat</template>.
+                                        Periksa lagi dulu sebelum mengirim take baru, supaya tidak membayar dua kali.
+                                    </template>
+                                </p>
+                                <p v-if="take.request_id" class="m-0 text-muted-foreground">
+                                    Request Higgsfield:
+                                    <span class="select-all break-all font-mono text-foreground">{{ take.request_id }}</span>
+                                </p>
+                                <Tombol v-if="take.bisa_periksa" ukuran="besar" penuh :nonaktif="memeriksa" @click="periksaLagi">
+                                    <Loader2 v-if="memeriksa" class="h-4 w-4 animate-spin" />
+                                    <RefreshCw v-else class="h-4 w-4" />
+                                    Periksa lagi ke Higgsfield
+                                </Tombol>
+                                <p
+                                    v-if="pesanPeriksa"
+                                    role="alert"
+                                    class="m-0 rounded-lg border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-[13px]"
+                                >
+                                    {{ pesanPeriksa }}
+                                </p>
+                                <TambahBerkas :item-id="item.id" ukuran="besar" penuh />
+                                <p class="m-0 text-[12px] text-muted-foreground">
+                                    Sudah mengunduh videonya dari dashboard Higgsfield, atau membuatnya di tempat lain? Tambahkan sebagai take baru
+                                    {{ item.kode }} — tanpa biaya.
+                                </p>
+                            </div>
+                        </template>
 
                         <!-- Sudah diputuskan -->
                         <div
