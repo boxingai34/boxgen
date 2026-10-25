@@ -82,9 +82,10 @@ export async function kirim<T = any>(alamat: string, isi?: unknown, metode: 'GET
 
     if (!jawab.ok || data?.ok === false) {
         // Pesan validasi Laravel datang sebagai { errors: { field: [pesan] } }.
+        // Endpoint PRODUKSI menjawab galatnya sebagai { pesan } (RENCANA-PRODUKSI §8).
         const pesanValidasi = data?.errors ? (Object.values(data.errors)[0] as string[])?.[0] : null;
 
-        throw new GalatKirim(data?.error || pesanValidasi || data?.message || `Gagal (HTTP ${jawab.status}).`, jawab.status);
+        throw new GalatKirim(data?.error || data?.pesan || pesanValidasi || data?.message || `Gagal (HTTP ${jawab.status}).`, jawab.status);
     }
 
     return data as T;

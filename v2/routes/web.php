@@ -12,6 +12,7 @@ use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MixedFightController;
 use App\Http\Controllers\MonthlyShowdownController;
+use App\Http\Controllers\ProduksiController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
@@ -141,6 +142,38 @@ Route::prefix('generator')->group(function () {
                 ->where('nama', '[0-9]+-[kb]\.[a-z0-9]+')->name('fbx.gambar');
             Route::post('kandidat/{id}/status', [AgentFbxController::class, 'status'])->whereNumber('id')->name('fbx.status');
             Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
+        });
+
+        // ---- PRODUKSI: dari prompt pack jadi sampai take terpilih (admin, PC produksi) ----
+        // Generate lewat API Higgsfield (memakai saldo), jadi admin saja; dan
+        // hanya di PC yang punya folder PRODUCTION — di tempat lain 404
+        // (produksi.lokal). Kontraknya di RENCANA-PRODUKSI.md §7.
+        Route::middleware(['admin', 'produksi.lokal'])->prefix('produksi')->group(function () {
+            Route::get('/', [ProduksiController::class, 'papan'])->name('produksi');
+            Route::get('antrian', [ProduksiController::class, 'antrian'])->name('produksi.antrian');
+            Route::get('pengaturan', [ProduksiController::class, 'pengaturan'])->name('produksi.pengaturan');
+            Route::post('uji-kunci', [ProduksiController::class, 'ujiKunci'])->name('produksi.uji');
+            Route::post('impor', [ProduksiController::class, 'impor'])->name('produksi.impor');
+            Route::get('status', [ProduksiController::class, 'status'])->name('produksi.status');
+            Route::post('perkiraan', [ProduksiController::class, 'perkiraan'])->name('produksi.perkiraan');
+            Route::post('kirim', [ProduksiController::class, 'kirim'])->name('produksi.kirim');
+            Route::get('pack/{id}', [ProduksiController::class, 'pack'])->whereNumber('id')->name('produksi.pack');
+            Route::post('pack/{id}/segarkan', [ProduksiController::class, 'segarkan'])->whereNumber('id')->name('produksi.pack.segarkan');
+            Route::post('pack/{id}/umur', [ProduksiController::class, 'konfirmasiUmur'])->whereNumber('id')->name('produksi.pack.umur');
+            Route::post('pack/{id}/buka-klip', [ProduksiController::class, 'bukaKlip'])->whereNumber('id')->name('produksi.pack.buka');
+            Route::get('pack/{id}/kirim', [ProduksiController::class, 'halamanKirim'])->whereNumber('id')->name('produksi.pack.kirim');
+            Route::get('pack/{id}/hasil', [ProduksiController::class, 'hasil'])->whereNumber('id')->name('produksi.pack.hasil');
+            Route::post('pack/{id}/ekspor', [ProduksiController::class, 'ekspor'])->whereNumber('id')->name('produksi.pack.ekspor');
+            Route::post('pack/{id}/serahkan', [ProduksiController::class, 'serahkan'])->whereNumber('id')->name('produksi.pack.serahkan');
+            Route::post('pack/{id}/buka-folder', [ProduksiController::class, 'bukaFolder'])->whereNumber('id')->name('produksi.pack.folder');
+            Route::get('pack/{id}/gambar/{nama}', [ProduksiController::class, 'gambar'])->whereNumber('id')
+                ->where('nama', '[^/\\\\]+')->name('produksi.pack.gambar');
+            Route::post('item/{id}/manual', [ProduksiController::class, 'tambahManual'])->whereNumber('id')->name('produksi.item.manual');
+            Route::get('take/{id}', [ProduksiController::class, 'review'])->whereNumber('id')->name('produksi.take');
+            Route::get('take/{id}/video', [ProduksiController::class, 'video'])->whereNumber('id')->name('produksi.take.video');
+            Route::get('take/{id}/bingkai/{n}', [ProduksiController::class, 'bingkai'])->whereNumber(['id', 'n'])->name('produksi.take.bingkai');
+            Route::post('take/{id}/nilai', [ProduksiController::class, 'nilai'])->whereNumber('id')->name('produksi.take.nilai');
+            Route::post('take/{id}/putuskan', [ProduksiController::class, 'putuskan'])->whereNumber('id')->name('produksi.take.putuskan');
         });
 
         // ---- CMS halaman depan (admin) ----
