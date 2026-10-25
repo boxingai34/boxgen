@@ -85,6 +85,10 @@ export interface TakeBaris {
     url_review: string | null;
     /** Jam "HH.mm". */
     waktu: string;
+    /** Take API yang dibuat dengan prompt yang sudah diganti di pack (tag "prompt lama"). Take manual: selalu false. */
+    prompt_lama: Bendera;
+    /** Take API yang sengaja dikirim tanpa suara (tag "tanpa suara"). */
+    tanpa_suara: Bendera;
 }
 
 /**
@@ -135,6 +139,8 @@ export interface PackRingkas {
     biaya: Uang;
     /** Jumlah cek saran/awas. */
     saran: number;
+    /** Jumlah item yang prompt-nya diperbarui sesudah take API terakhirnya dan versi barunya belum dicoba. */
+    prompt_baru: number;
 }
 
 export interface FolderBaru {
@@ -227,6 +233,11 @@ export interface ItemHalaman {
     cek: Cek[];
     bisa_kirim: Bendera;
     alasan_tidak: string | null;
+    /**
+     * Nomor take API terbaru kalau prompt item sudah diperbarui sesudahnya dan
+     * versi barunya belum dicoba (chip "Prompt baru · belum dicoba"); null = tanpa tanda.
+     */
+    prompt_baru_sesudah: number | null;
 }
 
 export interface PropsPack {
@@ -270,6 +281,10 @@ export interface ItemKirim {
     tarif_per_take: Uang;
     bisa_kirim: Bendera;
     alasan_tidak: string | null;
+    /** Seperti ItemHalaman: nomor take API terbaru yang masih memakai prompt lama, atau null. */
+    prompt_baru_sesudah: number | null;
+    /** Prompt memuat dialog Jepang (「…」): "Suara: Mati" tidak boleh dipilih. */
+    ada_dialog: Bendera;
 }
 
 export interface PropsKirim {
@@ -281,6 +296,8 @@ export interface PropsKirim {
 export interface PilihanKirim {
     item_id: number;
     takes: number;
+    /** false = kirim tanpa suara (generate_audio false); harga sama. Tidak diisi = menyala. */
+    audio?: boolean;
 }
 
 export interface JawabPerkiraan {
@@ -396,6 +413,10 @@ export interface ReviewTake {
      * yang bisa membuat dan menagih take — wajib konfirmasi harga ({konfirmasi: true}).
      */
     bisa_periksa: Bendera;
+    /** Take ini dibuat dengan prompt yang sudah diganti di pack (take manual: selalu false). */
+    prompt_lama: Bendera;
+    /** Take API yang sengaja dikirim tanpa suara; cek "Ada suara" tidak menganggapnya cacat. */
+    tanpa_suara: Bendera;
 }
 
 export interface ReviewItem {
@@ -406,6 +427,11 @@ export interface ReviewItem {
     durasi: number;
     kriteria: string[];
     gambar: Gambar[];
+    /**
+     * Seperti ItemHalaman: nomor take API terbaru yang masih memakai prompt lama, atau null
+     * (versi prompt sekarang sudah dipakai take yang lebih baru — "Ulangi dengan prompt baru" tidak ditawarkan).
+     */
+    prompt_baru_sesudah: number | null;
 }
 
 export interface TakeLain {
@@ -413,6 +439,7 @@ export interface TakeLain {
     nomor: number;
     status: StatusTake;
     keputusan: Keputusan | null;
+    prompt_lama: Bendera;
 }
 
 export interface ReviewPack {

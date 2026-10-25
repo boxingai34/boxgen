@@ -89,12 +89,17 @@ class ProduksiController extends Controller
         'galat'       => 'Galat',
     ];
 
-    /** Aturan pilihan kirim/perkiraan: 1–3 take per item. */
+    /**
+     * Aturan pilihan kirim/perkiraan: 1–3 take per item, `audio` opsional
+     * (bawaan menyala; false = kirim tanpa suara, harga sama — perkiraan
+     * tidak memakainya).
+     */
     private const ATURAN_PILIHAN = [
         'pilihan'           => 'required|array|min:1|max:100',
         'pilihan.*'         => 'array',
         'pilihan.*.item_id' => 'required|integer|min:1',
         'pilihan.*.takes'   => 'required|integer|min:1|max:' . Pemantau::MAKS_TAKE,
+        'pilihan.*.audio'   => 'sometimes|boolean',
     ];
 
     private const PESAN_PILIHAN = [
@@ -104,6 +109,7 @@ class ProduksiController extends Controller
         'pilihan.array'       => 'Pilihan tidak sah. Muat ulang halaman lalu pilih lagi.',
         'pilihan.*.takes.*'   => 'Jumlah take per item harus 1 sampai ' . Pemantau::MAKS_TAKE . '.',
         'pilihan.*.item_id.*' => 'Pilihan item tidak sah. Muat ulang halaman lalu pilih lagi.',
+        'pilihan.*.audio.*'   => 'Pilihan suara tidak sah. Muat ulang halaman lalu pilih lagi.',
         'pilihan.*.array'     => 'Pilihan tidak sah. Muat ulang halaman lalu pilih lagi.',
     ];
 
@@ -123,12 +129,14 @@ class ProduksiController extends Controller
     {
         $packs = $this->gudang->semuaPack();
         $ids = $packs->pluck('id')->map(fn ($x) => (int) $x)->all();
-        $item = $this->itemSemua($ids)->groupBy('pack_id');
+        $semuaItem = $this->itemSemua($ids);
+        $promptBaru = $this->gudang->statusPrompt($semuaItem->pluck('id')->all())['item'];
+        $item = $semuaItem->groupBy('pack_id');
         $take = $this->takeSemua($ids)->groupBy('pack_id');
         $m = $this->modelBawaan();
 
         return Inertia::render('Produksi/Papan', [
-            'packs'         => $packs->map(fn ($p) => $this->ringkasPack($p, $item->get($p->id, collect()), $take->get($p->id, collect())))
+            'packs'         => $packs->map(fn ($p) => $this->ringkasPack($p, $item->get($p->id, collect()), $take->get($p->id, collect()), $promptBaru))
                 ->values()->all(),
             'folderBaru'    => $this->gudang->folderBaru(),
             'koneksi'       => [
@@ -157,7 +165,8 @@ class ProduksiController extends Controller
         $take = $this->takeSemua([$id]);
         $klip = $item->where('jenis', 'klip');
         $kurang = $this->pemantau->testerKurang($id);
-        $halaman = fn (object $i) => $this->itemHalaman($p, $i, $take, $cek);
+        $promptBaru = $this->gudang->statusPrompt($item->pluck('id')->all())['item'];
+        $halaman = fn (object $i) => $this->itemHalaman($p, $i, $take, $cek, $promptBaru);
 
         return Inertia::render('Produksi/Pack', [
             'pack'   => [
@@ -213,27 +222,32 @@ class ProduksiController extends Controller
         $m = $this->modelPack($p);
         $item = $this->gudang->itemsPack($id);
         $take = $this->takeSemua([$id]);
+        $promptBaru = $this->gudang->statusPrompt($item->pluck('id')->all())['item'];
 
-        $baris = $item->map(function (object $i) use ($p, $take) {
+        $baris = $item->map(function (object $i) use ($p, $take, $promptBaru) {
             $milik = $take->where('item_id', (int) $i->id)->sortBy('nomor')->values();
             $alasan = $this->pemantau->alasanTidakKirim((int) $i->id);
             $peringatan = $milik->isNotEmpty() ? $this->peringatanUlang((int) $i->id) : null;
 
             return [
-                'id'             => (int) $i->id,
-                'jenis'          => (string) $i->jenis,
-                'kode'           => (string) $i->kode,
-                'judul'          => (string) $i->judul,
-                'durasi'         => (int) $i->durasi,
-                'gambar'         => $this->gambarItem($p, $i),
-                'ket'            => $peringatan ?? self::ketKirim($i, $milik),
-                'peringatan'     => $peringatan,
-                'pilih_awal'     => false,
-                'take_berikut'   => (int) $milik->max('nomor') + 1,
-                'tarif_per_take' => $this->tarifPerTake((int) $i->id),
-                'bisa_kirim'     => $alasan === null,
-                'alasan_tidak'   => $alasan,
-                'status'         => (string) $i->status, // untuk pilihan awal di bawah, dibuang sebelum dikirim
+                'id'                  => (int) $i->id,
+                'jenis'               => (string) $i->jenis,
+                'kode'                => (string) $i->kode,
+                'judul'               => (string) $i->judul,
+                'durasi'              => (int) $i->durasi,
+                'gambar'              => $this->gambarItem($p, $i),
+                'ket'                 => $peringatan ?? self::ketKirim($i, $milik),
+                'peringatan'          => $peringatan,
+                'pilih_awal'          => false,
+                'take_berikut'        => (int) $milik->max('nomor') + 1,
+                'tarif_per_take'      => $this->tarifPerTake((int) $i->id),
+                'bisa_kirim'          => $alasan === null,
+                'alasan_tidak'        => $alasan,
+                // Nomor take API terbaru yang masih memakai prompt lama (Gudang::statusPrompt); null = tidak ada tanda.
+                'prompt_baru_sesudah' => $promptBaru[(int) $i->id] ?? null,
+                // Dialog Jepang di prompt: pilihan "Suara: Mati" dimatikan (Pemantau::kirim juga menolaknya).
+                'ada_dialog'          => Pemantau::adaDialog((string) $i->prompt),
+                'status'              => (string) $i->status, // untuk pilihan awal di bawah, dibuang sebelum dikirim
             ];
         })->values()->all();
 
@@ -282,6 +296,8 @@ class ProduksiController extends Controller
         $p = $this->packAtau404((int) $i->pack_id);
         $a = Gudang::urai($t->analisis);
         $data = Gudang::urai($p->data);
+        $statusPrompt = $this->gudang->statusPrompt([(int) $i->id]);
+        $promptLama = $statusPrompt['take'];
 
         return Inertia::render('Produksi/Review', [
             'take'  => [
@@ -314,22 +330,29 @@ class ProduksiController extends Controller
                 // Harga take ini; tampil di konfirmasi "Kirim ulang" (body tanpa request_id bisa membuat dan menagih take).
                 'estimasi'     => round((float) $t->estimasi_usd, 2),
                 'bisa_periksa' => self::bisaPeriksa($t),
+                // Body take ini memuat prompt yang sudah diganti di pack (take manual: tidak diketahui → false).
+                'prompt_lama'  => $promptLama[(int) $t->id] ?? false,
+                'tanpa_suara'  => self::tanpaSuara($t),
             ],
             'item'  => [
-                'id'       => (int) $i->id,
-                'jenis'    => (string) $i->jenis,
-                'kode'     => (string) $i->kode,
-                'judul'    => (string) $i->judul,
-                'durasi'   => (int) $i->durasi,
-                'kriteria' => self::daftarTeks(Gudang::urai($i->kriteria)),
-                'gambar'   => $this->gambarItem($p, $i),
+                'id'                  => (int) $i->id,
+                'jenis'               => (string) $i->jenis,
+                'kode'                => (string) $i->kode,
+                'judul'               => (string) $i->judul,
+                'durasi'              => (int) $i->durasi,
+                'kriteria'            => self::daftarTeks(Gudang::urai($i->kriteria)),
+                'gambar'              => $this->gambarItem($p, $i),
+                // Seperti Pack/Kirim. null = versi prompt sekarang sudah dipakai take yang lebih baru (atau tidak
+                // ada yang diganti): Review take prompt lama lalu tidak menawarkan "Ulangi dengan prompt baru".
+                'prompt_baru_sesudah' => $statusPrompt['item'][(int) $i->id] ?? null,
             ],
             'takes' => DB::table('produksi_take')->where('item_id', $i->id)->orderBy('nomor')->get(['id', 'nomor', 'status', 'keputusan'])
                 ->map(fn ($x) => [
-                    'id'        => (int) $x->id,
-                    'nomor'     => (int) $x->nomor,
-                    'status'    => (string) $x->status,
-                    'keputusan' => $x->keputusan !== null && $x->keputusan !== '' ? (string) $x->keputusan : null,
+                    'id'          => (int) $x->id,
+                    'nomor'       => (int) $x->nomor,
+                    'status'      => (string) $x->status,
+                    'keputusan'   => $x->keputusan !== null && $x->keputusan !== '' ? (string) $x->keputusan : null,
+                    'prompt_lama' => $promptLama[(int) $x->id] ?? false,
                 ])->values()->all(),
             'pack'  => [
                 'id'          => (int) $p->id,
@@ -843,8 +866,12 @@ class ProduksiController extends Controller
     // Penyusun data halaman
     // ------------------------------------------------------------------
 
-    /** Satu kartu pack di Papan. */
-    private function ringkasPack(object $p, Collection $item, Collection $take): array
+    /**
+     * Satu kartu pack di Papan.
+     *
+     * @param array<int, int> $promptBaru item_id => nomor take (Gudang::statusPrompt()['item'])
+     */
+    private function ringkasPack(object $p, Collection $item, Collection $take, array $promptBaru = []): array
     {
         $hasil = Gudang::urai($p->cek);
         $cek = self::daftarCek($hasil);
@@ -873,6 +900,8 @@ class ProduksiController extends Controller
             'biaya'        => self::jumlahBiaya($take),
             // Semua yang perlu dilihat sebelum generate, termasuk yang menahan.
             'saran'        => count(array_filter($cek, fn ($c) => $c['tingkat'] !== 'aman')),
+            // Item yang prompt-nya diperbarui sesudah take API terakhirnya dan versi barunya belum dicoba.
+            'prompt_baru'  => $item->filter(fn ($i) => isset($promptBaru[(int) $i->id]))->count(),
         ];
     }
 
@@ -881,8 +910,12 @@ class ProduksiController extends Controller
      * `take_review` = take selesai pertama yang belum diputuskan (tujuan
      * tombol Review), `take_pilihan` = take yang lolos/dipakai (tujuan
      * Lihat); keduanya bisa berbeda dari take_terakhir (nomor terbesar).
+     * `prompt_baru_sesudah` = nomor take API terbaru kalau prompt item sudah
+     * diperbarui sesudahnya (tanda "Prompt baru · belum dicoba"), selain itu null.
+     *
+     * @param array<int, int> $promptBaru item_id => nomor take (Gudang::statusPrompt()['item'])
      */
-    private function itemHalaman(object $p, object $i, Collection $take, array $cek): array
+    private function itemHalaman(object $p, object $i, Collection $take, array $cek, array $promptBaru = []): array
     {
         $milik = $take->where('item_id', (int) $i->id)->sortBy('nomor')->values();
         $akhir = $milik->last();
@@ -894,20 +927,21 @@ class ProduksiController extends Controller
         $singkat = fn (?object $t) => $t ? ['id' => (int) $t->id, 'nomor' => (int) $t->nomor] : null;
 
         return [
-            'id'            => (int) $i->id,
-            'kode'          => (string) $i->kode,
-            'judul'         => (string) $i->judul,
-            'durasi'        => (int) $i->durasi,
-            'gambar'        => $this->gambarItem($p, $i),
-            'status'        => (string) $i->status,
-            'take_terakhir' => $akhir ? ['id' => (int) $akhir->id, 'nomor' => (int) $akhir->nomor, 'status' => (string) $akhir->status] : null,
-            'take_review'   => $singkat($review),
-            'take_pilihan'  => $singkat($pilihan),
-            'jumlah_take'   => $milik->count(),
-            'biaya'         => self::jumlahBiaya($milik),
-            'cek'           => array_values(array_filter($cek, fn ($c) => $c['item'] !== null && $c['item'] === (string) $i->kode)),
-            'bisa_kirim'    => $alasan === null,
-            'alasan_tidak'  => $alasan,
+            'id'                  => (int) $i->id,
+            'kode'                => (string) $i->kode,
+            'judul'               => (string) $i->judul,
+            'durasi'              => (int) $i->durasi,
+            'gambar'              => $this->gambarItem($p, $i),
+            'status'              => (string) $i->status,
+            'take_terakhir'       => $akhir ? ['id' => (int) $akhir->id, 'nomor' => (int) $akhir->nomor, 'status' => (string) $akhir->status] : null,
+            'take_review'         => $singkat($review),
+            'take_pilihan'        => $singkat($pilihan),
+            'jumlah_take'         => $milik->count(),
+            'biaya'               => self::jumlahBiaya($milik),
+            'cek'                 => array_values(array_filter($cek, fn ($c) => $c['item'] !== null && $c['item'] === (string) $i->kode)),
+            'bisa_kirim'          => $alasan === null,
+            'alasan_tidak'        => $alasan,
+            'prompt_baru_sesudah' => $promptBaru[(int) $i->id] ?? null,
         ];
     }
 
@@ -960,7 +994,7 @@ class ProduksiController extends Controller
         $dasar = fn () => DB::table('produksi_take as t')
             ->join('produksi_item as i', 'i.id', '=', 't.item_id')
             ->join('produksi_pack as p', 'p.id', '=', 'i.pack_id')
-            ->select('t.id', 't.item_id', 't.nomor', 't.status', 't.sumber', 't.durasi', 't.estimasi_usd', 't.biaya_usd', 't.keputusan',
+            ->select('t.id', 't.item_id', 't.nomor', 't.status', 't.sumber', 't.durasi', 't.audio', 't.estimasi_usd', 't.biaya_usd', 't.keputusan',
                 't.galat', 't.analisis', 't.dibuat_at', 't.dikirim_at', 't.selesai_at',
                 'i.kode as item_kode', 'i.judul as item_judul', 'i.jenis as item_jenis', 'i.pack_id', 'p.judul as pack_judul', 'p.folder as pack_folder');
 
@@ -969,23 +1003,27 @@ class ProduksiController extends Controller
         if ($packId !== null) {
             $baris = $baris->merge($dasar()->where('i.pack_id', $packId)->get());
         }
+        $baris = $baris->unique('id')->sortByDesc('id')->values();
+        $promptLama = $this->gudang->statusPrompt($baris->pluck('item_id')->all())['take'];
 
-        return $baris->unique('id')->sortByDesc('id')->values()
-            ->map(fn (object $t) => [
-                'id'          => (int) $t->id,
-                'pack_id'     => (int) $t->pack_id,
-                'pack_judul'  => (string) ($t->pack_judul ?: $t->pack_folder),
-                'item_kode'   => (string) $t->item_kode,
-                'item_judul'  => (string) $t->item_judul,
-                'nomor'       => (int) $t->nomor,
-                'status'      => (string) $t->status,
-                'label'       => self::labelTake($t),
-                'ket'         => self::ketTake($t),
-                'biaya'       => $t->biaya_usd !== null ? round((float) $t->biaya_usd, 2) : null,
-                'bisa_review' => $t->status === 'selesai',
-                'url_review'  => route('produksi.take', (int) $t->id),
-                'waktu'       => self::jam($t->selesai_at ?? $t->dikirim_at ?? $t->dibuat_at),
-            ])->all();
+        return $baris->map(fn (object $t) => [
+            'id'          => (int) $t->id,
+            'pack_id'     => (int) $t->pack_id,
+            'pack_judul'  => (string) ($t->pack_judul ?: $t->pack_folder),
+            'item_kode'   => (string) $t->item_kode,
+            'item_judul'  => (string) $t->item_judul,
+            'nomor'       => (int) $t->nomor,
+            'status'      => (string) $t->status,
+            'label'       => self::labelTake($t),
+            'ket'         => self::ketTake($t),
+            'biaya'       => $t->biaya_usd !== null ? round((float) $t->biaya_usd, 2) : null,
+            'bisa_review' => $t->status === 'selesai',
+            'url_review'  => route('produksi.take', (int) $t->id),
+            'waktu'       => self::jam($t->selesai_at ?? $t->dikirim_at ?? $t->dibuat_at),
+            // Tag kecil di baris: dibuat dengan prompt yang sudah diganti di pack, dan dikirim tanpa suara.
+            'prompt_lama' => $promptLama[(int) $t->id] ?? false,
+            'tanpa_suara' => self::tanpaSuara($t),
+        ])->all();
     }
 
     /** Aktivitas terbaru di Papan: kejadian take terakhir, satu kalimat masing-masing. */
@@ -1350,6 +1388,16 @@ class ProduksiController extends Controller
         }
 
         return trim((string) ($t->body ?? '')) !== '' && $t->biaya_usd === null;
+    }
+
+    /**
+     * Take API yang sengaja dikirim tanpa suara ("Suara: Mati" di halaman
+     * Kirim). Take manual tidak termasuk: kolom audio-nya hanya mencatat
+     * ada-tidaknya trek suara di berkasnya.
+     */
+    private static function tanpaSuara(object $t): bool
+    {
+        return (string) $t->sumber === 'api' && isset($t->audio) && !(int) $t->audio;
     }
 
     /**

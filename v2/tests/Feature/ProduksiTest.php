@@ -276,6 +276,7 @@ class ProduksiTest extends TestCase
                 ->where('gambar_a', $urlA)
                 ->where('gambar_b', $urlB)
                 ->where('biaya', 0)
+                ->where('prompt_baru', 0)
                 ->hasAll(['ringkas', 'berikutnya', 'saran']))
             ->where('folderBaru', [['folder' => 'Alfa vs Beta', 'format' => 'json']])
             ->where('koneksi', ['siap' => true, 'awalan' => 'pals', 'model' => 'wan-3.0', 'nama_model' => 'Wan 3.0',
@@ -462,6 +463,7 @@ class ProduksiTest extends TestCase
             ->has('tester.0', fn (Assert $i) => $i
                 ->hasAll(['id', 'kode', 'judul', 'durasi', 'gambar', 'status', 'take_terakhir', 'take_review', 'take_pilihan', 'jumlah_take', 'biaya',
                     'cek', 'bisa_kirim', 'alasan_tidak'])
+                ->where('prompt_baru_sesudah', null)
                 ->where('kode', 'T01')
                 ->where('durasi', 10)
                 ->where('status', 'belum')
@@ -488,6 +490,8 @@ class ProduksiTest extends TestCase
             ->has('item.0', fn (Assert $i) => $i
                 ->hasAll(['id', 'jenis', 'kode', 'judul', 'durasi', 'gambar', 'ket', 'peringatan', 'pilih_awal', 'take_berikut', 'tarif_per_take',
                     'bisa_kirim', 'alasan_tidak'])
+                ->where('prompt_baru_sesudah', null)
+                ->where('ada_dialog', false)
                 ->where('jenis', 'tester')
                 ->where('ket', 'Belum pernah dijalankan')
                 ->where('peringatan', null)
@@ -496,6 +500,8 @@ class ProduksiTest extends TestCase
                 ->where('tarif_per_take', 0.4))
             ->where('item.1.pilih_awal', true)
             ->where('item.2.jenis', 'klip')
+            ->where('item.2.ada_dialog', true) // klip 01: 「遠慮します」
+            ->where('item.3.ada_dialog', false)
             ->where('item.2.tarif_per_take', 1.2)
             ->where('item.2.bisa_kirim', false)
             ->where('item.2.pilih_awal', false));
@@ -880,6 +886,9 @@ class ProduksiTest extends TestCase
             ->has('take', fn (Assert $t) => $t
                 ->hasAll(['id', 'nomor', 'status', 'sumber', 'seed', 'model', 'resolusi', 'durasi', 'video_url', 'poster_url', 'bingkai', 'analisis',
                     'cek', 'nilai', 'catatan', 'keputusan', 'galat', 'request_id', 'biaya', 'estimasi', 'bisa_periksa'])
+                // Take manual: prompt yang dipakai tidak diketahui, dan "tanpa suara" hanya untuk take API.
+                ->where('prompt_lama', false)
+                ->where('tanpa_suara', false)
                 ->where('request_id', null)
                 ->where('biaya', 0)
                 ->where('estimasi', 0)
@@ -896,7 +905,7 @@ class ProduksiTest extends TestCase
                 ->where('keputusan', null)
                 ->where('galat', null))
             ->has('item', fn (Assert $i) => $i->where('kode', 'T01')->where('jenis', 'tester')->has('kriteria', 3)->has('gambar', 2)->etc())
-            ->where('takes', [['id' => $take, 'nomor' => 1, 'status' => 'selesai', 'keputusan' => null]])
+            ->where('takes', [['id' => $take, 'nomor' => 1, 'status' => 'selesai', 'keputusan' => null, 'prompt_lama' => false]])
             ->has('pack', fn (Assert $k) => $k->where('id', $id)->where('judul', 'Maomao vs Pairin')->where('revisi', '2')->has('kontinuitas', 2)));
         $this->actingAs($admin)->get(route('produksi.take', 999))->assertNotFound();
 
@@ -937,6 +946,119 @@ class ProduksiTest extends TestCase
         // Review take yang belum selesai: belum ada video.
         $this->actingAs($admin)->get(route('produksi.take', $siap))->assertInertia(fn (Assert $p) => $p
             ->where('take.status', 'siap')->where('take.video_url', null)->where('take.analisis', null)->where('take.bingkai', []));
+    }
+
+    // ---------------------------------------------------------------- prompt baru, tanpa suara
+
+    public function test_tanda_prompt_baru_sesudah_pack_disegarkan(): void
+    {
+        $id = $this->packMaomao();
+        $admin = $this->admin();
+        $satu = $this->kirimItem('T01');
+        app(Pemantau::class)->langkah(); // body take 1 (dengan prompt T01 saat itu) disimpan lalu dikirim
+        $this->assertStringContainsString('Deadpan', (string) DB::table('produksi_take')->where('id', $satu)->value('body'));
+        $manual = $this->manual('T02');
+        $segarkan = fn () => $this->actingAs($admin)->postJson(route('produksi.pack.segarkan', $id))->assertOk();
+        $baris = fn () => collect($this->actingAs($admin)->getJson(route('produksi.status', ['pack_id' => $id]))->assertOk()->json('takes'))->keyBy('id');
+
+        // Berkas prompt hanya disimpan ulang dengan CRLF dan spasi di ujung baris: bukan prompt baru.
+        $this->tulis('Maomao vs Pairin/TEST REVISI 2/T01.txt', str_replace("\n", "  \r\n", self::promptT01()));
+        $segarkan();
+        $this->assertStringContainsString("\r\n", (string) $this->item('T01')->prompt);
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p->where('tester.0.prompt_baru_sesudah', null));
+        $this->actingAs($admin)->get(route('produksi.take', $satu))->assertInertia(fn (Assert $p) => $p->where('take.prompt_lama', false));
+        $this->assertFalse($baris()[$satu]['prompt_lama']);
+
+        // Prompt T01 dan T02 direvisi, lalu "Segarkan pack".
+        $this->tulis('Maomao vs Pairin/TEST REVISI 2/T01.txt', self::promptT01() . "Extra: faster punches.\n");
+        $this->tulis('Maomao vs Pairin/TEST REVISI 2/T02.txt', self::promptT02() . "Extra: slower.\n");
+        $segarkan();
+
+        // T01: take API terakhirnya memakai prompt lama. T02 hanya punya take manual (prompt-nya tidak diketahui): tanpa tanda.
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p
+            ->where('tester.0.prompt_baru_sesudah', 1)
+            ->where('tester.1.prompt_baru_sesudah', null)
+            ->where('klip.0.prompt_baru_sesudah', null));
+        $this->actingAs($admin)->get(route('produksi.pack.kirim', $id))->assertInertia(fn (Assert $p) => $p
+            ->where('item.0.prompt_baru_sesudah', 1)
+            ->where('item.1.prompt_baru_sesudah', null));
+        $this->actingAs($admin)->get(route('produksi'))->assertInertia(fn (Assert $p) => $p->where('packs.0.prompt_baru', 1));
+        $this->actingAs($admin)->get(route('produksi.take', $satu))->assertInertia(fn (Assert $p) => $p
+            ->where('take.prompt_lama', true)
+            ->where('item.prompt_baru_sesudah', 1) // versi baru belum dicoba: Review menawarkan "Ulangi dengan prompt baru"
+            ->where('takes', [['id' => $satu, 'nomor' => 1, 'status' => 'queued', 'keputusan' => null, 'prompt_lama' => true]]));
+        $this->actingAs($admin)->get(route('produksi.take', $manual))->assertInertia(fn (Assert $p) => $p->where('take.prompt_lama', false));
+        $this->assertSame([true, false], [$baris()[$satu]['prompt_lama'], $baris()[$manual]['prompt_lama']]);
+        $this->actingAs($admin)->get(route('produksi.antrian'))->assertInertia(fn (Assert $p) => $p
+            ->where('takes', fn ($t) => collect($t)->pluck('prompt_lama', 'id')->all() === [$manual => false, $satu => true]));
+
+        // Take baru T01 menunggu dikirim: ia membaca prompt baru saat dikirim, jadi tandanya hilang.
+        $dua = $this->kirimItem('T01');
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p->where('tester.0.prompt_baru_sesudah', null));
+        $this->actingAs($admin)->get(route('produksi'))->assertInertia(fn (Assert $p) => $p->where('packs.0.prompt_baru', 0));
+        app(Pemantau::class)->langkah();
+        $this->assertStringContainsString('faster punches', (string) DB::table('produksi_take')->where('id', $dua)->value('body'));
+        $this->assertSame([true, false], [$baris()[$satu]['prompt_lama'], $baris()[$dua]['prompt_lama']]);
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p->where('tester.0.prompt_baru_sesudah', null));
+        // Review take 1 tetap "prompt lama", tapi versi barunya sudah dipakai take 2: tidak ada ajakan mengulang
+        // (take baru = bayar lagi).
+        $this->actingAs($admin)->get(route('produksi.take', $satu))->assertInertia(fn (Assert $p) => $p
+            ->where('take.prompt_lama', true)
+            ->where('item.prompt_baru_sesudah', null));
+        $this->actingAs($admin)->get(route('produksi.take', $dua))->assertInertia(fn (Assert $p) => $p
+            ->where('take.prompt_lama', false)
+            ->where('item.prompt_baru_sesudah', null));
+
+        // Berkas prompt T01 lalu hilang (prompt item kosong sesudah "Segarkan pack"): bukan "prompt baru".
+        unlink($this->dir() . DIRECTORY_SEPARATOR . 'TEST REVISI 2' . DIRECTORY_SEPARATOR . 'T01.txt');
+        $segarkan();
+        $this->assertSame('', (string) $this->item('T01')->prompt);
+        $this->actingAs($admin)->get(route('produksi.pack', $id))->assertInertia(fn (Assert $p) => $p->where('tester.0.prompt_baru_sesudah', null));
+        $this->assertSame([false, false], [$baris()[$satu]['prompt_lama'], $baris()[$dua]['prompt_lama']]);
+    }
+
+    public function test_kirim_tanpa_suara_lewat_endpoint(): void
+    {
+        $id = $this->packMaomao();
+        $admin = $this->admin();
+        $t01 = (int) $this->item('T01')->id;
+        $kirim = fn (array $pilihan) => $this->actingAs($admin)->postJson(route('produksi.kirim'), ['pack_id' => $id, 'pilihan' => $pilihan, 'konfirmasi' => true]);
+        $harga = fn (array $pilihan) => $this->actingAs($admin)->postJson(route('produksi.perkiraan'), ['pilihan' => $pilihan])->assertOk()->json();
+        $kolom = fn (int $take, string $k) => DB::table('produksi_take')->where('id', $take)->value($k);
+
+        // Harga sama persis dengan atau tanpa suara.
+        $this->assertSame($harga([['item_id' => $t01, 'takes' => 2]]), $harga([['item_id' => $t01, 'takes' => 2, 'audio' => false]]));
+
+        $kirim([['item_id' => $t01, 'takes' => 1, 'audio' => 'kadang']])->assertStatus(422)
+            ->assertJson(['pesan' => 'Pilihan suara tidak sah. Muat ulang halaman lalu pilih lagi.']);
+        // Nilai samar tidak pernah jadi video bisu berbayar.
+        foreach (['', 'off', 'false', null] as $samar) {
+            $kirim([['item_id' => $t01, 'takes' => 1, 'audio' => $samar]])->assertStatus(422)
+                ->assertJson(['pesan' => 'Pilihan suara tidak sah. Muat ulang halaman lalu pilih lagi.']);
+        }
+        $this->assertSame(0, DB::table('produksi_take')->count());
+
+        $mati = (int) $kirim([['item_id' => $t01, 'takes' => 1, 'audio' => false]])->assertOk()->assertJson(['total' => 0.4])->json('take_ids.0');
+        $nyala = $this->kirimItem('T02'); // tanpa kunci audio: menyala
+        $this->assertSame([0, 1], [(int) $kolom($mati, 'audio'), (int) $kolom($nyala, 'audio')]);
+
+        app(Pemantau::class)->langkah();
+        $kiriman = collect($this->hf->kiriman)->keyBy('idem');
+        $this->assertFalse($kiriman[$kolom($mati, 'idem_key')]['body']['generate_audio']);
+        $this->assertTrue($kiriman[$kolom($nyala, 'idem_key')]['body']['generate_audio']);
+
+        // Antrian dan Review menyebut "tanpa suara".
+        $baris = collect($this->actingAs($admin)->getJson(route('produksi.status'))->json('takes'))->keyBy('id');
+        $this->assertSame([true, false], [$baris[$mati]['tanpa_suara'], $baris[$nyala]['tanpa_suara']]);
+        $this->actingAs($admin)->get(route('produksi.take', $mati))->assertInertia(fn (Assert $p) => $p->where('take.tanpa_suara', true));
+        $this->actingAs($admin)->get(route('produksi.take', $nyala))->assertInertia(fn (Assert $p) => $p->where('take.tanpa_suara', false));
+
+        // Klip berdialog Jepang tidak bisa dikirim tanpa suara; dengan suara bisa.
+        DB::table('produksi_pack')->where('id', $id)->update(['klip_dibuka' => 1]);
+        $k01 = (int) $this->item('01')->id;
+        $kirim([['item_id' => $k01, 'takes' => 1, 'audio' => false]])->assertStatus(422)
+            ->assertJson(['pesan' => 'Klip 01 berisi dialog Jepang (「…」), jadi harus dikirim dengan suara menyala.']);
+        $kirim([['item_id' => $k01, 'takes' => 1, 'audio' => true]])->assertOk();
     }
 
     // ---------------------------------------------------------------- aksi pack

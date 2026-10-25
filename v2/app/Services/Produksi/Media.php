@@ -381,10 +381,17 @@ class Media
             }
         }
 
-        // Suara
+        // Suara. `tanpa_suara` = take sengaja dikirim tanpa suara (Pemantau menandainya):
+        // tidak adanya suara justru sesuai pesanan, efek suaranya ditambahkan di CapCut.
         $puncak = $a['puncak_db'] ?? null;
         $rata = $a['rata_db'] ?? null;
-        if (empty($a['audio'])) {
+        $sunyi = empty($a['audio']) || ($rata !== null && $rata < self::SUNYI_DB);
+        if (!empty($a['tanpa_suara']) && $sunyi) {
+            $tambah('audio', 'aman', 'Tanpa suara, sesuai pilihan kirim.', 'Take ini dikirim dengan suara mati. Efek suara ditambahkan di CapCut.');
+        } elseif (!empty($a['tanpa_suara'])) {
+            $tambah('audio', 'saran', 'Ada suara walau dikirim tanpa suara.',
+                'Dengarkan dulu. Kalau musik latarnya mengganggu, bisukan trek ini di CapCut lalu tambahkan efek suara sendiri.');
+        } elseif (empty($a['audio'])) {
             $tambah('audio', 'awas', 'Tidak ada suara.', 'Take ini tanpa trek audio. Dialog dan efek bunyi harus dibuat ulang atau ditambahkan saat edit.');
         } elseif ($rata !== null && $rata < self::SUNYI_DB) {
             $tambah('audio', 'saran', 'Suaranya hampir sunyi (rata-rata ' . self::angka((float) $rata) . ' dB).',

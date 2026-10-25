@@ -25,7 +25,7 @@ import {
 } from '@/lib/produksi';
 import type { CatatanWaktu, JawabPutuskan, JawabStatus, Keputusan, NilaiKriteria, PropsReview, StatusItem } from '@/types/produksi';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Check, Copy, Loader2, Plus, RefreshCw, X } from 'lucide-vue-next';
+import { Check, Copy, History, Loader2, Plus, RefreshCw, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 /**
@@ -46,6 +46,12 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
  * tanpa video (nsfw, failed, canceled, galat) tidak punya apa pun untuk
  * dinilai: checklist dan catatan per waktu disembunyikan, dan teksnya
  * berisi status take + pesan galatnya + permintaan memeriksa prompt.
+ *
+ * Take yang dibuat dengan prompt lama (prompt item sudah direvisi lalu pack
+ * disegarkan) diberi kotak pemberitahuan di atas dan tag "prompt lama" di
+ * daftar take, dengan jalan pintas ke Kirim untuk mencoba versi barunya.
+ * Take yang sengaja dikirim tanpa suara disebut di baris keterangan; cek
+ * otomatisnya tidak menganggap "tidak ada suara" sebagai cacat.
  */
 const props = defineProps<PropsReview>();
 
@@ -178,7 +184,16 @@ function hapusCatatan(indeks: number) {
 const daftarTake = computed(() => {
     const semua = props.takes.some((t) => t.id === props.take.id)
         ? [...props.takes]
-        : [...props.takes, { id: props.take.id, nomor: props.take.nomor, status: props.take.status, keputusan: keputusan.value }];
+        : [
+              ...props.takes,
+              {
+                  id: props.take.id,
+                  nomor: props.take.nomor,
+                  status: props.take.status,
+                  keputusan: keputusan.value,
+                  prompt_lama: props.take.prompt_lama,
+              },
+          ];
     return semua.sort((a, b) => a.nomor - b.nomor);
 });
 
@@ -274,6 +289,8 @@ const teksClaude = computed(() => {
 
     return [
         kepalaClaude.value,
+        // Claude perlu tahu bahwa yang dinilai bukan hasil prompt yang sekarang ada di pack.
+        ...(props.take.prompt_lama ? [`Catatan: take ini dibuat dengan prompt lama; prompt ${props.item.kode} sudah direvisi sesudahnya.`] : []),
         'Gagal:',
         ...(gagal.length ? gagal.map((x) => `- ${x}`) : ['- (tidak ada)']),
         'Catatan per waktu:',
@@ -379,6 +396,7 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                         {{ tester ? 'Tester' : 'Klip' }} {{ item.durasi }} detik · {{ namaModel(take.model) }} · {{ take.resolusi }} · seed
                         <span class="font-mono">{{ seedRapi(take.seed) }}</span>
                         <template v-if="take.sumber === 'manual'"> · ditambahkan manual</template>
+                        <template v-if="take.tanpa_suara"> · tanpa suara (efek suara ditambahkan di CapCut)</template>
                     </p>
                 </div>
                 <nav class="flex flex-wrap gap-2" aria-label="Pilih take">
@@ -395,8 +413,31 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                         :aria-current="t.id === take.id ? 'page' : undefined"
                     >
                         Take {{ t.nomor }}{{ tandaTake(t.id === take.id ? keputusan : t.keputusan) }}
+                        <span
+                            v-if="t.prompt_lama"
+                            class="ml-1.5 rounded-md bg-[hsl(var(--kanvas)/0.12)] px-1.5 py-0.5 text-[11px] font-semibold text-[hsl(var(--kanvas))]"
+                            title="Dibuat dengan prompt lama"
+                            >prompt lama</span
+                        >
                     </Link>
                 </nav>
+            </div>
+
+            <!-- Prompt item sudah direvisi sesudah take ini dibuat -->
+            <div
+                v-if="take.prompt_lama"
+                role="note"
+                class="flex flex-wrap items-center gap-3 rounded-xl border border-[hsl(var(--kanvas)/0.5)] bg-[hsl(var(--kanvas)/0.08)] px-4 py-3 text-[14px] leading-normal"
+            >
+                <History class="h-[18px] w-[18px] shrink-0 text-[hsl(var(--kanvas))]" aria-hidden="true" />
+                <!-- Versi baru sudah dipakai take yang lebih baru: tidak ada ajakan mengulang (take baru = bayar lagi). -->
+                <p v-if="item.prompt_baru_sesudah" class="m-0 min-w-0 flex-[1_1_320px]">
+                    <strong>Take ini dibuat dengan prompt lama.</strong> Prompt sekarang sudah diperbarui — ulangi untuk mencoba versi baru.
+                </p>
+                <p v-else class="m-0 min-w-0 flex-[1_1_320px]">
+                    <strong>Take ini dibuat dengan prompt lama.</strong> Versi barunya sudah dipakai take yang lebih baru.
+                </p>
+                <Tombol v-if="item.prompt_baru_sesudah" jenis="garis" :href="urlUlang">Ulangi dengan prompt baru</Tombol>
             </div>
 
             <div class="flex flex-wrap items-start gap-6">

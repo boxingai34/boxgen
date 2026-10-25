@@ -200,6 +200,117 @@ class Gudang
     }
 
     // ------------------------------------------------------------------
+    // Prompt baru vs prompt yang dipakai take
+    // ------------------------------------------------------------------
+
+    /**
+     * Status "prompt baru" untuk tanda di halaman PRODUKSI. Satu-satunya
+     * bukti prompt mana yang benar-benar dipakai sebuah take adalah body
+     * yang dikirimnya (produksi_take.body); itu dibandingkan dengan prompt
+     * item sekarang (sesudah "Segarkan pack") lewat promptBerbeda().
+     *
+     *   take  take_id => true kalau take itu dibuat dengan prompt lama,
+     *         false kalau dengan prompt sekarang. Hanya take API yang body-nya
+     *         memuat prompt; take manual dan take yang belum/tidak pernah
+     *         mengirim body tidak diketahui, jadi tidak ada di sini. Prompt
+     *         item yang sekarang kosong (berkasnya hilang sesudah "Segarkan
+     *         pack") bukan prompt baru: take-nya false, itemnya tanpa tanda.
+     *   item  item_id => nomor take API terbaru kalau take itu memakai prompt
+     *         lama: prompt item sudah diperbarui sesudahnya dan versi barunya
+     *         belum dicoba. Take `siap`/`unggah` yang belum menyimpan body
+     *         membaca prompt item saat dikirim, jadi dihitung sudah memakai
+     *         versi sekarang; take yang berakhir tanpa pernah mengirim body
+     *         dilewati (tidak ada video dari prompt mana pun).
+     *
+     * @param list<int|string> $itemIds
+     * @return array{take: array<int, bool>, item: array<int, int>}
+     */
+    public function statusPrompt(array $itemIds): array
+    {
+        $hasil = ['take' => [], 'item' => []];
+        $itemIds = array_values(array_unique(array_map('intval', $itemIds)));
+        if (!$itemIds) {
+            return $hasil;
+        }
+
+        $sekarang = DB::table('produksi_item')->whereIn('id', $itemIds)->pluck('prompt', 'id')->all();
+        $takes = DB::table('produksi_take')->whereIn('item_id', $itemIds)->where('sumber', 'api')
+            ->orderBy('item_id')->orderByDesc('nomor')->get(['id', 'item_id', 'nomor', 'status', 'body']);
+
+        $sudah = []; // item yang take API terbarunya (yang bermakna) sudah ditemukan
+        foreach ($takes as $t) {
+            $item = (int) $t->item_id;
+            $dikirim = self::promptBody($t->body);
+            $lama = $dikirim !== null && self::diganti($dikirim, $sekarang[$item] ?? null);
+            if ($dikirim !== null) {
+                $hasil['take'][(int) $t->id] = $lama;
+            }
+            if (isset($sudah[$item]) || ($dikirim === null && !in_array($t->status, ['siap', 'unggah'], true))) {
+                continue;
+            }
+            $sudah[$item] = true;
+            if ($lama) {
+                $hasil['item'][$item] = (int) $t->nomor;
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Take ini dibuat dengan prompt yang berbeda dari $promptSekarang? False
+     * juga untuk yang tidak diketahui: take manual (tidak ada body), take
+     * yang belum mengirim body, dan prompt sekarang yang kosong. Butuh kolom
+     * `body` take.
+     */
+    public static function promptLama(object $take, ?string $promptSekarang): bool
+    {
+        $dikirim = self::promptBody($take->body ?? null);
+
+        return $dikirim !== null && self::diganti($dikirim, $promptSekarang);
+    }
+
+    /**
+     * Dua prompt berbeda isinya? Akhir baris (CRLF/CR/LF), spasi di ujung
+     * baris, baris kosong di awal/akhir, dan BOM di depan diabaikan: berkas
+     * TXT yang hanya disimpan ulang editor lain tidak dianggap prompt baru.
+     */
+    public static function promptBerbeda(?string $a, ?string $b): bool
+    {
+        return self::bakuPrompt($a) !== self::bakuPrompt($b);
+    }
+
+    /** Bentuk pembanding prompt: tanpa BOM, LF saja, tanpa spasi di ujung tiap baris, di-trim. */
+    public static function bakuPrompt(?string $prompt): string
+    {
+        $teks = (string) $prompt;
+        $teks = str_starts_with($teks, "\xEF\xBB\xBF") ? substr($teks, 3) : $teks;
+        $teks = str_replace(["\r\n", "\r"], "\n", $teks);
+
+        return trim((string) preg_replace('/[ \t]+$/m', '', $teks));
+    }
+
+    /**
+     * Prompt yang dikirim take sudah diganti prompt item sekarang? Prompt
+     * sekarang yang kosong (berkas prompt hilang/kosong sesudah "Segarkan
+     * pack") tidak dihitung sebagai prompt baru — item itu sudah tertahan
+     * cek "Prompt kosong", dan tanda "take berikutnya memakai versi baru"
+     * akan keliru.
+     */
+    private static function diganti(string $dikirim, ?string $sekarang): bool
+    {
+        return self::bakuPrompt($sekarang) !== '' && self::promptBerbeda($dikirim, $sekarang);
+    }
+
+    /** Prompt di body tersimpan take API; null kalau body kosong, rusak, atau tanpa prompt. */
+    public static function promptBody(mixed $body): ?string
+    {
+        $prompt = is_string($body) && trim($body) !== '' ? (self::urai($body)['prompt'] ?? null) : null;
+
+        return is_string($prompt) ? $prompt : null;
+    }
+
+    // ------------------------------------------------------------------
     // Dalam
     // ------------------------------------------------------------------
 

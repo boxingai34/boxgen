@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Tombol from '@/components/box/Tombol.vue';
 import BarisTake from '@/components/produksi/BarisTake.vue';
+import ChipPromptBaru from '@/components/produksi/ChipPromptBaru.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
 import KotakPemantau from '@/components/produksi/KotakPemantau.vue';
@@ -11,7 +12,7 @@ import { GalatKirim, kirim } from '@/lib/kirim';
 import { chipPemantau, kueri, pakaiPolling, sidikTake, uang } from '@/lib/produksi';
 import type { InfoPemantau, ItemKirim, JawabKirim, JawabPerkiraan, JawabStatus, PilihanKirim, PropsKirim, TakeBaris, Uang } from '@/types/produksi';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Loader2, Minus, Plus, TriangleAlert } from 'lucide-vue-next';
+import { Loader2, Minus, Plus, TriangleAlert, Volume2, VolumeX } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 /**
@@ -38,14 +39,25 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
  * dan memuat ulang `item` begitu berubah, dan server memeriksa lagi saat
  * POST (`sudah_cek[]` = item yang sudah dicentang) — kiriman yang lolos
  * dari halaman yang basi tetap ditolak, lalu `item` dimuat ulang.
+ *
+ * "Suara: Menyala / Mati" per baris (bawaan menyala): Wan 3.0 sering
+ * menambahkan musik latar ke klip laga walau prompt hanya menyebut bunyi di
+ * adegan. Untuk klip tanpa dialog, video bisa dibuat tanpa suara lalu efek
+ * suaranya ditambahkan di CapCut. Harganya sama. Prompt berdialog Jepang
+ * (「…」, `ada_dialog`) tidak bisa dimatikan suaranya — server juga menolaknya.
+ *
+ * Item yang prompt-nya direvisi sesudah take terakhirnya diberi chip
+ * "Prompt baru · belum dicoba" (take berikutnya memakai versi baru).
  */
 const props = defineProps<PropsKirim>();
 
 const halaman = usePage();
 const itemDariUrl = kueri(halaman.url, 'item');
 
+const PENJELASAN_SUARA = 'Matikan untuk klip tanpa dialog kalau Wan terus menambahkan musik; efek suara ditambahkan di CapCut.';
+
 // ---- Pilihan per item ----
-type Baris = { pilih: boolean; takes: number };
+type Baris = { pilih: boolean; takes: number; suara: boolean };
 const pilihan = reactive<Record<number, Baris>>({});
 /** Centang "sudah cek dashboard" untuk item ber-peringatan. */
 const yakin = reactive<Record<number, boolean>>({});
@@ -56,11 +68,14 @@ function rapikanPilihan(daftar: ItemKirim[]) {
         if (!i.peringatan) delete yakin[i.id];
         if (pilihan[i.id]) {
             if (!i.bisa_kirim) pilihan[i.id].pilih = false;
+            // Prompt yang sesudah dimuat ulang berisi dialog Jepang selalu dikirim bersuara.
+            if (i.ada_dialog) pilihan[i.id].suara = true;
             continue;
         }
         pilihan[i.id] = {
             pilih: Boolean(i.bisa_kirim) && !i.peringatan && (Boolean(i.pilih_awal) || String(i.id) === itemDariUrl),
             takes: 1,
+            suara: true,
         };
     }
 }
@@ -88,10 +103,22 @@ function nomorTake(i: ItemKirim): string {
     return n > 1 ? `take ${i.take_berikut}–${i.take_berikut + n - 1}` : `take ${i.take_berikut}`;
 }
 
+/** Suara baris ini menyala? Prompt berdialog selalu menyala. */
+function suara(i: ItemKirim): boolean {
+    return Boolean(i.ada_dialog) || (pilihan[i.id]?.suara ?? true);
+}
+
 const daftarPilihan = computed<PilihanKirim[]>(() =>
-    props.item.filter((i) => i.bisa_kirim && pilihan[i.id]?.pilih).map((i) => ({ item_id: i.id, takes: pilihan[i.id].takes })),
+    props.item.filter((i) => i.bisa_kirim && pilihan[i.id]?.pilih).map((i) => ({ item_id: i.id, takes: pilihan[i.id].takes, audio: suara(i) })),
 );
 const jumlah = computed(() => daftarPilihan.value.reduce((a, p) => a + p.takes, 0));
+/** Jumlah video terpilih yang dibuat tanpa suara. */
+const jumlahTanpaSuara = computed(() => daftarPilihan.value.reduce((a, p) => (p.audio === false ? a + p.takes : a), 0));
+const ringkasSuara = computed(() => {
+    const mati = jumlahTanpaSuara.value;
+    if (!mati) return 'Menyala';
+    return mati === jumlah.value ? 'Mati' : `Menyala · ${mati} video tanpa suara`;
+});
 const total = computed(() =>
     props.item.reduce((a, i) => (i.bisa_kirim && pilihan[i.id]?.pilih ? a + Number(i.tarif_per_take) * pilihan[i.id].takes : a), 0),
 );
@@ -139,6 +166,13 @@ function ubahTake(i: ItemKirim, beda: number) {
     const b = pilihan[i.id];
     b.takes = Math.min(3, Math.max(1, b.takes + beda));
     if (beda > 0) b.pilih = true;
+    sesudahUbah();
+}
+
+/** Suara menyala/mati untuk satu baris. Harga tidak berubah, tapi konfirmasi yang sedang tampil tetap dibatalkan. */
+function ubahSuara(i: ItemKirim, nyala: boolean) {
+    if (!i.bisa_kirim || mengirim.value || (!nyala && i.ada_dialog) || suara(i) === nyala) return;
+    pilihan[i.id].suara = nyala;
     sesudahUbah();
 }
 
@@ -193,6 +227,7 @@ async function kirimSekarang() {
         for (const b of Object.values(pilihan)) {
             b.pilih = false;
             b.takes = 1;
+            b.suara = true;
         }
         for (const k of Object.keys(yakin)) delete yakin[Number(k)];
         tahap.value = 'terkirim';
@@ -302,7 +337,12 @@ onMounted(() => pantau.segera());
                                         <span class="flex flex-wrap items-center gap-2">
                                             <span class="font-mono font-semibold">{{ i.kode }}</span>
                                             <span class="text-[14px] font-semibold">{{ i.judul }}</span>
+                                            <ChipPromptBaru v-if="i.prompt_baru_sesudah" :sesudah="i.prompt_baru_sesudah" />
                                         </span>
+                                        <span v-if="i.prompt_baru_sesudah" class="text-[12px] text-[hsl(var(--kanvas))]" aria-hidden="true"
+                                            >Prompt sudah diperbarui sesudah take {{ i.prompt_baru_sesudah }}; take berikutnya memakai versi
+                                            baru.</span
+                                        >
                                         <span v-if="!i.peringatan" class="text-[13px] text-muted-foreground"
                                             >{{ i.ket }}<template v-if="i.bisa_kirim"> · {{ nomorTake(i) }}</template></span
                                         >
@@ -341,6 +381,51 @@ onMounted(() => pantau.segera());
                                 <span class="min-w-[64px] text-right font-mono font-semibold">
                                     {{ pilihan[i.id]?.pilih && i.bisa_kirim ? uang(Number(i.tarif_per_take) * (pilihan[i.id]?.takes ?? 1)) : '—' }}
                                 </span>
+                                <!-- Suara per baris: harga sama; prompt berdialog Jepang wajib bersuara. -->
+                                <div v-if="i.bisa_kirim" class="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] sm:pl-9">
+                                    <span :id="`suara-${i.id}`" class="text-muted-foreground">Suara</span>
+                                    <span
+                                        class="inline-flex rounded-[11px] border border-border p-0.5"
+                                        role="group"
+                                        :aria-labelledby="`suara-${i.id}`"
+                                        :title="i.ada_dialog ? 'Prompt ini berisi dialog Jepang, jadi suaranya harus menyala.' : PENJELASAN_SUARA"
+                                    >
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-[40px] items-center gap-1.5 rounded-[9px] px-3 font-semibold transition-colors disabled:cursor-not-allowed"
+                                            :class="
+                                                suara(i)
+                                                    ? 'bg-[hsl(var(--sorot)/0.16)] text-foreground'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            "
+                                            :aria-pressed="suara(i)"
+                                            :disabled="mengirim"
+                                            @click="ubahSuara(i, true)"
+                                        >
+                                            <Volume2 class="h-4 w-4" aria-hidden="true" /> Menyala
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-[40px] items-center gap-1.5 rounded-[9px] px-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                                            :class="
+                                                !suara(i)
+                                                    ? 'bg-[hsl(var(--kanvas)/0.16)] text-foreground'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            "
+                                            :aria-pressed="!suara(i)"
+                                            :disabled="mengirim || Boolean(i.ada_dialog)"
+                                            @click="ubahSuara(i, false)"
+                                        >
+                                            <VolumeX class="h-4 w-4" aria-hidden="true" /> Mati
+                                        </button>
+                                    </span>
+                                    <span v-if="i.ada_dialog" class="min-w-0 flex-[1_1_220px] text-[12px] text-muted-foreground">
+                                        Ada dialog Jepang (「…」) — suara harus menyala supaya bibir dan suaranya cocok.
+                                    </span>
+                                    <span v-else-if="!suara(i)" class="min-w-0 flex-[1_1_220px] text-[12px] text-[hsl(var(--kanvas))]">
+                                        Tanpa suara: video dibuat tanpa bunyi, efek suara ditambahkan di CapCut. Harga sama.
+                                    </span>
+                                </div>
                                 <!-- Take terakhir mungkin sudah ditagih: peringatan mencolok + centang tambahan sebelum bisa ikut dikirim. -->
                                 <div
                                     v-if="i.peringatan"
@@ -373,6 +458,10 @@ onMounted(() => pantau.segera());
                     <p class="m-0 px-1 text-[13px] leading-normal text-muted-foreground">
                         Seed selalu berbeda di tiap take, supaya hasil ulang benar-benar baru dan tidak mengulang take sebelumnya.
                     </p>
+                    <p class="m-0 flex items-start gap-2 px-1 text-[13px] leading-normal text-muted-foreground">
+                        <VolumeX class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span>Suara: {{ PENJELASAN_SUARA }} Harganya sama dengan suara menyala.</span>
+                    </p>
                 </div>
 
                 <!-- Ringkasan + konfirmasi -->
@@ -385,7 +474,7 @@ onMounted(() => pantau.segera());
                             <dt class="text-muted-foreground">Resolusi</dt>
                             <dd class="m-0 text-right font-semibold">{{ pack.resolusi }} · {{ pack.rasio }}</dd>
                             <dt class="text-muted-foreground">Suara</dt>
-                            <dd class="m-0 text-right font-semibold">Menyala</dd>
+                            <dd class="m-0 text-right font-semibold">{{ ringkasSuara }}</dd>
                             <dt class="text-muted-foreground">Jumlah video</dt>
                             <dd class="m-0 text-right font-semibold">{{ jumlah }} video</dd>
                         </dl>
@@ -414,6 +503,9 @@ onMounted(() => pantau.segera());
                         <KotakYakin v-else-if="tahap === 'yakin'" ya="Ya, kirim" :sibuk="mengirim" @ya="kirimSekarang" @batal="tahap = 'pilih'">
                             Kirim <strong>{{ jumlah }} video</strong> ke Higgsfield seharga <strong>{{ uang(totalYakin) }}</strong
                             >?
+                            <span v-if="jumlahTanpaSuara" class="mt-1 block text-[13px] text-muted-foreground">
+                                {{ jumlahTanpaSuara === jumlah ? 'Semuanya' : `${jumlahTanpaSuara} di antaranya` }} dibuat tanpa suara.
+                            </span>
                             <span v-if="totalBerbeda" class="mt-1 block text-[13px] text-muted-foreground">
                                 Hitungan server berbeda dari perkiraan di layar ({{ uang(total) }}); angka server yang dipakai.
                             </span>

@@ -1304,6 +1304,89 @@ class PemantauTest extends TestCase
         $this->assertSame([1, 5], [(int) $this->take($lain)->nomor, (int) $this->take($lain)->seed]);
     }
 
+    // ---------------------------------------------------------------- kirim tanpa suara
+
+    public function test_kirim_tanpa_suara_disimpan_dan_dikirim_dengan_harga_yang_sama(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $t01 = $this->item('T01');
+        $t02 = $this->item('T02');
+
+        // Perkiraan tidak berubah karena suara: tarifnya sama.
+        $biasa = $pm->perkiraan([['item_id' => $t01->id, 'takes' => 2], ['item_id' => $t02->id, 'takes' => 1]]);
+        $this->assertSame($biasa, $pm->perkiraan([['item_id' => $t01->id, 'takes' => 2, 'audio' => false], ['item_id' => $t02->id, 'takes' => 1, 'audio' => true]]));
+        $this->assertSame(1.2, $biasa['total']);
+
+        // Bawaan menyala; audio false disimpan di take dan dikirim sebagai generate_audio false.
+        $r = $pm->kirim($packId, [['item_id' => $t01->id, 'takes' => 1, 'audio' => false], ['item_id' => $t02->id, 'takes' => 1]]);
+        $this->assertSame(0.8, $r['total']);
+        [$mati, $nyala] = $r['take_ids'];
+        $this->assertSame([0, 1], [(int) $this->take($mati)->audio, (int) $this->take($nyala)->audio]);
+        $this->assertSame([0.4, 0.4], [(float) $this->take($mati)->estimasi_usd, (float) $this->take($nyala)->estimasi_usd]);
+
+        $pm->langkah();
+        $kiriman = collect($this->hf->kiriman)->keyBy('idem');
+        $this->assertFalse($kiriman[$this->take($mati)->idem_key]['body']['generate_audio']);
+        $this->assertTrue($kiriman[$this->take($nyala)->idem_key]['body']['generate_audio']);
+        $this->assertStringContainsString('"generate_audio":false', (string) $this->take($mati)->body, 'body tersimpan = yang dikirim');
+
+        // Nilai "1"/"0" dari formulir juga dibaca; selain itu ditolak.
+        $nol = $pm->kirim($packId, [['item_id' => $t02->id, 'takes' => 1, 'audio' => '0']])['take_ids'][0];
+        $this->assertSame(0, (int) $this->take($nol)->audio);
+        $this->harusGalat(fn () => $pm->kirim($packId, [['item_id' => $t02->id, 'takes' => 1, 'audio' => 'mungkin']]), 'Pilihan suara untuk T02 tidak sah');
+        // Nilai samar yang dibaca filter_var() sebagai false ("", "off", "no", "false") tidak boleh diam-diam
+        // menghasilkan video bisu berbayar: ditolak, sama dengan aturan `boolean` Laravel.
+        $sebelum = DB::table('produksi_take')->count();
+        foreach (['', ' ', 'off', 'no', 'false', 'true', 'on', 2, -1, 0.0, []] as $samar) {
+            $this->harusGalat(fn () => $pm->kirim($packId, [['item_id' => $t02->id, 'takes' => 1, 'audio' => $samar]]), 'Pilihan suara untuk T02 tidak sah');
+        }
+        $this->assertSame($sebelum, DB::table('produksi_take')->count(), 'pilihan suara yang ditolak tidak membuat take');
+        // null = tidak memilih: bawaan config (menyala). 1/"1" = menyala.
+        $bawaan = $pm->kirim($packId, [['item_id' => $t02->id, 'takes' => 1, 'audio' => null]])['take_ids'][0];
+        $satu = $pm->kirim($packId, [['item_id' => $t02->id, 'takes' => 1, 'audio' => '1']])['take_ids'][0];
+        $this->assertSame([1, 1], [(int) $this->take($bawaan)->audio, (int) $this->take($satu)->audio]);
+
+        // Prompt berdialog Jepang wajib bersuara; klip tanpa dialog boleh tanpa suara.
+        $this->assertTrue(Pemantau::adaDialog(self::prompt01()));
+        $this->assertFalse(Pemantau::adaDialog(self::prompt02()));
+        $this->assertFalse(Pemantau::adaDialog('Tanpa dialog. 「」 kosong, 「  」 juga.'));
+        DB::table('produksi_pack')->where('id', $packId)->update(['klip_dibuka' => 1]);
+        $jumlah = DB::table('produksi_take')->count();
+        $this->harusGalat(fn () => $pm->kirim($packId, [['item_id' => $this->item('01')->id, 'takes' => 1, 'audio' => false]]),
+            'Klip 01 berisi dialog Jepang (「…」), jadi harus dikirim dengan suara menyala.');
+        $this->assertSame($jumlah, DB::table('produksi_take')->count(), 'kiriman yang ditolak tidak membuat take');
+        $this->assertCount(1, $pm->kirim($packId, [['item_id' => $this->item('01')->id, 'takes' => 1, 'audio' => true]])['take_ids']);
+        $k02 = $pm->kirim($packId, [['item_id' => $this->item('02')->id, 'takes' => 1, 'audio' => false]])['take_ids'][0];
+        $this->assertSame(0, (int) $this->take($k02)->audio);
+    }
+
+    public function test_take_tanpa_suara_tidak_dianggap_cacat_saat_dianalisis(): void
+    {
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $t01 = (int) $this->item('T01')->id;
+        $id = $pm->kirim($packId, [['item_id' => $t01, 'takes' => 1, 'audio' => false]])['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+
+        $this->media->audio = false; // Higgsfield memberi video tanpa trek suara, sesuai pesanan
+        $pm->langkah();
+        $a = Gudang::urai($this->take($id)->analisis);
+        $this->assertSame('selesai', $this->take($id)->status);
+        $this->assertTrue($a['tanpa_suara']);
+        $suara = collect($a['cek'])->keyBy('kode')['audio'];
+        $this->assertSame(['aman', 'Tanpa suara, sesuai pilihan kirim.'], [$suara['tingkat'], $suara['teks']]);
+
+        // Take manual tanpa suara tetap diperingatkan; cek take tadi yang dihitung ulang tetap aman.
+        $manual = $pm->tambahManual($t01, $this->videoLuar('luno.mp4'));
+        $b = Gudang::urai($this->take($manual)->analisis);
+        $this->assertArrayNotHasKey('tanpa_suara', $b);
+        $this->assertSame('awas', collect($b['cek'])->keyBy('kode')['audio']['tingkat']);
+        $a = Gudang::urai($this->take($id)->analisis);
+        $this->assertNotEmpty($a['mirip'], 'cek take API dihitung ulang karena ada take baru');
+        $this->assertSame('aman', collect($a['cek'])->keyBy('kode')['audio']['tingkat']);
+    }
+
     // ---------------------------------------------------------------- take manual
 
     public function test_tambah_manual_menyalin_menganalisis_dan_tanpa_biaya(): void

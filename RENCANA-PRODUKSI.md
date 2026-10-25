@@ -403,7 +403,8 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
 - **Produksi/Papan**: `packs[]` {id, folder, judul, revisi, model, resolusi, rasio,
   jumlah_klip, durasi_total, tahap, ringkas ("Tester 3 dari 6 lolos"), berikutnya
   (kalimat langkah berikutnya), umur_status, umur_alasan, gambar_a, gambar_b (url|null),
-  biaya, saran (jumlah cek saran/awas)}; `folderBaru[]` {folder, format};
+  biaya, saran (jumlah cek saran/awas), prompt_baru (jumlah item ber-`prompt_baru_sesudah`,
+  "3 item dengan prompt baru belum dicoba")}; `folderBaru[]` {folder, format};
   `koneksi` {siap, awalan, model, nama_model, resolusi, rasio, slot_terpakai};
   `biayaBulanIni`; `aktivitas[]` {waktu, teks}.
 - **Produksi/Pack**: `pack` {id, folder, judul, revisi, model, nama_model, resolusi,
@@ -417,26 +418,43 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   status, take_terakhir {id, nomor, status}|null (nomor terbesar), take_review {id, nomor}|null
   (take selesai pertama tanpa keputusan — tujuan Review), take_pilihan {id, nomor}|null
   (take lolos/dipakai — tujuan Lihat), jumlah_take, biaya (jumlah SEMUA take item), cek[]
-  (cek item ini), bisa_kirim, alasan_tidak}. Klip yang sudah punya take tetap menampilkan
-  status + Review/Lihat walau klip terkunci lagi.
+  (cek item ini), bisa_kirim, alasan_tidak, prompt_baru_sesudah (lihat "Prompt baru" di
+  bawah)}. Klip yang sudah punya take tetap menampilkan status + Review/Lihat walau klip
+  terkunci lagi.
+- **Prompt baru** (`Gudang::statusPrompt`, satu tempat): prompt di body tersimpan take API
+  dibandingkan dengan `produksi_item.prompt` sekarang (sesudah "Segarkan pack"), setelah
+  BOM di depan dibuang, CRLF/CR → LF, spasi di ujung baris dibuang, dan trim
+  (`Gudang::promptBerbeda`). Take manual / tanpa body = tidak diketahui, tidak pernah "lama";
+  prompt item yang sekarang kosong (berkas hilang) juga bukan prompt baru. `prompt_baru_sesudah` = nomor
+  take API terbaru kalau take itu memakai prompt lama; take `siap`/`unggah` tanpa body
+  dihitung memakai prompt sekarang (dibaca saat dikirim), take yang berakhir tanpa body
+  dilewati. Tampil sebagai chip "Prompt baru · belum dicoba" (Pack, Kirim), tag "prompt
+  lama" (Antrian, daftar take Review), dan kotak pemberitahuan di Review (tombol "Ulangi
+  dengan prompt baru" hanya kalau `item.prompt_baru_sesudah` masih terisi — kalau versi
+  barunya sudah dipakai take yang lebih baru, kotak itu hanya mengatakannya).
 - **Produksi/Kirim**: `pack` {id, judul, model, nama_model, resolusi, rasio, sidik_take
   (seperti Pack: polling Antrian halaman ini memuat ulang `item` begitu sidik dari
   `produksi.status?pack_id=` berbeda, jadi peringatan yang muncul sesudah halaman dibuka
   ikut tampil)};
   `item[]` {id, jenis, kode, judul, durasi, gambar[] {nama, url}, ket, peringatan, pilih_awal,
-  take_berikut, tarif_per_take, bisa_kirim, alasan_tidak}; `?item=ID` di URL membuat
+  take_berikut, tarif_per_take, bisa_kirim, alasan_tidak, prompt_baru_sesudah, ada_dialog
+  (prompt memuat 「…」: "Suara: Mati" dimatikan)}; `?item=ID` di URL membuat
   item itu tercentang awal. `peringatan` (dari `Pemantau::bolehUlang`) terisi kalau take
   terakhir item mungkin sudah dibuat dan ditagih: `ket` = peringatan itu, `pilih_awal`
   selalu false (juga lewat `?item=`), dan halaman meminta centang "sudah cek dashboard
   Higgsfield" sebelum item itu bisa ikut dikirim. POST `produksi.perkiraan` {pilihan[]} →
-  {total, rincian[]}; POST `produksi.kirim` {pack_id, pilihan[] {item_id, takes 1..3},
-  sudah_cek[] (id item ber-peringatan yang sudah dicentang), konfirmasi: true} → {ok,
+  {total, rincian[]}; POST `produksi.kirim` {pack_id, pilihan[] {item_id, takes 1..3, audio?
+  (hanya true/false/1/0/"1"/"0" — nilai lain, termasuk "", "off", null, → 422, tidak pernah
+  dibaca sebagai mati; tanpa kunci = bawaan menyala; false = "Kirim tanpa suara": produksi_take.audio = 0 dan body
+  generate_audio false, harga dan perkiraan sama; item ber-dialog 「…」 dengan audio false →
+  422)}, sudah_cek[] (id item ber-peringatan yang sudah dicentang), konfirmasi: true} → {ok,
   take_ids[], total} atau 422 {pesan}. Server menghitung `bolehUlang` lagi saat POST: item
   pilihan yang tidak boleh diulang dan tidak ada di `sudah_cek` → 422 (halaman lalu memuat
   ulang `item`). Konfirmasi harga yang sedang tampil batal kalau pilihan, harga, atau
   peringatan berubah karena muat ulang itu.
 - **Produksi/Antrian**: `takes[]` TAKE_BARIS {id, pack_id, pack_judul, item_kode,
-  item_judul, nomor, status, label, ket, biaya, bisa_review, url_review, waktu}.
+  item_judul, nomor, status, label, ket, biaya, bisa_review, url_review, waktu, prompt_lama,
+  tanpa_suara (take API dengan audio = 0)}.
   GET `produksi.status` (polling 5 dtk, juga dipakai Pack/Kirim/Review) → {takes[]
   TAKE_BARIS aktif + 20 terakhir (dengan `?pack_id=ID`: plus SEMUA take pack itu),
   slot_terpakai, pemantau {hidup, pesan, detak} (`Pemantau::infoPemantau`: hidup hanya
@@ -450,9 +468,10 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   durasi, video_url, poster_url, bingkai[] {url, t}, analisis {durasi, lebar, tinggi,
   fps, audio, puncak_db, mirip[] {take_id, nomor, skor}}, cek[] {tingkat, teks, detail},
   nilai {index: 'lolos'|'gagal'}, catatan[] {t, isi}, keputusan, galat, request_id|null,
-  biaya|null (null = belum pasti), estimasi (harga take ini), bisa_periksa};
-  `item` {id, jenis, kode, judul, durasi, kriteria[], gambar[] {nama, url}};
-  `takes[]` {id, nomor, status, keputusan} (take lain di item ini);
+  biaya|null (null = belum pasti), estimasi (harga take ini), bisa_periksa, prompt_lama,
+  tanpa_suara};
+  `item` {id, jenis, kode, judul, durasi, kriteria[], gambar[] {nama, url}, prompt_baru_sesudah};
+  `takes[]` {id, nomor, status, keputusan, prompt_lama} (take lain di item ini);
   `pack` {id, judul, revisi, kontinuitas[]};
   `batas_unggah` (byte|null: min(post_max_size, upload_max_filesize) − 64 KB, dibaca seperti
   `ValidatePostSize`; null = PHP tidak membatasi).
@@ -487,7 +506,9 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   karena itu kiriman baru. `request_id` boleh tampil; alamat video dan body tidak pernah
   dikirim ke browser.
   `analisis.cek` dibuat Media: durasi vs rencana (±0,3 dtk), resolusi sesuai, ada suara,
-  puncak ≥ -0,5 dB → "mungkin pecah, dengarkan", mirip > 0,9 dengan take lain.
+  puncak ≥ -0,5 dB → "mungkin pecah, dengarkan", mirip > 0,9 dengan take lain. Take API yang
+  dikirim tanpa suara diberi `analisis.tanpa_suara = true` (Pemantau): tanpa trek/sunyi =
+  aman "Tanpa suara, sesuai pilihan kirim.", ada bunyi = saran.
 - **Produksi/Hasil**: `pack` {id, judul, folder}; `urutan[]` {kode, judul, take_id,
   take_nomor, durasi_rencana, durasi_aktual}; `total_rencana`, `total_aktual`;
   `subtitle` {bahasa[], baris, bergeser, catatan}; `catatan_edit[]`; `biaya` {tester,

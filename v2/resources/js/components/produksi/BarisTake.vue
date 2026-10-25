@@ -3,12 +3,16 @@ import Tombol from '@/components/box/Tombol.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import { labelTake, takeAktif, uang } from '@/lib/produksi';
 import type { TakeBaris } from '@/types/produksi';
+import { History, VolumeX } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 /**
  * Satu baris antrian: "T04 · take 2", chip status, keterangan, dan tombol
  * Review kalau take-nya sudah bisa dinilai (Pulihkan kalau galat). Dipakai di halaman Kirim
  * (take pack itu saja) dan halaman Antrian (semua pack, `pack` menyala).
+ *
+ * Dua tag kecil di bawah kodenya: "prompt lama" (take dibuat dengan prompt
+ * yang sudah diganti di pack) dan "tanpa suara" (dikirim dengan suara mati).
  */
 const props = withDefaults(defineProps<{ take: TakeBaris; pack?: boolean }>(), { pack: false });
 
@@ -25,6 +29,22 @@ const urlReview = computed(() => props.take.url_review || route('produksi.take',
             <span class="font-mono font-semibold">{{ take.item_kode }} · take {{ take.nomor }}</span>
             <span class="truncate text-[12px] text-muted-foreground" :title="take.item_judul">
                 <template v-if="pack">{{ take.pack_judul }} · </template>{{ take.item_judul }}
+            </span>
+            <span v-if="take.prompt_lama || take.tanpa_suara" class="mt-1 flex flex-wrap gap-1">
+                <span
+                    v-if="take.prompt_lama"
+                    class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--kanvas)/0.12)] px-1.5 py-0.5 text-[11px] font-semibold text-[hsl(var(--kanvas))]"
+                    title="Take ini dibuat dengan prompt lama; prompt item sudah diperbarui sesudahnya."
+                >
+                    <History class="h-3 w-3" aria-hidden="true" /> prompt lama
+                </span>
+                <span
+                    v-if="take.tanpa_suara"
+                    class="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground"
+                    title="Dikirim tanpa suara; efek suara ditambahkan di CapCut."
+                >
+                    <VolumeX class="h-3 w-3" aria-hidden="true" /> tanpa suara
+                </span>
             </span>
         </span>
         <ChipStatus :nada="label.nada" :titik="takeAktif(take.status)">{{ label.teks }}</ChipStatus>

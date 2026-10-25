@@ -249,4 +249,23 @@ class MediaTest extends TestCase
         $beda = $kode(['mirip' => [['take_id' => 1, 'nomor' => 1, 'skor' => 0.903]]] + $dasar)['mirip'];
         $this->assertSame(['aman', 'Berbeda dari take lain di item ini.'], [$beda['tingkat'], $beda['teks']]);
     }
+
+    public function test_cek_suara_take_yang_sengaja_dikirim_tanpa_suara(): void
+    {
+        $dasar = ['durasi' => 10.0, 'lebar' => 1280, 'tinggi' => 720, 'audio' => true, 'puncak_db' => -3.0, 'rata_db' => -20.0, 'mirip' => []];
+        $suara = fn (array $a) => collect(Media::cek($a + $dasar, 10, '720p', '16:9'))->keyBy('kode')['audio'];
+
+        // Tanpa trek suara biasanya cacat; kalau memang dikirim tanpa suara, itu sesuai pesanan.
+        $this->assertSame(['awas', 'Tidak ada suara.'], [$suara(['audio' => false])['tingkat'], $suara(['audio' => false])['teks']]);
+        $mati = $suara(['audio' => false, 'puncak_db' => null, 'rata_db' => null, 'tanpa_suara' => true]);
+        $this->assertSame(['aman', 'Tanpa suara, sesuai pilihan kirim.'], [$mati['tingkat'], $mati['teks']]);
+        $this->assertStringContainsString('CapCut', $mati['detail']);
+
+        // Trek sunyi (Higgsfield kadang tetap menyertakan trek kosong) juga sesuai pesanan.
+        $this->assertSame('aman', $suara(['rata_db' => -80.0, 'puncak_db' => -60.0, 'tanpa_suara' => true])['tingkat']);
+
+        // Wan tetap memberi bunyi walau dikirim tanpa suara: cukup didengarkan, bukan cacat.
+        $bunyi = $suara(['tanpa_suara' => true]);
+        $this->assertSame(['saran', 'Ada suara walau dikirim tanpa suara.'], [$bunyi['tingkat'], $bunyi['teks']]);
+    }
 }

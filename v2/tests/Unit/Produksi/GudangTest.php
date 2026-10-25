@@ -65,6 +65,7 @@ class GudangTest extends TestCase
             $t->unsignedSmallInteger('nomor');
             $t->string('sumber', 10)->default('api');
             $t->string('status', 12)->default('siap');
+            $t->mediumText('body')->nullable();
             $t->unique(['item_id', 'nomor']);
         });
     }
@@ -253,5 +254,96 @@ class GudangTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $g->folderPack(999);
+    }
+
+    // ---------------------------------------------------------------- prompt baru
+
+    public function test_pembanding_prompt_mengabaikan_akhir_baris_dan_spasi_di_ujung(): void
+    {
+        $lf = "Overall: 10 seconds.\n[0-8s] Dance.\nNegative: text.\n";
+
+        $this->assertSame("Overall: 10 seconds.\n[0-8s] Dance.\nNegative: text.", Gudang::bakuPrompt($lf));
+        $this->assertFalse(Gudang::promptBerbeda($lf, "Overall: 10 seconds.\r\n[0-8s] Dance.\r\nNegative: text.\r\n"), 'CRLF');
+        $this->assertFalse(Gudang::promptBerbeda($lf, "Overall: 10 seconds.\r[0-8s] Dance.\rNegative: text."), 'CR saja');
+        $this->assertFalse(Gudang::promptBerbeda($lf, "\n\nOverall: 10 seconds.  \n[0-8s] Dance.\t\nNegative: text.   \n\n"), 'spasi di ujung dan baris kosong');
+        $this->assertTrue(Gudang::promptBerbeda($lf, "Overall: 10 seconds.\n[0-8s] Dance fast.\nNegative: text.\n"), 'isi berubah');
+        $this->assertTrue(Gudang::promptBerbeda($lf, "Overall:  10 seconds.\n[0-8s] Dance.\nNegative: text.\n"), 'spasi di tengah tetap dihitung');
+        $this->assertTrue(Gudang::promptBerbeda($lf, null));
+        $this->assertFalse(Gudang::promptBerbeda(null, ''));
+        $this->assertFalse(Gudang::promptBerbeda($lf, "\xEF\xBB\xBF" . str_replace("\n", "\r\n", $lf)), 'BOM di depan (Notepad lama)');
+        $this->assertTrue(Gudang::promptBerbeda($lf, "Overall: 10 seconds.\n\xEF\xBB\xBF[0-8s] Dance.\nNegative: text.\n"), 'hanya BOM di depan yang diabaikan');
+
+        // Prompt dari body tersimpan: hanya kalau body JSON utuh dengan prompt teks.
+        $this->assertSame($lf, Gudang::promptBody(json_encode(['prompt' => $lf, 'seed' => 5])));
+        foreach ([null, '', '   ', '{rusak', json_encode(['seed' => 5]), json_encode(['prompt' => ['bukan teks']])] as $body) {
+            $this->assertNull(Gudang::promptBody($body), var_export($body, true));
+        }
+        $this->assertTrue(Gudang::promptLama((object) ['body' => json_encode(['prompt' => 'lama'])], 'baru'));
+        $this->assertFalse(Gudang::promptLama((object) ['body' => json_encode(['prompt' => "baru\r\n"])], 'baru'));
+        $this->assertFalse(Gudang::promptLama((object) ['body' => null], 'baru'), 'take manual: tidak diketahui, bukan "lama"');
+        // Prompt sekarang kosong (berkasnya hilang sesudah "Segarkan pack"): itu bukan prompt baru.
+        foreach (['', null, " \r\n "] as $kosong) {
+            $this->assertFalse(Gudang::promptLama((object) ['body' => json_encode(['prompt' => 'lama'])], $kosong), var_export($kosong, true));
+        }
+    }
+
+    public function test_status_prompt_menandai_item_yang_prompt_barunya_belum_dicoba(): void
+    {
+        $this->buatPackMd();
+        $g = $this->gudang();
+        $id = $g->impor('Maomao vs Pairin');
+        $t01 = (int) DB::table('produksi_item')->where('kode', 'T01')->value('id');
+        $t02 = (int) DB::table('produksi_item')->where('kode', 'T02')->value('id');
+        $semua = $g->itemsPack($id)->pluck('id')->all();
+        $asli = (string) DB::table('produksi_item')->where('id', $t01)->value('prompt');
+        $take = fn (int $item, int $nomor, string $sumber, string $status, ?string $prompt) => (int) DB::table('produksi_take')->insertGetId([
+            'item_id' => $item, 'nomor' => $nomor, 'sumber' => $sumber, 'status' => $status,
+            'body'    => $prompt !== null ? json_encode(['prompt' => $prompt, 'seed' => 7], JSON_UNESCAPED_UNICODE) : null,
+        ]);
+
+        $this->assertSame(['take' => [], 'item' => []], $g->statusPrompt($semua), 'belum ada take');
+        $this->assertSame(['take' => [], 'item' => []], $g->statusPrompt([]));
+
+        // Take 1 dikirim dengan prompt yang sama; berkasnya lalu hanya disimpan ulang dengan CRLF.
+        $satu = $take($t01, 1, 'api', 'selesai', $asli);
+        DB::table('produksi_item')->where('id', $t01)->update(['prompt' => str_replace("\n", "  \r\n", $asli)]);
+        $this->assertSame(['take' => [$satu => false], 'item' => []], $g->statusPrompt($semua));
+
+        // Prompt T01 benar-benar direvisi: take 1 memakai prompt lama, versi baru belum dicoba.
+        DB::table('produksi_item')->where('id', $t01)->update(['prompt' => $asli . "Extra: faster punches.\n"]);
+        $this->assertSame(['take' => [$satu => true], 'item' => [$t01 => 1]], $g->statusPrompt($semua));
+
+        // Take manual tidak diketahui prompt-nya: tidak menghapus tanda, dan tidak ikut ditandai.
+        $take($t01, 2, 'manual', 'selesai', null);
+        $this->assertSame(['take' => [$satu => true], 'item' => [$t01 => 1]], $g->statusPrompt($semua));
+
+        // Take baru yang menunggu dikirim membaca prompt item saat dikirim: versi baru sedang dicoba.
+        $tiga = $take($t01, 3, 'api', 'siap', null);
+        $this->assertSame(['take' => [$satu => true], 'item' => []], $g->statusPrompt($semua));
+
+        // Take itu berakhir tanpa pernah mengirim body (galat unggah): versi baru belum pernah dicoba.
+        DB::table('produksi_take')->where('id', $tiga)->update(['status' => 'galat']);
+        $this->assertSame([$t01 => 1], $g->statusPrompt($semua)['item']);
+
+        // Take 4 dikirim dengan prompt baru: tanda hilang, take 1 tetap "prompt lama".
+        $empat = $take($t01, 4, 'api', 'queued', $asli . "Extra: faster punches.\r\n");
+        $this->assertSame(['take' => [$empat => false, $satu => true], 'item' => []], $g->statusPrompt($semua));
+
+        // Item yang hanya punya take manual tidak pernah ditandai walau prompt-nya berubah.
+        $take($t02, 1, 'manual', 'selesai', null);
+        DB::table('produksi_item')->where('id', $t02)->update(['prompt' => 'Prompt T02 yang baru.']);
+        $this->assertSame([], $g->statusPrompt([$t02])['item']);
+        $this->assertSame([], $g->statusPrompt([$t02])['take']);
+
+        // Berkas prompt T01 hilang sesudah "Segarkan pack" (prompt item kosong): bukan "prompt baru · belum
+        // dicoba" — take berikutnya tidak memakai versi baru apa pun, dan item itu tertahan cek "Prompt kosong".
+        DB::table('produksi_item')->where('id', $t01)->update(['prompt' => '']);
+        $this->assertSame(['take' => [$empat => false, $satu => false], 'item' => []], $g->statusPrompt($semua));
+        DB::table('produksi_item')->where('id', $t01)->update(['prompt' => null]);
+        $this->assertSame(['take' => [$empat => false, $satu => false], 'item' => []], $g->statusPrompt($semua));
+
+        // Berkas yang disimpan ulang dengan BOM + CRLF tidak menimbulkan tanda.
+        DB::table('produksi_item')->where('id', $t01)->update(['prompt' => "\xEF\xBB\xBF" . str_replace("\n", "\r\n", $asli . "Extra: faster punches.\n")]);
+        $this->assertSame(['take' => [$empat => false, $satu => true], 'item' => []], $g->statusPrompt($semua));
     }
 }

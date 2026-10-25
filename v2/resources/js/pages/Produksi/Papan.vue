@@ -9,14 +9,15 @@ import { kirim } from '@/lib/kirim';
 import { durasi, FORMAT_PACK, namaModel, uang } from '@/lib/produksi';
 import type { PackRingkas, PropsPapan } from '@/types/produksi';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, Folder, FolderOpen, Loader2, Lock, RefreshCw, Upload } from 'lucide-vue-next';
+import { ArrowRight, FilePenLine, Folder, FolderOpen, Loader2, Lock, RefreshCw, Upload } from 'lucide-vue-next';
 import { computed, nextTick, ref } from 'vue';
 
 /**
  * PRODUKSI · Papan Produksi — layar pertama.
  *
  * Kiri: pack yang sedang dikerjakan, masing-masing dengan lima garis tahap
- * dan satu kalimat "berikutnya apa". Pack yang diblokir aturan umur tampil
+ * dan satu kalimat "berikutnya apa" (plus jumlah item yang prompt barunya
+ * belum dicoba, kalau ada). Pack yang diblokir aturan umur tampil
  * sebagai kartu merah tanpa tombol lanjut. Di bawahnya kotak impor: folder
  * di "1 - ANTRIAN" yang belum pernah diimpor, satu tombol per folder.
  *
@@ -146,6 +147,11 @@ function periksaLagi() {
                             </div>
                             <Tahapan :tahap="p.tahap" :awas="perluCek(p)" :label="`Tahap ${p.judul}`" />
                             <p v-if="berikutnya(p)" class="m-0 text-[13px] text-muted-foreground">{{ berikutnya(p) }}</p>
+                            <!-- Prompt direvisi (pack disegarkan) sesudah take terakhir item-item ini; versi barunya belum dikirim. -->
+                            <p v-if="p.prompt_baru > 0" class="m-0 flex items-start gap-2 text-[13px] text-[hsl(var(--kanvas))]">
+                                <FilePenLine class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                <span>{{ p.prompt_baru }} item dengan prompt baru belum dicoba — tandanya ada di halaman pack.</span>
+                            </p>
                             <p v-if="p.umur_status === 'tak_dikenal' && p.umur_alasan" class="m-0 text-[13px] text-[hsl(var(--kanvas))]">
                                 {{ p.umur_alasan }}
                             </p>

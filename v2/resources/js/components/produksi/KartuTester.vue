@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AksiItem from '@/components/produksi/AksiItem.vue';
+import ChipPromptBaru from '@/components/produksi/ChipPromptBaru.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import SlotGambar from '@/components/produksi/SlotGambar.vue';
 import { labelItem } from '@/lib/produksi';
@@ -9,7 +10,9 @@ import { computed } from 'vue';
 /**
  * Kartu satu tester di halaman pack: kode, status, judul, slot gambar
  * @1…@N, lalu keterangan + tombol sesuai status. Tester yang menunggu
- * review diberi bingkai ungu — dialah yang sedang ditunggu.
+ * review diberi bingkai ungu — dialah yang sedang ditunggu. Tester yang
+ * prompt-nya direvisi sesudah take terakhirnya diberi chip "Prompt baru ·
+ * belum dicoba" beserta penjelasannya.
  */
 const props = withDefaults(defineProps<{ item: ItemHalaman; packId: number; kunci?: string | null }>(), { kunci: null });
 
@@ -27,6 +30,7 @@ const masalah = computed(() => props.item.cek.filter((c) => c.tingkat !== 'aman'
             <ChipStatus :nada="label.nada" :titik="item.status === 'berjalan'">{{ label.teks }}</ChipStatus>
         </div>
         <h3 class="m-0 text-[14px] font-semibold leading-[1.4]">{{ item.judul }}</h3>
+        <ChipPromptBaru v-if="item.prompt_baru_sesudah" :sesudah="item.prompt_baru_sesudah" ket />
         <div v-if="item.gambar.length" class="flex flex-wrap gap-1.5">
             <SlotGambar v-for="(g, i) in item.gambar" :key="g.nama + i" :gambar="g" :label="`@${i + 1}`" />
         </div>

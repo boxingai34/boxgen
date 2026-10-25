@@ -151,7 +151,13 @@ class Pemantau
      * hidup. Semua gerbang diperiksa dulu; kalau satu item saja tertahan,
      * tidak ada take yang dibuat dan pesannya menyebut semua sebabnya.
      *
-     * @param list<array{item_id:int, takes:int}> $pilihan takes 1…3
+     * `audio` per pilihan (bawaan config produksi.audio, yaitu menyala)
+     * disimpan di produksi_take.audio dan dikirim sebagai generate_audio.
+     * "Kirim tanpa suara" untuk klip tanpa dialog yang terus diberi musik
+     * latar oleh Wan; efek suaranya ditambahkan di CapCut. Harganya sama.
+     * Prompt berdialog Jepang (「…」) tidak boleh dikirim tanpa suara.
+     *
+     * @param list<array{item_id:int, takes:int, audio?:bool}> $pilihan takes 1…3
      * @return array{take_ids: list<int>, total: float}
      * @throws ProduksiGalat pesan siap tampil (controller → 422)
      */
@@ -170,12 +176,15 @@ class Pemantau
         $kurang = $this->testerKurang($packId);
 
         $masalah = [];
-        foreach ($daftar as [$item]) {
+        foreach ($daftar as [$item, , $audio]) {
             if ((int) $item->pack_id !== $packId) {
                 $masalah[] = self::kapital(self::label($item)) . ' bukan milik pack ini. Muat ulang halaman.';
                 continue;
             }
             $alasan = $this->alasanItem($pack, $item, $cek, $kurang) ?? $this->alasanBerkas($item, $folder, $m);
+            if ($alasan === null && $audio === false && self::adaDialog((string) $item->prompt)) {
+                $alasan = self::kapital(self::label($item)) . ' berisi dialog Jepang (「…」), jadi harus dikirim dengan suara menyala.';
+            }
             if ($alasan !== null) {
                 $masalah[] = $alasan;
             }
@@ -187,7 +196,7 @@ class Pemantau
         $ids = [];
         $total = 0.0;
         DB::transaction(function () use ($daftar, $m, $tarif, &$ids, &$total) {
-            foreach ($daftar as [$item, $takes]) {
+            foreach ($daftar as [$item, $takes, $audio]) {
                 // Baris item dikunci (MySQL) supaya dua kiriman bersamaan tidak berebut nomor take.
                 DB::table('produksi_item')->where('id', $item->id)->lockForUpdate()->first();
                 $nomor = (int) DB::table('produksi_take')->where('item_id', $item->id)->max('nomor');
@@ -206,7 +215,7 @@ class Pemantau
                         'resolusi'     => $m['resolusi'],
                         'rasio'        => $m['rasio'],
                         'durasi'       => (int) $item->durasi,
-                        'audio'        => $m['audio'] ? 1 : 0,
+                        'audio'        => ($audio ?? $m['audio']) ? 1 : 0,
                         'seed'         => $seed,
                         'status'       => 'siap',
                         'idem_key'     => (string) Str::uuid(),   // UUID v4
@@ -249,6 +258,16 @@ class Pemantau
         $item = $this->itemAtauGalat($itemId);
 
         return self::perTake(self::tarifWajib($this->pilihanModel($this->packAtauGalat((int) $item->pack_id))), (int) $item->durasi);
+    }
+
+    /**
+     * Prompt memuat dialog Jepang dalam 「…」? Take seperti itu wajib
+     * bersuara (bibir dan suara dibuat bersamaan), jadi tidak bisa dikirim
+     * tanpa suara.
+     */
+    public static function adaDialog(?string $prompt): bool
+    {
+        return preg_match('/「[^」]*[^」\s][^」]*」/u', (string) $prompt) === 1;
     }
 
     /**
@@ -1164,6 +1183,12 @@ class Pemantau
         try {
             $a = $this->media->analisis($path, self::folderAnalisis((int) $t->id), (float) $item->durasi,
                 (string) $t->resolusi, (string) $t->rasio, $pembanding);
+            // Take API yang sengaja dikirim tanpa suara: tidak adanya trek suara bukan cacat.
+            // Tandanya ikut tersimpan, jadi cek yang dihitung ulang (perbaruiMiripLain) tetap tahu.
+            if ((string) ($t->sumber ?? '') === 'api' && isset($t->audio) && !(int) $t->audio) {
+                $a['tanpa_suara'] = true;
+                $a['cek'] = $this->media::cek($a, (float) $item->durasi, (string) $t->resolusi, (string) $t->rasio);
+            }
         } catch (Throwable $e) {
             $pesan = self::pesanGalat($e);
             if ($wajib) {
@@ -1587,7 +1612,7 @@ class Pemantau
     // Pembantu data
     // ------------------------------------------------------------------
 
-    /** @return list<array{0: object, 1: int}> [baris item, jumlah take] */
+    /** @return list<array{0: object, 1: int, 2: ?bool}> [baris item, jumlah take, suara (null = bawaan config)] */
     private function rapikanPilihan(array $pilihan): array
     {
         if (!$pilihan) {
@@ -1609,11 +1634,22 @@ class Pemantau
             if ($takes === false || $takes < 1 || $takes > self::MAKS_TAKE) {
                 throw new ProduksiGalat('Jumlah take untuk ' . self::label($item) . ' harus 1 sampai ' . self::MAKS_TAKE . '.');
             }
+            // Suara hanya mati kalau diminta tegas (false/0/"0", sama dengan aturan `boolean` Laravel).
+            // filter_var() biasa membaca "", "off", "no" sebagai false — video bisu berbayar karena
+            // nilai yang tidak sengaja; nilai seperti itu ditolak.
+            $audio = null;
+            if (array_key_exists('audio', $p) && $p['audio'] !== null) {
+                $audio = match (true) {
+                    in_array($p['audio'], [true, 1, '1'], true)  => true,
+                    in_array($p['audio'], [false, 0, '0'], true) => false,
+                    default => throw new ProduksiGalat('Pilihan suara untuk ' . self::label($item) . ' tidak sah. Muat ulang halaman lalu pilih lagi.'),
+                };
+            }
             if (isset($sudah[$id])) {
                 throw new ProduksiGalat(self::kapital(self::label($item)) . ' dipilih dua kali.');
             }
             $sudah[$id] = true;
-            $hasil[] = [$item, $takes];
+            $hasil[] = [$item, $takes, $audio];
         }
 
         return $hasil;

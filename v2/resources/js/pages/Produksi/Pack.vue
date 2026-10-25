@@ -4,6 +4,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import AksiItem from '@/components/produksi/AksiItem.vue';
 import AlamatFolder from '@/components/produksi/AlamatFolder.vue';
 import BarisCek from '@/components/produksi/BarisCek.vue';
+import ChipPromptBaru from '@/components/produksi/ChipPromptBaru.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
 import KartuTester from '@/components/produksi/KartuTester.vue';
@@ -513,6 +514,8 @@ pakaiPolling(async () => {
                                     <ChipStatus :nada="labelItem(k.status, 'klip').nada" :titik="k.status === 'berjalan'">{{
                                         labelItem(k.status, 'klip').teks
                                     }}</ChipStatus>
+                                    <!-- Prompt direvisi sesudah take terakhir klip ini; penjelasannya di tooltip (baris klip sempit). -->
+                                    <ChipPromptBaru v-if="k.prompt_baru_sesudah" :sesudah="k.prompt_baru_sesudah" />
                                     <AksiItem class="min-w-0 flex-[1_1_240px]" :item="k" :pack-id="pack.id" jenis="klip" :kunci="kunciPack" />
                                 </template>
                             </li>
