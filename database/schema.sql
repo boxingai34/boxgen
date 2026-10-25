@@ -613,3 +613,98 @@ CREATE TABLE IF NOT EXISTS `discover_adegan_jalan` (
   PRIMARY KEY (`id`),
   KEY `idx_discover_adegan_jalan_mulai` (`mulai`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- Migrasi 021 — PRODUKSI (lihat database/migrations/021_produksi.sql)
+-- ---------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `produksi_pack` (
+  `id`                 INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `folder`             VARCHAR(255) NOT NULL,
+  `judul`              VARCHAR(190) NOT NULL DEFAULT '',
+  `revisi`             VARCHAR(20)  NOT NULL DEFAULT '',
+  `format`             VARCHAR(10)  NOT NULL DEFAULT 'md',
+  `model`              VARCHAR(40)  NOT NULL DEFAULT 'wan-3.0',
+  `resolusi`           VARCHAR(10)  NOT NULL DEFAULT '720p',
+  `rasio`              VARCHAR(10)  NOT NULL DEFAULT '16:9',
+  `data`               MEDIUMTEXT   NULL,
+  `cek`                MEDIUMTEXT   NULL,
+  `umur_status`        VARCHAR(12)  NOT NULL DEFAULT 'tak_dikenal',
+  `umur_dikonfirmasi`  TINYINT(1)   NOT NULL DEFAULT 0,
+  `klip_dibuka`        TINYINT(1)   NOT NULL DEFAULT 0,
+  `diserahkan_at`      DATETIME     NULL,
+  `diimpor_at`         DATETIME     NULL,
+  `diperbarui_at`      DATETIME     NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_produksi_pack_folder` (`folder`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `produksi_item` (
+  `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `pack_id`      INT UNSIGNED NOT NULL,
+  `jenis`        VARCHAR(6)   NOT NULL,
+  `kode`         VARCHAR(10)  NOT NULL,
+  `judul`        VARCHAR(255) NOT NULL DEFAULT '',
+  `urutan`       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `durasi`       SMALLINT UNSIGNED NOT NULL DEFAULT 10,
+  `gambar`       TEXT         NULL,
+  `prompt`       MEDIUMTEXT   NULL,
+  `prompt_file`  VARCHAR(255) NOT NULL DEFAULT '',
+  `kriteria`     TEXT         NULL,
+  `status`       VARCHAR(12)  NOT NULL DEFAULT 'belum',
+  `take_pilihan` INT UNSIGNED NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_produksi_item` (`pack_id`, `jenis`, `kode`),
+  KEY `idx_produksi_item_pack` (`pack_id`, `jenis`, `urutan`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `produksi_take` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `item_id`       INT UNSIGNED NOT NULL,
+  `nomor`         SMALLINT UNSIGNED NOT NULL,
+  `sumber`        VARCHAR(10)  NOT NULL DEFAULT 'api',
+  `model`         VARCHAR(40)  NOT NULL DEFAULT 'wan-3.0',
+  `resolusi`      VARCHAR(10)  NOT NULL DEFAULT '720p',
+  `rasio`         VARCHAR(10)  NOT NULL DEFAULT '16:9',
+  `durasi`        SMALLINT UNSIGNED NOT NULL DEFAULT 10,
+  `audio`         TINYINT(1)   NOT NULL DEFAULT 1,
+  `seed`          BIGINT UNSIGNED NULL,
+  `status`        VARCHAR(12)  NOT NULL DEFAULT 'siap',
+  `idem_key`      CHAR(36)     NULL,
+  `request_id`    CHAR(36)     NULL,
+  `body`          MEDIUMTEXT   NULL,
+  `video_url`     TEXT         NULL,
+  `estimasi_usd`  DECIMAL(8,2) NOT NULL DEFAULT 0,
+  `biaya_usd`     DECIMAL(8,2) NULL,
+  `berkas`        VARCHAR(255) NULL,
+  `analisis`      MEDIUMTEXT   NULL,
+  `nilai`         TEXT         NULL,
+  `catatan`       TEXT         NULL,
+  `keputusan`     VARCHAR(10)  NULL,
+  `galat`         TEXT         NULL,
+  `dicoba`        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `dicek_at`      DATETIME     NULL,
+  `dikirim_at`    DATETIME     NULL,
+  `selesai_at`    DATETIME     NULL,
+  `dibuat_at`     DATETIME     NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_produksi_take` (`item_id`, `nomor`),
+  KEY `idx_produksi_take_status` (`status`, `dicek_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `produksi_unggahan` (
+  `sha1`          CHAR(40)     NOT NULL,
+  `public_url`    TEXT         NOT NULL,
+  `content_type`  VARCHAR(40)  NOT NULL DEFAULT '',
+  `diunggah_at`   DATETIME     NOT NULL,
+  PRIMARY KEY (`sha1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `produksi_jalan` (
+  `id`       INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `mulai`    DATETIME     NOT NULL,
+  `detak`    DATETIME     NULL,
+  `selesai`  DATETIME     NULL,
+  `pesan`    TEXT         NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
