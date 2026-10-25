@@ -169,6 +169,8 @@ Route::prefix('generator')->group(function () {
             Route::get('pack/{id}/gambar/{nama}', [ProduksiController::class, 'gambar'])->whereNumber('id')
                 ->where('nama', '[^/\\\\]+')->name('produksi.pack.gambar');
             Route::post('item/{id}/manual', [ProduksiController::class, 'tambahManual'])->whereNumber('id')->name('produksi.item.manual');
+            Route::get('item/{id}/berkas-pack', [ProduksiController::class, 'berkasPack'])->whereNumber('id')->name('produksi.item.berkas');
+            Route::post('item/{id}/manual-folder', [ProduksiController::class, 'tambahDariFolder'])->whereNumber('id')->name('produksi.item.manual.folder');
             Route::get('take/{id}', [ProduksiController::class, 'review'])->whereNumber('id')->name('produksi.take');
             Route::get('take/{id}/video', [ProduksiController::class, 'video'])->whereNumber('id')->name('produksi.take.video');
             Route::get('take/{id}/bingkai/{n}', [ProduksiController::class, 'bingkai'])->whereNumber(['id', 'n'])->name('produksi.take.bingkai');

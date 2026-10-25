@@ -233,6 +233,8 @@ export interface PropsPack {
     pack: PackDetail;
     tester: ItemHalaman[];
     klip: ItemHalaman[];
+    /** Byte terbesar yang bisa diunggah lewat "Tambah take dari berkas"; null = PHP tidak membatasi. */
+    batas_unggah: number | null;
 }
 
 // ---- Produksi/Kirim ----
@@ -244,6 +246,8 @@ export interface PackKirim {
     nama_model: string;
     resolusi: string;
     rasio: string;
+    /** "id:status" semua take pack saat halaman dibuka — polling memuat ulang `item` begitu sidiknya berbeda. */
+    sidik_take: string;
 }
 
 export interface ItemKirim {
@@ -290,11 +294,32 @@ export interface JawabKirim {
     total: Uang;
 }
 
-/** POST produksi.item.manual (multipart `berkas`). */
+/** POST produksi.item.manual (multipart `berkas`) dan produksi.item.manual.folder ({nama}). */
 export interface JawabManual {
     ok: boolean;
     take_id: number;
     url: string;
+}
+
+/** Satu video di folder pack untuk "Ambil dari folder pack". */
+export interface BerkasPack {
+    /** Relatif ke folder pack, pemisah '/': "test klip higgsfield/api T04 seed1238296069.mp4". */
+    nama: string;
+    /** Byte. */
+    ukuran: number;
+    /** "HH.mm" kalau hari ini, selain itu "dd/mm HH.mm". */
+    diubah: string;
+    /** Take pack ini yang ukurannya sama persis ("T04 take 3") — mungkin sudah pernah ditambahkan. */
+    take_sama: string | null;
+}
+
+/** GET produksi.item.berkas */
+export interface JawabBerkasPack {
+    ok: boolean;
+    /** Nama folder pack di 1 - ANTRIAN. */
+    folder: string;
+    /** Terbaru dulu, paling banyak 200. */
+    berkas: BerkasPack[];
 }
 
 // ---- Produksi/Antrian ----
@@ -363,7 +388,13 @@ export interface ReviewTake {
     request_id: string | null;
     /** Biaya tercatat; null = belum pasti (mungkin ditagih). */
     biaya: Uang | null;
-    /** Take galat yang mungkin sudah dibayar: tombol "Periksa lagi ke Higgsfield" (POST produksi.take.periksa). */
+    /** Harga take ini (tarif × durasi); tampil di konfirmasi kirim ulang. */
+    estimasi: Uang;
+    /**
+     * Take galat yang mungkin sudah dibayar: tombol pemulihan (POST produksi.take.periksa).
+     * Dengan request_id: "Periksa lagi", satu klik. Tanpa request_id: body dikirim ulang,
+     * yang bisa membuat dan menagih take — wajib konfirmasi harga ({konfirmasi: true}).
+     */
     bisa_periksa: Bendera;
 }
 
@@ -396,6 +427,8 @@ export interface PropsReview {
     item: ReviewItem;
     takes: TakeLain[];
     pack: ReviewPack;
+    /** Byte terbesar yang bisa diunggah lewat "Tambah take dari berkas"; null = PHP tidak membatasi. */
+    batas_unggah: number | null;
 }
 
 export interface JawabPutuskan {

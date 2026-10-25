@@ -829,7 +829,15 @@ class Pemantau
         return $this->akhiri($t, ['unggah'], 'galat', $pesan, $tidakPasti > 0 ? null : 0.0, $tambahan);
     }
 
-    /** queued/in_progress: tanya status, paling sering tiap pantau.cek_status_detik. */
+    /**
+     * queued/in_progress: tanya status, paling sering tiap pantau.cek_status_detik.
+     *
+     * Take yang sudah punya video_url (alamatnya ditolak CDN, atau Periksa
+     * lagi sesudah unduhan gagal) sudah jadi dan ditagih Higgsfield. dicoba
+     * take seperti itu hanya menghitung percobaan unduh (BATAS_COBA), jadi
+     * cek status tidak pernah mengubahnya: bertanya status itu gratis dan
+     * sudah dibatasi batas_pantau_hari. Galatnya ditunggu JEDA_MAKS.
+     */
     private function cekStatus(object $t): ?string
     {
         $dari = ['queued', 'in_progress'];
@@ -841,6 +849,7 @@ class Pemantau
             return null;
         }
         $estimasi = (float) $t->estimasi_usd;
+        $sudahJadi = (string) $t->video_url !== '';
         if ((string) $t->request_id === '') {
             // Tidak terjadi lewat alur biasa (request_id dan status queued ditulis bersamaan).
             return $this->akhiri($t, $dari, 'galat', 'Take ini tidak punya request_id dari Higgsfield, jadi statusnya tidak bisa diperiksa. '
@@ -860,9 +869,10 @@ class Pemantau
             // Request yang sudah diterima tetap jalan (dan ditagih) di Higgsfield
             // apa pun sebab galatnya — jaringan, server, kunci ditolak atau belum
             // diisi, 404 — jadi galat di sini tidak pernah mengakhiri take.
-            // Bertanya status itu gratis: diulang dengan jeda yang makin panjang.
-            $dicoba = (int) $t->dicoba + 1;
-            $tunggu = max($e instanceof HiggsfieldGalat ? $e->tunggu : 0, self::jedaStatus($jeda, $dicoba));
+            // Bertanya status itu gratis: diulang dengan jeda yang makin panjang
+            // (take yang sudah jadi: jatah unduhnya tidak dipakai, jedanya JEDA_MAKS).
+            $dicoba = $sudahJadi ? (int) $t->dicoba : (int) $t->dicoba + 1;
+            $tunggu = max($e instanceof HiggsfieldGalat ? $e->tunggu : 0, $sudahJadi ? self::JEDA_MAKS : self::jedaStatus($jeda, $dicoba));
             DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)->update([
                 'dicoba'   => $dicoba,
                 'galat'    => $pesan . ' Request sudah diterima Higgsfield, jadi tetap diperiksa lagi nanti.',
@@ -879,7 +889,7 @@ class Pemantau
                 'video_url' => $s['video_url'],
                 'biaya_usd' => $estimasi,
                 // Alamat baru sesudah alamat lama ditolak CDN: hitungan percobaan unduh tidak direset.
-                'dicoba'    => (string) $t->video_url !== '' ? (int) $t->dicoba : 0,
+                'dicoba'    => $sudahJadi ? (int) $t->dicoba : 0,
                 'galat'     => null,
                 'dicek_at'  => now(),
             ]);
@@ -903,11 +913,11 @@ class Pemantau
             return $this->akhiriPantau($t, null);
         }
         if ($s['status'] === 'completed') {
-            $dicoba = (int) $t->dicoba + 1;
+            $dicoba = $sudahJadi ? (int) $t->dicoba : (int) $t->dicoba + 1;
             DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)->update([
                 'dicoba'   => $dicoba,
                 'galat'    => 'Higgsfield menyatakan selesai tapi belum memberi alamat video. Diperiksa lagi nanti.',
-                'dicek_at' => self::jadwal(self::jedaStatus($jeda, $dicoba), $jeda),
+                'dicek_at' => self::jadwal($sudahJadi ? self::JEDA_MAKS : self::jedaStatus($jeda, $dicoba), $jeda),
             ]);
 
             return 'ulang';
@@ -920,7 +930,7 @@ class Pemantau
                 . 'biaya baru dihitung kalau selesai.'
             : null;
         DB::table('produksi_take')->where('id', $t->id)->whereIn('status', $dari)
-            ->update(['status' => $s['status'], 'dicoba' => 0, 'galat' => $peringatan]);
+            ->update(['status' => $s['status'], 'dicoba' => $sudahJadi ? (int) $t->dicoba : 0, 'galat' => $peringatan]);
 
         return 'tunggu';
     }
@@ -989,7 +999,9 @@ class Pemantau
      * antivirus, jaringan, CDN sibuk) tidak mengakhiri take: kembali ke
      * completed dengan jeda. Alamat video yang ditolak CDN (401/403/404/410,
      * mis. kedaluwarsa) → kembali ke queued, supaya status() memberi alamat
-     * baru. Sesudah BATAS_COBA: galat (biaya tetap), dan periksaLagi() bisa
+     * baru, dengan jeda yang sama (CDN yang menolak sebentar — cache 404,
+     * 403 WAF/rate-limit — tidak menghabiskan jatah dalam dua menit).
+     * Sesudah BATAS_COBA: galat (biaya tetap), dan periksaLagi() bisa
      * memulainya lagi.
      */
     private function gagalUnduh(object $t, Throwable $e): string
@@ -1006,8 +1018,10 @@ class Pemantau
         }
 
         if ($e instanceof HiggsfieldGalat && in_array($e->kode, [401, 403, 404, 410], true) && (string) $t->request_id !== '') {
+            // Status ditanya lagi jedaCoba($dicoba) detik lagi (cekStatus jatuh tempo kalau dicek_at ≥ cek_status_detik lalu).
+            $ambang = max(1, (int) self::cfg('cek_status_detik', 8));
             DB::table('produksi_take')->where('id', $t->id)->where('status', 'unduh')
-                ->update(['status' => 'queued', 'dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => null]);
+                ->update(['status' => 'queued', 'dicoba' => $dicoba, 'galat' => $pesan, 'dicek_at' => self::jadwal(self::jedaCoba($dicoba), $ambang)]);
             $this->catat($t, $pesan . ' Alamat video baru diminta lewat status.');
 
             return 'ulang';
@@ -1021,13 +1035,27 @@ class Pemantau
         return 'ulang';
     }
 
-    /** Lewat pantau.batas_pantau_hari tanpa status terminal: hasilnya (kalau ada) sudah dihapus Higgsfield. */
+    /**
+     * Lewat pantau.batas_pantau_hari tanpa status terminal: hasilnya (kalau
+     * ada) sudah dihapus Higgsfield. Take yang pernah dinyatakan completed
+     * (punya video_url / biaya — kembali ke queued karena alamatnya ditolak
+     * CDN atau lewat Periksa lagi) sudah ditagih: biayanya tetap estimasi.
+     * Yang tidak pernah completed: biaya null (tidak pasti).
+     */
     private function akhiriPantau(object $t, ?string $sebab): string
     {
         $hari = $this->batasPantauHari();
+        $kurung = $sebab !== null ? ' (' . rtrim($sebab, '.') . ')' : '';
+
+        if ((string) $t->video_url !== '' || (float) $t->biaya_usd > 0) {
+            return $this->akhiri($t, ['queued', 'in_progress'], 'galat',
+                "Take ini sudah jadi dan ditagih Higgsfield, tapi tidak terunduh dalam {$hari} hari sejak dikirim{$kurung}. "
+                . 'Hasilnya sudah dihapus Higgsfield; kirim take baru kalau masih dibutuhkan.',
+                (float) $t->estimasi_usd);
+        }
 
         return $this->akhiri($t, ['queued', 'in_progress'], 'galat',
-            "Higgsfield tidak menyelesaikan take ini dalam {$hari} hari sejak dikirim" . ($sebab !== null ? ' (' . rtrim($sebab, '.') . ')' : '') . '. '
+            "Higgsfield tidak menyelesaikan take ini dalam {$hari} hari sejak dikirim{$kurung}. "
             . 'Hasilnya, kalau ada, sudah dihapus Higgsfield. Cek dashboard Higgsfield sebelum mengirim take baru untuk item ini.',
             null);
     }

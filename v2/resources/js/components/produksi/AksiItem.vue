@@ -24,7 +24,8 @@ import { computed } from 'vue';
  *
  * Item gagal/diblokir juga bisa diberi take dari berkas (video yang
  * diunduh manual dari dashboard Higgsfield atau dibuat di tempat lain),
- * tanpa biaya.
+ * tanpa biaya: "Ambil dari folder pack" atau "Unggah dari komputer",
+ * di balik satu tombol supaya kartunya tetap ringkas.
  */
 const props = withDefaults(
     defineProps<{
@@ -106,6 +107,6 @@ const bolehBerkas = computed(() => ['gagal', 'diblokir'].includes(props.item.sta
         </div>
         <!-- Alasan seluruh pack sudah tertulis di atas halaman; di sini cukup alasan item ini sendiri. -->
         <p v-if="tertahan && alasan && !kunci" class="m-0 text-[12px] leading-snug text-[hsl(var(--kanvas))]">{{ alasan }}</p>
-        <TambahBerkas v-if="bolehBerkas" class="self-end" :item-id="item.id" jenis="sunyi" label="Tambah take dari berkas" />
+        <TambahBerkas v-if="bolehBerkas" class="self-end" :item-id="item.id" jenis="sunyi" label="Tambah take dari berkas" ringkas />
     </div>
 </template>

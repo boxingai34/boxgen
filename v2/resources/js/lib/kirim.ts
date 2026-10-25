@@ -14,6 +14,14 @@ function tokenXsrf(): string {
     return kuki ? decodeURIComponent(kuki.slice('XSRF-TOKEN='.length)) : '';
 }
 
+/**
+ * HTTP 413: kiriman lebih besar dari post_max_size PHP. Laravel menolaknya
+ * (ValidatePostSize) dengan kalimat Inggris "The POST data is too large.",
+ * dan dengan display_errors menyala yang datang malah peringatan PHP —
+ * keduanya diganti kalimat ini.
+ */
+export const PESAN_413 = 'Kiriman ini lebih besar dari batas unggah PHP (post_max_size dan upload_max_filesize di php.ini).';
+
 export class GalatKirim extends Error {
     constructor(
         pesan: string,
@@ -44,7 +52,9 @@ function pesanBukanJson(mentah: string, status: number): string {
             ? ' Sesimu tampaknya sudah kedaluwarsa — muat ulang halaman lalu masuk lagi.'
             : status === 504 || status === 524 || status === 408
               ? ' Server memutusnya karena kelamaan. Tekan sekali lagi: biasanya jauh lebih cepat, karena jawaban AI yang sudah jadi tersimpan di server.'
-              : '';
+              : status === 413
+                ? ' ' + PESAN_413
+                : '';
 
     return (
         `Server membalas bukan JSON (HTTP ${status}).` +
@@ -157,6 +167,8 @@ export async function unggahBerkas<T = any>(alamat: string, nama: string, berkas
             }
             if (xhr.status >= 200 && xhr.status < 300 && j?.ok !== false) {
                 selesai(j as T);
+            } else if (xhr.status === 413) {
+                gagal(new GalatKirim(PESAN_413, 413));
             } else {
                 // Endpoint PRODUKSI menjawab galatnya sebagai { pesan } (RENCANA-PRODUKSI §8), sama seperti kirim().
                 const pesanValidasi = j?.errors ? (Object.values(j.errors)[0] as string[])?.[0] : null;

@@ -49,6 +49,19 @@ export function waktuVideo(t: number | null | undefined): string {
     return `${menit}:${String(utuh).padStart(2, '0')}${persepuluh ? ',' + persepuluh : ''}`;
 }
 
+/**
+ * Ukuran berkas: "52 MB" (≥ 10 MB dibulatkan), "4,6 MB", "820 KB". MB di
+ * sini 1.048.576 byte, satuan yang sama dengan "40M" di php.ini.
+ */
+export function ukuranBerkas(byte: number | null | undefined): string {
+    const n = Math.max(0, angka(byte));
+    const mb = n / 1048576;
+    if (mb >= 10) return `${Math.round(mb)} MB`;
+    if (mb >= 1) return `${koma(mb)} MB`;
+
+    return `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+
 /** Seed panjang dipecah tiap tiga angka ("902 117 455") supaya bisa dibaca dan dibandingkan. */
 export function seedRapi(seed: number | string | null | undefined): string {
     if (seed === null || seed === undefined || seed === '') return '—';

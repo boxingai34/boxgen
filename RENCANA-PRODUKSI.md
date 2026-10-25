@@ -181,11 +181,16 @@ Status umur pack = yang terburuk dari karakternya (tolak > tak_dikenal > olahrag
   diisi) → tetap `queued/in_progress`, dicek lagi dengan jeda 8, 16, 32 … dtk (maks 5 menit)
   dan pesan di `galat`. Lewat `pantau.batas_tunggu_menit` (40) hanya peringatan; yang
   mengakhiri hanya status terminal Higgsfield atau `pantau.batas_pantau_hari` (7, hasil
-  dihapus Higgsfield) → `galat`, biaya NULL.
+  dihapus Higgsfield) → `galat`, biaya NULL — kecuali take yang sudah pernah `completed`
+  (punya `video_url`): biaya tetap = estimasi, pesannya "sudah jadi dan ditagih … tidak
+  terunduh".
 - Unduhan gagal (folder pack sedang dipindah, `.part` dipegang antivirus, jaringan, CDN
   408/429/5xx) → kembali `completed` dengan jeda 30 × n dtk (maks 5 menit) sampai
   `BATAS_COBA` (12), lalu `galat` dengan biaya = estimasi. CDN 401/403/404/410 (alamat
-  kedaluwarsa) → kembali `queued` supaya status memberi `video_url` baru.
+  kedaluwarsa) → kembali `queued` dengan jeda yang sama, supaya status memberi `video_url`
+  baru. Take yang sudah punya `video_url`: `dicoba` hanya menghitung percobaan unduh — cek
+  status (galat, `completed` tanpa alamat, masih jalan) tidak mengubahnya, dan galatnya
+  ditunggu 5 menit.
 - Kirim: selama body tersimpan, `dicoba` = jumlah kiriman body + kunci itu yang hasilnya
   belum pasti (dinaikkan SEBELUM kirim). 429 tidak memakan jatah (dicoba lagi sesudah
   Retry-After). Kiriman ulang yang ditolak (4xx) = tidak pasti (biaya NULL + "MUNGKIN sudah
@@ -347,6 +352,8 @@ Route::middleware(['admin', 'produksi.lokal'])->prefix('produksi')->group(functi
   Route::post('pack/{id}/buka-folder',    [ProduksiController::class, 'bukaFolder'])->whereNumber('id')->name('produksi.pack.folder');
   Route::get('pack/{id}/gambar/{nama}',   [ProduksiController::class, 'gambar'])->whereNumber('id')->where('nama', '[^/\\\\]+')->name('produksi.pack.gambar');
   Route::post('item/{id}/manual',         [ProduksiController::class, 'tambahManual'])->whereNumber('id')->name('produksi.item.manual');
+  Route::get('item/{id}/berkas-pack',     [ProduksiController::class, 'berkasPack'])->whereNumber('id')->name('produksi.item.berkas');
+  Route::post('item/{id}/manual-folder',  [ProduksiController::class, 'tambahDariFolder'])->whereNumber('id')->name('produksi.item.manual.folder');
   Route::get('take/{id}',                 [ProduksiController::class, 'review'])->whereNumber('id')->name('produksi.take');
   Route::get('take/{id}/video',           [ProduksiController::class, 'video'])->whereNumber('id')->name('produksi.take.video');
   Route::get('take/{id}/bingkai/{n}',     [ProduksiController::class, 'bingkai'])->whereNumber(['id', 'n'])->name('produksi.take.bingkai');
@@ -371,14 +378,18 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   klip_dibuka, klip_terkunci, kurang[] (kode tester yang belum lolos), cek[] (§4),
   kontinuitas[], dokumen[], biaya_terpakai, perkiraan_sisa, peringatan[], sidik_take
   ("id:status" semua take pack, terurut, digabung koma — polling membandingkannya dengan
-  sidik dari `produksi.status?pack_id=` dan memuat ulang begitu berbeda)};
+  sidik dari `produksi.status?pack_id=` dan memuat ulang begitu berbeda)}; `batas_unggah`
+  (byte|null, lihat Review);
   `tester[]`, `klip[]` = ITEM_HALAMAN {id, kode, judul, durasi, gambar[] {nama, url},
   status, take_terakhir {id, nomor, status}|null (nomor terbesar), take_review {id, nomor}|null
   (take selesai pertama tanpa keputusan — tujuan Review), take_pilihan {id, nomor}|null
   (take lolos/dipakai — tujuan Lihat), jumlah_take, biaya (jumlah SEMUA take item), cek[]
   (cek item ini), bisa_kirim, alasan_tidak}. Klip yang sudah punya take tetap menampilkan
   status + Review/Lihat walau klip terkunci lagi.
-- **Produksi/Kirim**: `pack` {id, judul, model, nama_model, resolusi, rasio};
+- **Produksi/Kirim**: `pack` {id, judul, model, nama_model, resolusi, rasio, sidik_take
+  (seperti Pack: polling Antrian halaman ini memuat ulang `item` begitu sidik dari
+  `produksi.status?pack_id=` berbeda, jadi peringatan yang muncul sesudah halaman dibuka
+  ikut tampil)};
   `item[]` {id, jenis, kode, judul, durasi, gambar[] {nama, url}, ket, peringatan, pilih_awal,
   take_berikut, tarif_per_take, bisa_kirim, alasan_tidak}; `?item=ID` di URL membuat
   item itu tercentang awal. `peringatan` (dari `Pemantau::bolehUlang`) terisi kalau take
@@ -386,7 +397,11 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   selalu false (juga lewat `?item=`), dan halaman meminta centang "sudah cek dashboard
   Higgsfield" sebelum item itu bisa ikut dikirim. POST `produksi.perkiraan` {pilihan[]} →
   {total, rincian[]}; POST `produksi.kirim` {pack_id, pilihan[] {item_id, takes 1..3},
-  konfirmasi: true} → {ok, take_ids[], total} atau 422 {pesan}.
+  sudah_cek[] (id item ber-peringatan yang sudah dicentang), konfirmasi: true} → {ok,
+  take_ids[], total} atau 422 {pesan}. Server menghitung `bolehUlang` lagi saat POST: item
+  pilihan yang tidak boleh diulang dan tidak ada di `sudah_cek` → 422 (halaman lalu memuat
+  ulang `item`). Konfirmasi harga yang sedang tampil batal kalau pilihan, harga, atau
+  peringatan berubah karena muat ulang itu.
 - **Produksi/Antrian**: `takes[]` TAKE_BARIS {id, pack_id, pack_judul, item_kode,
   item_judul, nomor, status, label, ket, biaya, bisa_review, url_review, waktu}.
   GET `produksi.status` (polling 5 dtk, juga dipakai Pack/Kirim/Review) → {takes[]
@@ -402,21 +417,42 @@ Semua uang dalam USD float; label waktu `HH.mm` zona app. URL gambar/video dari 
   durasi, video_url, poster_url, bingkai[] {url, t}, analisis {durasi, lebar, tinggi,
   fps, audio, puncak_db, mirip[] {take_id, nomor, skor}}, cek[] {tingkat, teks, detail},
   nilai {index: 'lolos'|'gagal'}, catatan[] {t, isi}, keputusan, galat, request_id|null,
-  biaya|null (null = belum pasti), bisa_periksa};
+  biaya|null (null = belum pasti), estimasi (harga take ini), bisa_periksa};
   `item` {id, jenis, kode, judul, durasi, kriteria[], gambar[] {nama, url}};
   `takes[]` {id, nomor, status, keputusan} (take lain di item ini);
-  `pack` {id, judul, revisi, kontinuitas[]}.
+  `pack` {id, judul, revisi, kontinuitas[]};
+  `batas_unggah` (byte|null: min(post_max_size, upload_max_filesize) − 64 KB, dibaca seperti
+  `ValidatePostSize`; null = PHP tidak membatasi).
   POST `produksi.take.nilai` {nilai, catatan} → {ok}; POST `produksi.take.putuskan`
   {keputusan} → {ok, item_status}. Nilai berkunci indeks yang tidak ada lagi di
   `kriteria` dibuang halaman saat dimuat.
   Take berakhir tanpa video (galat/failed/nsfw/canceled) menampilkan "Tambah take dari
-  berkas" (POST `produksi.item.manual`, multipart `berkas` → {ok, take_id, url} atau 422
-  {pesan}; juga ada di kartu item gagal/diblokir di halaman Pack) dan, kalau
-  `bisa_periksa` (galat dengan request_id, atau body tersimpan dengan biaya NULL),
-  "Periksa lagi ke Higgsfield": POST `produksi.take.periksa` → {ok} atau 422 {pesan}
-  (`Pemantau::periksaLagi`; body yang pasti ditolak — biaya 0 tanpa request_id — ditolak
-  controller karena itu kiriman baru). `request_id` boleh tampil; alamat video dan body
-  tidak pernah dikirim ke browser.
+  berkas" (juga di kartu item gagal/diblokir di halaman Pack, di balik satu tombol) dengan
+  dua pilihan:
+  - "Ambil dari folder pack": GET `produksi.item.berkas` → {ok, folder, berkas[] {nama
+    (relatif ke folder pack, pemisah '/', mis. "test klip higgsfield/api T04 seed1238296069.mp4"),
+    ukuran (byte), diubah ("HH.mm" hari ini, selain itu "dd/mm HH.mm"), take_sama ("T04 take 3"
+    kalau ukurannya sama persis dengan take pack ini, selain itu null)}} — video .mp4/.mov/.webm
+    di akar folder pack dan subfolder langsungnya, kecuali TAKES\, FINAL\, berkas yang sudah
+    menjadi take, dan berkas kosong; terbaru dulu, paling banyak 200. POST
+    `produksi.item.manual.folder` {nama} → {ok, take_id, url} atau 422 {pesan}: `nama` relatif
+    dengan paling banyak satu '/' atau '\', tanpa '..', ':', wildcard, nama pendek 8.3, atau
+    path mutlak; di-realpath() dan wajib di akar pack atau satu subfolder yang bukan
+    TAKES/FINAL; lalu `Pemantau::tambahManual` (menyalin, tidak pernah memindah). Jalan
+    untuk video yang lebih besar dari batas unggah PHP (klip 30 dtk ±50 MB).
+  - "Unggah dari komputer": POST `produksi.item.manual`, multipart `berkas` → {ok, take_id,
+    url} atau 422 {pesan}. Berkas di atas `batas_unggah` ditolak halaman sebelum diunggah;
+    413 dari PHP/Laravel juga dijawab dengan kalimat Indonesia yang menyebut
+    upload_max_filesize dan post_max_size di php.ini (dan menyarankan folder pack).
+  Kalau `bisa_periksa` (galat dengan request_id, atau body tersimpan dengan biaya NULL):
+  POST `produksi.take.periksa` → {ok} atau 422 {pesan} (`Pemantau::periksaLagi`). Dengan
+  request_id: "Periksa lagi ke Higgsfield", satu klik (tidak ada request baru). Body tanpa
+  request_id: "Kirim ulang ke Higgsfield — $harga" — kiriman ulang dengan Idempotency-Key
+  yang sama bisa MEMBUAT dan menagih take kalau kiriman lama tidak pernah sampai, jadi
+  halaman menampilkan konfirmasi harga (`estimasi`) dan POST wajib {konfirmasi: true}
+  (selain itu 422). Body yang pasti ditolak — biaya 0 tanpa request_id — ditolak controller
+  karena itu kiriman baru. `request_id` boleh tampil; alamat video dan body tidak pernah
+  dikirim ke browser.
   `analisis.cek` dibuat Media: durasi vs rencana (±0,3 dtk), resolusi sesuai, ada suara,
   puncak ≥ -0,5 dB → "mungkin pecah, dengarkan", mirip > 0,9 dengan take lain.
 - **Produksi/Hasil**: `pack` {id, judul, folder}; `urutan[]` {kode, judul, take_id,

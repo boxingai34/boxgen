@@ -4,6 +4,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import BarisCek from '@/components/produksi/BarisCek.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import Jejak from '@/components/produksi/Jejak.vue';
+import KotakYakin from '@/components/produksi/KotakYakin.vue';
 import PemutarTake from '@/components/produksi/PemutarTake.vue';
 import TambahBerkas from '@/components/produksi/TambahBerkas.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -242,26 +243,51 @@ watch(teksClaude, () => {
 
 // ---- Take yang berakhir tanpa video: pulihkan ----
 /*
- * galat/failed/nsfw/canceled tidak bisa dinilai. Dua jalan keluar:
- *   - "Periksa lagi ke Higgsfield" untuk take galat yang mungkin sudah
- *     dibayar (punya request, atau body tersimpan yang belum pasti
- *     ditolak): take kembali dipantau dan videonya diambil lagi. Tidak
- *     membuat request baru, jadi tidak menagih lagi.
- *   - "Tambah take dari berkas": video yang diunduh manual dari dashboard
- *     Higgsfield masuk sebagai take baru item ini.
+ * galat/failed/nsfw/canceled tidak bisa dinilai. Jalan keluarnya, untuk
+ * take galat yang mungkin sudah dibayar (bisa_periksa):
+ *   - punya request_id: "Periksa lagi ke Higgsfield", satu klik. Take
+ *     kembali dipantau dan videonya diambil lagi; tidak ada request baru,
+ *     jadi tidak menagih lagi.
+ *   - body tersimpan tanpa request_id (biaya belum pasti): "Kirim ulang ke
+ *     Higgsfield" dengan body + Idempotency-Key yang sama. Kalau kiriman
+ *     lama sudah diterima, tidak ditagih dua kali — tapi kalau belum pernah
+ *     sampai, take ini baru dibuat dan DITAGIH sekarang. Jadi harganya
+ *     ditanyakan dulu (KotakYakin), dan server menolaknya tanpa
+ *     `konfirmasi: true`.
+ * Selain itu selalu ada "Tambah take dari berkas": video yang diunduh
+ * manual dari dashboard Higgsfield masuk sebagai take baru item ini.
  */
 const berakhirTanpaVideo = computed(() => props.take.status !== 'selesai' && !takeAktif(props.take.status));
+/** Pemulihan lewat kirim ulang body — bisa membuat dan menagih take. */
+const periksaBerbayar = computed(() => Boolean(props.take.bisa_periksa) && !props.take.request_id);
+/** Take lain item ini yang sudah selesai sesudah take ini: biasanya kirim ulang tidak perlu lagi. */
+const penggantiSelesai = computed(() => props.takes.filter((t) => t.nomor > props.take.nomor && t.status === 'selesai'));
 const memeriksa = ref(false);
+const yakinPeriksa = ref(false);
 const pesanPeriksa = ref('');
 
-async function periksaLagi() {
+watch(
+    () => [props.take.id, props.take.status],
+    () => (yakinPeriksa.value = false),
+);
+
+function mintaPeriksa() {
+    if (memeriksa.value || !props.take.bisa_periksa) return;
+    pesanPeriksa.value = '';
+    if (periksaBerbayar.value) yakinPeriksa.value = true;
+    else periksaLagi(false);
+}
+
+async function periksaLagi(konfirmasi: boolean) {
     if (memeriksa.value || !props.take.bisa_periksa) return;
     memeriksa.value = true;
     pesanPeriksa.value = '';
     try {
-        await kirim(route('produksi.take.periksa', { id: props.take.id }));
+        await kirim(route('produksi.take.periksa', { id: props.take.id }), konfirmasi ? { konfirmasi: true } : undefined);
+        yakinPeriksa.value = false;
         router.reload({ only: ['take', 'takes'] });
     } catch (e: any) {
+        yakinPeriksa.value = false;
         pesanPeriksa.value = e?.message ?? 'Take ini tidak bisa diperiksa lagi.';
     } finally {
         memeriksa.value = false;
@@ -520,20 +546,40 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                             >
                                 <p class="m-0">
                                     Take ini berakhir tanpa video ({{ labelTake(take.status).teks }}), jadi tidak bisa dinilai.
-                                    <template v-if="take.bisa_periksa">
-                                        Higgsfield mungkin sudah membuatnya<template v-if="take.biaya === null">, dan biayanya belum pasti</template
+                                    <template v-if="take.bisa_periksa && !periksaBerbayar">
+                                        Higgsfield sudah menerimanya<template v-if="take.biaya === null">, dan biayanya belum pasti</template
                                         ><template v-else-if="Number(take.biaya) > 0"> — biaya {{ uang(take.biaya) }} sudah tercatat</template>.
-                                        Periksa lagi dulu sebelum mengirim take baru, supaya tidak membayar dua kali.
+                                        Periksa lagi dulu sebelum mengirim take baru: videonya diambil ulang tanpa tagihan baru.
+                                    </template>
+                                    <template v-else-if="periksaBerbayar">
+                                        Kiriman take ini mungkin sudah diterima Higgsfield, tapi itu belum pasti. Cek dashboard Higgsfield dulu. Kirim
+                                        ulang memakai kiriman dan kunci yang sama: kalau sudah diterima, tidak ditagih dua kali; kalau belum pernah
+                                        sampai, take ini baru dibuat — dan ditagih — sekarang.
                                     </template>
                                 </p>
                                 <p v-if="take.request_id" class="m-0 text-muted-foreground">
                                     Request Higgsfield:
                                     <span class="select-all break-all font-mono text-foreground">{{ take.request_id }}</span>
                                 </p>
-                                <Tombol v-if="take.bisa_periksa" ukuran="besar" penuh :nonaktif="memeriksa" @click="periksaLagi">
+                                <KotakYakin
+                                    v-if="yakinPeriksa"
+                                    ya="Ya, kirim ulang"
+                                    :sibuk="memeriksa"
+                                    @ya="periksaLagi(true)"
+                                    @batal="yakinPeriksa = false"
+                                >
+                                    Kalau Higgsfield belum pernah menerima kiriman ini, take {{ take.nomor }} dibuat dan ditagih sekarang:
+                                    <strong>{{ uang(take.estimasi) }}</strong
+                                    >. Kalau sudah pernah diterima, tidak ada tagihan kedua.
+                                    <span v-if="penggantiSelesai.length" class="mt-1 block text-[13px]">
+                                        {{ item.kode }} sudah punya take {{ penggantiSelesai.map((t) => t.nomor).join(', ') }} yang selesai. Kalau itu
+                                        sudah cukup, take ini tidak perlu dikirim ulang.
+                                    </span>
+                                </KotakYakin>
+                                <Tombol v-else-if="take.bisa_periksa" ukuran="besar" penuh :nonaktif="memeriksa" @click="mintaPeriksa">
                                     <Loader2 v-if="memeriksa" class="h-4 w-4 animate-spin" />
                                     <RefreshCw v-else class="h-4 w-4" />
-                                    Periksa lagi ke Higgsfield
+                                    {{ periksaBerbayar ? `Kirim ulang ke Higgsfield — ${uang(take.estimasi)}` : 'Periksa lagi ke Higgsfield' }}
                                 </Tombol>
                                 <p
                                     v-if="pesanPeriksa"
@@ -542,11 +588,11 @@ const kriteriaAda = computed(() => props.item.kriteria.length > 0);
                                 >
                                     {{ pesanPeriksa }}
                                 </p>
-                                <TambahBerkas :item-id="item.id" ukuran="besar" penuh />
                                 <p class="m-0 text-[12px] text-muted-foreground">
                                     Sudah mengunduh videonya dari dashboard Higgsfield, atau membuatnya di tempat lain? Tambahkan sebagai take baru
-                                    {{ item.kode }} — tanpa biaya.
+                                    {{ item.kode }} — tanpa biaya. Video besar (klip 30 detik) taruh dulu di folder pack, lalu ambil dari sana.
                                 </p>
+                                <TambahBerkas :item-id="item.id" ukuran="besar" penuh />
                             </div>
                         </template>
 

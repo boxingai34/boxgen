@@ -779,14 +779,137 @@ class PemantauTest extends TestCase
         $t = $this->take($id);
         $this->assertSame(['queued', 1, 0, 0.4], [$t->status, (int) $t->dicoba, $l['gagal'], (float) $t->biaya_usd]);
 
+        // Alamat baru diminta dengan jeda percobaan unduh (30 dtk sesudah percobaan ke-1), bukan langsung.
+        $jumlah = count($this->hf->ditanya);
+        $this->travel(29)->seconds();
+        $pm->langkah();
+        $this->assertCount($jumlah, $this->hf->ditanya, 'belum 30 dtk');
+        $this->travel(1)->seconds();
         $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/baru.mp4'];
         $pm->langkah();
+        $this->assertCount($jumlah + 1, $this->hf->ditanya);
         $t = $this->take($id);
         $this->assertSame(['completed', 'https://cdn.palsu.test/hasil/baru.mp4', 1], [$t->status, $t->video_url, (int) $t->dicoba],
             'hitungan percobaan unduh tidak direset oleh alamat baru');
         $pm->langkah();
         $this->assertSame('selesai', $this->take($id)->status);
         $this->assertSame('https://cdn.palsu.test/hasil/baru.mp4', end($this->hf->unduhan)['url']);
+    }
+
+    public function test_cdn_yang_terus_menolak_tidak_menghabiskan_jatah_dalam_dua_menit(): void
+    {
+        // R2: CDN masih menjawab 404 sebentar sesudah completed (cache negatif). Tiap penolakan
+        // menunggu 30 × n dtk sebelum alamat baru diminta, jadi 2 menit hanya memakan 3 percobaan.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+        $ditanya = count($this->hf->ditanya);
+
+        $cdn = 0;
+        $this->hf->saatUnduh = function () use (&$cdn) {
+            $cdn++;
+        };
+        $this->hf->galat['unduh'] = array_fill(0, 30, new HiggsfieldGalat('Alamat video untuk T01-1.mp4 tidak ditemukan (HTTP 404).', 404, false));
+        $this->hf->antreStatus = array_fill(0, 30, ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/lagi.mp4']);
+
+        // Pemantau latar berputar tiap 5 dtk (jeda_detik bawaan) selama 2 menit:
+        // tolak (0 dtk) → status (30) → tolak (35) → status (95) → tolak (100) → status berikutnya baru di 190.
+        for ($dtk = 0; $dtk <= 120; $dtk += 5) {
+            $pm->langkah();
+            $this->travel(5)->seconds();
+        }
+        $t = $this->take($id);
+        $this->assertSame(['queued', 3, 0.4], [$t->status, (int) $t->dicoba, (float) $t->biaya_usd]);
+        $this->assertSame([3, 2], [$cdn, count($this->hf->ditanya) - $ditanya]);
+    }
+
+    public function test_galat_cek_status_tidak_memakan_jatah_unduh_take_yang_sudah_jadi(): void
+    {
+        // R1: alamat ditolak CDN (queued, dicoba 1), lalu cek status putus satu jam. Hitungan
+        // percobaan unduh tidak ikut naik, jadi satu unduhan terputus sesudahnya tidak mengakhiri take.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        $id = $pm->kirim($packId, self::pilih($this->item('T01')))['take_ids'][0];
+        $this->sampaiCompleted($pm, $id);
+        $this->hf->galat['unduh'] = [new HiggsfieldGalat('Alamat video untuk T01-1.mp4 sudah kedaluwarsa atau ditolak (HTTP 403).', 403, false)];
+        $pm->langkah();
+        $this->assertSame(['queued', 1], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+
+        // Galat status ke-1 sesudah 30 dtk, lalu tiap JEDA_MAKS (5 menit): dicoba tidak naik, jadi jedanya tidak dihitung darinya.
+        $this->hf->galat['status'] = array_fill(0, Pemantau::BATAS_COBA, HiggsfieldGalat::jaringan('memeriksa status', 'koneksi terputus'));
+        $this->travel(30)->seconds();
+        $pm->langkah();
+        for ($i = 2; $i <= Pemantau::BATAS_COBA; $i++) {
+            $jumlah = count($this->hf->ditanya);
+            $this->travel(299)->seconds();
+            $pm->langkah();
+            $this->assertCount($jumlah, $this->hf->ditanya, 'belum 5 menit');
+            $this->travel(1)->seconds();
+            $pm->langkah();
+            $this->assertCount($jumlah + 1, $this->hf->ditanya);
+        }
+        $t = $this->take($id);
+        $this->assertSame(['queued', 1, 0.4], [$t->status, (int) $t->dicoba, (float) $t->biaya_usd]);
+        $this->assertStringContainsString('tetap diperiksa lagi nanti', $t->galat);
+
+        // "completed" tanpa alamat video juga tidak memakan jatah unduh.
+        $this->travel(300)->seconds();
+        $this->hf->antreStatus = [['status' => 'completed'], ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/baru.mp4']];
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['queued', 1], [$t->status, (int) $t->dicoba]);
+        $this->assertStringContainsString('belum memberi alamat video', $t->galat);
+        $this->travel(300)->seconds();
+        $pm->langkah();
+        $this->assertSame(['completed', 1], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+
+        // Satu unduhan terputus = percobaan ke-2, dicoba lagi; take yang sudah dibayar tidak diakhiri.
+        $this->hf->galat['unduh'] = [new HiggsfieldGalat('Unduhan T01-1.mp4 terputus (koneksi terputus). Aman dicoba lagi.', 0, true)];
+        $pm->langkah();
+        $this->assertSame(['completed', 2], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+        $this->travel(61)->seconds();
+        $pm->langkah();
+        $t = $this->take($id);
+        $this->assertSame(['selesai', 'TAKES/T01-1.mp4', 0.4], [$t->status, $t->berkas, (float) $t->biaya_usd]);
+    }
+
+    public function test_batas_7_hari_tidak_menghapus_biaya_take_yang_sudah_jadi(): void
+    {
+        // R3: take sudah completed (biaya = estimasi) lalu alamatnya ditolak CDN dan kembali queued,
+        // dan tidak terunduh sampai batas_pantau_hari. Tagihannya tetap tercatat.
+        $packId = $this->packMaomao();
+        $pm = $this->pemantau();
+        [$a, $b] = $pm->kirim($packId, self::pilih($this->item('T01'), 2))['take_ids'];
+        $pm->langkah();
+        $this->travel(10)->seconds();
+        $this->hf->antreStatus = [
+            ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/a.mp4'],
+            ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/b.mp4'],
+        ];
+        $pm->langkah();
+        $tolak = new HiggsfieldGalat('Alamat video sudah kedaluwarsa atau ditolak (HTTP 403).', 403, false);
+        $this->hf->galat['unduh'] = [$tolak, $tolak];
+        $pm->langkah();
+        foreach ([$a, $b] as $id) {
+            $this->assertSame(['queued', 0.4], [$this->take($id)->status, (float) $this->take($id)->biaya_usd]);
+        }
+
+        // 7 hari kemudian: take a kena galat status, take b dijawab in_progress. Keduanya diakhiri, biayanya tetap.
+        $this->travel(7)->days();
+        $this->hf->galat['status'] = [HiggsfieldGalat::dariHttp('memeriksa status', 503)];
+        $l = $pm->langkah();
+        $this->assertSame(2, $l['gagal']);
+        foreach ([[$a, 'HTTP 503'], [$b, 'dalam 7 hari sejak dikirim. ']] as [$id, $potongan]) {
+            $t = $this->take($id);
+            $this->assertSame(['galat', 0.4], [$t->status, (float) $t->biaya_usd]);
+            $this->assertNotNull($t->biaya_usd);
+            $this->assertStringContainsString('sudah jadi dan ditagih Higgsfield', $t->galat);
+            $this->assertStringContainsString('tidak terunduh dalam 7 hari', $t->galat);
+            $this->assertStringNotContainsString('tidak menyelesaikan', $t->galat);
+            $this->assertStringContainsString($potongan, $t->galat);
+        }
+        $this->assertTrue($pm->bolehUlang((int) $this->item('T01')->id)['boleh'], 'hasilnya sudah dihapus Higgsfield: take baru boleh dikirim');
     }
 
     public function test_unduh_gagal_terus_berhenti_di_batas_coba_lalu_bisa_diperiksa_lagi(): void
@@ -817,6 +940,12 @@ class PemantauTest extends TestCase
         $this->assertSame(['queued', 0, null, null], [$t->status, (int) $t->dicoba, $t->dicek_at, $t->galat]);
         $this->assertSame('berjalan', $this->item('T01')->status);
         $this->assertTrue($pm->bolehUlang($t01)['boleh']);
+
+        // Jaringan masih putus-sambung: galat status tidak memakan jatah unduh yang baru direset (R1).
+        $this->hf->galat['status'] = [HiggsfieldGalat::jaringan('memeriksa status', 'koneksi terputus')];
+        $pm->langkah();
+        $this->assertSame(['queued', 0], [$this->take($id)->status, (int) $this->take($id)->dicoba]);
+        $this->travel(5)->minutes();
 
         $this->hf->antreStatus[] = ['status' => 'completed', 'video_url' => 'https://cdn.palsu.test/hasil/segar.mp4'];
         $pm->langkah();

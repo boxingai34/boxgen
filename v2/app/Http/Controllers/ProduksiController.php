@@ -62,6 +62,12 @@ class ProduksiController extends Controller
     /** Take terakhir di jawaban status (yang aktif selalu ikut). */
     private const BATAS_STATUS = 20;
 
+    /** Video paling banyak di daftar "Ambil dari folder pack" (terbaru dulu). */
+    private const BATAS_BERKAS_PACK = 200;
+
+    /** Ruang untuk kepala multipart: unggahan sebesar post_max_size persis tetap ditolak PHP. */
+    private const CADANGAN_MULTIPART = 65_536;
+
     private const BATAS_AKTIVITAS = 8;
 
     private const EKSTENSI_GAMBAR = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
@@ -183,6 +189,8 @@ class ProduksiController extends Controller
             ],
             'tester' => $item->where('jenis', 'tester')->map($halaman)->values()->all(),
             'klip'   => $klip->map($halaman)->values()->all(),
+            // "Tambah take dari berkas" di kartu item gagal/diblokir menolak unggahan yang lebih besar sebelum dikirim.
+            'batas_unggah' => self::batasUnggah(),
         ]);
     }
 
@@ -195,7 +203,9 @@ class ProduksiController extends Controller
      * Item yang take terakhirnya mungkin sudah dibuat dan ditagih
      * (Pemantau::bolehUlang) tidak pernah tercentang awal: peringatannya
      * menggantikan `ket`, dan halaman Kirim meminta centang tambahan
-     * sebelum item itu bisa ikut dikirim.
+     * sebelum item itu bisa ikut dikirim. kirim() memeriksanya lagi saat
+     * POST (`sudah_cek`), jadi halaman yang datanya basi tidak bisa
+     * melewatinya.
      */
     public function halamanKirim(Request $request, int $id): Response
     {
@@ -249,6 +259,9 @@ class ProduksiController extends Controller
                 'nama_model' => $m['nama'],
                 'resolusi'   => $m['resolusi'],
                 'rasio'      => $m['rasio'],
+                // Polling halaman Kirim memuat ulang `item` begitu sidik dari produksi.status?pack_id= berbeda,
+                // supaya peringatan "mungkin sudah ditagih" muncul tanpa membuka ulang halaman.
+                'sidik_take' => self::sidikTake($take),
             ],
             'item' => $baris,
         ]);
@@ -298,6 +311,8 @@ class ProduksiController extends Controller
                 // Higgsfield); alamat video dan body tidak pernah dikirim ke browser.
                 'request_id'   => trim((string) $t->request_id) !== '' ? (string) $t->request_id : null,
                 'biaya'        => $t->biaya_usd !== null ? round((float) $t->biaya_usd, 2) : null,
+                // Harga take ini; tampil di konfirmasi "Kirim ulang" (body tanpa request_id bisa membuat dan menagih take).
+                'estimasi'     => round((float) $t->estimasi_usd, 2),
                 'bisa_periksa' => self::bisaPeriksa($t),
             ],
             'item'  => [
@@ -322,6 +337,7 @@ class ProduksiController extends Controller
                 'revisi'      => (string) $p->revisi,
                 'kontinuitas' => self::daftarTeks($data['kontinuitas'] ?? []),
             ],
+            'batas_unggah' => self::batasUnggah(),
         ]);
     }
 
@@ -484,7 +500,11 @@ class ProduksiController extends Controller
     /**
      * Satu-satunya pintu ke uang: membuat take `siap` yang lalu dikirim
      * pemantau latar. Wajib `konfirmasi: true` (boolean JSON, bukan "1"
-     * atau "on"); semua gerbang lain diperiksa Pemantau::kirim().
+     * atau "on"). Item yang take terakhirnya mungkin sudah dibuat dan
+     * ditagih (Pemantau::bolehUlang) wajib tercantum di `sudah_cek[]` —
+     * centang "sudah memeriksa dashboard Higgsfield" di halaman Kirim —
+     * dan diperiksa di sini, saat POST, bukan dari data halaman yang bisa
+     * basi. Semua gerbang lain diperiksa Pemantau::kirim().
      */
     public function kirim(Request $request): JsonResponse
     {
@@ -492,8 +512,12 @@ class ProduksiController extends Controller
             if ($request->input('konfirmasi') !== true) {
                 throw new ProduksiGalat('Kiriman belum dikonfirmasi. Periksa harganya, lalu setujui kirim sekali lagi.');
             }
-            $data = $request->validate(['pack_id' => 'required|integer|min:1'] + self::ATURAN_PILIHAN,
-                ['pack_id.*' => 'Pack tidak dikenal. Muat ulang halaman.'] + self::PESAN_PILIHAN);
+            $data = $request->validate(['pack_id' => 'required|integer|min:1', 'sudah_cek' => 'nullable|array|max:100', 'sudah_cek.*' => 'integer']
+                + self::ATURAN_PILIHAN, [
+                    'pack_id.*'   => 'Pack tidak dikenal. Muat ulang halaman.',
+                    'sudah_cek.*' => 'Pilihan tidak sah. Muat ulang halaman lalu pilih lagi.',
+                ] + self::PESAN_PILIHAN);
+            $this->wajibSudahCek($data['pilihan'], array_map('intval', (array) ($data['sudah_cek'] ?? [])));
             $hasil = $this->pemantau->kirim((int) $data['pack_id'], $data['pilihan']);
 
             return ['ok' => true, 'take_ids' => $hasil['take_ids'], 'total' => $hasil['total']];
@@ -598,7 +622,13 @@ class ProduksiController extends Controller
         });
     }
 
-    /** Tambah take dari luar (Luno, web Higgsfield): unggahan `berkas` disalin ke TAKES\. */
+    /**
+     * Tambah take dari luar (Luno, web Higgsfield): unggahan `berkas` disalin
+     * ke TAKES\. Unggahan di atas post_max_size sudah ditolak
+     * ValidatePostSize (413) sebelum sampai ke sini; halaman memeriksa
+     * ukurannya lebih dulu dengan prop `batas_unggah` dan menawarkan "Ambil
+     * dari folder pack" (tambahDariFolder) untuk video sebesar itu.
+     */
     public function tambahManual(Request $request, int $id): JsonResponse
     {
         abort_if($this->gudang->item($id) === null, 404);
@@ -616,21 +646,87 @@ class ProduksiController extends Controller
     }
 
     /**
-     * "Periksa lagi ke Higgsfield" untuk take galat yang mungkin sudah
-     * dibayar: Pemantau mengembalikannya ke antrean pantau (punya
-     * request_id) atau ke kiriman ulang dengan body + Idempotency-Key yang
-     * sama (body tersimpan, request_id belum ada). Tidak pernah membuat
-     * request baru. Body yang pasti ditolak Higgsfield (biaya 0, tanpa
-     * request_id) tidak dikirim ulang dari sini: itu kiriman baru yang
-     * harus lewat halaman Kirim dengan harga dan konfirmasi.
+     * "Ambil dari folder pack": video (.mp4/.mov/.webm) di akar folder pack
+     * dan subfolder langsungnya — mis. hasil unduhan manual dari dashboard
+     * Higgsfield — terbaru dulu, paling banyak 200. TAKES\ dan FINAL\ milik
+     * aplikasi dan berkas yang sudah menjadi take tidak ikut. Jalan untuk
+     * video yang lebih besar dari batas unggah PHP (klip 30 dtk ±50 MB).
+     *
+     * `take_sama` = take pack ini yang ukurannya sama persis (kemungkinan
+     * besar video itu sudah pernah ditambahkan), selain itu null.
      */
-    public function periksaLagi(int $id): JsonResponse
+    public function berkasPack(int $id): JsonResponse
+    {
+        $i = $this->gudang->item($id);
+        abort_if($i === null, 404);
+        $p = $this->packAtau404((int) $i->pack_id);
+
+        return $this->coba(function () use ($p) {
+            $folder = $this->folderPackWajib($p);
+
+            return ['ok' => true, 'folder' => (string) $p->folder, 'berkas' => $this->videoDiPack($folder, (int) $p->id)];
+        });
+    }
+
+    /**
+     * Tambah take dari video di folder pack (lihat berkasPack). Dari
+     * browser hanya `nama` relatif ("unduhan.mp4" atau "subfolder/unduhan.mp4",
+     * pemisah '/' atau '\'): tanpa "..", ":", huruf drive, atau path mutlak;
+     * berkasnya di-realpath() dan wajib di akar folder pack atau satu
+     * subfolder di bawahnya, bukan TAKES\/FINAL\, dan belum menjadi take.
+     * Pemantau::tambahManual MENYALIN-nya ke TAKES\ — aslinya tidak pernah
+     * dipindah atau diubah.
+     */
+    public function tambahDariFolder(Request $request, int $id): JsonResponse
+    {
+        $i = $this->gudang->item($id);
+        abort_if($i === null, 404);
+        $p = $this->packAtau404((int) $i->pack_id);
+
+        return $this->coba(function () use ($request, $id, $p) {
+            $data = $request->validate(['nama' => 'required|string|max:400'], [
+                'nama.required' => 'Pilih video dari daftar folder pack.',
+                'nama.*'        => 'Nama berkas tidak sah. Muat ulang daftarnya, lalu pilih lagi.',
+            ]);
+            $folder = $this->folderPackWajib($p);
+            $sumber = self::videoDariNama($folder, (string) $data['nama'])
+                ?? throw new ProduksiGalat('Video itu tidak ada di folder pack (TAKES dan FINAL tidak termasuk). Muat ulang daftarnya, lalu pilih lagi.');
+            if (isset($this->takeTerdaftar($folder, (int) $p->id)['path'][self::kunciPath($sumber)])) {
+                throw new ProduksiGalat('Video itu sudah menjadi take. Pilih video lain.');
+            }
+            $takeId = $this->pemantau->tambahManual($id, $sumber, basename($sumber));
+
+            return ['ok' => true, 'take_id' => $takeId, 'url' => route('produksi.take', $takeId)];
+        });
+    }
+
+    /**
+     * "Periksa lagi ke Higgsfield" untuk take galat yang mungkin sudah
+     * dibayar. Dua jalan di Pemantau::periksaLagi:
+     *   punya request_id       kembali ke antrean pantau; tidak ada request
+     *                          baru, jadi satu klik saja
+     *   body tanpa request_id  dikirim ulang dengan body + Idempotency-Key
+     *   (biaya NULL)           yang sama. Kalau kiriman lama sudah diterima,
+     *                          Higgsfield tidak menagih dua kali — tapi kalau
+     *                          belum pernah sampai, kiriman ini MEMBUAT dan
+     *                          menagih take sekarang. Karena itu wajib
+     *                          `konfirmasi: true` sesudah harganya ditampilkan.
+     * Body yang pasti ditolak Higgsfield (biaya 0, tanpa request_id) tidak
+     * dikirim ulang dari sini: itu kiriman baru yang harus lewat halaman
+     * Kirim dengan harga dan konfirmasi.
+     */
+    public function periksaLagi(Request $request, int $id): JsonResponse
     {
         $t = $this->takeAtau404($id);
 
-        return $this->coba(function () use ($t) {
-            if ($t->status === 'galat' && trim((string) $t->request_id) === '' && trim((string) ($t->body ?? '')) !== '' && $t->biaya_usd !== null) {
+        return $this->coba(function () use ($request, $t) {
+            $tanpaRequest = $t->status === 'galat' && trim((string) $t->request_id) === '' && trim((string) ($t->body ?? '')) !== '';
+            if ($tanpaRequest && $t->biaya_usd !== null) {
                 throw new ProduksiGalat('Higgsfield sudah menolak take ini (tidak ditagih), jadi tidak ada yang bisa diperiksa. Kirim take baru dari halaman Kirim.');
+            }
+            if ($tanpaRequest && $request->input('konfirmasi') !== true) {
+                throw new ProduksiGalat('Kirim ulang belum dikonfirmasi. Kalau Higgsfield belum pernah menerima kiriman take ini, take ini dibuat dan ditagih '
+                    . 'sekarang (' . self::teksUsd((float) $t->estimasi_usd) . '). Setujui harganya dulu.');
             }
             $this->pemantau->periksaLagi((int) $t->id);
 
@@ -1217,6 +1313,29 @@ class ProduksiController extends Controller
     }
 
     /**
+     * Gerbang "sudah cek dashboard" di sisi server: setiap item pilihan yang
+     * take terakhirnya mungkin sudah ditagih (peringatanUlang) wajib ada di
+     * $sudahCek. Dihitung saat POST, jadi peringatan yang muncul sesudah
+     * halaman Kirim dibuka tetap menahan kiriman.
+     *
+     * @param list<array{item_id: int|string}> $pilihan
+     * @param list<int> $sudahCek
+     */
+    private function wajibSudahCek(array $pilihan, array $sudahCek): void
+    {
+        foreach ($pilihan as $x) {
+            $itemId = (int) $x['item_id'];
+            if (in_array($itemId, $sudahCek, true) || ($peringatan = $this->peringatanUlang($itemId)) === null) {
+                continue;
+            }
+            $i = $this->gudang->item($itemId);
+            $kode = $i !== null ? self::labelKode((string) $i->jenis, (string) $i->kode) : "item {$itemId}";
+
+            throw new ProduksiGalat("Belum dikirim. {$kode}: {$peringatan} Centang “sudah memeriksa dashboard Higgsfield” di baris {$kode}, lalu kirim lagi.");
+        }
+    }
+
+    /**
      * Take galat yang mungkin sudah dibuat (dan ditagih) di Higgsfield, jadi
      * layak "Periksa lagi": punya request_id, atau body tersimpan yang belum
      * pasti ditolak (biaya NULL). Lihat periksaLagi().
@@ -1231,6 +1350,43 @@ class ProduksiController extends Controller
         }
 
         return trim((string) ($t->body ?? '')) !== '' && $t->biaya_usd === null;
+    }
+
+    /**
+     * Ukuran berkas terbesar (byte) yang masih bisa diunggah lewat "Tambah
+     * take dari berkas": min(post_max_size, upload_max_filesize) dikurangi
+     * ruang kepala multipart; null kalau PHP tidak membatasinya. Angka ini
+     * dibaca persis seperti ValidatePostSize::getPostMaxSize Laravel (yang
+     * menolak dengan 413 sebelum controller jalan), supaya halaman bisa
+     * menolak video yang terlalu besar SEBELUM diunggah, dengan pesan
+     * Indonesia yang menyebut kedua pengaturan php.ini.
+     * Parameter hanya untuk tes; bawaannya ini_get().
+     */
+    public static function batasUnggah(?string $postMax = null, ?string $unggahMax = null): ?int
+    {
+        $batas = array_filter([
+            self::byteIni($postMax ?? (string) ini_get('post_max_size')),
+            self::byteIni($unggahMax ?? (string) ini_get('upload_max_filesize')),
+        ], fn (int $x) => $x > 0); // 0 = tanpa batas
+
+        return $batas ? max(1, min($batas) - self::CADANGAN_MULTIPART) : null;
+    }
+
+    /** "40M" → 41943040, sama dengan ValidatePostSize::getPostMaxSize. */
+    private static function byteIni(string $nilai): int
+    {
+        $nilai = trim($nilai);
+        if (is_numeric($nilai)) {
+            return (int) $nilai;
+        }
+        $angka = (int) $nilai;
+
+        return match (strtoupper(substr($nilai, -1))) {
+            'K'     => $angka * 1024,
+            'M'     => $angka * 1048576,
+            'G'     => $angka * 1073741824,
+            default => $angka,
+        };
     }
 
     /** Sidik semua take pack: "id:status" terurut, digabung koma — sama persis dengan sidikTake() di lib/produksi.ts. */
@@ -1594,6 +1750,145 @@ class ProduksiController extends Controller
         return str_starts_with($baku($path), rtrim($baku($akar), '/') . '/');
     }
 
+    /** Kunci pembanding path (pemisah '/', huruf kecil di Windows). */
+    private static function kunciPath(string $path): string
+    {
+        return str_replace('\\', '/', PHP_OS_FAMILY === 'Windows' ? mb_strtolower($path) : $path);
+    }
+
+    /**
+     * Video di folder pack untuk "Ambil dari folder pack": akar + subfolder
+     * langsung (bukan TAKES/FINAL), bukan berkas take, tidak kosong;
+     * terbaru dulu, paling banyak BATAS_BERKAS_PACK. Setiap nama lolos
+     * videoDariNama(), jadi yang tampil pasti diterima tambahDariFolder().
+     *
+     * @return list<array{nama: string, ukuran: int, diubah: string, take_sama: ?string}>
+     */
+    private function videoDiPack(string $folder, int $packId): array
+    {
+        $terdaftar = $this->takeTerdaftar($folder, $packId);
+        $lewati = [mb_strtolower(self::namaTakes()), mb_strtolower(self::namaFinal())];
+
+        // Nama relatif calon: berkas di akar, lalu berkas di tiap subfolder langsung.
+        $calon = [];
+        foreach (@scandir($folder) ?: [] as $f) {
+            if ($f === '.' || $f === '..') {
+                continue;
+            }
+            if (!is_dir($folder . DIRECTORY_SEPARATOR . $f)) {
+                $calon[] = $f;
+            } elseif (!in_array(mb_strtolower($f), $lewati, true)) {
+                foreach (@scandir($folder . DIRECTORY_SEPARATOR . $f) ?: [] as $g) {
+                    if ($g !== '.' && $g !== '..') {
+                        $calon[] = $f . '/' . $g;
+                    }
+                }
+            }
+        }
+
+        $hasil = [];
+        foreach ($calon as $nama) {
+            if (!in_array(strtolower(pathinfo($nama, PATHINFO_EXTENSION)), Pemantau::EKSTENSI_MANUAL, true)) {
+                continue; // murah dulu: sebagian besar isi pack gambar dan teks
+            }
+            $path = self::videoDariNama($folder, $nama);
+            if ($path === null || isset($terdaftar['path'][self::kunciPath($path)])) {
+                continue;
+            }
+            $ukuran = (int) @filesize($path);
+            if ($ukuran <= 0) {
+                continue;
+            }
+            $hasil[] = ['nama' => $nama, 'ukuran' => $ukuran, 'waktu' => (int) @filemtime($path)];
+        }
+        usort($hasil, fn ($a, $b) => [$b['waktu'], $a['nama']] <=> [$a['waktu'], $b['nama']]);
+
+        return array_map(fn ($x) => [
+            'nama'      => $x['nama'],
+            'ukuran'    => $x['ukuran'],
+            'diubah'    => self::labelWaktu($x['waktu']),
+            'take_sama' => $terdaftar['ukuran'][$x['ukuran']] ?? null,
+        ], array_slice($hasil, 0, self::BATAS_BERKAS_PACK));
+    }
+
+    /**
+     * Berkas take pack ini yang masih ada di disk: `path` = kunciPath(realpath)
+     * => true; `ukuran` = byte => "T04 take 3", untuk menandai video di
+     * folder pack yang ukurannya sama persis dengan take yang sudah ada.
+     *
+     * @return array{path: array<string, true>, ukuran: array<int, string>}
+     */
+    private function takeTerdaftar(string $folder, int $packId): array
+    {
+        $hasil = ['path' => [], 'ukuran' => []];
+        $takes = DB::table('produksi_take as t')->join('produksi_item as i', 'i.id', '=', 't.item_id')
+            ->where('i.pack_id', $packId)->whereNotNull('t.berkas')->where('t.berkas', '!=', '')
+            ->orderBy('t.id')->get(['t.nomor', 't.berkas', 'i.kode', 'i.jenis']);
+        foreach ($takes as $t) {
+            $path = self::berkasDalam($folder, (string) $t->berkas);
+            if ($path === null) {
+                continue;
+            }
+            $hasil['path'][self::kunciPath($path)] = true;
+            $hasil['ukuran'][(int) @filesize($path)] ??= self::kapital(self::labelKode((string) $t->jenis, (string) $t->kode)) . ' take ' . (int) $t->nomor;
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Realpath video dari nama relatif yang datang dari browser, atau null.
+     * Ditolak: kosong, karakter kendali, ':' (alternate data stream, huruf
+     * drive), wildcard dan karakter terlarang Windows, path mutlak/UNC,
+     * lebih dari satu pemisah, bagian "." / ".." / berakhiran titik atau
+     * spasi (Windows membuangnya: "TAKES." = "TAKES"), nama pendek 8.3
+     * ("TAKESH~1": realpath() PHP tidak memanjangkannya, jadi pemeriksaan
+     * nama TAKES/FINAL bisa terlewat), dan ekstensi selain video. Sisanya
+     * diperiksa videoPack() sesudah realpath().
+     */
+    private static function videoDariNama(string $folder, string $nama): ?string
+    {
+        if ($nama === '' || preg_match('/[\x00-\x1F\x7F:*?"<>|]|~\d/', $nama) || preg_match('#^[\\\\/]#', $nama)) {
+            return null;
+        }
+        $bagian = preg_split('#[\\\\/]#', $nama);
+        if (count($bagian) > 2) {
+            return null;
+        }
+        foreach ($bagian as $b) {
+            if (trim($b, ' .') === '' || rtrim($b, ' .') !== $b) {
+                return null;
+            }
+        }
+        if (!in_array(strtolower(pathinfo($nama, PATHINFO_EXTENSION)), Pemantau::EKSTENSI_MANUAL, true)) {
+            return null;
+        }
+
+        return self::videoPack($folder, $folder . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $bagian));
+    }
+
+    /**
+     * Pagar terakhir sesudah realpath(): berkas video yang benar-benar ada,
+     * di dalam $folder (pack), tepat di akarnya atau di satu subfolder yang
+     * bukan TAKES/FINAL. Symlink/junction yang menunjuk keluar ikut tertolak
+     * karena yang diperiksa path aslinya.
+     */
+    private static function videoPack(string $folder, string $path): ?string
+    {
+        $asli = realpath($path);
+        if ($asli === false || !is_file($asli) || !self::di($asli, $folder)
+            || !in_array(strtolower(pathinfo($asli, PATHINFO_EXTENSION)), Pemantau::EKSTENSI_MANUAL, true)) {
+            return null;
+        }
+        $induk = dirname($asli);
+        if (self::samaPath($induk, $folder)) {
+            return $asli;
+        }
+        $milikAplikasi = [mb_strtolower(self::namaTakes()), mb_strtolower(self::namaFinal())];
+
+        return self::samaPath(dirname($induk), $folder) && !in_array(mb_strtolower(basename($induk)), $milikAplikasi, true) ? $asli : null;
+    }
+
     // ------------------------------------------------------------------
     // Pembantu kecil
     // ------------------------------------------------------------------
@@ -1663,6 +1958,17 @@ class ProduksiController extends Controller
     private static function jam(mixed $waktu): string
     {
         return $waktu !== null && $waktu !== '' ? Carbon::parse($waktu)->format('H.i') : '';
+    }
+
+    /** Waktu ubah berkas: "HH.mm" kalau hari ini, selain itu "dd/mm HH.mm" — seperti Aktivitas di Papan. */
+    private static function labelWaktu(int $detik): string
+    {
+        if ($detik <= 0) {
+            return '';
+        }
+        $w = Carbon::createFromTimestamp($detik, date_default_timezone_get());
+
+        return $w->isToday() ? $w->format('H.i') : $w->format('d/m H.i');
     }
 
     /** "$0,40" — gaya pengguna menulis uang. */

@@ -8,7 +8,7 @@ import KotakYakin from '@/components/produksi/KotakYakin.vue';
 import SlotGambar from '@/components/produksi/SlotGambar.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim } from '@/lib/kirim';
-import { chipPemantau, kueri, pakaiPolling, uang } from '@/lib/produksi';
+import { chipPemantau, kueri, pakaiPolling, sidikTake, uang } from '@/lib/produksi';
 import type { InfoPemantau, ItemKirim, JawabKirim, JawabPerkiraan, JawabStatus, PilihanKirim, PropsKirim, TakeBaris, Uang } from '@/types/produksi';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Loader2, Minus, Plus, TriangleAlert } from 'lucide-vue-next';
@@ -33,6 +33,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
  * tidak pernah tercentang otomatis, peringatannya tampil mencolok di
  * barisnya, dan tombol kirim mati sampai pengguna mencentang "sudah cek
  * dashboard Higgsfield" untuk setiap item seperti itu yang dipilih.
+ * Peringatan bisa muncul SESUDAH halaman dibuka (take yang sedang mencoba
+ * mengirim berakhir galat): polling Antrian membandingkan sidik take pack
+ * dan memuat ulang `item` begitu berubah, dan server memeriksa lagi saat
+ * POST (`sudah_cek[]` = item yang sudah dicentang) — kiriman yang lolos
+ * dari halaman yang basi tetap ditolak, lalu `item` dimuat ulang.
  */
 const props = defineProps<PropsKirim>();
 
@@ -92,6 +97,16 @@ const total = computed(() =>
 );
 /** Item ber-peringatan yang dipilih tapi belum dicentang "sudah cek dashboard". */
 const belumYakin = computed(() => props.item.filter((i) => i.peringatan && i.bisa_kirim && pilihan[i.id]?.pilih && !yakin[i.id]));
+/** Item ber-peringatan yang dipilih dan sudah dicentang — dikirim sebagai `sudah_cek`, diperiksa lagi oleh server. */
+const sudahCek = computed(() => props.item.filter((i) => i.peringatan && i.bisa_kirim && pilihan[i.id]?.pilih && yakin[i.id]).map((i) => i.id));
+/**
+ * Semua yang menentukan apa yang akan dibayar: pilihan, harganya di layar, dan
+ * peringatan yang belum dicentang. Berubah selama konfirmasi tampil (mis.
+ * `item` dimuat ulang polling) → konfirmasinya batal.
+ */
+const sidikPilihan = computed(() =>
+    JSON.stringify({ p: daftarPilihan.value, t: total.value.toFixed(2), b: belumYakin.value.map((i) => i.id), y: sudahCek.value }),
+);
 
 function tukarYakin(i: ItemKirim) {
     if (mengirim.value) return;
@@ -127,12 +142,15 @@ function ubahTake(i: ItemKirim, beda: number) {
     sesudahUbah();
 }
 
+/** sidikPilihan saat konfirmasi ditampilkan. */
+let sidikYakin = '';
+
 async function minta() {
     if (!jumlah.value || menghitung.value || belumYakin.value.length) return;
     galat.value = '';
     menghitung.value = true;
     totalYakin.value = total.value;
-    const sidik = JSON.stringify(daftarPilihan.value);
+    const sidik = sidikPilihan.value;
     try {
         const j = await kirim<JawabPerkiraan>(route('produksi.perkiraan'), { pilihan: daftarPilihan.value });
         if (j && j.total !== undefined && j.total !== null) totalYakin.value = j.total;
@@ -142,8 +160,20 @@ async function minta() {
         menghitung.value = false;
     }
     // Pilihan berubah selama menunggu: harga tadi bukan harga pilihan ini lagi.
-    if (JSON.stringify(daftarPilihan.value) === sidik) tahap.value = 'yakin';
+    if (sidikPilihan.value === sidik && !belumYakin.value.length) {
+        sidikYakin = sidik;
+        tahap.value = 'yakin';
+    }
 }
+
+// Daftar item dimuat ulang (status take berubah) selagi konfirmasi tampil: harga atau peringatan
+// yang dikonfirmasi mungkin sudah lain, jadi pengguna kembali ke langkah pilih.
+watch(sidikPilihan, (s) => {
+    if (tahap.value === 'yakin' && s !== sidikYakin && !mengirim.value) {
+        tahap.value = 'pilih';
+        galat.value = 'Daftar berubah karena status take diperbarui. Periksa lagi pilihan dan harganya, lalu kirim.';
+    }
+});
 
 /** Angka server dan angka di layar seharusnya sama; kalau tidak, keduanya disebut. */
 const totalBerbeda = computed(() => Math.abs(Number(totalYakin.value) - total.value) > 0.005);
@@ -153,7 +183,12 @@ async function kirimSekarang() {
     mengirim.value = true;
     galat.value = '';
     try {
-        const j = await kirim<JawabKirim>(route('produksi.kirim'), { pack_id: props.pack.id, pilihan: daftarPilihan.value, konfirmasi: true });
+        const j = await kirim<JawabKirim>(route('produksi.kirim'), {
+            pack_id: props.pack.id,
+            pilihan: daftarPilihan.value,
+            sudah_cek: sudahCek.value,
+            konfirmasi: true,
+        });
         hasil.value = { jumlah: j.take_ids?.length ?? jumlah.value, total: j.total ?? totalYakin.value };
         for (const b of Object.values(pilihan)) {
             b.pilih = false;
@@ -169,6 +204,9 @@ async function kirimSekarang() {
             ? `${e?.message ?? 'Sambungan terputus.'} Kirimannya mungkin sudah masuk — lihat Antrian di bawah dulu sebelum mengirim lagi.`
             : (e?.message ?? 'Gagal mengirim.');
         tahap.value = 'pilih';
+        // Ditolak server (mis. peringatan "mungkin sudah ditagih" yang belum tampil di halaman ini): muat
+        // ulang daftarnya supaya peringatan dan centangnya muncul.
+        if (!putus) router.reload({ only: ['item'] });
     } finally {
         mengirim.value = false;
     }
@@ -177,6 +215,8 @@ async function kirimSekarang() {
 function kirimLagi() {
     hasil.value = null;
     tahap.value = 'pilih';
+    // Take yang baru dikirim bisa sudah berakhir: keterangan dan peringatan item dibaca ulang.
+    router.reload({ only: ['item'] });
 }
 
 // ---- Antrian pack ini (polling 5 detik) ----
@@ -187,6 +227,9 @@ const perintahPemantau = ref<string | null>(null);
 const sudahDitanya = ref(false);
 const chip = computed(() => chipPemantau(pemantau.value));
 
+/** Sidik take pack yang terakhir dipakai `item`; mulai dari sidik saat halaman dibuat server. */
+let sidikItem = props.pack.sidik_take ?? '';
+
 const pantau = pakaiPolling(async () => {
     // pack_id: semua take pack ini ikut, bukan cuma yang aktif + 20 terakhir dari semua pack.
     const j = await kirim<JawabStatus>(route('produksi.status', { pack_id: props.pack.id }), undefined, 'GET');
@@ -195,6 +238,13 @@ const pantau = pakaiPolling(async () => {
     pemantau.value = j.pemantau ?? null;
     perintahPemantau.value = j.perintah_pemantau ?? null;
     sudahDitanya.value = true;
+    // Ada take pack ini yang berubah status: `item` (keterangan, peringatan "mungkin sudah ditagih",
+    // bisa_kirim) dibaca ulang. Pilihan dan centang yang sudah diatur tetap (rapikanPilihan).
+    const sidik = sidikTake(antrian.value);
+    if (sidik !== sidikItem) {
+        sidikItem = sidik;
+        router.reload({ only: ['item'] });
+    }
 }, 5000);
 
 onMounted(() => pantau.segera());
