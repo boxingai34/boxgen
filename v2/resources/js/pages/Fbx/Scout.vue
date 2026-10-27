@@ -2,8 +2,9 @@
 import KartuKandidat from '@/components/fbx/KartuKandidat.vue';
 import Lightbox from '@/components/fbx/Lightbox.vue';
 import NavMinggu from '@/components/fbx/NavMinggu.vue';
+import TambahRoster from '@/components/fbx/TambahRoster.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { KATEGORI, KISI_KARTU, STATUS, inisial, type Gambar, type Kandidat } from '@/lib/fbx';
+import { KATEGORI, KISI_KARTU, STATUS, inisial, type CalonRoster, type Gambar, type Kandidat } from '@/lib/fbx';
 import { kirim } from '@/lib/kirim';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowRight, ChevronDown, FileText, Flame, RefreshCw, ShieldAlert, Sparkles, Telescope } from 'lucide-vue-next';
@@ -24,6 +25,7 @@ const props = defineProps<{
     naik: Array<{ peringkat: number; nama: string; judul: string; skor: number; ubah: string; avatar: string | null }>;
     bisaSinkron: boolean;
     folder: string;
+    kategoriRoster: string[];
 }>();
 
 // ---- Saringan ----
@@ -64,6 +66,28 @@ function bukaGaleri(g: Gambar[], i: number, judul: string) {
     galeri.value = g;
     galeriJudul.value = judul;
     galeriIndeks.value = i;
+}
+
+// ---- Masukkan ke Roster ----
+const calon = ref<CalonRoster | null>(null);
+const pesanRoster = ref('');
+
+function keRoster(k: Kandidat) {
+    calon.value = {
+        karakter: k.karakter,
+        sumber: k.sumber,
+        tag: k.tag,
+        lawan: k.pasangan,
+        tingkat: k.tingkat,
+        kategori: k.kategori,
+        kandidatId: k.id,
+        jejak: k.tampil,
+    };
+}
+
+function rosterTersimpan(pesan: string) {
+    pesanRoster.value = pesan;
+    router.reload({ only: ['kandidat'] });
 }
 
 // ---- Sinkron ----
@@ -110,6 +134,7 @@ async function jalankanSinkron() {
 
         <div class="mx-auto max-w-7xl">
             <p v-if="pesanSinkron" class="mb-4 rounded-lg border border-border bg-muted/40 px-4 py-2 text-xs">{{ pesanSinkron }}</p>
+            <p v-if="pesanRoster" class="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs">{{ pesanRoster }}</p>
 
             <!-- Kepala ringkas -->
             <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
@@ -220,7 +245,7 @@ async function jalankanSinkron() {
 
             <!-- Kartu kandidat -->
             <div v-if="tersaring.length" class="mt-6" :class="KISI_KARTU">
-                <KartuKandidat v-for="k in tersaring" :key="k.id" :k="k" @galeri="bukaGaleri" />
+                <KartuKandidat v-for="k in tersaring" :key="k.id" :k="k" @galeri="bukaGaleri" @roster="keRoster" />
             </div>
             <div v-else class="mt-6 grid place-items-center px-6 py-16 text-center text-sm text-muted-foreground">
                 <div>
@@ -249,5 +274,6 @@ async function jalankanSinkron() {
         </div>
 
         <Lightbox v-model="galeriIndeks" :gambar="galeri" :judul="galeriJudul" />
+        <TambahRoster v-model:calon="calon" :daftar-kategori="kategoriRoster" @tersimpan="rosterTersimpan" />
     </AppLayout>
 </template>

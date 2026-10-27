@@ -142,6 +142,7 @@ Route::prefix('generator')->group(function () {
             Route::get('gambar/{nama}', [AgentFbxController::class, 'gambar'])
                 ->where('nama', '[0-9]+-[kb]\.[a-z0-9]+')->name('fbx.gambar');
             Route::post('kandidat/{id}/status', [AgentFbxController::class, 'status'])->whereNumber('id')->name('fbx.status');
+            Route::post('roster', [AgentFbxController::class, 'tambahRoster'])->name('fbx.roster.tambah');
             Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
         });
 

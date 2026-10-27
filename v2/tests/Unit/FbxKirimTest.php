@@ -217,6 +217,30 @@ class FbxKirimTest extends TestCase
         $this->assertSame('terpilih', $sisa[0]['status']);
     }
 
+    public function test_roster_dari_halaman_hosting_tidak_hilang_dan_dibawa_pulang_ke_csv(): void
+    {
+        $this->kirim('fbx.terima.data', ['tabel' => $this->tabel()])->assertOk();
+
+        // Di hosting: masuk tabel dan antre, bukan ke CSV (tidak ada folder Drive di sana).
+        $baris = AgentFbx::tambahRoster(['bulan' => '2026-11', 'kategori' => 'HAWT SHOT', 'karakter' => 'Ellen Joe', 'danbooru_tag' => 'ellen_joe'], null);
+        $antre = FbxKirim::antre();
+        $this->assertSame(['roster', 'DEWASA'], [$antre[0]['jenis'], $antre[0]['tingkat']]);
+
+        // Kiriman yang berangkat sebelum klik itu tidak boleh menghapusnya.
+        $this->kirim('fbx.terima.data', ['tabel' => $this->tabel(), 'antre_sampai' => 0])->assertOk();
+        $this->assertSame(1, DB::table('fbx_roster')->where('kategori', 'HAWT SHOT')->count());
+        $this->assertCount(1, FbxKirim::antre(), 'diterapkan ulang tanpa mencatat antre baru');
+
+        // Di komputer studio: ditambahkan ke roster.csv.
+        mkdir($this->tmp . '/drive');
+        config(['fbx.data' => $this->tmp . '/drive']);
+        DB::table('fbx_roster')->delete();
+        $this->assertSame(1, FbxKirim::bawaPulang($antre));
+        $csv = AgentFbx::bacaCsv($this->tmp . '/drive/roster.csv');
+        $this->assertSame($baris, $csv[0]);
+        $this->assertSame(0, FbxKirim::bawaPulang($antre), 'yang sudah ada dilewati');
+    }
+
     public function test_bawa_pulang_menulis_kandidat_csv_untuk_scout(): void
     {
         mkdir($this->tmp . '/drive');

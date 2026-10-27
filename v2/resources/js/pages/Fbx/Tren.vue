@@ -2,10 +2,11 @@
 import FotoKarakter from '@/components/fbx/FotoKarakter.vue';
 import Lightbox from '@/components/fbx/Lightbox.vue';
 import NavMinggu from '@/components/fbx/NavMinggu.vue';
+import TambahRoster from '@/components/fbx/TambahRoster.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { KISI_KARTU, UKURAN_FOTO, teksJejak, urlDanbooru, type Gambar, type Jejak } from '@/lib/fbx';
+import { KISI_KARTU, UKURAN_FOTO, teksJejak, urlDanbooru, type CalonRoster, type Gambar, type Jejak } from '@/lib/fbx';
 import { Head, router } from '@inertiajs/vue3';
-import { ArrowDown, ArrowUp, ExternalLink, EyeOff, Flame, History, Info, Sparkles, Telescope } from 'lucide-vue-next';
+import { ArrowDown, ArrowUp, ExternalLink, EyeOff, Flame, History, Info, ListPlus, Sparkles, Telescope } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 /**
@@ -31,6 +32,7 @@ type Baris = {
     gambar: Gambar[];
     tampil: Jejak[];
     kandidat: boolean;
+    tingkat: string | null;
 };
 
 const props = defineProps<{
@@ -38,6 +40,7 @@ const props = defineProps<{
     rentang: string;
     daftarMinggu: Array<{ minggu: string; rentang: string }>;
     baris: Baris[];
+    kategoriRoster: string[];
 }>();
 
 /** Rasio minggu ini terhadap seluruh gambarnya: ≥1% berarti karakter baru atau sedang meledak. */
@@ -88,6 +91,27 @@ function rincian(b: Baris): string {
     ].join('\n');
 }
 
+// ---- Masukkan ke Roster ----
+const calon = ref<CalonRoster | null>(null);
+const pesanRoster = ref('');
+
+function keRoster(b: Baris) {
+    calon.value = {
+        karakter: b.pendek,
+        sumber: b.judul,
+        tag: b.tag,
+        lawan: '',
+        tingkat: b.tingkat,
+        kategori: 'FEMALE FIGHT',
+        jejak: b.tampil,
+    };
+}
+
+function rosterTersimpan(pesan: string) {
+    pesanRoster.value = pesan;
+    router.reload({ only: ['baris'] });
+}
+
 // ---- Galeri ----
 const galeri = ref<Gambar[]>([]);
 const galeriJudul = ref('');
@@ -114,6 +138,7 @@ function bukaGaleri(b: Baris, i: number) {
 
         <div v-else class="mx-auto max-w-7xl">
             <h2 class="mb-4 text-lg font-bold tracking-tight">Ranking Mingguan Karakter Perempuan</h2>
+            <p v-if="pesanRoster" class="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs">{{ pesanRoster }}</p>
 
             <!-- Pil saringan + sakelar di kanan -->
             <div class="flex flex-wrap items-center gap-1.5">
@@ -190,6 +215,14 @@ function bukaGaleri(b: Baris, i: number) {
                             </span>
                         </template>
                         <template #aksi>
+                            <button
+                                type="button"
+                                class="grid h-8 w-8 place-items-center rounded-full bg-black/45 text-white opacity-80 transition hover:bg-[hsl(var(--sorot))] hover:opacity-100"
+                                title="Masukkan ke Roster"
+                                @click="keRoster(b)"
+                            >
+                                <ListPlus class="h-4 w-4" />
+                            </button>
                             <a
                                 :href="urlDanbooru(b.tag)"
                                 target="_blank"
@@ -221,5 +254,6 @@ function bukaGaleri(b: Baris, i: number) {
         </div>
 
         <Lightbox v-model="galeriIndeks" :gambar="galeri" :judul="galeriJudul" />
+        <TambahRoster v-model:calon="calon" :daftar-kategori="kategoriRoster" @tersimpan="rosterTersimpan" />
     </AppLayout>
 </template>

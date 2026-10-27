@@ -275,8 +275,77 @@ class AgentFbxTest extends TestCase
         $this->assertSame('/generator/fbx/gambar/9-k.webp', FbxGambar::peta(['ellen_joe'])['ellen_joe'][0]['kecil']);
     }
 
+    // ---------------------------------------------------------------- masukkan ke roster
+
+    public function test_masuk_roster_ditulis_ke_roster_csv_tanpa_mengubah_isinya(): void
+    {
+        // Kolom disusun ulang di Excel, gaya semua-dikutip + CRLF seperti berkas asli.
+        $lama = "\xEF\xBB\xBFkarakter,bulan,kategori,sumber,lawan,babak,hasil,yakin,bukti,danbooru_tag\r\n"
+            . "\"Lama\",\"2024-01\",\"FEMALE FIGHT\",\"\",\"\",\"\",\"\",\"tinggi\",\"x\",\"\"\r\n";
+        file_put_contents($this->dir . '/roster.csv', $lama);
+        $this->kandidatCsv([['minggu' => '2026-W43', 'kategori' => 'MIXED FIGHT', 'karakter' => 'Alya', 'pasangan' => 'Masachika',
+            'tingkat_umur' => 'DEWASA', 'danbooru_tag' => 'alya_x']]);
+        AgentFbx::sinkron();
+        $id = (int) DB::table('fbx_kandidat')->value('id');
+
+        $this->actingAs($this->admin())->postJson(route('fbx.roster.tambah'), [
+            'bulan' => '2026-11', 'kategori' => 'MIXED FIGHT', 'karakter' => 'Alya', 'sumber' => 'Roshidere',
+            'lawan' => 'Masachika', 'danbooru_tag' => 'alya_x', 'kandidat_id' => $id,
+        ])->assertOk()->assertJson(['ok' => true, 'keCsv' => true]);
+
+        $this->assertSame($lama . "\"Alya\",\"2026-11\",\"MIXED FIGHT\",\"Roshidere\",\"Masachika\",\"\",\"\",\"tinggi\",\"\",\"alya_x\"\r\n",
+            file_get_contents($this->dir . '/roster.csv'));
+
+        // Sinkron berikutnya membaca berkasnya — barisnya tetap ada.
+        AgentFbx::sinkron();
+        $this->assertSame(['Alya', 'Lama'], DB::table('fbx_roster')->orderBy('karakter')->pluck('karakter')->all());
+
+        // Bulan + kategori yang sama dua kali ditolak.
+        $this->actingAs($this->admin())->postJson(route('fbx.roster.tambah'), [
+            'bulan' => '2026-11', 'kategori' => 'MIXED FIGHT', 'karakter' => 'alya', 'danbooru_tag' => 'alya_x', 'tingkat' => 'DEWASA',
+        ])->assertStatus(409);
+    }
+
+    public function test_masuk_roster_mengikuti_aturan_umur(): void
+    {
+        DB::table('fbx_kandidat')->insert([
+            ['minggu' => '2026-W43', 'kategori' => 'FEMALE FIGHT', 'karakter' => 'Remaja', 'danbooru_tag' => 'remaja_x', 'tingkat_umur' => '16-17'],
+            ['minggu' => '2026-W42', 'kategori' => 'FEMALE FIGHT', 'karakter' => 'Remaja', 'danbooru_tag' => 'remaja_x', 'tingkat_umur' => 'DEWASA'],
+        ]);
+        $isi = fn (string $kat, string $tag, string $nama = 'Tokoh') => ['bulan' => '2026-11', 'kategori' => $kat, 'karakter' => $nama, 'danbooru_tag' => $tag];
+
+        // Scout bilang 16-17 (satu baris saja cukup): hanya Female Fight, pilihan halaman tidak bisa menimpanya.
+        $this->assertSame(['remaja_x' => '16-17'], AgentFbx::tingkatTag());
+        foreach (['MIXED FIGHT', 'HAWT SHOT', 'WAIFU CRUSHED', 'MONTHLY SHOWDOWN'] as $kat) {
+            $this->assertGagal(fn () => AgentFbx::tambahRoster($isi($kat, 'remaja_x'), 'DEWASA'), $kat);
+        }
+        AgentFbx::tambahRoster($isi('FEMALE FIGHT', 'remaja_x'), null);
+
+        // Belum pernah dicek Scout: wajib dipilih di halaman, dan pilihan 16-17 tetap dibatasi.
+        $this->assertGagal(fn () => AgentFbx::tambahRoster($isi('FEMALE FIGHT', 'baru_x', 'Baru'), null), 'tanpa tingkat');
+        $this->assertGagal(fn () => AgentFbx::tambahRoster($isi('HAWT SHOT', 'baru_x', 'Baru'), '16-17'), '16-17 di Hawt Shot');
+        AgentFbx::tambahRoster($isi('HAWT SHOT', 'baru_x', 'Baru'), 'DEWASA');
+
+        // Kategori lama dan bulan asal-asalan ditolak.
+        $this->assertGagal(fn () => AgentFbx::tambahRoster($isi('PHOTOBOX', 'baru_x', 'Baru'), 'DEWASA'), 'kategori lama');
+        $this->assertGagal(fn () => AgentFbx::tambahRoster(['bulan' => '2026-13'] + $isi('FEMALE FIGHT', 'baru_x', 'Baru'), 'DEWASA'), 'bulan');
+
+        $this->assertSame(2, DB::table('fbx_roster')->count());
+    }
+
+    private function assertGagal(callable $f, string $kasus): void
+    {
+        try {
+            $f();
+            $this->fail("$kasus lolos");
+        } catch (\InvalidArgumentException) {
+            $this->addToAssertionCount(1);
+        }
+    }
+
     public function test_bukan_admin_ditolak(): void
     {
+        $this->actingAs($this->admin('user'))->postJson(route('fbx.roster.tambah'), ['bulan' => '2026-11'])->assertForbidden();
         $this->actingAs($this->admin('user'))->get(route('fbx'))->assertForbidden();
         $this->actingAs($this->admin('user'))->postJson(route('fbx.status', 1), ['status' => 'dipoll'])->assertForbidden();
         // Gambar di atas general hanya keluar lewat rute admin.

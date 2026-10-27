@@ -57,14 +57,14 @@ class KirimFbx extends Command
         $antre = (array) ($this->kirim('fbx.terima.antre', [])['antre'] ?? []);
         if ($this->option('cek')) {
             $this->info("Sambungan ke {$this->ke} baik dan kuncinya cocok. "
-                . count($antre) . ' perubahan status di hosting menunggu dibawa pulang.');
+                . count($antre) . ' perubahan status/roster di hosting menunggu dibawa pulang.');
 
             return self::SUCCESS;
         }
 
         $pulang = FbxKirim::bawaPulang($antre);
         if ($antre !== []) {
-            $this->line("Status dari hosting: {$pulang} kandidat berubah di sini (" . count($antre) . ' catatan).');
+            $this->line("Dari hosting: {$pulang} perubahan status/roster diterapkan di sini (" . count($antre) . ' catatan).');
         }
 
         $tabel = FbxKirim::kumpulkan();

@@ -2,7 +2,7 @@
 import FotoKarakter from '@/components/fbx/FotoKarakter.vue';
 import { KATEGORI, STATUS, UKURAN_FOTO, teksJejak, urlDanbooru, type Gambar, type Kandidat } from '@/lib/fbx';
 import { kirim } from '@/lib/kirim';
-import { ExternalLink, History, ShieldAlert, ShieldCheck, Shirt, Sparkles } from 'lucide-vue-next';
+import { ExternalLink, History, ListPlus, ShieldAlert, ShieldCheck, Shirt, Sparkles } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 /**
@@ -14,7 +14,7 @@ import { computed, ref } from 'vue';
  * menolak, kartunya kembali ke status lama dan pesannya muncul di bawah.
  */
 const props = defineProps<{ k: Kandidat }>();
-const emit = defineEmits<{ galeri: [gambar: Gambar[], indeks: number, judul: string] }>();
+const emit = defineEmits<{ galeri: [gambar: Gambar[], indeks: number, judul: string]; roster: [k: Kandidat] }>();
 
 const meta = computed(() => KATEGORI[props.k.kategori] ?? KATEGORI['FEMALE FIGHT']);
 const mixed = computed(() => props.k.kategori === 'MIXED FIGHT');
@@ -148,6 +148,14 @@ const warnaStatus: Record<string, string> = {
                     {{ s.label }}
                 </button>
             </div>
+            <button
+                type="button"
+                class="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-[hsl(var(--sorot))]"
+                title="Masukkan ke Roster"
+                @click="emit('roster', k)"
+            >
+                <ListPlus class="h-4 w-4" />
+            </button>
             <a
                 v-if="k.bukti"
                 :href="k.bukti.split(/\s+/)[0]"

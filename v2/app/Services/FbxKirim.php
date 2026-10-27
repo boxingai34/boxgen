@@ -18,9 +18,10 @@ use InvalidArgumentException;
  * Tiga langkah, urutannya penting:
  *
  *   antre   status kandidat yang diubah di halaman hosting (Masuk poll /
- *           Terpilih / Tolak) dibawa pulang dulu ke database dan
- *           kandidat.csv lokal — supaya Scout membacanya, dan supaya
- *           langkah berikutnya tidak menimpanya.
+ *           Terpilih / Tolak) dan karakter yang dimasukkan ke Roster di
+ *           sana dibawa pulang dulu ke database, kandidat.csv, dan
+ *           roster.csv lokal — supaya Scout membacanya, dan supaya langkah
+ *           berikutnya tidak menimpanya.
  *   data    keenam tabel di hosting diganti seluruhnya. Aturan umur
  *           diperiksa ULANG di sana: kandidat lewat rapikanKandidat(), dan
  *           gambar di atas general dibuang kecuali tagnya dewasa menurut
@@ -110,6 +111,7 @@ final class FbxKirim
         self::ubahAntre(function (array $a) use ($r, $status) {
             $a['antre'][] = [
                 'no'       => ++$a['no'],
+                'jenis'    => 'status',
                 'minggu'   => $r->minggu,
                 'kategori' => $r->kategori,
                 'karakter' => $r->karakter,
@@ -117,6 +119,22 @@ final class FbxKirim
                 'status'   => $status,
                 'waktu'    => now()->toIso8601String(),
             ];
+
+            return $a;
+        });
+    }
+
+    /**
+     * Dipanggil AgentFbx::tambahRoster() di hosting: roster.csv ada di
+     * komputer studio, jadi barisnya menunggu dibawa pulang.
+     *
+     * @param array<string,string> $baris
+     */
+    public static function catatRoster(array $baris, string $tingkat): void
+    {
+        self::ubahAntre(function (array $a) use ($baris, $tingkat) {
+            $a['antre'][] = ['no' => ++$a['no'], 'jenis' => 'roster', 'baris' => $baris, 'tingkat' => $tingkat,
+                'waktu' => now()->toIso8601String()];
 
             return $a;
         });
@@ -161,9 +179,22 @@ final class FbxKirim
         }
     }
 
-    /** Terapkan satu perubahan status ke tabel kandidat di sini. true kalau ada yang berubah. */
+    /**
+     * Terapkan satu catatan antre di server ini. true kalau ada yang berubah.
+     * Baris roster lewat tambahRoster() lagi: aturan umur diperiksa ulang
+     * dengan data Scout di sini, dan yang sudah ada dilewati.
+     */
     private static function terapkan(array $a): bool
     {
+        if (($a['jenis'] ?? 'status') === 'roster') {
+            try {
+                AgentFbx::tambahRoster((array) ($a['baris'] ?? []), (string) ($a['tingkat'] ?? ''), false);
+
+                return true;
+            } catch (\LogicException) {
+                return false; // sudah ada, atau tidak lolos aturan umur di sini
+            }
+        }
         if (!in_array($a['status'] ?? '', AgentFbx::STATUS, true)) {
             return false;
         }
@@ -322,11 +353,12 @@ final class FbxKirim
     // ------------------------------------------------------------ kirim (komputer studio)
 
     /**
-     * Bawa pulang perubahan status dari hosting, lalu tulis kandidat.csv
+     * Bawa pulang perubahan dari hosting — status kandidat (lalu kandidat.csv
+     * ditulis ulang) dan baris roster (langsung ditambahkan ke roster.csv) —
      * supaya Scout minggu depan ikut tahu.
      *
      * @param list<mixed> $antre
-     * @return int jumlah kandidat yang statusnya berubah
+     * @return int jumlah perubahan yang diterapkan
      */
     public static function bawaPulang(array $antre): int
     {

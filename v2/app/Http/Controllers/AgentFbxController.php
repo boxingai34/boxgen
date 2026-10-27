@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Services\AgentFbx;
 use App\Services\FbxGambar;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
@@ -81,6 +84,7 @@ class AgentFbxController extends Controller
             'naik'       => $this->trenTeratas(8),
             'bisaSinkron' => AgentFbx::bisaSinkron(),
             'folder'     => AgentFbx::folder(),
+            'kategoriRoster' => AgentFbx::KATEGORI_ROSTER,
         ]);
     }
 
@@ -140,6 +144,7 @@ class AgentFbxController extends Controller
         $gambar = FbxGambar::peta($baris->pluck('karakter_tag')->all());
         $jejak = $this->jejakRoster();
         $kandidat = DB::table('fbx_kandidat')->pluck('danbooru_tag')->filter()->flip();
+        $tingkat = AgentFbx::tingkatTag();
 
         return Inertia::render('Fbx/Tren', [
             'minggu'  => $minggu,
@@ -161,7 +166,10 @@ class AgentFbxController extends Controller
                 'gambar'    => $gambar[$r->karakter_tag] ?? [],
                 'tampil'    => $this->cariJejak($jejak, $r->karakter_tag, self::namaTag($r->karakter_tag, false)),
                 'kandidat'  => isset($kandidat[$r->karakter_tag]),
+                // null = Scout belum pernah mengecek umurnya; dialog Roster memintanya.
+                'tingkat'   => $tingkat[$r->karakter_tag] ?? null,
             ])->values(),
+            'kategoriRoster' => AgentFbx::KATEGORI_ROSTER,
         ]);
     }
 
@@ -172,6 +180,23 @@ class AgentFbxController extends Controller
         abort_unless(is_file($file), 404);
 
         return response()->file($file, ['Cache-Control' => 'private, max-age=604800']);
+    }
+
+    /** Masukkan ke Roster dari kartu Scout atau Tren. Aturan umurnya di AgentFbx::tambahRoster(). */
+    public function tambahRoster(Request $request): JsonResponse
+    {
+        try {
+            $baris = AgentFbx::tambahRoster($request->only(['bulan', 'kategori', 'karakter', 'sumber', 'lawan', 'danbooru_tag', 'kandidat_id']),
+                $request->input('tingkat'));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (DomainException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 409);
+        } catch (RuntimeException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 423);
+        }
+
+        return response()->json(['ok' => true, 'baris' => $baris, 'keCsv' => AgentFbx::bisaSinkron()]);
     }
 
     public function status(Request $request, int $id): JsonResponse

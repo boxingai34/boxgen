@@ -63,6 +63,21 @@ export const KATEGORI_ROSTER: Record<string, string> = {
     REQUESTOR: 'Requestor',
 };
 
+/**
+ * Karakter yang akan dimasukkan ke Roster dari kartu Scout atau Tren.
+ * tingkat null = Scout belum pernah mengecek umurnya; dialog memintanya.
+ */
+export type CalonRoster = {
+    karakter: string;
+    sumber: string;
+    tag: string;
+    lawan: string;
+    tingkat: string | null;
+    kategori: string;
+    kandidatId?: number;
+    jejak: Jejak[];
+};
+
 export const STATUS: Array<{ nilai: string; label: string }> = [
     { nilai: 'baru', label: 'Baru' },
     { nilai: 'dipoll', label: 'Masuk poll' },

@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use DateTimeImmutable;
+use DomainException;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -46,6 +48,14 @@ final class AgentFbx
 
     public const KOLOM_ROSTER = [
         'bulan', 'kategori', 'karakter', 'sumber', 'lawan', 'babak', 'hasil', 'yakin', 'bukti', 'danbooru_tag',
+    ];
+
+    /**
+     * Kategori yang bisa diisi dari halaman (Masukkan ke Roster). GIRL OF THE
+     * MONTH dan PHOTOBOX nama lama — hanya ada di riwayat, tidak ditawarkan.
+     */
+    public const KATEGORI_ROSTER = [
+        'FEMALE FIGHT', 'MIXED FIGHT', 'MONTHLY SHOWDOWN', 'WAIFU CRUSHED', 'HAWT SHOT', 'CHAMPIONEE', 'REQUESTOR',
     ];
 
     public static function folder(): string
@@ -294,6 +304,137 @@ final class AgentFbx
         }
 
         return $n > 0 || DB::table('fbx_kandidat')->where('id', $id)->exists();
+    }
+
+    /**
+     * Tingkat umur tiap tag menurut kandidat Scout. Kalau satu barisnya saja
+     * 16-17, tagnya 16-17 — yang paling ketat yang dipakai. Tag yang tidak
+     * pernah dicek Scout tidak ada di sini.
+     *
+     * @return array<string, string>
+     */
+    public static function tingkatTag(): array
+    {
+        $hasil = [];
+        foreach (DB::table('fbx_kandidat')->where('danbooru_tag', '!=', '')->get(['danbooru_tag', 'tingkat_umur']) as $r) {
+            $t = self::tingkat((string) $r->tingkat_umur);
+            if ($t !== null && ($hasil[$r->danbooru_tag] ?? null) !== '16-17') {
+                $hasil[$r->danbooru_tag] = $t;
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Masukkan satu karakter ke roster dari halaman Scout atau Tren.
+     *
+     * ATURAN UMUR: tingkat dari Scout (baris kandidatnya dan semua baris
+     * bertag sama) mengalahkan pilihan di halaman; pilihan halaman hanya
+     * dipakai untuk karakter yang belum pernah dicek Scout. 16-17 hanya
+     * Female Fight; tanpa tingkat sama sekali ditolak.
+     *
+     * roster.csv yang menang di sinkron, jadi di komputer studio barisnya
+     * ditulis ke berkas itu DULU — kalau berkasnya terkunci Excel, tabelnya
+     * juga tidak disentuh. Di hosting (tanpa folder Drive) barisnya masuk
+     * tabel dan antre, lalu fbx:kirim berikutnya membawanya pulang ke CSV.
+     *
+     * @param array<string,mixed> $isi bulan, kategori, karakter, sumber, lawan, danbooru_tag, kandidat_id
+     * @return array<string,string> baris yang tersimpan
+     *
+     * @throws InvalidArgumentException isian tidak sah atau melanggar aturan umur
+     * @throws DomainException          sudah ada di roster
+     * @throws RuntimeException         roster.csv tidak bisa ditulis
+     */
+    public static function tambahRoster(array $isi, ?string $tingkatHalaman, bool $catatAntre = true): array
+    {
+        $teks = fn (string $k, int $maks = 120) => mb_substr(trim((string) ($isi[$k] ?? '')), 0, $maks);
+
+        $bulan = $teks('bulan', 7);
+        $kategori = strtoupper($teks('kategori', 30));
+        $karakter = $teks('karakter');
+        $tag = self::tag($teks('danbooru_tag', 190));
+        if (!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/', $bulan)) {
+            throw new InvalidArgumentException('Bulan harus berbentuk TTTT-BB.');
+        }
+        if (!in_array($kategori, self::KATEGORI_ROSTER, true)) {
+            throw new InvalidArgumentException('Kategori roster tidak dikenal.');
+        }
+        if ($karakter === '') {
+            throw new InvalidArgumentException('Nama karakter kosong.');
+        }
+
+        // Yang paling ketat menang: baris kandidat, semua baris bertag sama, baru pilihan halaman.
+        $dariScout = [];
+        if (!empty($isi['kandidat_id'])) {
+            $dariScout[] = self::tingkat((string) DB::table('fbx_kandidat')->where('id', (int) $isi['kandidat_id'])->value('tingkat_umur'));
+        }
+        if ($tag !== '') {
+            $dariScout[] = self::tingkatTag()[$tag] ?? null;
+        }
+        $dariScout = array_filter($dariScout);
+        $tingkat = $dariScout !== [] ? (in_array('16-17', $dariScout, true) ? '16-17' : 'DEWASA') : self::tingkat((string) $tingkatHalaman);
+        if ($tingkat === null) {
+            throw new InvalidArgumentException('Umur canon karakter ini belum dicek Scout — pilih tingkat umurnya dulu.');
+        }
+        if ($tingkat === '16-17' && $kategori !== 'FEMALE FIGHT') {
+            throw new InvalidArgumentException('Umur canon 16–17 hanya boleh masuk Female Fight.');
+        }
+
+        $sudah = DB::table('fbx_roster')->where('bulan', $bulan)->where('kategori', $kategori)->get(['karakter', 'danbooru_tag'])
+            ->contains(fn ($r) => ($tag !== '' && $r->danbooru_tag === $tag) || mb_strtolower($r->karakter) === mb_strtolower($karakter));
+        if ($sudah) {
+            throw new DomainException("$karakter sudah ada di roster $kategori $bulan.");
+        }
+
+        $baris = array_combine(self::KOLOM_ROSTER, array_map(fn (string $k) => match ($k) {
+            'bulan' => $bulan, 'kategori' => $kategori, 'karakter' => $karakter, 'sumber' => $teks('sumber'),
+            'lawan' => $teks('lawan'), 'yakin' => 'tinggi', 'danbooru_tag' => $tag, default => '',
+        }, self::KOLOM_ROSTER));
+
+        if (self::bisaSinkron()) {
+            self::tambahBarisCsv(self::folder() . '/roster.csv', $baris);
+        }
+        DB::table('fbx_roster')->insert($baris);
+        if (!self::bisaSinkron() && $catatAntre) {
+            FbxKirim::catatRoster($baris, $tingkat);
+        }
+
+        return $baris;
+    }
+
+    /**
+     * Tambah satu baris di ujung CSV tanpa menulis ulang isinya — roster.csv
+     * disunting tangan di Excel. Urutan kolom mengikuti kepala berkasnya;
+     * gaya mengikuti baris pertama (semua dikutip, CRLF kalau berkasnya CRLF).
+     *
+     * @param array<string,string> $baris
+     */
+    public static function tambahBarisCsv(string $file, array $baris): void
+    {
+        $isi = is_file($file) ? (string) @file_get_contents($file, false, null, 0, 4096) : '';
+        if (trim((string) preg_replace('/^\xEF\xBB\xBF/', '', $isi)) === '') {
+            self::tulisCsv($file, array_keys($baris), [array_values($baris)]);
+
+            return;
+        }
+
+        $kepala = str_getcsv((string) preg_replace('/^\xEF\xBB\xBF/', '', (string) strtok($isi, "\r\n")), ',', '"', '');
+        $kepala = array_map(fn ($k) => strtolower(trim((string) $k)), $kepala);
+        if (!in_array('karakter', $kepala, true)) {
+            throw new RuntimeException('Kepala kolom ' . basename($file) . ' tidak dikenal — baris pertamanya harus nama kolom.');
+        }
+        $eol = str_contains($isi, "\r\n") ? "\r\n" : "\n";
+        $sel = array_map(fn ($k) => '"' . str_replace('"', '""', (string) ($baris[$k] ?? '')) . '"', $kepala);
+
+        $fh = @fopen($file, 'a+');
+        if ($fh === false) {
+            throw new RuntimeException('roster.csv tidak bisa ditulis — kalau sedang dibuka di Excel, tutup dulu lalu coba lagi.');
+        }
+        fseek($fh, -1, SEEK_END);
+        $akhir = filesize($file) > 0 ? fread($fh, 1) : "\n";
+        fwrite($fh, ($akhir === "\n" ? '' : $eol) . implode(',', $sel) . $eol);
+        fclose($fh);
     }
 
     /** Seluruh tabel kandidat ditulis ke kandidat.csv — status hasil halaman ikut. */
