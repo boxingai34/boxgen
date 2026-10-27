@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
@@ -18,8 +20,10 @@ use RuntimeException;
  * tautannya, tanpa login). Kandidat 16–17 diberi keterangan "SFW only";
  * di Mixed Fight dan Waifu Crushed mereka ditolak sama sekali.
  *
- * Pilihan berupa teks: pilihan bergambar ada di spesifikasi API v3 tapi
- * ditandai "not in use in the live version".
+ * Pilihan bisa teks atau bergambar (gambarnya dari FbxPollGambar: NovelAI
+ * atau unggahan sendiri). Halaman StrawPoll punya "Image poll", tapi
+ * spesifikasi API v3 masih menandai pilihan bergambar "not in use in the
+ * live version" — jadi kalau StrawPoll menolaknya, poll dibuat sebagai teks.
  *
  * Catatan poll (id, tautan, pemetaan pilihan → kandidat) disimpan di
  * storage/app/fbx-poll.json, per server — bukan tabel, supaya hosting tidak
@@ -73,7 +77,7 @@ final class FbxPoll
      * @throws InvalidArgumentException isian tidak sah atau melanggar aturan umur
      * @throws RuntimeException         StrawPoll menolak atau tidak terjangkau
      */
-    public static function buat(string $kategori, array $ids, string $judul, int $tutup, string $hasilTerlihat, ?int $kini = null): array
+    public static function buat(string $kategori, array $ids, string $judul, int $tutup, string $hasilTerlihat, bool $gambar = false, ?int $kini = null): array
     {
         $kini ??= time();
         if (!self::bisa()) {
@@ -111,16 +115,27 @@ final class FbxPoll
             }
             $pilihan[] = [
                 'kandidat_id' => $id,
+                // Id kandidat di hosting berganti tiap fbx:kirim; hasil() mencarinya lagi lewat kunci ini.
+                'kunci'       => ['minggu' => $k->minggu, 'kategori' => $k->kategori, 'karakter' => $k->karakter, 'pasangan' => $k->pasangan],
+                'gambar'      => FbxPollGambar::kunci($k),
                 'label'       => mb_substr($k->karakter . ($kategori === 'MIXED FIGHT' && $k->pasangan !== '' ? ' vs ' . $k->pasangan : ''), 0, 200),
                 'keterangan'  => mb_substr(implode(' · ', array_filter([$k->sumber, $remaja ? 'SFW only' : ''])), 0, 200),
             ];
         }
+        if ($gambar) {
+            foreach ($pilihan as $p) {
+                if (FbxPollGambar::berkas($p['gambar']) === null) {
+                    throw new InvalidArgumentException("Belum ada gambar untuk {$p['label']} — gambar dengan NovelAI atau unggah dulu.");
+                }
+            }
+        }
 
-        $poll = self::minta('post', '/polls', [
+        $isi = fn (bool $bergambar, array $media = []) => [
             'title'        => $judul,
-            'type'         => 'multiple_choice',
+            'type'         => $bergambar ? 'image_poll' : 'multiple_choice',
             'poll_options' => array_map(fn ($p, $i) => array_filter([
-                'type' => 'text', 'position' => $i, 'value' => $p['label'], 'description' => $p['keterangan'],
+                'type' => $bergambar ? 'image' : 'text', 'position' => $i, 'value' => $p['label'], 'description' => $p['keterangan'],
+                'media' => $bergambar ? ['id' => $media[$i]] : '',
             ], fn ($v) => $v !== ''), $pilihan, array_keys($pilihan)),
             'poll_config'  => [
                 'is_private'           => true,
@@ -133,7 +148,27 @@ final class FbxPoll
                 'require_voter_names'  => false,
                 'results_visibility'   => $hasilTerlihat,
             ],
-        ]);
+        ];
+
+        // Pilihan bergambar ada di halaman StrawPoll, tapi spesifikasi API-nya masih menyebutnya
+        // "not in use in the live version". Kalau StrawPoll menolak bentuknya (4xx selain kunci),
+        // poll tetap dibuat sebagai teks dan halaman diberi tahu.
+        $peringatan = '';
+        $bergambar = false;
+        if ($gambar) {
+            try {
+                $media = array_map(fn ($p) => self::unggahMedia((string) FbxPollGambar::berkas($p['gambar'])), $pilihan);
+                $poll = self::minta('post', '/polls', $isi(true, $media));
+                $bergambar = true;
+            } catch (RuntimeException $e) {
+                if ($e->getCode() < 400 || $e->getCode() >= 500 || in_array($e->getCode(), [401, 403], true)) {
+                    throw $e;
+                }
+                $peringatan = 'StrawPoll menolak pilihan bergambar (' . $e->getMessage() . '), jadi poll dibuat sebagai teks.';
+            }
+        }
+        $poll ??= self::minta('post', '/polls', $isi(false));
+
         $id = (string) ($poll['id'] ?? '');
         if (!preg_match('/^[A-Za-z0-9]+$/', $id)) {
             throw new RuntimeException('StrawPoll tidak mengembalikan id poll.');
@@ -154,12 +189,37 @@ final class FbxPoll
             'kategori' => $kategori,
             'tutup'    => $tutup,
             'hasil'    => $hasilTerlihat,
+            'bergambar' => $bergambar,
             'dibuat'   => date('c', $kini),
             'pilihan'  => $pilihan,
         ];
         self::simpan($catatan);
 
-        return $catatan;
+        return $catatan + ['peringatan' => $peringatan];
+    }
+
+    /** Unggah satu gambar pilihan ke StrawPoll; pulang id media-nya. */
+    private static function unggahMedia(string $file): string
+    {
+        $j = self::jawab(fn (PendingRequest $k) => $k->attach('file', (string) file_get_contents($file), basename($file), ['Content-Type' => 'image/jpeg'])
+            ->post(self::API . '/upload', ['type' => 'poll_option']));
+        $id = (string) ($j['id'] ?? '');
+        if ($id === '') {
+            throw new RuntimeException('StrawPoll tidak mengembalikan id gambar.', 422);
+        }
+
+        return $id;
+    }
+
+    /** Id kandidat SEKARANG untuk satu pilihan — di hosting id berganti tiap fbx:kirim. */
+    private static function idKini(array $p): ?int
+    {
+        if (!isset($p['kunci']) || !is_array($p['kunci'])) {
+            return isset($p['kandidat_id']) ? (int) $p['kandidat_id'] : null;
+        }
+        $id = DB::table('fbx_kandidat')->where(array_map('strval', $p['kunci']))->value('id');
+
+        return $id === null ? null : (int) $id;
     }
 
     /**
@@ -183,6 +243,7 @@ final class FbxPoll
         $pilihan = [];
         foreach ($catatan['pilihan'] as $i => $p) {
             $p['suara'] = $suara['id:' . ($p['opsi'] ?? '')] ?? $suara['pos:' . $i] ?? 0;
+            $p['kandidat_id'] = self::idKini($p);
             $pilihan[] = $p;
         }
         usort($pilihan, fn ($a, $b) => $b['suara'] <=> $a['suara']);
@@ -224,13 +285,31 @@ final class FbxPoll
     /** @return array<string,mixed> */
     private static function minta(string $metode, string $jalur, ?array $isi = null): array
     {
-        $klien = Http::withHeaders(['X-API-Key' => self::kunci(), 'Accept' => 'application/json'])->timeout(30)->connectTimeout(15);
+        return self::jawab(fn (PendingRequest $k) => $metode === 'post' ? $k->post(self::API . $jalur, $isi ?? []) : $k->get(self::API . $jalur));
+    }
+
+    private static function klien(): PendingRequest
+    {
+        $klien = Http::withHeaders(['X-API-Key' => self::kunci(), 'Accept' => 'application/json'])->timeout(60)->connectTimeout(15);
         if (defined('CA_BUNDLE') && CA_BUNDLE !== '') {
             $klien = $klien->withOptions(['verify' => CA_BUNDLE]);
         }
 
+        return $klien;
+    }
+
+    /**
+     * Kirim lalu baca jawabannya. Galat StrawPoll membawa kode HTTP-nya di
+     * getCode(), supaya buat() bisa membedakan "bentuknya ditolak" (4xx)
+     * dari "kuncinya salah" atau "tidak terjangkau" (0).
+     *
+     * @param callable(PendingRequest): Response $kirim
+     * @return array<string,mixed>
+     */
+    private static function jawab(callable $kirim): array
+    {
         try {
-            $res = $metode === 'post' ? $klien->post(self::API . $jalur, $isi ?? []) : $klien->get(self::API . $jalur);
+            $res = $kirim(self::klien());
         } catch (ConnectionException $e) {
             throw new RuntimeException('StrawPoll tidak terjangkau: ' . $e->getMessage());
         }
@@ -239,7 +318,7 @@ final class FbxPoll
             $pesan = is_array($j) ? ($j['error']['message'] ?? $j['message'] ?? json_encode($j)) : mb_substr(trim(strip_tags($res->body())), 0, 200);
             $pesan = rtrim((string) $pesan, '. ');
             $saran = in_array($res->status(), [401, 403], true) ? ' Periksa STRAWPOLL_API_KEY.' : '';
-            throw new RuntimeException("StrawPoll menolak ({$res->status()}): $pesan.$saran");
+            throw new RuntimeException("StrawPoll menolak ({$res->status()}): $pesan.$saran", $res->status());
         }
 
         return $j;

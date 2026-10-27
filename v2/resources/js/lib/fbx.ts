@@ -42,6 +42,8 @@ export type Kandidat = {
     gambarPasangan: Gambar[];
     tampil: Jejak[];
     tampilPasangan: Jejak[];
+    /** Gambar pilihan poll (FbxPollGambar::info): url null = belum ada; warna = tebakan dari ide kostum. */
+    poll: { kunci: string; gambar: string | null; warna: string; warnaPasangan: string };
 };
 
 export const KATEGORI: Record<string, { label: string; pendek: string; ikon: LucideIcon; warna: string }> = {

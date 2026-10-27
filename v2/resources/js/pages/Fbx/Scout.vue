@@ -30,6 +30,7 @@ const props = defineProps<{
     kategoriRoster: string[];
     poll: Poll[];
     bisaPoll: boolean;
+    bisaNai: boolean;
 }>();
 
 // ---- StrawPoll ----
@@ -292,6 +293,6 @@ async function jalankanSinkron() {
 
         <Lightbox v-model="galeriIndeks" :gambar="galeri" :judul="galeriJudul" />
         <TambahRoster v-model:calon="calon" :daftar-kategori="kategoriRoster" @tersimpan="rosterTersimpan" />
-        <BuatPoll v-model:buka="bukaPoll" :kandidat="kandidat" :bisa="bisaPoll" @dibuat="router.reload({ only: ['poll'] })" />
+        <BuatPoll v-model:buka="bukaPoll" :kandidat="kandidat" :bisa="bisaPoll" :bisa-nai="bisaNai" @dibuat="router.reload({ only: ['poll'] })" />
     </AppLayout>
 </template>

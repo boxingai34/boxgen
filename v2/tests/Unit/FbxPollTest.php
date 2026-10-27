@@ -86,7 +86,7 @@ class FbxPollTest extends TestCase
     {
         $this->strawpollPalsu();
 
-        $p = FbxPoll::buat('FEMALE FIGHT', [1, 2], 'FEMBOX Female Fight · Nov 2026', self::KINI + 86400, 'after_vote', self::KINI);
+        $p = FbxPoll::buat('FEMALE FIGHT', [1, 2], 'FEMBOX Female Fight · Nov 2026', self::KINI + 86400, 'after_vote', kini: self::KINI);
 
         $this->assertSame('https://strawpoll.com/AbC123', $p['url']);
         Http::assertSent(function (Request $r) {
@@ -110,7 +110,7 @@ class FbxPollTest extends TestCase
     {
         $this->strawpollPalsu();
 
-        FbxPoll::buat('MIXED FIGHT', [4, 5], 'MF', self::KINI + 86400, 'after_deadline', self::KINI);
+        FbxPoll::buat('MIXED FIGHT', [4, 5], 'MF', self::KINI + 86400, 'after_deadline', kini: self::KINI);
 
         Http::assertSent(fn (Request $r) => $r['poll_options'][0]['value'] === 'Alya vs Masachika');
     }
@@ -118,7 +118,7 @@ class FbxPollTest extends TestCase
     public function test_kandidat_yang_tidak_sah_ditolak(): void
     {
         Http::fake();
-        $buat = fn (string $kat, array $ids, int $tutup = self::KINI + 86400) => FbxPoll::buat($kat, $ids, 'Poll', $tutup, 'after_vote', self::KINI);
+        $buat = fn (string $kat, array $ids, int $tutup = self::KINI + 86400) => FbxPoll::buat($kat, $ids, 'Poll', $tutup, 'after_vote', kini: self::KINI);
 
         foreach ([
             'ditolak'           => fn () => $buat('FEMALE FIGHT', [1, 3]),
@@ -140,7 +140,7 @@ class FbxPollTest extends TestCase
     public function test_hasil_dipetakan_ke_kandidat_terbanyak_dulu(): void
     {
         $this->strawpollPalsu();
-        FbxPoll::buat('FEMALE FIGHT', [1, 2], 'Poll', self::KINI + 86400, 'after_vote', self::KINI);
+        FbxPoll::buat('FEMALE FIGHT', [1, 2], 'Poll', self::KINI + 86400, 'after_vote', kini: self::KINI);
 
         $h = FbxPoll::hasil('AbC123', self::KINI + 2 * 86400);
 

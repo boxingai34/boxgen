@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Services\AgentFbx;
 use App\Services\FbxGambar;
 use App\Services\FbxPoll;
+use App\Services\FbxPollGambar;
 use DomainException;
+use GambarAi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -71,6 +73,7 @@ class AgentFbxController extends Controller
             'gambarPasangan' => $gambar[$r->pasangan_tag] ?? [],
             'tampil'     => $this->cariJejak($jejak, $r->danbooru_tag, $r->karakter),
             'tampilPasangan' => $r->pasangan !== '' ? $this->cariJejak($jejak, $r->pasangan_tag, $r->pasangan) : [],
+            'poll'       => FbxPollGambar::info($r),
         ])->values();
 
         $riset = $minggu !== 'semua' ? DB::table('fbx_riset')->where('minggu', $minggu)->first() : null;
@@ -88,6 +91,7 @@ class AgentFbxController extends Controller
             'kategoriRoster' => AgentFbx::KATEGORI_ROSTER,
             'poll'       => FbxPoll::daftar(),
             'bisaPoll'   => FbxPoll::bisa(),
+            'bisaNai'    => GambarAi::siapTokoh(),
         ]);
     }
 
@@ -205,9 +209,11 @@ class AgentFbxController extends Controller
     /** Buat StrawPoll dari kandidat yang dicentang. Aturannya di FbxPoll::buat(). */
     public function pollBuat(Request $request): JsonResponse
     {
+        @set_time_limit(180);
         try {
             $poll = FbxPoll::buat((string) $request->input('kategori', ''), (array) $request->input('kandidat', []),
-                (string) $request->input('judul', ''), (int) $request->input('tutup', 0), (string) $request->input('hasil', ''));
+                (string) $request->input('judul', ''), (int) $request->input('tutup', 0), (string) $request->input('hasil', ''),
+                $request->boolean('gambar'));
         } catch (InvalidArgumentException $e) {
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
         } catch (RuntimeException $e) {
@@ -215,6 +221,45 @@ class AgentFbxController extends Controller
         }
 
         return response()->json(['ok' => true, 'poll' => $poll]);
+    }
+
+    /** Potret NovelAI untuk satu pilihan poll (Mixed Fight: dua potret digabung). */
+    public function pollGambarNai(Request $request): JsonResponse
+    {
+        @set_time_limit(180);
+
+        return $this->jawabGambar(fn () => FbxPollGambar::nai((int) $request->input('kandidat_id'),
+            (string) $request->input('warna', ''), (string) $request->input('warna_pasangan', '')));
+    }
+
+    /** Gambar milik sendiri untuk satu pilihan poll. */
+    public function pollGambarUnggah(Request $request): JsonResponse
+    {
+        $berkas = $request->file('berkas');
+        if ($berkas === null || !$berkas->isValid()) {
+            return response()->json(['ok' => false, 'error' => 'Berkas gambar tidak terkirim (mungkin melebihi batas unggah server).'], 422);
+        }
+
+        return $this->jawabGambar(fn () => FbxPollGambar::unggah((int) $request->input('kandidat_id'), (string) $berkas->get()));
+    }
+
+    private function jawabGambar(callable $kerja): JsonResponse
+    {
+        try {
+            return response()->json(['ok' => true] + $kerja());
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
+    }
+
+    public function pollGambar(string $nama): BinaryFileResponse
+    {
+        $f = FbxPollGambar::berkas(substr($nama, 0, -4));
+        abort_if($f === null, 404);
+
+        return response()->file($f, ['Cache-Control' => 'private, max-age=604800']);
     }
 
     public function pollHasil(string $id): JsonResponse

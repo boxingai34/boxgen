@@ -145,6 +145,9 @@ Route::prefix('generator')->group(function () {
             Route::post('roster', [AgentFbxController::class, 'tambahRoster'])->name('fbx.roster.tambah');
             Route::post('poll', [AgentFbxController::class, 'pollBuat'])->name('fbx.poll.buat');
             Route::get('poll/{id}/hasil', [AgentFbxController::class, 'pollHasil'])->where('id', '[A-Za-z0-9]+')->name('fbx.poll.hasil');
+            Route::post('poll/gambar/nai', [AgentFbxController::class, 'pollGambarNai'])->name('fbx.poll.gambar.nai');
+            Route::post('poll/gambar/unggah', [AgentFbxController::class, 'pollGambarUnggah'])->name('fbx.poll.gambar.unggah');
+            Route::get('poll/gambar/{nama}', [AgentFbxController::class, 'pollGambar'])->where('nama', '[a-z0-9_]+\.jpg')->name('fbx.poll.gambar');
             Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
         });
 
