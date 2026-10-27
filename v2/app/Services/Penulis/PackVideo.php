@@ -61,6 +61,9 @@ final class PackVideo
     /** @var array<string,list<string>>|null "Boxer A"/nama tokoh → [tag karakter, tag seri] (kumpulkanTag) */
     private ?array $tagPack = null;
 
+    /** Pack tipe NSFW (tanpa sensor / topless): Blok 1 tanpa pakaian (buangPakaianBlok1). */
+    private bool $nsfw = false;
+
     /**
      * Varian UNCENSORED selalu topless (permintaan pengguna 2026-10-27: pack
      * NSFW laga privat keluar dengan sports top). Hanya sampai di sini kalau
@@ -148,6 +151,31 @@ final class PackVideo
         return $nai;
     }
 
+    /** Butir pakaian di daftar Materials Blok 1 (dibuang di pack NSFW). */
+    private const POLA_PAKAIAN = '/\b(bra|tops?|crop|tank|halter|singlet|shirt|jersey|trunks|shorts|pants|leggings|skirt|bikini|swimsuit|trim|piping|stripes?|waistband|belt|sash(-belt)?|obi|haori|kimono|robe|wraps?|bandages?|boots?|shoes|sneakers|socks|kneepads?|outfit|uniform|leotard|bodysuit|lace|ribbons?)\b/i';
+
+    /**
+     * Pack NSFW (tanpa sensor / topless): daftar ciri di Blok 1 tanpa
+     * pakaian — atasan, trunks, trim, sash, wraps dibuang; rambut, ciri
+     * wajah, sarung tinju, stance, tinggi, postur tetap. Pakaian cukup dari
+     * gambar acuan ("outfit exactly as shown"). Permintaan pengguna
+     * 2026-10-27 (pack Tsunade vs Mei - NSFW).
+     */
+    public static function buangPakaianBlok1(string $blok1): string
+    {
+        $baris = preg_split('/\R/u', $blok1) ?: [];
+        foreach ($baris as $i => $b) {
+            if (preg_match('/^(.*@image[12]\b[^:]*:\s*)([^;\n]*)(.*)$/u', $b, $m) !== 1) {
+                continue;
+            }
+            $butir = array_filter(array_map('trim', explode(',', $m[2])),
+                fn ($x) => $x !== '' && (stripos($x, 'glove') !== false || preg_match(self::POLA_PAKAIAN, $x) !== 1));
+            $baris[$i] = $m[1] . implode(', ', $butir) . $m[3];
+        }
+
+        return implode("\n", $baris);
+    }
+
     /** Kalimat yang dijamin ada di Blok 1 UNCENSORED (lihat pastikanTopless). */
     public const KALIMAT_TOPLESS = 'Both boxers are topless: bare-chested, wearing only their boxing trunks, boots and gloves.';
 
@@ -203,6 +231,7 @@ final class PackVideo
         $this->sistem = $this->sistem();
         $this->peta = self::petaNama($riset, $alur);
         $this->tagPack = self::kumpulkanTag($riset, $alur);
+        $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
         $konteks = $this->konteks($riset, $alur, $jenisVideo, $mode, $bahasa);
 
         // Tiap langkah yang sudah dibayar disimpan; kalau proses putus di
@@ -235,6 +264,9 @@ final class PackVideo
         }
         $tetap = $kerja['tetap'];
         $tetap['blok1'] = self::samarkanNama($tetap['blok1'], $this->peta);
+        if ($this->nsfw) {
+            $tetap['blok1'] = self::buangPakaianBlok1($tetap['blok1']);
+        }
         $tetap['blok2'] = array_map(fn ($b) => self::samarkanNama($b, $this->peta), $tetap['blok2']);
         if ($mode !== 'olahraga') {
             $tetap['blok2'] = array_map([self::class, 'bersihkanNegative'], $tetap['blok2']);
@@ -275,6 +307,7 @@ final class PackVideo
             $uncensored = $kerja['uncensored'];
             $uncensored['tetap']['blok1'] = self::samarkanNama($uncensored['tetap']['blok1'], $this->peta);
             $uncensored['tetap']['blok2'] = array_map(fn ($b) => self::samarkanNama($b, $this->peta), $uncensored['tetap']['blok2']);
+            $uncensored['tetap']['blok1'] = self::buangPakaianBlok1($uncensored['tetap']['blok1']);
             $uncensored['tetap'] = self::pastikanTopless($uncensored['tetap']);
             $uncensored['nai'] = self::pastikanNaiSepatu(self::pastikanNaiTopless($uncensored['nai']));
             $uncensored['prompt'] = $this->rakitUncensored($klip, $uncensored['tetap']);
@@ -363,6 +396,7 @@ final class PackVideo
         $this->sistem = $this->sistem();
         $this->peta = self::petaNama($riset, $alur);
         $this->tagPack = self::kumpulkanTag($riset, $alur);
+        $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
         $konteks = $this->konteks($riset, $alur, (string) (JenisLaga::JENIS[$jenis]['video'] ?? $jenis), $mode, (string) ($riset['bahasa'] ?? 'ja'));
 
         $jalurBagian = $cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json';
@@ -460,8 +494,12 @@ final class PackVideo
         $this->peta = self::petaNama($riset, $alur);
         $dipakai = array_values(array_unique(array_merge(array_column($bagian['klip'], 'jenis'), array_column($bagian['tester'], 'jenis'))));
 
+        $this->nsfw = JenisLaga::perluUncensored((string) ($riset['putusan']['jenis'] ?? ''), (string) ($riset['putusan']['isi'] ?? ''));
         $rapikan = function (array $tetap) use ($mode) {
             $tetap['blok1'] = self::samarkanNama($tetap['blok1'], $this->peta);
+            if ($this->nsfw) {
+                $tetap['blok1'] = self::buangPakaianBlok1($tetap['blok1']);
+            }
             foreach ($tetap['blok2'] as $j => $b) {
                 $b = self::bersihkanSuara(self::samarkanNama($b, $this->peta));
                 $tetap['blok2'][$j] = $mode === 'olahraga' ? $b : self::bersihkanNegative($b);
@@ -483,7 +521,7 @@ final class PackVideo
         if (isset($bagian['uncensored'])) {
             // Tanpa bersihkanNegative: varian ini memang bukan untuk Higgsfield.
             $tU = $bagian['uncensored']['tetap'];
-            $tU['blok1'] = self::samarkanNama($tU['blok1'], $this->peta);
+            $tU['blok1'] = self::buangPakaianBlok1(self::samarkanNama($tU['blok1'], $this->peta));
             $tU['blok2'] = array_map(fn ($b) => self::bersihkanSuara(self::samarkanNama($b, $this->peta)), $tU['blok2']);
             $uncensored = ['tetap' => self::pastikanTopless($this->pendekkanTetap($tU, $dipakai)),
                 'nai' => self::pastikanNaiSepatu(self::pastikanNaiTopless($bagian['uncensored']['nai']))];
@@ -613,6 +651,7 @@ final class PackVideo
         $user = $konteks . "\n\nPACK PLAN (JSON):\n" . self::json($this->ringkasRencana($rencana)) . "\n\n"
             . "TASK — write the fixed blocks for this pack, following Fight Bible 08 and the rules:\n"
             . "- blok1: the Wan 3.0 v3 Cast & Arena block, identical for every clip, using @image1 (Boxer A), @image2 (Boxer B), @image3 (arena) and the literal token {DURASI} for the seconds. At most " . self::MAKS_BLOK1 . " characters.\n"
+            . ($this->nsfw ? "- NSFW PACK: in Blok 1 do NOT describe clothing (no tops, trunks, trim, belts, sashes or wraps) — list only hair, face marks, glove colour, stance, height and build; the outfit comes from the reference image (\"outfit exactly as shown\").\n" : '')
             . '- blok2: one Craft/audio/negatives block per clip type. Write the types used in this pack (' . implode(', ', $dipakai) . '); return "" for the others. At most ' . self::MAKS_BLOK2 . ' characters each.'
             . ($uncensored
                 ? "\n\nUNCENSORED VARIANT (not for Higgsfield): " . self::TOPLESS_VIDEO

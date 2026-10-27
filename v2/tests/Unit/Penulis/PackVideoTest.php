@@ -399,6 +399,21 @@ class PackVideoTest extends TestCase
         $this->assertSame($nai, PackVideo::pastikanNaiSepatu($nai), 'tidak berubah kalau dijalankan ulang');
     }
 
+    public function test_blok1_nsfw_tanpa_pakaian(): void
+    {
+        $blok1 = "Overall: {DURASI}-second 16:9 boxing scene, 2D style like @image1 and @image2 (clean lineart), cinematic; two adult women boxers.\n"
+            . "Materials: Boxer A = @image1 (face, hair, body, outfit exactly as shown): blonde high ponytail, forehead diamond, black sports bra, high-cut green haori trunks, cream trim, red wraps, white gloves; orthodox, 163 cm, compact.\n"
+            . "Boxer B = @image2 (face, hair, body, outfit exactly as shown): long auburn ponytail, beauty mark under the right eye, crimson-and-white halter top and trunks, mist-blue sash-belt, blue wraps, white gloves; orthodox, 174 cm, long reach.\n"
+            . 'Arena = @image3: dark wooden posts, pale rope, plank canvas.';
+        $hasil = PackVideo::buangPakaianBlok1($blok1);
+
+        $this->assertStringContainsString('Boxer A = @image1 (face, hair, body, outfit exactly as shown): blonde high ponytail, forehead diamond, white gloves; orthodox, 163 cm, compact.', $hasil);
+        $this->assertStringContainsString('Boxer B = @image2 (face, hair, body, outfit exactly as shown): long auburn ponytail, beauty mark under the right eye, white gloves; orthodox, 174 cm, long reach.', $hasil);
+        $this->assertStringContainsString('(clean lineart), cinematic; two adult women boxers.', $hasil, 'baris Overall tidak disentuh');
+        $this->assertStringContainsString('Arena = @image3: dark wooden posts', $hasil);
+        $this->assertSame($hasil, PackVideo::buangPakaianBlok1($hasil));
+    }
+
     public function test_padatkan_mekanis(): void
     {
         $this->assertSame('Shot 2 [2-4s] Close-up, static: jab lands.', PackVideo::padatkan('Shot 2 [2-4s] Close-up, 50mm, static: jab lands.'));
