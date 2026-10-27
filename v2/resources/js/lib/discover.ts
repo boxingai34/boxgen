@@ -20,6 +20,8 @@ export type Karya = {
     ai: 'ai' | 'bukan' | '?';
     aiTangan: boolean;
     status: 'baru' | 'simpan' | 'sembunyi';
+    /** Sudah disalin ke folder contoh agent (_DATA\pose\contoh). */
+    diContoh: boolean;
     kata: string;
     tags: string[];
     diposting: string | null;

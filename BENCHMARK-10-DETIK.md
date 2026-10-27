@@ -41,13 +41,13 @@ Kalau gambar acuannya berbeda, yang kamu bandingkan bukan modelnya.
 ### Image 1 — Petinju A, tahap Rusak, yang lebih tinggi
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, hand wraps, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### Image 2 — Petinju B, tahap Tumbang, yang lebih pendek
 
 ```
-A full-body reference of the boxer, standing in a low exhausted guard, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, hair fallen out of one bun. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, torn clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, hand wraps, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a low exhausted guard, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, hair fallen out of one bun. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, torn clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### Image 3 — arena
@@ -62,20 +62,20 @@ tanpa satu orang pun. Pakai gambar arena yang sama setiap kali.
 ```
 Generate a 10-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 
 Shot 1 [0-2s]: Boxer A (Image 1) launches a finishing overhand right with her whole weight behind it, swinging downward at a target a full head shorter than she is — a huge, slow, telegraphed arc, her chin lifted and her lead hand hanging down by her waist. A low angle looking up at her, the camera swinging with the punch.
 Sound: a long whoosh of air being moved.
 
-Shot 2 [2-4s]: Boxer B (Image 2), half blind and barely upright, slips two inches off the line and answers with a short right uppercut straight up the middle onto the point of Boxer A's chin, thrown from a crouch with the legs. A single white impact frame flashes on contact, speed lines burst outward from the point of impact, and a one-frame freeze lands on the connection before the recoil begins. An extreme close-up on the point of impact, the impact playing in slow motion.
+Shot 2 [2-4s]: Boxer B (Image 2), half blind and barely upright, slips two inches off the line and answers with a short right uppercut straight up the middle onto the point of Boxer A's chin, thrown from a crouch with the legs. The chin deforms around the glove for two frames, her head snaps upward past where it should stop and settles back, and sweat and spit fly off in a wide arc. An extreme close-up on the point of impact, the impact playing in slow motion.
 Sound: one short dry crack, much quieter than everything before it.
 
 Shot 3 [4-6s]: Boxer A's eyes go empty and stop tracking, and her legs turn to rubber — she stumbles backward two stiff uncontrolled steps with her arms hanging at her sides. A medium shot tracking backward with her, handheld with slight shake.
 Sound: a long ringing tone, then two heavy uneven steps on canvas.
 
-Shot 4 [6-8s]: Boxer B steps in and lands a finishing left hook, everything behind it, flush on the jaw of a head with no defence in front of it. A single white impact frame, a burst of speed lines, sweat spraying off in an arc, and a one-frame freeze on the connection. A Dutch-angled medium shot, the horizon tilted hard.
+Shot 4 [6-8s]: Boxer B steps in and lands a finishing left hook, everything behind it, flush on the jaw of a head with no defence in front of it. Her cheek deforms around the glove, her whole head whips sideways and overshoots, her hair follows a full beat later, and sweat sprays off in an arc. A Dutch-angled medium shot, the horizon tilted hard.
 Sound: one enormous crack, and then nothing at all.
 
 Shot 5 [8-10s]: Boxer A goes down without breaking her fall and does not move; Boxer B sways, drops to her knees on the canvas and raises one glove. The camera whips down to the canvas, then pulls out to a high wide shot until the empty gymnasium fills the frame.
@@ -85,7 +85,9 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty, so each impact and each breath echoes off bare walls. No referee and no corner second in frame.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold the pose before each punch, then burst into full framerate for two or three frames on contact. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Sweat flies off in discrete droplets, not a spray. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges throughout; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -108,15 +110,15 @@ A 10-second 24fps anime boxing match: BOXER BLUE counters BOXER RED on the chin 
 
 Shot 1 (0-2s): Low angle looking up at BOXER RED, swinging with the motion. She launches a finishing overhand right with her whole weight behind it, swinging downward at a target a full head shorter than she is — a huge, slow, telegraphed arc, her chin lifted and her lead hand hanging down by her waist. Sound: a long whoosh of air being moved.
 
-Shot 2 (2-4s): Extreme close-up on the point of contact, the moment in slow motion. BOXER BLUE, half blind and barely upright, slips two inches off the line and answers with a short right uppercut straight up the middle onto the point of BOXER RED's chin, thrown from a crouch with the legs. A single white impact frame flashes, speed lines burst outward, and a one-frame freeze lands on the connection before the recoil. Sound: one short dry crack, much quieter than everything before it.
+Shot 2 (2-4s): Extreme close-up on the point of contact, the moment in slow motion. BOXER BLUE, half blind and barely upright, slips two inches off the line and answers with a short right uppercut straight up the middle onto the point of BOXER RED's chin, thrown from a crouch with the legs. The chin deforms around the glove for two frames, her head snaps upward past where it should stop and settles back, and sweat and spit fly off in a wide arc. Sound: one short dry crack, much quieter than everything before it.
 
 Shot 3 (4-6s): Medium shot tracking backward with BOXER RED, handheld with slight shake. Her eyes go empty and stop tracking, her legs turn to rubber, and she stumbles backward two stiff uncontrolled steps with her arms hanging at her sides. Sound: a long ringing tone, then two heavy uneven steps on canvas.
 
-Shot 4 (6-8s): Dutch-angled medium shot, the horizon tilted hard. BOXER BLUE steps in and lands a finishing left hook, everything behind it, flush on a head with no defence in front of it. White impact frame, burst of speed lines, sweat spraying off in an arc, one-frame freeze on the connection. Sound: one enormous crack, and then nothing at all.
+Shot 4 (6-8s): Dutch-angled medium shot, the horizon tilted hard. BOXER BLUE steps in and lands a finishing left hook, everything behind it, flush on a head with no defence in front of it. Her cheek deforms around the glove, her head whips sideways and overshoots, her hair follows a full beat later, and sweat sprays off in an arc. Sound: one enormous crack, and then nothing at all.
 
 Shot 5 (8-10s): High wide shot pulling out slowly until the empty gymnasium fills the frame. BOXER RED is down and not rising; BOXER BLUE sways, drops to her knees on the canvas and raises one glove, the overhead lamps reflecting off the polished floor around them. Sound: a body hitting canvas, then one set of breathing in a very large empty room.
 
-Throughout: lock every fighter strictly to their reference image — hair colour, eye colour, glove colour and outfit never change. BOXER RED's gloves stay red on the right of frame and BOXER BLUE's stay blue on the left, and neither swaps side. Lock the height difference as hard as the glove colour: BOXER RED stands a clear head taller than BOXER BLUE, 162cm against 150cm, and that gap must read in every two-shot — BOXER BLUE's eyes sit level with BOXER RED's chin and she throws upward. Never draw them the same height. Both are heavily bruised with swelling under one eye before the video begins and neither improves. Only the two boxers read clearly; the gymnasium behind them — polished wooden court, basketball backboards, tall night windows, warm overhead lamps reflecting off the floor — stays soft and unfocused, with no audience anywhere in it. Every movement keeps weight, balance and follow-through and stays physically possible. Keep the silhouette readable in every key pose even at speed, with directional motion blur on the fastest limb, and let each cut land on a movement rather than between them. Keep every visible mark limited to light bruising and swelling. STRICTLY EXCLUDE: no subtitles, no on-screen text; no background music, only ambient and action sound; no spoken dialogue; no extra people inside the ropes.
+Throughout: lock every fighter strictly to their reference image — hair colour, eye colour, glove colour and outfit never change. BOXER RED's gloves stay red on the right of frame and BOXER BLUE's stay blue on the left, and neither swaps side. Lock the height difference as hard as the glove colour: BOXER RED stands a clear head taller than BOXER BLUE, 162cm against 150cm, and that gap must read in every two-shot — BOXER BLUE's eyes sit level with BOXER RED's chin and she throws upward. Never draw them the same height. Both are heavily bruised with swelling under one eye before the video begins and neither improves. Only the two boxers read clearly; the gymnasium behind them — polished wooden court, basketball backboards, tall night windows, warm overhead lamps reflecting off the floor — stays soft and unfocused, with no audience anywhere in it. Every movement keeps weight, balance and follow-through and stays physically possible. Animate on ones so every frame changes and nothing is held — the movement must read continuous and fluid, never stepped. Put real rendered motion blur on whatever moves fastest: the glove on a strike, the hair on a head turn, the body on a fall. No white impact frames, no speed lines and no drawn smear frames — an impact is sold by the body alone: the struck area deforms and springs back, the head overshoots and settles, soft flesh keeps oscillating for several frames after the bone stops, and long hair whips in one continuous arc that keeps travelling long after the head has stopped. Light it like a film: one strong warm lamp above and behind throws a hard bright rim along shoulders, arms and hair against a background falling to near-black, the overhead lamps bloom in frame, skin carries a wet specular sheen and the gloves a tight glossy highlight, shading grades softly instead of breaking at one hard cel edge, the depth of field is shallow so the background dissolves to bokeh, and a fine film grain sits over everything. Keep the camera drifting slightly so no frame is locked still, and let each cut land on a movement rather than between them. Keep every visible mark limited to light bruising and swelling. STRICTLY EXCLUDE: no subtitles, no on-screen text; no background music, only ambient and action sound; no spoken dialogue; no extra people inside the ropes.
 ```
 
 ---
@@ -136,10 +138,12 @@ lalu simpan — dua kolom berdampingan jauh lebih berguna daripada kesan
 | 5 | **Beda tinggi** | Yang merah jelas satu kepala lebih tinggi di **tiap** bidikan berdua — tidak pernah disamakan | | |
 | 6 | **Arah pukulan** | Yang biru memukul ke **atas**, yang merah mengayun ke **bawah** | | |
 | 7 | **Kerusakan** | **Dua-duanya** babak belur sejak detik nol; tidak ada yang tiba-tiba sembuh | | |
-| 8 | **Impact frame** | Ada kilatan putih satu frame saat counter mendarat di detik 2–4 | | |
-| 9 | **Speed line & smear** | Garis kecepatan memancar, ayunan cepat jadi smear — bukan lengan tajam yang di-blur | | |
-| 10 | **Ritme animasi** | Terasa ditahan lalu meledak, bukan halus seragam | | |
-| 11 | **Rasa anime** | Warna datar cel-shaded dengan tepi bayangan keras; tidak terlihat 3D atau live-action | | |
+| 8 | **Tanpa efek grafis** | TIDAK ada kilatan putih dan TIDAK ada speed line di mana pun — benturan dijual oleh badan, bukan oleh grafis | | |
+| 9 | **Motion blur asli** | Sarung tangan dan rambut benar-benar nge-blur waktu bergerak cepat, bukan smear frame gambar tangan | | |
+| 10 | **Gerak menerus** | Tiap frame berubah, tidak ada pose yang ditahan — terasa fluid, bukan patah-patah | | |
+| 11 | **Follow-through** | Rambut masih bergerak jauh sesudah kepala berhenti; daging masih bergetar sesudah tulang berhenti | | |
+| 11b | **Rim light & bloom** | Garis cahaya keras di bahu dan rambut, latar jatuh ke hampir hitam, lampu mekar, kulit mengilap | | |
+| 11c | **Rasa anime** | Wajah dan proporsi tetap anime walau gerak dan cahayanya sinematik | | |
 | 12 | **Ruangan kosong** | Tidak ada satu pun penonton atau wasit yang muncul sendiri | | |
 | 13 | **Fisika** | Kaki karet terasa benar — sempoyongan, bukan jalan mundur biasa | | |
 | 14 | **Penutup** | Yang merah jatuh dan diam; yang biru berlutut dan mengangkat sarung tangan | | |
@@ -163,9 +167,18 @@ lalu simpan — dua kolom berdampingan jauh lebih berguna daripada kesan
 ### Catatan jujur
 
 Baris 1 dan 2 diminta eksplisit lewat daftar shot, jadi model yang patuh
-hampir pasti lolos. Baris 9 dan 10 sifatnya arahan gaya: tidak ada model
-video yang benar-benar menganimasikan "on twos", yang bisa diharapkan
-cuma kemiripan rasanya — nilai rendah di situ belum tentu berarti ada yang
-rusak. Baris 5 adalah satu-satunya yang bisa kamu perbaiki sendiri tanpa
-ganti model: tambahkan gambar acuan perbandingan tinggi dari
-[`VIDEO-CHINATSU-VS-HINA.md`](VIDEO-CHINATSU-VS-HINA.md) dan uji ulang.
+hampir pasti lolos.
+
+Baris 8, 9, 10 dan 11 diganti total pada 2026-10-14. Dulu baris itu
+**menuntut** kilatan putih, speed line, dan ritme "ditahan lalu meledak";
+sekarang justru menuntut kebalikannya. Penyebabnya SAMPLE 2 dibongkar
+frame per frame dan ternyata tidak punya satu pun efek grafis — rasa
+fluid-nya datang dari animasi on ones, motion blur asli, dan
+follow-through. Jadi kalau kamu membandingkan hasil lama dengan hasil
+baru, **nilai baris 8–11 tidak bisa dibandingkan lintas tanggal**;
+sisanya bisa.
+
+Baris 5 dan 11b yang paling bisa kamu perbaiki sendiri tanpa ganti model:
+untuk beda tinggi, tambahkan gambar acuan perbandingan dari
+[`VIDEO-CHINATSU-VS-HINA.md`](VIDEO-CHINATSU-VS-HINA.md); untuk cahaya,
+pertegas kalimat rim light dan bloom di blok `Lighting and finish`.

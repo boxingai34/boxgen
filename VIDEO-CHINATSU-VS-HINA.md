@@ -92,7 +92,7 @@ dan pasang sebagai acuan kelima. Satu gambar ini biasanya lebih ampuh
 daripada kalimat apa pun:
 
 ```
-Two boxers standing side by side facing the viewer, full body, a clear head-height difference between them. 2girls, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, height difference, size difference, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, white shorts, red gloves, petite, pink hair, double bun, hair bun, pink eyes, large breasts, white shirt, school swimsuit, blue one-piece swimsuit, blue gloves, 1.20::boxing gloves::, hand wraps, boxing ring, rope, indoors, gymnasium, night, spotlight
+Two boxers standing side by side facing the viewer, full body, a clear head-height difference between them. 2girls, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, height difference, size difference, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, white shorts, red gloves, petite, pink hair, double bun, hair bun, pink eyes, large breasts, white shirt, school swimsuit, blue one-piece swimsuit, blue gloves, 1.20::boxing gloves::, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ---
@@ -119,52 +119,66 @@ klipnya, dan itu ditulis di baris `Condition`, bukan lewat gambar acuan.
 Kalau kamu pasang C3 sebagai acuan, dia sudah babak belur sejak detik nol
 dan counter-nya kehilangan artinya.
 
+**Hand wraps sudah dibuang dari semua prompt di bawah** (2026-10-14),
+mengikuti aturan tetapmu. Pasang ini di Undesired Content supaya tidak
+muncul sendiri — V5 sering menambahkannya kalau melihat sarung tangan:
+
+```
+hand wraps, bandages, mouthguard, mouthpiece, jacket, coat, layered clothing, monochrome, greyscale, sketch
+```
+
+Untuk gambar diam, efek **speed line di pukulan dan garis getar di badan
+yang terkena** tetap dipakai sesuai preferensimu — itu tidak berubah.
+Yang berubah cuma prompt video, yang sekarang justru melarang efek itu;
+alasannya ada di
+[`VIDEO-CHINATSU-VS-HINA-15-SEEDANCE.md`](VIDEO-CHINATSU-VS-HINA-15-SEEDANCE.md).
+
 ### C0 — Chinatsu, Segar
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, clean and unmarked, breathing easily. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, hand wraps, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, clean and unmarked, breathing easily. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### C1 — Chinatsu, Panas
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, soaked in sweat, hair stuck to her face, breathing hard, one fresh red mark coming up on her left cheekbone. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, hand wraps, sweat, heavy breathing, wet hair, messy hair, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, soaked in sweat, hair stuck to her face, breathing hard, one fresh red mark coming up on her left cheekbone. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, sweat, heavy breathing, wet hair, messy hair, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### C2 — Chinatsu, Rusak
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, hand wraps, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### C3 — Chinatsu, Tumbang · *frame penutup & thumbnail*
 
 ```
-A full-body reference of the boxer, standing unsteadily, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, legs no longer holding her. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, hand wraps, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing unsteadily, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, legs no longer holding her. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, tall female, light brown hair, medium hair, blunt bangs, brown eyes, toned, medium breasts, yellow shirt, crop top, short sleeves, midriff, navel, white shorts, dolphin shorts, 1.20::boxing gloves::, red gloves, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### H0 — Hina, Segar
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, clean and unmarked, breathing easily. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, hand wraps, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, clean and unmarked, breathing easily. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### H1 — Hina, Panas
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, soaked in sweat, hair stuck to her face, breathing hard, still unmarked. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, hand wraps, sweat, heavy breathing, wet hair, messy hair, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, soaked in sweat, hair stuck to her face, breathing hard, still unmarked. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, sweat, heavy breathing, wet hair, messy hair, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### H2 — Hina, Rusak
 
 ```
-A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty, one hand pressed to her ribs. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, hand wraps, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a fighting stance, bruised and bleeding from the nose, jaw clenched, running on empty, one hand pressed to her ribs. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, sweat, heavy breathing, messy hair, bruise, nosebleed, blood on face, clenched teeth, exhausted, fighting stance, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ### H3 — Hina, Tumbang · *tapi masih berdiri*
 
 ```
-A full-body reference of the boxer, standing in a low exhausted guard, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, hair fallen out of one bun. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, torn clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, hand wraps, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
+A full-body reference of the boxer, standing in a low exhausted guard, badly beaten, one eye swollen shut, blood running from nose and mouth, eyes unfocused, hair fallen out of one bun. 1girl, solo, masterpiece, best quality, high complexity, depthness, anime coloring, standing, looking at viewer, mature female, petite, pink hair, double bun, hair bun, blunt bangs, pink eyes, large breasts, white shirt, crop top, short sleeves, wet clothes, torn clothes, school swimsuit, one-piece swimsuit, blue one-piece swimsuit, highleg, 1.20::boxing gloves::, blue gloves, sweat, messy hair, bruise, bruised eye, nosebleed, blood on face, blood from mouth, drooling, empty eyes, exhausted, boxing ring, rope, indoors, gymnasium, night, spotlight
 ```
 
 ---

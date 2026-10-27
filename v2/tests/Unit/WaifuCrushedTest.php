@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use AksesoriPetinju;
 use App\Models\User;
 use Database;
 use InvalidArgumentException;
@@ -763,6 +764,12 @@ class WaifuCrushedTest extends TestCase
         }
     }
 
+    /**
+     * Penyebut warna rambut (sebutRambut) tidak tertipu aksesori. Sejak
+     * standar aksesori, pita/hiasan rambut sudah disapu sebelum sampai sana
+     * — tes ini tetap menjaga hasil akhirnya, dan "gold hair tie" (ikat
+     * rambut polos, boleh) masih melewati penyebutnya.
+     */
     public function test_aksesori_rambut_bukan_warna_rambut(): void
     {
         $o     = WaifuCrushed::opsiHalaman();
@@ -785,6 +792,121 @@ class WaifuCrushedTest extends TestCase
             $h = WaifuCrushed::susun(array_merge($waifu, ['rambut' => $rambut]), $o['contoh']['rival'], ['final' => 'hook']);
             $this->assertStringContainsString($harap, $this->adegan($h, '3A')['base'], $rambut);
         }
+    }
+
+    // =================================================================
+    // Standar aksesori (2026-10-20): tanpa perhiasan, kacamata, selempang,
+    // hiasan rambut, topi, high heels, kuku panjang
+    // =================================================================
+
+    /** Bahan bawaan halaman (contoh dan dadu) sudah mengikuti standarnya sendiri. */
+    public function test_contoh_dan_kolam_dadu_tanpa_aksesori(): void
+    {
+        $o = WaifuCrushed::opsiHalaman();
+
+        foreach ($o['contoh'] as $peran => $isian) {
+            foreach ($isian as $kolom => $nilai) {
+                $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, (string) $nilai, "contoh {$peran}.{$kolom}");
+            }
+        }
+        foreach ($o['kolam'] as $jenis => $isi) {
+            foreach ($isi as $x) {
+                $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, $x['tag'], "kolam {$jenis}");
+            }
+        }
+        // Warna choker dan pita lampiran tidak hilang: pindah ke ikat rambut dan sabuk.
+        $this->assertStringContainsString('blue hair tie', $o['contoh']['waifu']['rambut']);
+        $this->assertStringContainsString('gold waistband with red trim', $o['contoh']['waifu']['pakaian']);
+    }
+
+    public function test_aksesori_disapu_busananya_utuh_warnanya_pindah(): void
+    {
+        $o     = WaifuCrushed::opsiHalaman();
+        $waifu = [
+            'nama'    => 'Waifu',
+            'tinggi'  => 163,
+            'rambut'  => 'blonde hair, long hair tied with red ribbon, high ponytail',
+            'pakaian' => 'gold choker with red gem, white tube top, black boxing shorts with ribbon ties, pearl earrings, high heels',
+            'sarung'  => 'pink boxing gloves with silver bracelet',
+            'ekstra'  => 'sunglasses on head, mole under eye, facial mark, long fingernails',
+            'warna'   => 'blonde hair, gold choker',
+        ];
+        $rival = array_merge($o['contoh']['rival'], ['ekstra' => 'red hachimaki, black headscarf']);
+
+        $h = WaifuCrushed::susun($waifu, $rival, ['awal' => 'keduanya', 'final' => 'hook']);
+
+        foreach ($h['adegan'] as $a) {
+            foreach (array_merge([$a['base'], $a['gemini']], array_column($a['karakter'], 'prompt')) as $p) {
+                $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, $p, $a['kunci']);
+            }
+            // Aturan tetap di UC Base, apa pun isiannya.
+            foreach (['jewelry', 'earrings', 'necklace', 'choker', 'sunglasses', 'eyewear on head', 'hair ribbon', 'sash', 'hat', 'high heels', 'long fingernails'] as $wajib) {
+                $this->assertContains($wajib, explode(', ', $a['ucBase']), "{$a['kunci']} UC Base: {$wajib}");
+            }
+            // Warna choker manual tidak ikut ke UC lawan.
+            if (isset($a['karakter'][1])) {
+                $this->assertStringNotContainsString('choker', $a['karakter'][1]['uc'], $a['kunci']);
+            }
+        }
+
+        $c1 = $this->adegan($h, '1')['karakter'][0]['prompt'];
+        // Busana yang menempel pada aksesori tidak ikut hilang; ciri tubuh tetap.
+        foreach (['long hair', 'high ponytail', 'white tube top', 'black boxing shorts', 'pink boxing gloves', 'mole under eye', 'facial mark'] as $tetap) {
+            $this->assertContains($tetap, explode(', ', explode('. ', $c1)[0]), $tetap);
+        }
+        $this->assertStringNotContainsString('tied', $c1);
+        // Merah pita, emas choker, perak gelang → trim, sabuk, tali sepatu.
+        $this->assertStringContainsString('red trim, gold waistband, silver shoelaces', $c1);
+        $this->assertStringContainsString('red trim', $h['gemini']['waifu']);
+
+        // Headband olahraga dan headscarf bukan aksesori.
+        $c2 = $this->adegan($h, '1B')['karakter'][1]['prompt'];
+        $this->assertStringContainsString('red hachimaki', $c2);
+        $this->assertStringContainsString('black headscarf', $c2);
+
+        $buang = array_values(array_filter($h['catatan'], static fn (string $c): bool => str_starts_with($c, 'Dibuang dari isian Waifu: ')));
+        $this->assertCount(1, $buang);
+        foreach (['red ribbon', 'gold choker with red gem', 'ribbon ties', 'pearl earrings', 'high heels', 'silver bracelet', 'sunglasses on head', 'long fingernails'] as $x) {
+            $this->assertStringContainsString($x, $buang[0], $x);
+        }
+        $this->assertStringContainsString('tanpa aksesori', $buang[0]);
+        $this->assertNotEmpty(array_filter($h['catatan'], static fn (string $c): bool => str_starts_with($c, 'Warna aksesori Waifu yang dibuang dipindah ke pakaian: red trim, gold waistband, silver shoelaces.')));
+        $this->assertEmpty(array_filter($h['catatan'], static fn (string $c): bool => str_contains($c, 'Dibuang dari isian Rival')));
+    }
+
+    /** Warna yang masih hidup di busana tidak dipindah; canon tanpa pakaian cuma diberi tahu. */
+    public function test_warna_aksesori_yang_masih_ada_tidak_dipindah_dan_canon_tanpa_pakaian_diberi_tahu(): void
+    {
+        $o = WaifuCrushed::opsiHalaman();
+
+        // Pita biru di atas bikini biru: tidak ada "blue trim".
+        $h  = WaifuCrushed::susun(array_merge($o['contoh']['waifu'], ['rambut' => $o['contoh']['waifu']['rambut'] . ', blue hair ribbon']), $o['contoh']['rival']);
+        $c1 = $this->adegan($h, '1')['karakter'][0]['prompt'];
+        $this->assertStringNotContainsString('hair ribbon', $c1);
+        $this->assertStringNotContainsString('blue trim', $c1);
+        $this->assertEmpty(array_filter($h['catatan'], static fn (string $c): bool => str_starts_with($c, 'Warna aksesori')));
+
+        // Canon tanpa pakaian: tag canonnya tidak disapu, warnanya tidak dipaksakan jadi busana.
+        $w  = ['nama' => 'Mujina', 'tag' => 'mujina (ssss.dynazenon)', 'dewasa' => true, 'tinggi' => 165, 'rambut' => 'dark purple hair', 'ekstra' => 'gold earrings', 'sarung' => 'black boxing gloves'];
+        $h2 = WaifuCrushed::susun($w, $o['contoh']['rival']);
+        $c1 = $this->adegan($h2, '1')['karakter'][0]['prompt'];
+        $this->assertStringContainsString('mujina (ssss.dynazenon)', $c1);
+        $this->assertStringNotContainsString('earrings', $c1);
+        $this->assertStringNotContainsString('gold trim', $c1);
+        $this->assertNotEmpty(array_filter($h2['catatan'], static fn (string $c): bool => str_starts_with($c, 'Warna aksesori Mujina yang dibuang (gold) tidak punya tempat')));
+    }
+
+    public function test_gemini_menulis_standar_aksesori_sebagai_keadaan(): void
+    {
+        $h = $this->susunSemua('kanan');
+
+        $this->assertStringContainsString(WaifuCrushed::GAYA_AKSESORI, $h['gemini']['gaya']);
+        $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, WaifuCrushed::GAYA_AKSESORI);
+        foreach ($h['adegan'] as $a) {
+            $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, $a['gemini'], $a['kunci']);
+        }
+        $this->assertStringStartsWith(WaifuCrushed::UC_ATURAN . ', ', WaifuCrushed::ucAturan());
+        $this->assertStringEndsWith(AksesoriPetinju::ucTeks(), WaifuCrushed::ucAturan());
     }
 
     /** Paragraf Gemini bahasa natural; prompt NovelAI tetap memuat tag aslinya. */

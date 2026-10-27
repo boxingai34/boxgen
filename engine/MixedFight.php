@@ -20,7 +20,8 @@ declare(strict_types=1);
  * Jawabannya BAHAN — daftar tag dan kalimat komposisi — bukan prompt jadi.
  *
  * Prompt-nya dirangkai di sini. Aturan tetap pemilik studio (tanpa hand
- * wraps, tanpa mouthguard, atasan satu lapis, efek kecepatan di setiap
+ * wraps, tanpa mouthguard, atasan satu lapis, tanpa aksesori yang tidak
+ * dipakai petinju sungguhan (AksesoriPetinju), efek kecepatan di setiap
  * pukulan, garis getar di badan yang kena, tangan pemukul dikunci, tinggi
  * badan selalu disebut, tiga UC lengkap, posisi gaya V5, daftar tag yang
  * dilarang masuk UC) ditegakkan DUA kali: sekali sebagai aturan di pesan
@@ -197,6 +198,28 @@ final class MixedFight
      * walaupun tidak ada kata jaket di dalamnya.
      */
     private const POLA_LAPISAN = '/\b(jackets?|(over|trench ?)?coats?|cardigans?|hoodies?|cap(e|elet)s?|cloaks?|ponchos?|shawls?|haori|blazers?|boleros?|overshirts?|parkas?|robes?|sweaters?|sweatshirts?|vests?|kimonos?|windbreakers?|track ?tops?|open shirts?|[\w-]+ over (a |an |her |his |the )?(sports bra|bikini( top)?|tube top|crop top|bra|bandeau)|layered (clothing|outfit))\b(?![- ](inspired|style|styled|like|motif|pattern|print|collar|buttons?|trim|lapels?))/i';
+
+    /**
+     * Aksesori yang tidak dipakai petinju sungguhan (standar studio
+     * 2026-10-20). Daftar barangnya AksesoriPetinju::POLA — di sini cuma
+     * PENGECUALIAN untuk kalimat tinju bahasa Inggris, tempat kata yang sama
+     * sering bukan barang: "piercing blue eyes" / "a piercing jab" (sifat),
+     * "bows his head" / "takes a bow" (kata kerja), "a ribbon of blood",
+     * "stole a glance", "caps off the combo", "cap sleeves" (potongan lengan
+     * atasan), dan "head scarf" dua kata (hijab — pakaian, bukan hiasan;
+     * "headscarf" satu kata sudah dijaga POLA sendiri). Tanpa ini kalimat
+     * aksi yang sah ikut dibuang utuh oleh prosaBersih().
+     *
+     * Ditaruh DI DEPAN pola barang: lookbehind dan lookahead-nya dinilai di
+     * titik awal kata barangnya.
+     */
+    private const AKSESORI_BUKAN = '(?<!head\s)(?<!head-)(?<!takes\sa\s)(?<!take\sa\s)(?<!took\sa\s)'
+        . '(?!stole\s+(?:a|an|the|his|her|their|its|it|from|into|toward|towards|past|through)\b'
+        . '|piercing\s+(?:(?:' . self::KATA_WARNA . ')\s+)?(?:gaze|eyes?|stare|look|glare|scream|cry|shriek|pain|blow|jab|punch|hook|uppercut|right|left|shot|strike|his|her|their|the|through|into)\b'
+        . '|bow(?:s|ed|ing)?\s+(?:(?:his|her|their)\s+)?(?:head|low|deeply|slightly|forward)\b'
+        . '|ribbons?\s+of\b'
+        . '|caps?\s+(?:off|it)\b'
+        . '|cap[\s-]sleeves?\b)';
 
     /**
      * Aturan 9: pewarnaan selalu anime full color. Model yang menulis
@@ -1286,9 +1309,18 @@ final class MixedFight
         return $urut;
     }
 
+    /**
+     * Aturan aksesori (standar studio 2026-10-20) diambil dari
+     * AksesoriPetinju::ATURAN, bukan diketik ulang: daftar barangnya harus
+     * sama di semua mesin. Nowdoc tidak bisa menyisipkan konstanta, jadi
+     * disisipkan lewat penanda.
+     */
     private static function system(): string
     {
-        return <<<'TXT'
+        return str_replace('{{ATURAN_AKSESORI}}', AksesoriPetinju::ATURAN, self::SYSTEM);
+    }
+
+    private const SYSTEM = <<<'TXT'
 Kamu sutradara komik tinju untuk studio BoxinGenerated. Tugasmu memecah cerita singkat sebuah pertandingan tinju menjadi KOMIK STRIP beberapa panel berurutan, untuk digambar dengan NovelAI V5 (tag + kalimat bahasa Inggris pendek; posisi karakter diatur lewat UI positioning V5). Kamu TIDAK menulis prompt jadi — kamu menyerahkan BAHAN dalam JSON, dan sistem yang merangkai prompt serta menegakkan aturannya.
 
 ATURAN — semuanya wajib:
@@ -1297,7 +1329,8 @@ ATURAN — semuanya wajib:
 3. TANPA HAND WRAPS: dilarang hand wraps, wrist wraps, perban, atau selotip di tangan. Sarung tinju WAJIB dipakai kedua petinju di semua panel; warnanya di "sarung", dan sebaiknya beda jelas antara kedua petinju.
 4. TANPA MOUTHGUARD/MOUTHPIECE di mana pun (V5 menggambarnya jadi besi aneh).
 5. ATASAN CUKUP SATU LAPIS: dilarang jaket, coat, jubah, cape, kemeja luar. Petinju pria boleh "topless male" + boxing trunks. Rambut panjang boleh diikat ponytail/kepang; rambut pendek biarkan pendek.
-   JANGAN PERNAH MENYEBUT hand wraps, perban, selotip, "bare hands", mouthguard, atau jaket di field mana pun — JUGA TIDAK dalam bentuk larangan ("no hand wraps", "without any wraps", "no mouthguard", "gloves on bare hands"). Cukup tulis sarungnya. Sistem yang menambahkan larangannya ke UC dan ke prompt Gemini; kata yang disebut, walau dengan "no", cenderung ikut digambar.
+   {{ATURAN_AKSESORI}} Tanda wajah, tato, dan tahi lalat ditulis di "fisik"; warna pindahan dari aksesori ditulis di "pakaian"/"sarung" (mis. "pink waistband", "pink glove cuffs", "pink shoelaces").
+   JANGAN PERNAH MENYEBUT hand wraps, perban, selotip, "bare hands", mouthguard, jaket, atau aksesori yang dilarang di atas (anting, kalung, kacamata, pita, jepit rambut, topi, dsb.) di field mana pun — JUGA TIDAK dalam bentuk larangan ("no hand wraps", "without any wraps", "no mouthguard", "gloves on bare hands", "no earrings", "without her glasses", "no jewelry"). Cukup tulis sarung dan pakaian yang memang dipakai. Sistem yang menambahkan larangannya ke UC dan ke prompt Gemini; kata yang disebut, walau dengan "no", cenderung ikut digambar.
 6. EFEK PUKULAN: setiap pukulan yang MENDARAT (panel "jenis": "pukulan") diberi efek kecepatan di base_tag (speed lines, motion blur, impact lines) dan di aksi pemukulnya ("speed lines on right arm, motion blur on right glove, afterimage, punch trail"). Wajib ada tag KONTAK di base_tag ("glove buried in stomach", "fist connecting with jaw", "impact") — pukulan yang meleset atau berjarak tidak dipakai. Panel ko/jeda/tatap TANPA efek pukulan.
 7. GARIS GETAR: setiap karakter yang terkena pukulan diberi "trembling lines on <bagian yang kena>" di aksinya (mis. "trembling lines on stomach"), dan base_kalimat menyebut bagian itu ("trembling lines around his stomach").
 8. TANGAN PEMUKUL DIKUNCI. base_kalimat menyebut tangan mana yang memukul (right/left) dan targetnya yang tepat; tangan itu juga diisi di field "tangan". Atur supaya lengan pemukul ada di sisi yang MENGHADAP KAMERA: pemukul di KIRI menghadap ke kanan → lengan KANAN-nya yang di sisi kamera; pemukul di KANAN menghadap ke kiri → lengan KIRI-nya yang di sisi kamera. Kalau alur menuntut tangan tertentu, tukar posisi kiri/kanan atau sudut kameranya — jangan biarkan lengan itu tersembunyi di balik badan.
@@ -1312,9 +1345,9 @@ ATURAN — semuanya wajib:
 14. POSISI gaya V5: "kiri", "kanan", "tengah", "tengah atas", "tengah bawah", "kiri atas", "kanan atas", "kiri bawah", "kanan bawah", atau "AI's choice". JANGAN kode grid V4 (B3, D3). PEMUKUL WAJIB di sisi kiri atau kanan ("kiri", "kanan", "kiri bawah", dsb.) — bukan "tengah" atau AI's choice — dan base_kalimat menyebut sisi yang sama ("On the left, ..."); tangan pemukul cuma bisa dikunci ke sisi kamera kalau sisinya jelas.
 15. UC: "warna_bocor" = ciri warna/rambut/mata/pakaian/sarung petinju ITU yang tidak boleh bocor ke lawannya. "uc_tambahan" = pose/ekspresi yang tidak boleh dimiliki karakter itu di panel tersebut (pemukul: "being hit, doubled over"; yang terkena: "punching, smile"). JANGAN tulis tag ini di UC mana pun: nsfw, nudity, bottomless, wardrobe malfunction, ahegao, tongue out, panties, pantyshot, upskirt, breast focus, chest focus, underboob, cleavage.
 16. PEWARNAAN anime full color — sistem yang menambahkan baris warna dan kualitas; jangan menulis monochrome/sketch/greyscale.
-17. Tag bahasa Inggris gaya Danbooru/NovelAI: huruf kecil, spasi (bukan garis bawah), dipisah koma, tanpa bobot angka, tanpa kurung kurawal. Jangan tulis tag hitungan (1girl, 2boys, solo) — sistem yang menulisnya. "fisik" = ciri tubuh & wajah SAJA, tanpa pakaian. "pakaian" = potongan pakaian dari atas ke bawah dengan warnanya, tanpa sarung tinju.
+17. Tag bahasa Inggris gaya Danbooru/NovelAI: huruf kecil, spasi (bukan garis bawah), dipisah koma, tanpa bobot angka, tanpa kurung kurawal. Jangan tulis tag hitungan (1girl, 2boys, solo) — sistem yang menulisnya. "fisik" = ciri tubuh & wajah SAJA, tanpa pakaian dan tanpa aksesori. "pakaian" = potongan pakaian dari atas ke bawah dengan warnanya, tanpa sarung tinju.
 18. base_kalimat (bahasa Inggris, 3–6 kalimat): komposisi panel — siapa di kiri/kanan, menghadap ke mana, tangan mana yang memukul dan targetnya, warna rambut/sarung untuk membedakan keduanya (NovelAI tidak mengenal nama OC), dan selisih tinggi kalau terasa ("He is slightly taller than her (168 cm vs 163 cm).").
-19. "gemini" per panel = prompt Gemini bahasa Inggris utuh untuk panel itu saja: gaya anime full color, kedua petinju lengkap dengan ciri, pakaian, dan tingginya, aksinya, sudut kamera, venue. "gemini_halaman" = satu prompt Gemini untuk SATU halaman komik strip berisi semua panel berurutan, dipisah gutter putih, tanpa teks/balon kata. Aturan 5 berlaku di sini juga: jangan menulis "no hand wraps"/"no mouthguard" — sistem yang menambahkan kalimat penutupnya.
+19. "gemini" per panel = prompt Gemini bahasa Inggris utuh untuk panel itu saja: gaya anime full color, kedua petinju lengkap dengan ciri, pakaian, dan tingginya, aksinya, sudut kamera, venue. "gemini_halaman" = satu prompt Gemini untuk SATU halaman komik strip berisi semua panel berurutan, dipisah gutter putih, tanpa teks/balon kata. Aturan 5 berlaku di sini juga: jangan menulis "no hand wraps"/"no mouthguard"/"no earrings", dan jangan menggambarkan aksesori apa pun — sistem yang menambahkan kalimat penutupnya.
 20. "judul", "kamera", dan "ringkas" dalam bahasa Indonesia. "rasio": "16:9" untuk panel lebar, "3:4" untuk panel tegak (close-up, pemenang berdiri).
 21. PERAN EKSPLISIT — field inilah yang dipakai sistem untuk efek pukulan, garis getar, kunci tangan, dan sudut kamera, jadi isi dengan teliti dan konsisten dengan aksi/kalimatnya:
    - panel."jenis": "pukulan" = ada sarung yang sedang mendarat di panel ini (termasuk pukulan penentu KO yang sedang kena); "ko" = sesudah pukulan: yang kalah roboh/tergeletak/tak sadar, tanpa kontak sarung; "jeda" = napas/pulih/jeda ronde tanpa kontak; "tatap" = saling tatap atau mengukur jarak.
@@ -1378,7 +1411,6 @@ panel.karakter[0] {siapa 1, posisi "kiri", peran "pemukul", tangan "right", sasa
 panel.karakter[1] {siapa 2, posisi "kanan", peran "korban", tangan "", sasaran "stomach"} aksi: "profile, side view, facing her, punched in the stomach, on tiptoes, heels raised, toes on floor, doubled over, arms limp, eyes rolled up, mouth open, spitting, trembling lines on stomach"; luka: "red bruise on stomach, swollen cheek, bruised face, heavy sweat"; uc_tambahan: "jumping, mid-air, floating, feet off ground, punched in the chest, punched in the face, punching, standing straight, smile"
 Panel KO sesudahnya (kalimatnya boleh menyebut "right after her uppercut"): jenis "ko", kedua karakter peran "netral", tangan "", sasaran "" — tanpa speed lines, kamera tetap pilihan panel itu (mis. bird's-eye).
 TXT;
-    }
 
     private static function pesan(array $a, array $b, string $pasangan, int $panel, array $venue, string $alur): string
     {
@@ -1723,9 +1755,21 @@ TXT;
             $catatan[] = 'Tag "' . $tag . '" untuk ' . $nama . ' ditulis dari ingatan model — kalau wajahnya meleset, ganti tag itu di Character Prompt.';
         }
 
-        $fisik   = self::saringPositif(self::buangHitungan(self::daftar($j['fisik'] ?? '')), $kelamin, false);
-        $pakaian = self::saringPositif(self::buangHitungan(self::daftar($j['pakaian'] ?? '')), $kelamin, true);
-        $sarung  = self::saringPositif(self::daftar($j['sarung'] ?? ''), $kelamin, true);
+        // Aksesori dicopot lebih dulu supaya yang dibuang bisa dilaporkan —
+        // pengguna yang memilih karakter beranting perlu tahu antingnya
+        // sengaja hilang (standar studio), bukan dilupakan model.
+        $aksesori = [];
+        $fisik    = self::tanpaAksesori(self::buangHitungan(self::daftar($j['fisik'] ?? '')), $aksesori);
+        $pakaian  = self::tanpaAksesori(self::buangHitungan(self::daftar($j['pakaian'] ?? '')), $aksesori);
+        $sarung   = self::tanpaAksesori(self::daftar($j['sarung'] ?? ''), $aksesori);
+        if ($aksesori !== []) {
+            $catatan[] = 'Aksesori dicopot dari ' . $nama . ': ' . implode(', ', self::unik($aksesori))
+                . ' — petinju tidak memakai aksesori (standar studio); warna khasnya cukup di trim, sabuk celana, manset sarung, atau tali sepatu.';
+        }
+
+        $fisik   = self::saringPositif($fisik, $kelamin, false);
+        $pakaian = self::saringPositif($pakaian, $kelamin, true);
+        $sarung  = self::saringPositif($sarung, $kelamin, true);
 
         // "boxing gloves" polos sudah ditulis kode dengan bobot 1.2.
         $sarung = array_values(array_filter(
@@ -3034,7 +3078,7 @@ TXT;
         foreach (self::UC_DASAR as $kelompok) {
             $tetap = array_merge($tetap, self::daftar($kelompok));
         }
-        $tetap = array_merge($tetap, self::hitunganSalah($pasangan, $hadir, $petinju));
+        $tetap = array_merge($tetap, self::ucAksesori($hadir, $petinju), self::hitunganSalah($pasangan, $hadir, $petinju));
         $tetap[] = match ($pasangan) {
             'ff'    => 'yuri',
             'mm'    => 'yaoi',
@@ -3044,6 +3088,41 @@ TXT;
         $tambah = self::tanpaYangDiminta(self::saringUc($ucPanel), $base);
 
         return implode(', ', self::saringUc([...$tetap, ...$tambah]));
+    }
+
+    /**
+     * Aksesori di UC Base (standar studio 2026-10-20), di samping hand
+     * wraps/mouthguard/jaket — bagian TETAP, tidak dicopot oleh isi Base.
+     * Daftarnya AksesoriPetinju::UC, disaring dengan uc() terhadap busana
+     * petinju yang hadir (yang diminta tidak dilarang).
+     *
+     * Satu pengecualian di sini: petinju berhijab ("hijab", "headscarf")
+     * tidak diberi "scarf" di UC — hijab itu pakaian, bukan hiasan, dan
+     * "scarf" di UC ikut menekan kain penutup kepalanya.
+     *
+     * @param list<int> $hadir
+     * @return list<string>
+     */
+    private static function ucAksesori(array $hadir, array $petinju): array
+    {
+        $diminta = [];
+        foreach ($hadir as $s) {
+            foreach ([...$petinju[$s]['fisik'], ...$petinju[$s]['pakaian']] as $t) {
+                $diminta[] = str_replace(' ', '_', mb_strtolower(trim($t)));
+            }
+        }
+        // Bukan \b: garis bawah termasuk huruf kata, jadi \bhijab gagal di "white_hijab".
+        $berhijab = preg_match('/(?<![a-z])(hijabs?|head[\s_-]?scarf|head[\s_-]?scarves|khimar|niqab)(?![a-z])/i', implode(', ', $diminta)) === 1;
+
+        $uc = [];
+        foreach (AksesoriPetinju::uc($diminta) as $t) {
+            if ($berhijab && $t === 'scarf') {
+                continue;
+            }
+            $uc[] = str_replace('_', ' ', $t);
+        }
+
+        return $uc;
     }
 
     /**
@@ -3204,10 +3283,12 @@ TXT;
     }
 
     /**
-     * Penutup prompt Gemini: gaya warna, aturan sarung/mulut/atasan, dan
-     * tinggi tiap petinju yang hadir. Sengaja tidak menyebut kata benda
-     * yang dilarang — Gemini cenderung menggambar apa yang disebut, juga
-     * yang disebut dengan "no".
+     * Penutup prompt Gemini: gaya warna, aturan sarung/mulut/atasan/
+     * aksesori, dan tinggi tiap petinju yang hadir. Sengaja tidak menyebut
+     * kata benda yang dilarang — Gemini cenderung menggambar apa yang
+     * disebut, juga yang disebut dengan "no". Aksesori cukup "no
+     * adornments", bukan daftar anting/kalung/kacamata; dan tidak ditulis
+     * "bare ears/neck" — petinju berhijab memang menutupnya.
      *
      * @param list<int> $hadir
      */
@@ -3220,7 +3301,8 @@ TXT;
         }
 
         return 'Full-color anime illustration with cel shading, vibrant saturated colors and dramatic lighting. '
-            . 'Boxing gloves are worn directly on the hands with nothing underneath, nothing is worn in the mouth, and every top is a single layer. '
+            . 'Boxing gloves are worn directly on the hands with nothing underneath, nothing is worn in the mouth, every top is a single layer, '
+            . 'and the boxers wear athletic boxing gear only, with no adornments. '
             . 'Heights: ' . implode(', ', $tinggi) . '. No text, no speech bubbles.';
     }
 
@@ -3229,7 +3311,9 @@ TXT;
     // =================================================================
 
     /**
-     * Sapu satu daftar tag positif.
+     * Sapu satu daftar tag positif. Aksesori dibuang di SEMUA daftar (Base,
+     * aksi, luka, fisik, pakaian, sarung): "glasses flying off" di aksi sama
+     * terlarangnya dengan "glasses" di fisik.
      *
      * @param list<string> $tags
      * @param ?string      $kelamin 'f', 'm', atau null (Base Prompt)
@@ -3238,8 +3322,9 @@ TXT;
      */
     private static function saringPositif(array $tags, ?string $kelamin, bool $busana): array
     {
-        $hasil = [];
-        foreach ($tags as $t) {
+        $abaikan = [];
+        $hasil   = [];
+        foreach (self::tanpaAksesori($tags, $abaikan) as $t) {
             if (preg_match(self::POLA_BUNGKUS, $t) === 1
                 || ($busana && preg_match(self::POLA_BUSANA_BUNGKUS, $t) === 1)
                 || preg_match(self::POLA_MULUT, $t) === 1
@@ -3259,6 +3344,63 @@ TXT;
         }
 
         return self::unik($hasil);
+    }
+
+    /**
+     * Pola barang aksesori sebagai POTONGAN regex (tanpa pembatas dan
+     * bendera), untuk disambung ke pola prosa di sini. Diturunkan dari
+     * AksesoriPetinju::POLA saat jalan — bukan disalin — supaya barang yang
+     * ditambahkan di sana langsung berlaku di Mixed Fight. Grup tangkapnya
+     * dijadikan non-tangkap: pola prosa memakai nomor grup sendiri ($1, $m[1]).
+     */
+    private static function intiAksesori(): string
+    {
+        static $inti = null;
+
+        return $inti ??= '(?:' . self::AKSESORI_BUKAN
+            . preg_replace(['~^/|/[a-z]*$~', '~\((?!\?)~'], ['', '(?:'], AksesoriPetinju::POLA) . ')';
+    }
+
+    /** Apakah tag/frasa ini aksesori — POLA bersama, dikurangi pengecualian AKSESORI_BUKAN. */
+    private static function aksesori(string $teks): bool
+    {
+        return preg_match('/' . self::intiAksesori() . '/iu', $teks) === 1;
+    }
+
+    /**
+     * Buang aksesori dari satu daftar tag positif. Tag yang aksesorinya cuma
+     * EKOR ("low ponytail tied with a red ribbon", "pink boxing gloves with
+     * bow") disisakan kepalanya — membuang tag utuh ikut menghilangkan
+     * ponytail atau sarungnya. Tag yang aksesorinya di kepala ("glasses on
+     * head", "earrings and necklace") dibuang utuh.
+     *
+     * @param list<string> $tags
+     * @param list<string> $dibuang tag asli yang disentuh, untuk catatan
+     * @return list<string>
+     */
+    private static function tanpaAksesori(array $tags, array &$dibuang): array
+    {
+        $hasil = [];
+        foreach ($tags as $t) {
+            if (!self::aksesori($t)) {
+                $hasil[] = $t;
+                continue;
+            }
+            $dibuang[] = $t;
+            // Penyambung dicoba dari yang paling kanan: "white shoes with red
+            // laces and gold ribbon" → "white shoes with red laces", bukan
+            // cuma "white shoes".
+            preg_match_all('/\s+(?:tied with|held by|with|and|plus|wearing)\s+/i', $t, $m, PREG_OFFSET_CAPTURE);
+            foreach (array_reverse($m[0]) as [$sambung, $di]) {
+                $kepala = trim(substr($t, 0, $di), " \t,");
+                if ($kepala !== '' && !self::aksesori($kepala) && self::aksesori(substr($t, $di + strlen($sambung)))) {
+                    $hasil[] = $kepala;
+                    break;
+                }
+            }
+        }
+
+        return $hasil;
     }
 
     /**
@@ -3361,7 +3503,7 @@ TXT;
             if (self::tandaMuda(self::samarkan($kal, $nama), self::POLA_PROSA_MUDA) !== null) {
                 continue;
             }
-            if (preg_match('/\b' . self::PROSA_INTI . '\b/iu', $kal) !== 1) {
+            if (preg_match('/\b' . self::intiProsa() . '\b/iu', $kal) !== 1) {
                 $hasil[] = $kal;
                 continue;
             }
@@ -3434,6 +3576,21 @@ TXT;
         . '|jackets?|coats?|capes?|hoodies?|cardigans?|outer layers?|layers?|layered clothing';
 
     /**
+     * PROSA_INTI + aksesori (AksesoriPetinju::POLA). Disambung saat jalan
+     * karena potongan aksesorinya diturunkan dari konstanta kelas lain.
+     */
+    private static function intiProsa(): string
+    {
+        return '(?:' . self::PROSA_INTI . '|' . self::intiAksesori() . ')';
+    }
+
+    /** PROSA_BARANG_NEGASI + aksesori: "no earrings", "without her glasses", "with no ribbon in her hair". */
+    private static function barangNegasi(): string
+    {
+        return self::PROSA_BARANG_NEGASI . '|' . self::intiAksesori();
+    }
+
+    /**
      * Larangan yang ditulis model di SATU kalimat dicopot — atau kalimatnya
      * dibuang ('' dikembalikan) kalau larangannya tidak bisa dicopot dengan
      * pasti. Kalimat yang hilang lebih baik daripada kalimat patah.
@@ -3471,7 +3628,8 @@ TXT;
     private static function tanpaNegasiBarang(string $kal): string
     {
         $awal   = $kal;
-        $barang = '(?:(?:a|an|the|her|his|their|its)\s+)?(?:(?:' . self::PROSA_SIFAT . '|any|other|extra|visible)[\s-]+){0,2}(?:' . self::PROSA_BARANG_NEGASI . ')';
+        $barangNegasi = self::barangNegasi();
+        $barang = '(?:(?:a|an|the|her|his|their|its)\s+)?(?:(?:' . self::PROSA_SIFAT . '|any|other|extra|visible)[\s-]+){0,2}(?:' . $barangNegasi . ')';
         $daftar = $barang . '(?:\s*(?:,|\bor\b|\band\b|\bnor\b)\s*(?:(?:no|without)\s+)?' . $barang . ')*';
         // Pelengkap yang ikut dicopot: keterangan keadaan ("visible", "in
         // place", "showing"), lalu tempat ("on her body", "beneath the
@@ -3482,7 +3640,9 @@ TXT;
         $keadaan = '(?:\s+(?:visible|showing|shown|in place|in sight|present|seen|anywhere|at all|whatsoever))?';
         $tempat  = '\s+(?:on|under|over|beneath|underneath|around|inside|in|between|covering|protecting|hiding)\s+(?:it|them'
             . '|(?:(?:her|his|their|the|its)\s+)?(?:(?:' . self::PROSA_SIFAT . '|crop)[\s-]+){0,2}'
-            . '(?:hands?|wrists?|knuckles?|fists?|gloves?|body|torso|shoulders?|chest|arms?|mouth|teeth|skin|tops?|bras?|shirts?|outfits?))\b';
+            . '(?:hands?|wrists?|knuckles?|fists?|gloves?|body|torso|shoulders?|chest|arms?|mouth|teeth|skin|tops?|bras?|shirts?|outfits?'
+            // Tempat aksesori: "with no ribbon in her hair", "no jewelry around her neck".
+            . '|ears?|neck|hair|head|face|nose|ankles?|fingers?))\b';
         $batas   = '(?=\s*(?:[,;:.!?)—–]|--|$))';
         $polos   = '(?:\s+(?:underneath|beneath|on|in))?' . $batas;
         // "without layers of protection" tidak disentuh — tanpa "layers" sisanya patah.
@@ -3503,7 +3663,7 @@ TXT;
         // di mana pun.
         $kal = preg_replace('/\s*\(\s*(?:(?:no|without)\s+' . $daftar . '\b' . $keadaan . '(?:' . $tempat . '|' . $polos . ')|' . $frasa . ')\s*\)/iu', '', $kal) ?? $kal;
         $kal = preg_replace_callback(
-            '/\s*,\s*(?:who|which)\s+' . $henti . '*?\b(?:no|not|n[\'’]t|never|without)\b' . $henti . '*?\b(?:' . self::PROSA_BARANG_NEGASI . ')\b' . $henti . '*(,\s*)?/iu',
+            '/\s*,\s*(?:who|which)\s+' . $henti . '*?\b(?:no|not|n[\'’]t|never|without)\b' . $henti . '*?\b(?:' . $barangNegasi . ')\b' . $henti . '*(,\s*)?/iu',
             static fn (array $m): string => ($m[1] ?? '') !== '' ? ' ' : '',
             $kal
         ) ?? $kal;
@@ -3541,20 +3701,34 @@ TXT;
     }
 
     /** Kata sifat yang boleh ikut dicopot bersama barangnya ("white hand wraps", "red cropped jacket"). */
-    private const PROSA_SIFAT = 'white|black|red|blue|green|yellow|pink|purple|orange|grey|gray|brown|gold|golden|silver|teal|navy|crimson|dark|light|bright|thick|thin|long|short|cropped|open|loose|tight|heavy|cloth|leather|denim|rubber|plastic|athletic|boxing|hooded|sports|track|tattered|worn|old|plain|simple|matching';
+    private const PROSA_SIFAT = 'white|black|red|blue|green|yellow|pink|purple|orange|grey|gray|brown|gold|golden|silver|teal|navy|crimson|dark|light|bright|thick|thin|long|short|cropped|open|loose|tight|heavy|cloth|leather|denim|rubber|plastic|athletic|boxing|hooded|sports|track|tattered|worn|old|plain|simple|matching'
+        // Sifat yang lazim menempel pada aksesori ("gold hoop earrings", "a frilly lace hairband").
+        . '|hoop|stud|pearl|diamond|beaded|lace|lacy|frilled|frilly|round|dangling|ornate|delicate|small|tiny|large|big|star|heart|floral|shiny|sparkly|metal|metallic|lavender|magenta|violet|aqua|cyan';
 
     private static function sapuKalimat(string $kal): string
     {
-        $inti = '/\b' . self::PROSA_INTI . '\b/iu';
-        $np   = '(?:(?:a|an|the|her|his|their|its)\s+)?(?:(?:' . self::PROSA_SIFAT . ')[\s-]+){0,2}\b' . self::PROSA_INTI
+        $intiProsa = self::intiProsa();
+        $inti = '/\b' . $intiProsa . '\b/iu';
+        $np   = '(?:(?:a|an|the|her|his|their|its)\s+)?(?:(?:' . self::PROSA_SIFAT . ')[\s-]+){0,2}\b' . $intiProsa
             . '\b(?![- ](?:style|styled|like|inspired|collar|trim))'
-            . '(?:\s+(?:on|over|under|around|beneath|inside|across)\s+(?:her|his|their|the)\s+'
-            . '(?:hands?|wrists?|knuckles?|fists?|shoulders?|mouth|gloves?|body|torso|cheeks?|face|forehead|nose|knees?))?';
+            . '(?:\s+(?:on|over|under|around|beneath|inside|across|in)\s+(?:her|his|their|the)\s+'
+            . '(?:hands?|wrists?|knuckles?|fists?|shoulders?|mouth|gloves?|body|torso|cheeks?|face|forehead|nose|knees?'
+            // Tempat aksesori: "a red ribbon in her hair", "a choker around her neck".
+            . '|ears?|neck|hair|head|ankles?|fingers?))?';
         $daftarNp = $np . '(?:(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or|plus)\s+)' . $np . ')*';
 
         $akhir = preg_match('/[.!?]$/u', $kal) === 1 ? mb_substr($kal, -1) : '';
         $isi   = $akhir !== '' ? mb_substr($kal, 0, -1) : $kal;
         $asli  = array_map(static fn (string $c): string => mb_strtolower(trim($c)), preg_split('/[,;:]/u', $isi) ?: []);
+
+        // Barang terlarang sebagai butir PERTAMA pasangan "X and Y" sesudah
+        // kata pemakai: "with gold hoop earrings and a teal crop top" → "with
+        // a teal crop top", "wears a red jacket and teal shorts" → "wears teal
+        // shorts". Tanpa ini aturan keterangan di bawah memotong "with <barang>"
+        // saja dan meninggalkan "a woman and a teal crop top". Hanya "and" —
+        // koma bisa berarti batas klausa ("with gold earrings, glaring at
+        // him"), dan memotong di sana mengubah arti.
+        $isi = preg_replace('/\b(wearing|wears|wear|with|in|sporting|donning)\s+' . $daftarNp . '\s+and\s+(?!' . $np . ')/iu', '$1 ', $isi) ?? $isi;
 
         // Keterangan "wearing/with/in <barang>" di mana pun letaknya.
         $isi = preg_replace('/,?\s+(?:wearing|with|in|plus|sporting|donning)\s+' . $daftarNp . '/iu', '', $isi) ?? $isi;

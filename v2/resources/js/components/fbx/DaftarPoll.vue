@@ -58,7 +58,8 @@ async function tandai(p: Poll, x: PilihanPoll) {
     }
 }
 
-const ditutup = (p: Poll) => Date.now() / 1000 >= p.tutup;
+// Poll yang ditautkan bisa tanpa batas waktu (tutup 0).
+const ditutup = (p: Poll) => p.tutup > 0 && Date.now() / 1000 >= p.tutup;
 </script>
 
 <template>
@@ -74,7 +75,8 @@ const ditutup = (p: Poll) => Date.now() / 1000 >= p.tutup;
                     <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold">{{ KATEGORI[p.kategori]?.pendek ?? p.kategori }}</span>
                     <span class="min-w-0 flex-1 truncate text-[13px] font-semibold" :title="p.judul">{{ p.judul }}</span>
                     <span class="text-[11px]" :class="ditutup(p) ? 'text-muted-foreground' : 'text-emerald-600 dark:text-emerald-400'">
-                        {{ ditutup(p) ? 'ditutup' : 'tutup' }} {{ waktuPendek(p.tutup) }}
+                        <template v-if="p.tutup">{{ ditutup(p) ? 'ditutup' : 'tutup' }} {{ waktuPendek(p.tutup) }}</template>
+                        <template v-else>tanpa batas waktu</template>
                     </span>
                     <div class="flex items-center gap-1">
                         <button

@@ -42,6 +42,8 @@ const props = defineProps<{
     saring: Saring;
     sumber: Array<{ kode: string; nama: string; alasan: string | null; kata: string[] }>;
     pixivLogin: boolean;
+    /** Folder contoh agent (_DATA\pose\contoh) kalau tersambung di mesin ini. */
+    contoh: string | null;
     jalan: Jalan;
 }>();
 
@@ -138,9 +140,27 @@ async function ubahStatus(k: Karya, status: Karya['status']) {
     }
 }
 
-function simpan(k: Karya) {
-    ubahStatus(k, k.status === 'simpan' ? 'baru' : 'simpan');
-    if (props.saring.simpan && k.status !== 'simpan') daftar.value = daftar.value.filter((x) => x.id !== k.id);
+async function simpan(k: Karya) {
+    const jadi = k.status === 'simpan' ? 'baru' : 'simpan';
+    k.diContoh = false; // disalin atau dihapus dari folder contoh oleh proses latar
+    const tunggu = ubahStatus(k, jadi);
+    if (props.saring.simpan && jadi !== 'simpan') daftar.value = daftar.value.filter((x) => x.id !== k.id);
+    await tunggu;
+    if (props.contoh && k.status === 'simpan') awasiContoh(k);
+}
+
+/** Tanya beberapa kali apakah salinan ke folder contoh sudah jadi (dikerjakan proses latar, beberapa detik). */
+function awasiContoh(k: Karya, sisa = 10) {
+    setTimeout(async () => {
+        if (k.status !== 'simpan' || k.diContoh) return;
+        try {
+            const j = await kirim<{ ada: Record<string, boolean> }>(route('discover.contoh', { id: k.id }), undefined, 'GET');
+            k.diContoh = Boolean(j.ada[k.id]);
+        } catch {
+            /* coba lagi */
+        }
+        if (!k.diContoh && sisa > 1) awasiContoh(k, sisa - 1);
+    }, 3000);
 }
 
 /** Kartunya langsung hilang; k.status tetap yang lama, supaya "Urungkan" tahu harus kembali ke mana. */
@@ -519,6 +539,11 @@ onBeforeUnmount(() => {
             <p class="mx-auto mt-3 max-w-2xl text-center text-[11px] leading-relaxed text-muted-foreground">
                 <span class="font-medium text-foreground">Non-AI / AI</span> dari tanda sumbernya sendiri (Pixiv, DeviantArt, tag booru); klik
                 lencananya untuk membetulkan. Aturan umur FEMBOX tidak dipakai di sini — hanya gambar bertanda anak yang selalu dibuang.
+                <template v-if="contoh">
+                    <span class="font-medium text-foreground">Simpan</span> = gambarnya ikut disalin ke folder contoh agent Pose FBX
+                    <code class="rounded bg-muted px-1">{{ contoh }}</code
+                    >; dilepas = dihapus lagi.
+                </template>
             </p>
 
             <p v-if="!daftar.length" class="mt-16 text-center text-sm text-muted-foreground">
@@ -533,6 +558,7 @@ onBeforeUnmount(() => {
                         :k="k"
                         :blur="blur"
                         :sibuk="sibuk.has(k.id)"
+                        :contoh="Boolean(contoh)"
                         @buka="buka(k)"
                         @simpan="simpan(k)"
                         @sembunyi="sembunyikan(k)"

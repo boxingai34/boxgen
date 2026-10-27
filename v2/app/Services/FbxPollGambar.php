@@ -252,6 +252,35 @@ final class FbxPollGambar
         return ['kunci' => $kunci, 'gambar' => (string) self::url($kunci)];
     }
 
+    // ------------------------------------------------------------ paket
+
+    /**
+     * ZIP tanpa kompresi (JPEG memang tidak mengecil lagi). Ditulis tangan
+     * karena ZipArchive tidak ada di PHP komputer studio — alasan yang sama
+     * dengan pembaca ZIP di GambarAi. Nama berkas UTF-8 (bit 11).
+     *
+     * @param array<string,string> $berkas nama → isi
+     */
+    public static function zip(array $berkas, ?int $waktu = null): string
+    {
+        $t = getdate($waktu ?? time());
+        $jam = ($t['hours'] << 11) | ($t['minutes'] << 5) | intdiv($t['seconds'], 2);
+        $tgl = (max(0, $t['year'] - 1980) << 9) | ($t['mon'] << 5) | $t['mday'];
+
+        $lokal = '';
+        $pusat = '';
+        foreach ($berkas as $nama => $isi) {
+            $nama = (string) $nama;
+            $crc = crc32($isi);
+            $n = strlen($isi);
+            $offset = strlen($lokal);
+            $lokal .= pack('VvvvvvVVVvv', 0x04034b50, 20, 0x0800, 0, $jam, $tgl, $crc, $n, $n, strlen($nama), 0) . $nama . $isi;
+            $pusat .= pack('VvvvvvvVVVvvvvvVV', 0x02014b50, 20, 20, 0x0800, 0, $jam, $tgl, $crc, $n, $n, strlen($nama), 0, 0, 0, 0, 0, $offset) . $nama;
+        }
+
+        return $lokal . $pusat . pack('VvvvvVVv', 0x06054b50, 0, 0, count($berkas), count($berkas), strlen($pusat), strlen($lokal), 0);
+    }
+
     // ------------------------------------------------------------ bantu
 
     private static function kandidat(int $id): object

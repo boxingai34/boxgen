@@ -83,9 +83,82 @@ final class FbxPoll
         if (!self::bisa()) {
             throw new RuntimeException('STRAWPOLL_API_KEY belum diisi di .env server ini.');
         }
-        if (!in_array($kategori, AgentFbx::KATEGORI, true)) {
-            throw new InvalidArgumentException('Kategori poll tidak dikenal.');
+        $judul = self::cekSetelan($judul, $tutup, $hasilTerlihat, $kini);
+        $pilihan = self::susun($kategori, $ids, $gambar);
+
+        $isi = fn (bool $bergambar, array $media = []) => [
+            'title'        => $judul,
+            'type'         => $bergambar ? 'image_poll' : 'multiple_choice',
+            'poll_options' => array_map(fn ($p, $i) => array_filter([
+                'type' => $bergambar ? 'image' : 'text', 'position' => $i, 'value' => $p['label'], 'description' => $p['keterangan'],
+                'media' => $bergambar ? ['id' => $media[$i]] : '',
+            ], fn ($v) => $v !== ''), $pilihan, array_keys($pilihan)),
+            'poll_config'  => self::SETELAN + ['deadline_at' => $tutup, 'results_visibility' => $hasilTerlihat],
+        ];
+
+        // Pilihan bergambar ada di halaman StrawPoll, tapi spesifikasi API-nya masih menyebutnya
+        // "not in use in the live version". Kalau StrawPoll menolak bentuknya (4xx selain kunci),
+        // poll tetap dibuat sebagai teks dan halaman diberi tahu. (Per 2026-10-27 /upload malah
+        // 504 untuk semua berkas — halaman memakai jalur manual: paket() lalu tautkan().)
+        $peringatan = '';
+        $bergambar = false;
+        if ($gambar) {
+            try {
+                $media = array_map(fn ($p) => self::unggahMedia((string) FbxPollGambar::berkas($p['gambar'])), $pilihan);
+                $poll = self::minta('post', '/polls', $isi(true, $media));
+                $bergambar = true;
+            } catch (RuntimeException $e) {
+                if ($e->getCode() < 400 || $e->getCode() >= 500 || in_array($e->getCode(), [401, 403], true)) {
+                    throw $e;
+                }
+                $peringatan = 'StrawPoll menolak pilihan bergambar (' . $e->getMessage() . '), jadi poll dibuat sebagai teks.';
+            }
         }
+        $poll ??= self::minta('post', '/polls', $isi(false));
+
+        $id = (string) ($poll['id'] ?? '');
+        if (!preg_match('/^[A-Za-z0-9]+$/', $id)) {
+            throw new RuntimeException('StrawPoll tidak mengembalikan id poll.');
+        }
+
+        // Id pilihan dari StrawPoll, dicocokkan lewat posisinya — hasil nanti dibaca lewat id ini.
+        foreach ((array) ($poll['poll_options'] ?? []) as $i => $o) {
+            $pos = (int) ($o['position'] ?? $i);
+            if (isset($pilihan[$pos])) {
+                $pilihan[$pos]['opsi'] = (string) ($o['id'] ?? '');
+            }
+        }
+
+        $catatan = [
+            'id'        => $id,
+            'url'       => 'https://strawpoll.com/' . $id,
+            'judul'     => $judul,
+            'kategori'  => $kategori,
+            'tutup'     => $tutup,
+            'hasil'     => $hasilTerlihat,
+            'bergambar' => $bergambar,
+            'dibuat'    => date('c', $kini),
+            'pilihan'   => $pilihan,
+        ];
+        self::simpan($catatan);
+
+        return $catatan + ['peringatan' => $peringatan];
+    }
+
+    /** Setelan tetap semua poll FEMBOX — dipakai buat(), dan ditulis di paket untuk poll manual. */
+    private const SETELAN = [
+        'is_private'           => true,
+        'is_multiple_choice'   => false,
+        'duplication_checking' => 'ip',
+        'allow_vpn_users'      => false,
+        'allow_comments'       => false,
+        'allow_other_option'   => false,
+        'require_voter_names'  => false,
+    ];
+
+    /** Periksa judul, waktu tutup, dan "hasil terlihat"; pulang judul yang sudah dirapikan. */
+    private static function cekSetelan(string $judul, int $tutup, string $hasilTerlihat, int $kini): string
+    {
         $judul = mb_substr(trim($judul), 0, 200);
         if ($judul === '') {
             throw new InvalidArgumentException('Judul poll kosong.');
@@ -97,6 +170,22 @@ final class FbxPoll
             throw new InvalidArgumentException('Pilihan "hasil terlihat" tidak dikenal.');
         }
 
+        return $judul;
+    }
+
+    /**
+     * Kandidat → pilihan poll, dengan aturan yang sama untuk semua jalur:
+     * satu kategori, tidak ditolak, 16–17 hanya Female Fight (diberi
+     * "SFW only"), 2–30 pilihan. $gambar = tiap pilihan wajib sudah punya gambar.
+     *
+     * @param list<int> $ids
+     * @return list<array<string,mixed>>
+     */
+    private static function susun(string $kategori, array $ids, bool $gambar): array
+    {
+        if (!in_array($kategori, AgentFbx::KATEGORI, true)) {
+            throw new InvalidArgumentException('Kategori poll tidak dikenal.');
+        }
         $ids = array_values(array_unique(array_map('intval', $ids)));
         if (count($ids) < 2 || count($ids) > 30) {
             throw new InvalidArgumentException('Poll butuh 2 sampai 30 kandidat.');
@@ -130,72 +219,118 @@ final class FbxPoll
             }
         }
 
-        $isi = fn (bool $bergambar, array $media = []) => [
-            'title'        => $judul,
-            'type'         => $bergambar ? 'image_poll' : 'multiple_choice',
-            'poll_options' => array_map(fn ($p, $i) => array_filter([
-                'type' => $bergambar ? 'image' : 'text', 'position' => $i, 'value' => $p['label'], 'description' => $p['keterangan'],
-                'media' => $bergambar ? ['id' => $media[$i]] : '',
-            ], fn ($v) => $v !== ''), $pilihan, array_keys($pilihan)),
-            'poll_config'  => [
-                'is_private'           => true,
-                'is_multiple_choice'   => false,
-                'deadline_at'          => $tutup,
-                'duplication_checking' => 'ip',
-                'allow_vpn_users'      => false,
-                'allow_comments'       => false,
-                'allow_other_option'   => false,
-                'require_voter_names'  => false,
-                'results_visibility'   => $hasilTerlihat,
-            ],
-        ];
+        return $pilihan;
+    }
 
-        // Pilihan bergambar ada di halaman StrawPoll, tapi spesifikasi API-nya masih menyebutnya
-        // "not in use in the live version". Kalau StrawPoll menolak bentuknya (4xx selain kunci),
-        // poll tetap dibuat sebagai teks dan halaman diberi tahu.
-        $peringatan = '';
-        $bergambar = false;
-        if ($gambar) {
-            try {
-                $media = array_map(fn ($p) => self::unggahMedia((string) FbxPollGambar::berkas($p['gambar'])), $pilihan);
-                $poll = self::minta('post', '/polls', $isi(true, $media));
-                $bergambar = true;
-            } catch (RuntimeException $e) {
-                if ($e->getCode() < 400 || $e->getCode() >= 500 || in_array($e->getCode(), [401, 403], true)) {
-                    throw $e;
-                }
-                $peringatan = 'StrawPoll menolak pilihan bergambar (' . $e->getMessage() . '), jadi poll dibuat sebagai teks.';
+    /**
+     * Paket untuk poll bergambar yang dibuat tangan di strawpoll.com/create —
+     * API StrawPoll belum bisa menerima gambar (lihat buat()). Isinya gambar
+     * bernomor sesuai urutan pilihan dan pilihan.txt: label, keterangan, dan
+     * setelan yang harus dipasang supaya sama dengan poll buatan buat().
+     *
+     * @param string $tutupTeks waktu tutup dalam jam setempat pemakai (server memakai UTC)
+     * @return array{nama:string, isi:string}
+     */
+    public static function paket(string $kategori, array $ids, string $judul, int $tutup, string $hasilTerlihat, string $tutupTeks = '', ?int $kini = null): array
+    {
+        $judul = self::cekSetelan($judul, $tutup, $hasilTerlihat, $kini ?? time());
+        $pilihan = self::susun($kategori, $ids, true);
+        $tutupTeks = trim((string) preg_replace('/[^\p{L}\p{N} :.,\/-]+/u', '', $tutupTeks)) ?: gmdate('j M Y H:i', $tutup) . ' UTC';
+        $hasil = ['after_vote' => 'setelah memilih', 'after_deadline' => 'setelah poll ditutup', 'always' => 'selalu'][$hasilTerlihat];
+
+        $berkas = [];
+        $teks = ["Judul: $judul", 'Jenis poll: Image poll', '', 'Pilihan — unggah gambar sesuai nomornya, label diisi persis:'];
+        foreach ($pilihan as $i => $p) {
+            $no = str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
+            $nama = trim((string) preg_replace('/[\\\\\/:*?"<>|]+/', '-', $p['label']));
+            $berkas["$no $nama.jpg"] = (string) file_get_contents((string) FbxPollGambar::berkas($p['gambar']));
+            $teks[] = "$no. {$p['label']}" . ($p['keterangan'] !== '' ? "  ({$p['keterangan']})" : '');
+        }
+        array_push($teks, '', 'Setelan poll (Settings):',
+            '- Satu pilihan saja: multiple choice MATI',
+            "- Batas waktu (deadline): $tutupTeks",
+            '- Cek suara ganda: per alamat IP',
+            '- Pengguna VPN: tidak boleh memilih',
+            '- Sembunyikan dari pencarian / private: NYALA (tetap bisa dibuka lewat tautan, tanpa login)',
+            "- Hasil terlihat: $hasil",
+            '', 'Setelah poll jadi, salin tautannya ke AGENT FBX → Buat StrawPoll → "Tautkan poll", supaya hasil dan tombol Pilih jalan.');
+        $berkas['pilihan.txt'] = "\xEF\xBB\xBF" . implode("\r\n", $teks) . "\r\n";
+
+        return ['nama' => 'strawpoll-' . FbxPollGambar::siput($kategori) . '.zip', 'isi' => FbxPollGambar::zip($berkas)];
+    }
+
+    /**
+     * Tautkan poll yang dibuat tangan di StrawPoll ke kandidatnya, supaya
+     * hasil() dan tombol Pilih jalan seperti poll buatan buat(). Pilihan
+     * dicocokkan lewat URUTAN (seperti nomor di paket); setelan yang
+     * menyimpang dari aturan poll FEMBOX dilaporkan, bukan ditolak.
+     *
+     * @return array<string,mixed> catatan poll + 'peringatan'
+     */
+    public static function tautkan(string $tautan, string $kategori, array $ids, ?int $kini = null): array
+    {
+        if (!self::bisa()) {
+            throw new RuntimeException('STRAWPOLL_API_KEY belum diisi di .env server ini.');
+        }
+        $tautan = trim($tautan);
+        if (preg_match('~^(?:https?://)?(?:www\.)?strawpoll\.com/(?:polls/|embed/)?([A-Za-z0-9]{5,20})(?:[/?#].*)?$~i', $tautan, $m)) {
+            $id = $m[1];
+        } elseif (preg_match('/^[A-Za-z0-9]{5,20}$/', $tautan)) {
+            $id = $tautan;
+        } else {
+            throw new InvalidArgumentException('Itu bukan tautan poll StrawPoll (contoh: https://strawpoll.com/AbC123xyz).');
+        }
+        $pilihan = self::susun($kategori, $ids, false);
+
+        try {
+            $poll = self::minta('get', '/polls/' . $id);
+        } catch (RuntimeException $e) {
+            throw $e->getCode() >= 400 && $e->getCode() < 500 && !in_array($e->getCode(), [401, 403], true)
+                ? new InvalidArgumentException("Poll $id tidak ditemukan di StrawPoll.") : $e;
+        }
+        $opsi = array_values(array_filter((array) ($poll['poll_options'] ?? []), 'is_array'));
+        usort($opsi, fn ($a, $b) => ((int) ($a['position'] ?? 0)) <=> ((int) ($b['position'] ?? 0)));
+        if (count($opsi) !== count($pilihan)) {
+            throw new InvalidArgumentException('Poll itu punya ' . count($opsi) . ' pilihan, sedangkan yang dicentang ' . count($pilihan) . '.');
+        }
+
+        $peringatan = [];
+        foreach ($opsi as $i => $o) {
+            $pilihan[$i]['opsi'] = (string) ($o['id'] ?? '');
+            $kata = explode(' ', $pilihan[$i]['label'])[0];
+            if (mb_stripos((string) ($o['value'] ?? ''), $kata) === false) {
+                $peringatan[] = 'Pilihan #' . ($i + 1) . ' di StrawPoll "' . ($o['value'] ?? '') . "\" tidak menyebut \"$kata\" — periksa urutannya.";
             }
         }
-        $poll ??= self::minta('post', '/polls', $isi(false));
-
-        $id = (string) ($poll['id'] ?? '');
-        if (!preg_match('/^[A-Za-z0-9]+$/', $id)) {
-            throw new RuntimeException('StrawPoll tidak mengembalikan id poll.');
+        $c = (array) ($poll['poll_config'] ?? []);
+        if (!empty($c['is_multiple_choice'])) {
+            $peringatan[] = 'Poll ini membolehkan lebih dari satu pilihan.';
         }
-
-        // Id pilihan dari StrawPoll, dicocokkan lewat posisinya — hasil nanti dibaca lewat id ini.
-        foreach ((array) ($poll['poll_options'] ?? []) as $i => $o) {
-            $pos = (int) ($o['position'] ?? $i);
-            if (isset($pilihan[$pos])) {
-                $pilihan[$pos]['opsi'] = (string) ($o['id'] ?? '');
-            }
+        if (empty($c['deadline_at'])) {
+            $peringatan[] = 'Poll ini belum punya batas waktu.';
+        }
+        if (($c['duplication_checking'] ?? 'ip') !== 'ip') {
+            $peringatan[] = 'Cek suara ganda poll ini bukan per IP.';
+        }
+        if (!empty($c['allow_vpn_users'])) {
+            $peringatan[] = 'Pengguna VPN masih boleh memilih.';
         }
 
         $catatan = [
-            'id'       => $id,
-            'url'      => 'https://strawpoll.com/' . $id,
-            'judul'    => $judul,
-            'kategori' => $kategori,
-            'tutup'    => $tutup,
-            'hasil'    => $hasilTerlihat,
-            'bergambar' => $bergambar,
-            'dibuat'   => date('c', $kini),
-            'pilihan'  => $pilihan,
+            'id'        => $id,
+            'url'       => 'https://strawpoll.com/' . $id,
+            'judul'     => mb_substr((string) ($poll['title'] ?? $id), 0, 200),
+            'kategori'  => $kategori,
+            'tutup'     => (int) ($c['deadline_at'] ?? 0),
+            'hasil'     => (string) ($c['results_visibility'] ?? ''),
+            'bergambar' => ($poll['type'] ?? '') === 'image_poll',
+            'manual'    => true,
+            'dibuat'    => date('c', $kini ?? time()),
+            'pilihan'   => $pilihan,
         ];
         self::simpan($catatan);
 
-        return $catatan + ['peringatan' => $peringatan];
+        return $catatan + ['peringatan' => implode(' ', $peringatan)];
     }
 
     /** Unggah satu gambar pilihan ke StrawPoll; pulang id media-nya. */
@@ -252,7 +387,7 @@ final class FbxPoll
             'id'      => $id,
             'suara'   => (int) ($h['voteCount'] ?? array_sum(array_column($pilihan, 'suara'))),
             'peserta' => (int) ($h['participantCount'] ?? 0),
-            'ditutup' => ($kini ?? time()) >= (int) $catatan['tutup'],
+            'ditutup' => (int) $catatan['tutup'] > 0 && ($kini ?? time()) >= (int) $catatan['tutup'],
             'pilihan' => $pilihan,
         ];
     }
@@ -271,7 +406,9 @@ final class FbxPoll
         try {
             flock($fh, LOCK_EX);
             $lama = json_decode((string) stream_get_contents($fh), true);
-            $semua = array_slice([$catatan, ...array_filter(is_array($lama) ? $lama : [], 'is_array')], 0, self::BATAS_CATATAN);
+            // Poll yang ditautkan ulang menggantikan catatan lamanya, bukan menggandakan.
+            $lama = array_filter(is_array($lama) ? $lama : [], fn ($p) => is_array($p) && ($p['id'] ?? '') !== $catatan['id']);
+            $semua = array_slice([$catatan, ...$lama], 0, self::BATAS_CATATAN);
             ftruncate($fh, 0);
             rewind($fh);
             fwrite($fh, (string) json_encode($semua, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use AksesoriPetinju;
 use InvalidArgumentException;
 use ShowdownPose;
 use Tests\TestCase;
@@ -12,7 +13,8 @@ use WaifuCrushed;
  *
  * Yang dijaga di sini aturan pemilik studio — yang dilanggar isian, bukan
  * katalognya: penanda dewasa di setiap Character Prompt, tanpa hand wraps
- * dan mouthguard, atasan satu lapis, tag terlarang tidak pernah masuk UC,
+ * dan mouthguard, atasan satu lapis, tanpa aksesori (warnanya pindah ke
+ * trim), tag terlarang tidak pernah masuk UC,
  * efek kecepatan pada pukulan dan garis getar pada yang terkena, dan
  * tangan pemukul yang dikunci lewat posisi. Tinggi badan sengaja tidak
  * ditulis di menu ini (pilihan pemilik studio, 2026-10-13).
@@ -127,6 +129,48 @@ class ShowdownPoseTest extends TestCase
             }
         }
         $this->assertNotEmpty(array_filter($h['catatan'], static fn (string $c): bool => str_starts_with($c, 'Dibuang dari isian Nico Robin')));
+    }
+
+    /**
+     * Standar aksesori (2026-10-20): perhiasan, kacamata, hiasan rambut, high
+     * heels dibuang dari isian tanpa membuang busana yang menempel padanya;
+     * warna yang cuma hidup di aksesori pindah ke trim/sabuk/tali sepatu.
+     */
+    public function test_isian_disapu_dari_aksesori_dan_warnanya_pindah(): void
+    {
+        $kotor = $this->b([
+            'fisik'   => 'adult woman, mature female, black hair, long hair, blue eyes, mole under eye, sunglasses on head',
+            'ikat'    => 'high ponytail tied with purple ribbon',
+            'pakaian' => 'black sports bra, purple boxing trunks, gold necklace, high heels',
+            'sarung'  => 'black boxing gloves with silver bracelet',
+        ]);
+        $h = ShowdownPose::susun($this->a(), $kotor, ['adegan' => [['pose' => 'hook'], ['pose' => 'vs']]]);
+
+        foreach ($h['adegan'] as $a) {
+            $p = $a['karakter'][1]['prompt'];
+            $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, $p);
+            $this->assertDoesNotMatchRegularExpression(AksesoriPetinju::POLA, $a['gemini']);
+            foreach (['nico robin', 'high ponytail', 'mole under eye', 'purple boxing trunks', 'black boxing gloves'] as $tetap) {
+                $this->assertStringContainsString($tetap, $p);
+            }
+            $this->assertStringNotContainsString('tied', $p);
+            // Ungu pita masih ada di trunks — tidak dipindah; emas dan perak dipindah.
+            $this->assertStringContainsString('gold trim, silver waistband', $p);
+            $this->assertStringNotContainsString('purple trim', $p);
+            foreach (['necklace', 'sunglasses', 'eyewear on head', 'hair ribbon', 'high heels', 'jewelry'] as $wajib) {
+                $this->assertContains($wajib, explode(', ', $a['ucBase']), $wajib);
+            }
+            $this->assertStringContainsString(WaifuCrushed::GAYA_AKSESORI, $a['gemini']);
+        }
+
+        $buang = array_values(array_filter($h['catatan'], static fn (string $c): bool => str_starts_with($c, 'Dibuang dari isian Nico Robin')));
+        $this->assertCount(1, $buang);
+        foreach (['sunglasses on head', 'purple ribbon', 'gold necklace', 'high heels', 'silver bracelet'] as $x) {
+            $this->assertStringContainsString($x, $buang[0]);
+        }
+        $this->assertContains('Warna aksesori Nico Robin yang dibuang dipindah ke pakaian: gold trim, silver waistband.', $h['catatan']);
+        // Isian yang bersih tidak disentuh.
+        $this->assertEmpty(array_filter($h['catatan'], static fn (string $c): bool => str_contains($c, 'Mujina') && str_contains($c, 'aksesori')));
     }
 
     public function test_tag_terlarang_tidak_pernah_masuk_uc_mana_pun(): void

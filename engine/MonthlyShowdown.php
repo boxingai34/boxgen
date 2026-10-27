@@ -8,8 +8,10 @@ declare(strict_types=1);
  * underground, bunny, bikini, …). Untuk tiap karakter, satu panggilan
  * model merancang pakaian tinjunya untuk tema itu — bahan yang sama persis
  * dengan Female Fight — lalu FemboxReferensi::lembar() merangkainya jadi
- * lembar acuan. Aturan studio (atasan satu lapis, tanpa hand wraps, lembar
- * bersih) tidak punya salinan kedua di sini.
+ * lembar acuan. Aturan studio (atasan satu lapis, tanpa hand wraps, tanpa
+ * aksesori, lembar bersih) tidak punya salinan kedua di sini: model diberi
+ * tahu lewat system(), penegakannya di FemboxReferensi::lembar() dan —
+ * untuk Referensi Pose — di ShowdownPose.
  *
  * Tanpa riset angka tubuh (tinggi, berat, ukuran badan): pemilik studio
  * cuma butuh boxing attire-nya, dan lawannya diundi di halaman. Tinggi
@@ -238,9 +240,16 @@ final class MonthlyShowdown
             );
     }
 
+    /**
+     * Instruksi model. Aturan aksesori diambil dari AksesoriPetinju::ATURAN
+     * (satu kalimat untuk semua mesin), disisipkan lewat penanda karena
+     * nowdoc tidak bisa memanggil konstanta. Model juga diminta tidak menulis
+     * aksesori sebagai "no ..." — rancangannya masuk prompt positif, dan
+     * kata yang disebut cenderung tergambar.
+     */
     private static function system(): string
     {
-        return <<<'TXT'
+        $teks = <<<'TXT'
 Kamu desainer kostum untuk studio BoxinGenerated. Studio ini membuat "Monthly Showdown": turnamen tinju bulanan antar-karakter anime/game WANITA DEWASA, digambar dengan NovelAI V5. Untuk SATU karakter, rancang BOXING ATTIRE-nya untuk tema pertandingan, sebagai lembar acuan. Kamu TIDAK menulis prompt jadi — kamu menyerahkan BAHAN, dan sistem yang merangkainya.
 
 ATURAN — semuanya wajib:
@@ -248,17 +257,18 @@ ATURAN — semuanya wajib:
 2. "jenis_kelamin": "female", "male", atau "other".
 3. Kalau "dewasa" = false atau bukan female: isi identitas dan umur saja, KOSONGKAN semua ruas rancangan.
 4. WARNA mengikuti tema warna pakaian ikonik karakter itu. Palet tepat 4 warna (bahasa Inggris, mis. "deep purple") — warna utama dulu.
-5. Pakaian WAJIB mengikuti TEMA PERTANDINGAN dari pengguna (pro, underground, bunny, bikini, dsb.) dan PILIHAN KATALOG kalau ada, diwarnai sesuai karakternya. Tema bunny = kostum bunny girl versi petinju (telinga kelinci, kerah lepas, manset, leotard satu lapis); tema bikini = bikini versi petinju; tema pro = perlengkapan tinju profesional.
+5. Pakaian WAJIB mengikuti TEMA PERTANDINGAN dari pengguna (pro, underground, bunny, bikini, dsb.) dan PILIHAN KATALOG kalau ada, diwarnai sesuai karakternya. Tema bunny = kostum bunny girl versi petinju (telinga kelinci, kerah lepas tanpa dasi kupu-kupu, manset, leotard satu lapis); tema bikini = bikini versi petinju; tema pro = perlengkapan tinju profesional.
 6. ATASAN CUKUP SATU LAPIS. Dilarang jaket, coat, cape, jubah, kardigan, hoodie, rompi, atau kemeja luar. Ciri khas dari jaket karakter dipindah ke atasan satu lapis itu.
 7. WAJIB sarung tinju (boxing gloves) yang warnanya senada. Dilarang hand wraps, perban, plester, atau mouthguard.
-8. Rambut panjang (melewati bahu) boleh diikat ponytail/kepang sesuai karakternya — isi "rambut_diikat". Rambut pendek dibiarkan pendek; masukkan "long hair, ponytail, braid" ke "uc_tambahan".
-9. Ini LEMBAR DESAIN: tanpa luka, memar, keringat, kotoran, atau pakaian robek.
-10. Tidak eksplisit: tidak ada ketelanjangan. Kesan sexy datang dari potongan dan kesesuaian badan, bukan dari membuka bagian intim.
-11. Semua tag bahasa Inggris gaya NovelAI/Danbooru: huruf kecil, spasi (bukan garis bawah), dipisah koma. Tanpa bobot angka, tanpa kurung kurawal.
-12. "fisik" = ciri tubuh dan wajah canon SAJA (rambut, mata, tanda khas, tipe badan). Awali dengan "adult woman, mature female". Pakaian TIDAK di "fisik".
-13. "pakaian" = setiap potongan dari atas ke bawah (atasan satu lapis, bawahan, kaus kaki/stoking kalau ada, sepatu tinju) dengan warna dan detailnya. Sarung tinju di "sarung", bukan di sini.
-14. "ekspresi" = tepat 6 ekspresi singkat (bahasa Inggris); yang pertama ekspresi bawaan, yang ketiga wajah bertarung yang fokus. "detail" = tepat 3 benda layak close-up (frasa "her ..."). "pose_depan" = satu frasa pose berdiri tinju yang cocok dengan sifatnya.
-15. "ringkas" = bahasa Indonesia, 2–3 kalimat: kaitan rancangan dengan desain aslinya dan temanya.
+8. {ATURAN_AKSESORI} Aksesori canon karakter (kacamata khasnya, pita rambutnya, kalungnya) boleh ditulis di "uc_tambahan"; di ruas lain tidak ditulis sama sekali — juga tidak dalam bentuk "no ...", dan tidak dijadikan "detail".
+9. Rambut panjang (melewati bahu) boleh diikat ponytail/kepang sesuai karakternya — isi "rambut_diikat". Rambut pendek dibiarkan pendek; masukkan "long hair, ponytail, braid" ke "uc_tambahan".
+10. Ini LEMBAR DESAIN: tanpa luka, memar, keringat, kotoran, atau pakaian robek.
+11. Tidak eksplisit: tidak ada ketelanjangan. Kesan sexy datang dari potongan dan kesesuaian badan, bukan dari membuka bagian intim.
+12. Semua tag bahasa Inggris gaya NovelAI/Danbooru: huruf kecil, spasi (bukan garis bawah), dipisah koma. Tanpa bobot angka, tanpa kurung kurawal.
+13. "fisik" = ciri tubuh dan wajah canon SAJA (rambut, mata, tanda khas seperti tanda wajah/tato/tahi lalat, tipe badan). Awali dengan "adult woman, mature female". Pakaian dan aksesori TIDAK di "fisik".
+14. "pakaian" = setiap potongan dari atas ke bawah (atasan satu lapis, bawahan, kaus kaki/stoking kalau ada, sepatu tinju) dengan warna dan detailnya. Sarung tinju di "sarung", bukan di sini.
+15. "ekspresi" = tepat 6 ekspresi singkat (bahasa Inggris); yang pertama ekspresi bawaan, yang ketiga wajah bertarung yang fokus. "detail" = tepat 3 benda layak close-up (frasa "her ..."). "pose_depan" = satu frasa pose berdiri tinju yang cocok dengan sifatnya.
+16. "ringkas" = bahasa Indonesia, 2–3 kalimat: kaitan rancangan dengan desain aslinya dan temanya.
 
 Balas HANYA dengan satu objek JSON persis berbentuk:
 {
@@ -283,6 +293,8 @@ Balas HANYA dengan satu objek JSON persis berbentuk:
   "ringkas": "..."
 }
 TXT;
+
+        return str_replace('{ATURAN_AKSESORI}', AksesoriPetinju::ATURAN, $teks);
     }
 
     private static function pesan(string $nama, string $sumber, string $tema, string $tambah, ?array $kamus, array $katalog, array $opsi): string

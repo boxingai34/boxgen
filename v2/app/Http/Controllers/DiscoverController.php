@@ -48,6 +48,8 @@ class DiscoverController extends Controller
                 'kata'   => ($kata[$s] ?? collect())->pluck('kata')->values(),
             ]),
             'pixivLogin'   => trim((string) config('discover.pixiv_phpsessid')) !== '',
+            // Folder contoh agent tersambung? Kalau tidak, Simpan cuma menyimpan.
+            'contoh'       => Discover::folderContoh(),
             'jalan'        => $this->jalanSekarang(),
         ]);
     }
@@ -80,6 +82,16 @@ class DiscoverController extends Controller
     public function status(Request $request, int $id): JsonResponse
     {
         return $this->coba(fn () => ['ok' => Discover::ubahStatus($id, (string) $request->input('status'))]);
+    }
+
+    /** Sudahkah karya-karya ini disalin ke folder contoh? (?id=1&id[]=…) — ditanya kartu sesudah Simpan. */
+    public function contoh(Request $request): JsonResponse
+    {
+        $id = array_slice(array_map('intval', (array) $request->query('id', [])), 0, 100);
+        $ada = DB::table('discover_karya')->whereIn('id', $id)->get(['id', 'contoh'])
+            ->mapWithKeys(fn ($r) => [$r->id => !empty($r->contoh)]);
+
+        return response()->json(['ok' => true, 'ada' => (object) $ada->all()]);
     }
 
     public function ai(Request $request, int $id): JsonResponse
@@ -156,6 +168,9 @@ class DiscoverController extends Controller
             'ai'        => $r->ai,
             'aiTangan'  => (bool) $r->ai_tangan,
             'status'    => $r->status,
+            // Sudah ada di folder contoh agent (_DATA\pose\contoh)? `?? null`:
+            // hosting yang belum mengimpor migrasi 019 tidak punya kolomnya.
+            'diContoh'  => !empty($r->contoh ?? null),
             'kata'      => $r->kata,
             'tags'      => array_slice($tags, 0, 20),
             'diposting' => $r->diposting_at ? Carbon::parse($r->diposting_at)->toIso8601String() : null,

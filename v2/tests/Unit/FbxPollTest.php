@@ -36,6 +36,7 @@ class FbxPollTest extends TestCase
         $this->app->useStoragePath($this->tmp);
         config(['fbx.strawpoll_kunci' => 'kunci-uji']);
         $this->buatTabelFbx();
+        Http::preventStrayRequests();
 
         $k = fn (string $nama, string $kat, string $tingkat = 'DEWASA', string $status = 'dipoll', string $pasangan = '') => [
             'minggu' => '2026-W43', 'kategori' => $kat, 'karakter' => $nama, 'pasangan' => $pasangan,

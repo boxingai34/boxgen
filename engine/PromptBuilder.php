@@ -395,6 +395,7 @@ final class PromptBuilder
         array $potong = []
     ): void {
         $asal = $label ?? 'karakter';
+        $aksesori = [];
 
         // ---- identitas & penampilan ----
         if ($char !== null) {
@@ -402,6 +403,14 @@ final class PromptBuilder
 
             foreach (self::characterTags((int)$char['id']) as $ct) {
                 if ($ct['role'] === 'default_outfit') {
+                    continue;
+                }
+                // Tag penampilan dari Danbooru sering membawa aksesori
+                // khas karakternya — kacamata Jubilee, anting, pita
+                // rambut. Petinju tidak memakainya di ring. Tag identitas
+                // (nama karakter) tidak pernah disentuh.
+                if ($ct['role'] !== 'identity' && AksesoriPetinju::adalah($ct['name'])) {
+                    $aksesori[] = str_replace('_', ' ', $ct['name']);
                     continue;
                 }
                 $block = $ct['role'] === 'identity' ? 'character' : 'appearance';
@@ -456,10 +465,16 @@ final class PromptBuilder
         }
 
         // ---- pakaian ----
-        foreach (self::resolveOutfit($p, $allowNsfw, $potong) as $item) {
+        foreach (self::resolveOutfit($p, $allowNsfw, $potong, $aksesori) as $item) {
             $item['block'] = 'outfit' . $suffix;
             $item['from']  = $label !== null ? $label . ': ' . $item['from'] : $item['from'];
             $items[] = $item;
+        }
+
+        if ($aksesori !== []) {
+            $catatan[] = ($label !== null ? $label . ': ' : '')
+                . 'aksesori tidak dipakai petinju di ring, jadi dibuang — '
+                . implode(', ', array_unique($aksesori)) . '.';
         }
 
         // ---- kondisi ----
@@ -550,7 +565,7 @@ final class PromptBuilder
      *   - nilai 'none' berarti sengaja dikosongkan
      *   - tanpa tema pun slot tetap jalan
      */
-    private static function resolveOutfit(array $p, bool $allowNsfw, array $potong = []): array
+    private static function resolveOutfit(array $p, bool $allowNsfw, array $potong = [], array &$dibuang = []): array
     {
         $items = [];
         $slotModuleIds = [];
@@ -601,6 +616,12 @@ final class PromptBuilder
             }
             $mod = self::loadModule((int)$slotModuleIds[$slot], $allowNsfw, $type);
             if ($mod === null) {
+                continue;
+            }
+            // Aksesori sudah tidak ditawarkan di menu, tapi riwayat dan
+            // bawaan tema lama masih bisa menunjuknya.
+            if (in_array((string)$mod['category'], AksesoriPetinju::KATEGORI, true)) {
+                $dibuang[] = (string)($mod['name_id'] ?: $mod['name']);
                 continue;
             }
             // ---- warna ----
@@ -1007,9 +1028,9 @@ final class PromptBuilder
         return [
             'items'          => $items,
             'blocks'         => self::groupByBlock($items),
-            'negative_items' => self::pagarJumlah(
-                self::buildNegative($sel['negative_id'] ?? null),
-                $sel
+            'negative_items' => self::pagarAksesori(
+                self::pagarJumlah(self::buildNegative($sel['negative_id'] ?? null), $sel),
+                array_column($items, 'name')
             ),
             'removed'        => $result['removed'],
             'conflicts'      => $result['conflicts'],
@@ -1063,6 +1084,29 @@ final class PromptBuilder
             }
 
             $negatif[] = self::tagItem($nama, 'negative', 'pagar jumlah orang');
+        }
+
+        return $negatif;
+    }
+
+    /**
+     * Rem aksesori di prompt negatif — standar studio, lihat AksesoriPetinju.
+     *
+     * Ketiga mode (1 petinju, 2 petinju, lembar acuan) sama-sama tentang
+     * petinju berkostum tinju, jadi pagarnya berlaku untuk semua. Tag yang
+     * tetap diminta di sisi positif (high heels yang dipilih sendiri di
+     * slot sepatu, misalnya) tidak ikut dilarang.
+     *
+     * @param list<string> $positif
+     */
+    private static function pagarAksesori(array $negatif, array $positif): array
+    {
+        $sudah = array_flip(array_column($negatif, 'name'));
+
+        foreach (AksesoriPetinju::uc($positif) as $nama) {
+            if (!isset($sudah[$nama])) {
+                $negatif[] = self::tagItem($nama, 'negative', 'standar petinju: tanpa aksesori');
+            }
         }
 
         return $negatif;
@@ -1217,6 +1261,22 @@ final class PromptBuilder
     {
         $nsfwFilter = $allowNsfw ? '' : ' AND is_nsfw = 0';
 
+        // Slot pakaian tidak menawarkan aksesori (perhiasan, kacamata):
+        // standar studio, petinju tidak memakainya di ring. Modulnya tetap
+        // ada di database dan di Master Katalog — yang disaring hanya
+        // tawarannya di menu. Lihat AksesoriPetinju.
+        if (str_starts_with($type, 'outfit_')) {
+            return array_values(array_filter(
+                self::listModulesSemua($type, $nsfwFilter),
+                static fn (array $m): bool => !in_array((string)$m['category'], AksesoriPetinju::KATEGORI, true)
+            ));
+        }
+
+        return self::listModulesSemua($type, $nsfwFilter);
+    }
+
+    private static function listModulesSemua(string $type, string $nsfwFilter): array
+    {
         return Database::all(
             "SELECT id, type, category, slug, name, name_id, description, intensity, is_nsfw,
                     is_directional, direction_label, sub_groups

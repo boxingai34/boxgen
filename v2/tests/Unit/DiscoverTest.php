@@ -39,6 +39,7 @@ class DiscoverTest extends TestCase
             }
             $t->text('besar')->nullable();
             $t->text('tags')->nullable();
+            $t->text('contoh')->nullable();
             foreach (['lebar', 'tinggi', 'ai_tangan', 'ai_cek'] as $k) {
                 $t->integer($k)->default(0);
             }
@@ -368,6 +369,40 @@ XML;
         $this->actingAs($this->admin())->postJson(route('discover.tweet'), ['link' => 'https://x.com/a/status/1849000000000000042'])
             ->assertOk()->assertJson(['karya' => ['sumber' => 'twitter', 'status' => 'simpan', 'judul' => 'Sparring']]);
         $this->actingAs($this->admin())->postJson(route('discover.tweet'), ['link' => 'https://example.com'])->assertStatus(422);
+    }
+
+    // ---------------------------------------------------------------- folder contoh agent
+
+    public function test_yang_disimpan_masuk_folder_contoh_dan_keluar_lagi_saat_dilepas(): void
+    {
+        $contoh = $this->dir . '/drive/pose/contoh';
+        mkdir($contoh, 0777, true);
+        file_put_contents($contoh . '/body punch 1.jpg', 'pilihan tangan'); // tidak boleh tersentuh
+        config(['discover.contoh' => $contoh]);
+        Http::fake(['i.pximg.net/*' => Http::response(str_repeat('x', 2000), 200, ['Content-Type' => 'image/jpeg'])]);
+
+        $id = $this->isi(['status' => 'simpan', 'rating' => 'e', 'artist' => 'キャプ', 'kata' => 'ボクシング']);
+        $this->isi(['sumber_id' => '2']); // belum disimpan: tidak ikut
+
+        $this->assertSame(['disalin' => 1, 'dihapus' => 0], Discover::selaraskanContoh());
+        $this->assertFileExists($contoh . '/discover-pixiv-1-ring.jpg');
+        $catatan = file_get_contents($contoh . '/discover-pixiv-1-ring.txt');
+        $this->assertStringContainsString('https://www.pixiv.net/artworks/1', $catatan);
+        $this->assertStringContainsString('Rating   : R-18', $catatan);
+        $this->assertStringContainsString('Tag      : ボクシング', $catatan);
+        $this->assertSame(['discover-pixiv-1-ring.jpg', 'discover-pixiv-1-ring.txt'], json_decode(DB::table('discover_karya')->where('id', $id)->value('contoh'), true));
+
+        // Sudah di sana: tidak disalin ulang.
+        $this->assertSame(['disalin' => 0, 'dihapus' => 0], Discover::selaraskanContoh());
+        $this->actingAs($this->admin())->getJson(route('discover.contoh', ['id' => [$id, 999]]))->assertOk()->assertJson(['ada' => [$id => true]]);
+
+        Discover::ubahStatus($id, 'baru');
+        $this->assertSame(['disalin' => 0, 'dihapus' => 1], Discover::selaraskanContoh());
+        $this->assertSame(['body punch 1.jpg'], array_values(array_diff(scandir($contoh), ['.', '..'])));
+        $this->assertNull(DB::table('discover_karya')->where('id', $id)->value('contoh'));
+
+        config(['discover.contoh' => $this->dir . '/tidak-ada']);
+        $this->assertArrayHasKey('dilewati', Discover::selaraskanContoh());
     }
 
     public function test_simpan_kata_menolak_sumber_tak_dikenal(): void

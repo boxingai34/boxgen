@@ -33,6 +33,7 @@ class FbxPollGambarTest extends TestCase
         $this->app->useStoragePath($this->tmp);
         config(['fbx.strawpoll_kunci' => 'kunci-uji']);
         $this->buatTabelFbx();
+        Http::preventStrayRequests();
 
         $k = fn (string $nama, string $kat, string $tag, string $pasangan = '', string $pTag = '') => [
             'minggu' => '2026-W43', 'kategori' => $kat, 'karakter' => $nama, 'danbooru_tag' => $tag, 'pasangan' => $pasangan,
@@ -162,6 +163,86 @@ class FbxPollGambarTest extends TestCase
         $this->assertFalse($p['bergambar']);
         $this->assertSame('https://strawpoll.com/Tx1', $p['url']);
         $this->assertStringContainsString('dibuat sebagai teks', $p['peringatan']);
+    }
+
+    // ---------------------------------------------------------------- jalur manual: paket + tautkan
+
+    public function test_zip_buatan_sendiri_terbaca_pembaca_zip_lain(): void
+    {
+        $zip = FbxPollGambar::zip(['01 Ellen Joe.jpg' => 'isi-satu', 'pilihan.txt' => 'isi-dua'], self::KINI);
+
+        // Pembaca ZIP GambarAi (ditulis terpisah, untuk balasan NovelAI) sebagai pemeriksa.
+        $baca = new \ReflectionMethod(\GambarAi::class, 'isiZipPertama');
+        $this->assertSame('isi-satu', $baca->invoke(null, $zip));
+        $akhir = unpack('Vtanda/vd1/vd2/vn1/vjumlah/Vukuran/Voffset/vkomentar', substr($zip, -22));
+        $this->assertSame([0x06054b50, 2], [$akhir['tanda'], $akhir['jumlah']]);
+    }
+
+    public function test_paket_berisi_gambar_bernomor_dan_setelan(): void
+    {
+        FbxPollGambar::unggah(1, $this->png());
+        $buat = fn () => FbxPoll::paket('FEMALE FIGHT', [2, 1], 'FEMBOX FF', self::KINI + 86400, 'after_vote', '1 Nov 2026 23:59', self::KINI);
+
+        try {
+            $buat();
+            $this->fail('paket tanpa gambar Jane lolos');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('Jane Doe', $e->getMessage());
+        }
+
+        FbxPollGambar::unggah(2, $this->png());
+        $p = $buat();
+
+        $this->assertSame('strawpoll-female_fight.zip', $p['nama']);
+        foreach (['01 Jane Doe.jpg', '02 Ellen Joe.jpg', 'pilihan.txt', '01. Jane Doe  (Zenless Zone Zero)', 'Batas waktu (deadline): 1 Nov 2026 23:59',
+            'per alamat IP', 'Hasil terlihat: setelah memilih'] as $isi) {
+            $this->assertStringContainsString($isi, $p['isi']);
+        }
+    }
+
+    public function test_tautkan_poll_buatan_tangan(): void
+    {
+        $opsi = fn (string $a, string $b) => [['id' => 'oB', 'position' => 1, 'value' => $b], ['id' => 'oA', 'position' => 0, 'value' => $a]];
+        Http::fake([
+            'api.strawpoll.com/v3/polls/Man123' => Http::response(['id' => 'Man123', 'title' => 'FEMBOX FF Nov', 'type' => 'image_poll',
+                'poll_options' => $opsi('Ellen Joe', 'Jane'),
+                'poll_config' => ['is_multiple_choice' => false, 'deadline_at' => self::KINI + 3600, 'duplication_checking' => 'ip', 'allow_vpn_users' => false,
+                    'results_visibility' => 'after_vote']]),
+            'api.strawpoll.com/v3/polls/Lain99' => Http::response(['id' => 'Lain99', 'type' => 'multiple_choice',
+                'poll_options' => $opsi('Rio', 'Jane'), 'poll_config' => ['is_multiple_choice' => true, 'duplication_checking' => 'session']]),
+            'api.strawpoll.com/v3/polls/Lain99/results' => Http::response(['voteCount' => 0, 'poll_options' => []]),
+            'api.strawpoll.com/v3/polls/Hilang1' => Http::response(['error' => ['message' => 'Invalid poll ID.']], 400),
+        ]);
+
+        $p = FbxPoll::tautkan('https://strawpoll.com/Man123?x=1', 'FEMALE FIGHT', [1, 2], self::KINI);
+        $this->assertEquals(['manual' => true, 'bergambar' => true, 'tutup' => self::KINI + 3600, 'peringatan' => ''],
+            array_intersect_key($p, array_flip(['manual', 'bergambar', 'tutup', 'peringatan'])));
+        // Urutan dari position, bukan urutan array jawaban.
+        $this->assertSame(['oA', 'oB'], array_column($p['pilihan'], 'opsi'));
+
+        // Setelan yang menyimpang dan label yang tidak cocok dilaporkan, bukan ditolak.
+        $lain = FbxPoll::tautkan('strawpoll.com/polls/Lain99', 'FEMALE FIGHT', [1, 2], self::KINI);
+        foreach (['"Rio" tidak menyebut "Ellen"', 'lebih dari satu pilihan', 'belum punya batas waktu', 'bukan per IP'] as $isi) {
+            $this->assertStringContainsString($isi, $lain['peringatan']);
+        }
+        $this->assertFalse(FbxPoll::hasil('Lain99', self::KINI)['ditutup'] ?? true, 'tanpa batas waktu tidak dianggap ditutup');
+
+        // Ditautkan ulang menggantikan, tidak menggandakan.
+        FbxPoll::tautkan('Man123', 'FEMALE FIGHT', [1, 2], self::KINI);
+        $this->assertSame(['Man123', 'Lain99'], array_column(FbxPoll::daftar(), 'id'));
+
+        foreach ([
+            'bukan tautan'   => fn () => FbxPoll::tautkan('https://contoh.com/poll/1', 'FEMALE FIGHT', [1, 2]),
+            'tidak ada'      => fn () => FbxPoll::tautkan('Hilang1', 'FEMALE FIGHT', [1, 2]),
+            'jumlah berbeda' => fn () => FbxPoll::tautkan('Man123', 'FEMALE FIGHT', [1]),
+        ] as $kasus => $f) {
+            try {
+                $f();
+                $this->fail("$kasus lolos");
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 
     public function test_hasil_menemukan_kandidat_walau_idnya_berganti(): void

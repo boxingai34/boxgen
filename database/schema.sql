@@ -527,6 +527,7 @@ CREATE TABLE IF NOT EXISTS `discover_karya` (
   `tags`          TEXT         NULL,
   `kata`          VARCHAR(190) NOT NULL DEFAULT '',
   `status`        VARCHAR(10)  NOT NULL DEFAULT 'baru',
+  `contoh`        TEXT         NULL,
   `diposting_at`  DATETIME     NULL,
   `ditemukan_at`  TIMESTAMP    NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

@@ -22,6 +22,11 @@ return [
     // Gambar kecil & salinan gambar besar — di luar public/ karena ada R-18.
     'folder' => storage_path('app/discover'),
 
+    // Karya yang DISIMPAN disalin ke sini (gambar besar + catatan .txt) supaya
+    // agent Pose FBX bisa mempelajari gerakannya. Kalau foldernya tidak ada
+    // (hosting, Drive belum tersambung) langkah ini dilewati.
+    'contoh' => env('DISCOVER_CONTOH', rtrim((string) env('FBX_DATA_DIR', 'D:\\My Drive\\FEMBOX\\_DATA'), '/\\') . '\\pose\\contoh'),
+
     // Crawl otomatis kalau halaman dibuka dan crawl terakhir lebih tua dari ini.
     'jeda_menit' => (int) env('DISCOVER_JEDA', 30),
 

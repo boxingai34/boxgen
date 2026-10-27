@@ -2,7 +2,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { KATEGORI, namaBulan, waktuPendek, type Kandidat, type Poll } from '@/lib/fbx';
 import { kirim } from '@/lib/kirim';
-import { Check, Copy, ExternalLink, ImagePlus, Sparkles, Upload, Vote } from 'lucide-vue-next';
+import { Check, Copy, Download, ExternalLink, ImagePlus, Link2, Sparkles, Upload, Vote } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
 
 /**
@@ -14,7 +14,9 @@ import { computed, reactive, ref, watch } from 'vue';
  *
  * "Pakai gambar": tiap pilihan butuh gambar — potret NovelAI (close-up
  * wajah + sarung tinju, warna sarung bisa diganti) atau unggahan sendiri.
- * Gambarnya dilihat dulu di sini; poll baru dibuat setelah semua lengkap.
+ * Gambarnya dilihat dulu di sini. API StrawPoll belum menerima gambar
+ * (unggahnya 504), jadi poll bergambar dibuat tangan di strawpoll.com/create
+ * dari paket yang diunduh di sini, lalu tautannya ditempel balik.
  * NovelAI hanya melayani satu gambar sekaligus, jadi "Gambar semua"
  * menggambar berurutan.
  */
@@ -162,28 +164,23 @@ async function unggah(k: Kandidat, ev: Event) {
 }
 
 const bisaKirim = computed(
-    () =>
-        props.bisa &&
-        dicentang.value.length >= 2 &&
-        judul.value.trim() !== '' &&
-        tutup.value !== '' &&
-        !sibuk.value &&
-        (!pakaiGambar.value || tanpaGambar.value.length === 0),
+    () => props.bisa && dicentang.value.length >= 2 && judul.value.trim() !== '' && tutup.value !== '' && !sibuk.value && !pakaiGambar.value,
 );
+
+// Urutan pilihan di poll = urutan di daftar ini (paket menomorinya sama).
+const detikTutup = () => Math.floor(new Date(tutup.value).getTime() / 1000);
 
 async function buat() {
     if (!bisaKirim.value) return;
     sibuk.value = true;
     galat.value = '';
     try {
-        // Urutan pilihan di poll = urutan di daftar ini.
         const j = await kirim<{ poll: Poll & { peringatan?: string } }>(route('fbx.poll.buat'), {
             kategori: kategori.value,
             kandidat: terpilih.value.map((k) => k.id),
             judul: judul.value,
-            tutup: Math.floor(new Date(tutup.value).getTime() / 1000),
+            tutup: detikTutup(),
             hasil: hasil.value,
-            gambar: pakaiGambar.value,
         });
         jadi.value = j.poll;
         galat.value = j.poll.peringatan ?? '';
@@ -192,6 +189,67 @@ async function buat() {
         galat.value = e?.message ?? 'Gagal membuat poll.';
     } finally {
         sibuk.value = false;
+    }
+}
+
+// ---- Poll bergambar, jalur manual ----
+// API StrawPoll belum menerima gambar (unggahnya 504), jadi poll bergambar
+// dibuat tangan di strawpoll.com/create dari paket ini, lalu ditautkan.
+const tautan = ref('');
+const memaket = ref(false);
+const menautkan = ref(false);
+const siapPaket = computed(
+    () => pakaiGambar.value && dicentang.value.length >= 2 && tanpaGambar.value.length === 0 && judul.value.trim() !== '' && tutup.value !== '',
+);
+
+async function unduhPaket() {
+    if (!siapPaket.value || memaket.value) return;
+    memaket.value = true;
+    galat.value = '';
+    try {
+        const alamat = route('fbx.poll.paket', {
+            kategori: kategori.value,
+            kandidat: terpilih.value.map((k) => k.id),
+            judul: judul.value,
+            tutup: detikTutup(),
+            hasil: hasil.value,
+            tutup_teks: new Date(tutup.value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
+        });
+        const jawab = await fetch(alamat, { credentials: 'same-origin' });
+        if (!jawab.ok || (jawab.headers.get('content-type') ?? '').includes('json')) {
+            const j = await jawab.json().catch(() => null);
+            throw new Error(j?.error ?? `Gagal membuat paket (HTTP ${jawab.status}).`);
+        }
+        const nama = /filename="([^"]+)"/.exec(jawab.headers.get('content-disposition') ?? '')?.[1] ?? 'strawpoll.zip';
+        const url = URL.createObjectURL(await jawab.blob());
+        const a = Object.assign(document.createElement('a'), { href: url, download: nama });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (e: any) {
+        galat.value = e?.message ?? 'Gagal membuat paket.';
+    } finally {
+        memaket.value = false;
+    }
+}
+
+async function tautkan() {
+    if (!tautan.value.trim() || menautkan.value) return;
+    menautkan.value = true;
+    galat.value = '';
+    try {
+        const j = await kirim<{ poll: Poll & { peringatan?: string } }>(route('fbx.poll.tautkan'), {
+            tautan: tautan.value,
+            kategori: kategori.value,
+            kandidat: terpilih.value.map((k) => k.id),
+        });
+        jadi.value = j.poll;
+        galat.value = j.poll.peringatan ?? '';
+        tautan.value = '';
+        emit('dibuat', j.poll);
+    } catch (e: any) {
+        galat.value = e?.message ?? 'Gagal menautkan poll.';
+    } finally {
+        menautkan.value = false;
     }
 }
 
@@ -400,19 +458,72 @@ const kelasTombolKecil =
 
                 <p v-if="galat" class="text-[12px] text-destructive">{{ galat }}</p>
 
+                <!-- Bergambar: dibuat tangan di StrawPoll, lalu ditautkan -->
+                <ol v-if="pakaiGambar" class="grid gap-3 rounded-lg border border-border p-3 text-[12px]">
+                    <li class="grid gap-1.5">
+                        <b>1. Unduh paket</b>
+                        <span class="text-muted-foreground">Gambar bernomor sesuai urutan di atas + pilihan.txt berisi label dan setelan poll.</span>
+                        <button
+                            type="button"
+                            class="flex h-8 w-fit items-center gap-1.5 rounded-md bg-[hsl(var(--sorot))] px-3 text-xs font-semibold text-white disabled:opacity-50"
+                            :disabled="!siapPaket || memaket"
+                            @click="unduhPaket"
+                        >
+                            <Download class="h-3.5 w-3.5" />
+                            {{
+                                memaket
+                                    ? 'Menyiapkan…'
+                                    : tanpaGambar.length
+                                      ? `${tanpaGambar.length} pilihan belum bergambar`
+                                      : `Unduh paket (${dicentang.length} gambar)`
+                            }}
+                        </button>
+                    </li>
+                    <li class="grid gap-1">
+                        <b>2. Buat Image poll di StrawPoll</b>
+                        <span class="text-muted-foreground">
+                            Buka
+                            <a
+                                href="https://strawpoll.com/create"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="font-semibold text-[hsl(var(--sorot))] underline"
+                                >strawpoll.com/create</a
+                            >, pilih <b>Image poll</b>, unggah gambar 01, 02, … sesuai nomornya, isi label seperti di pilihan.txt, lalu pasang
+                            setelannya: satu pilihan, batas waktu, cek per IP, VPN ditolak, sembunyikan dari pencarian.
+                        </span>
+                    </li>
+                    <li class="grid gap-1.5">
+                        <b>3. Tautkan poll-nya ke sini</b>
+                        <span class="text-muted-foreground">Supaya hasil dan tombol Pilih jalan. Urutan pilihannya harus sama dengan paket.</span>
+                        <div class="flex gap-1.5">
+                            <input
+                                v-model="tautan"
+                                type="url"
+                                placeholder="https://strawpoll.com/…"
+                                class="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-[12px] outline-none"
+                                @keydown.enter.prevent="tautkan"
+                            />
+                            <button
+                                type="button"
+                                class="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-semibold disabled:opacity-50"
+                                :disabled="!bisa || !tautan.trim() || dicentang.length < 2 || menautkan"
+                                @click="tautkan"
+                            >
+                                <Link2 class="h-3.5 w-3.5" /> {{ menautkan ? 'Memeriksa…' : 'Tautkan' }}
+                            </button>
+                        </div>
+                    </li>
+                </ol>
+
                 <button
+                    v-else
                     type="submit"
                     class="flex h-9 items-center justify-center gap-2 rounded-lg bg-[hsl(var(--sorot))] px-4 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
                     :disabled="!bisaKirim"
                 >
                     <Vote class="h-4 w-4" />
-                    {{
-                        sibuk
-                            ? 'Membuat…'
-                            : pakaiGambar && tanpaGambar.length
-                              ? `${tanpaGambar.length} pilihan belum bergambar`
-                              : `Buat poll (${dicentang.length} pilihan)`
-                    }}
+                    {{ sibuk ? 'Membuat…' : `Buat poll (${dicentang.length} pilihan)` }}
                 </button>
             </form>
         </DialogContent>

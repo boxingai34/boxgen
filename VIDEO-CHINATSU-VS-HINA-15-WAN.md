@@ -10,10 +10,35 @@ Yang berbeda cuma pembungkusnya: `Image N is Boxer X`, `Shot N [0-3s]`
 dengan kurung siku, baris `Sound:` sendiri di tiap shot, 30 fps, dan blok
 penutup yang panjang-panjang.
 
-Ada satu blok baru yang tidak ada di versi 30 detik: **Boxing craft**.
-Isinya tiga aturan tetap — gerak kaki, reaksi kena pukul, dan cairan —
-dipisahkan dari `Animation craft` supaya jelas mana arahan tinju dan mana
-arahan menggambar. Blok itu sama di kedelapan prompt; salin apa adanya.
+Ada tiga blok yang tidak ada di versi 30 detik:
+
+- **Boxing craft** — gerak kaki, reaksi kena pukul, dan cairan.
+- **Motion and render** — cara bergeraknya. Menggantikan `Animation craft`
+  yang lama, dan isinya hampir kebalikannya.
+- **Lighting and finish** — cara menyinarinya.
+
+Ketiganya sama di kedelapan prompt; salin apa adanya.
+
+## Kenapa `Animation craft` lama dibuang
+
+Blok lama menyuruh model menggambar seperti anime TV: tahan pose di
+"twos", kilatan putih satu frame tiap benturan, speed line memancar,
+smear frame, dan **tanpa** motion blur di karakter. SAMPLE 2 dibongkar
+jadi frame satu per satu dengan ffmpeg, dan hasilnya kebalikan semua itu:
+
+| Blok lama menyuruh | SAMPLE 2 sebenarnya |
+|---|---|
+| Tahan pose di "twos" | 24 frame berurutan, tidak ada yang ditahan — animasi on ones |
+| Smear frame, jangan motion blur | Motion blur asli di sarung tangan dan rambut |
+| Kilatan putih tiap benturan | Nol kilatan. Benturan dijual oleh deformasi dan overshoot |
+| Speed line memancar | Nol speed line di seluruh 15 detik |
+| Cel datar, tepi bayangan keras | Rim light keras, bloom, kulit mengilap, DOF dangkal, grain |
+
+Gaya gambarnya tetap anime — yang berubah cuma cara bergerak dan cara
+menyinari. Kalau kamu mau efek anime-nya kembali, ganti `Motion and
+render` dengan `Animation craft` dari
+[`VIDEO-CHINATSU-VS-HINA-WAN.md`](VIDEO-CHINATSU-VS-HINA-WAN.md) yang lama;
+dua-duanya tidak bisa dipakai sekaligus karena saling bertentangan.
 
 | # | Detik | Isi | Acuan |
 |---|---|---|---|
@@ -33,8 +58,8 @@ arahan menggambar. Blok itu sama di kedelapan prompt; salin apa adanya.
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
@@ -61,9 +86,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos while they circle, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -73,12 +100,12 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
-Shot 1 [0-3s]: Boxer B (Image 2) fires jab, jab, right straight upward into Boxer A's face, three impacts in a row, and the head snaps back hard on the straight. A white impact frame flashes on each connection and speed lines rake outward. A snap zoom in onto Boxer B from a medium shot.
+Shot 1 [0-3s]: Boxer B (Image 2) fires jab, jab, right straight upward into Boxer A's face, three impacts in a row, and the head snaps back hard on the straight. Each connection deforms the cheek for two frames and springs back, and the head rotates away past where it should stop before settling. A snap zoom in onto Boxer B from a medium shot.
 Sound: three cracks, the last one flat and heavy.
 
 Shot 2 [3-6s]: Boxer A's cheek deforms around the glove, her eyes squeeze shut, and a rope of sweat flies off her jawline in discrete droplets. An extreme close-up on her face, the camera locked, the moment playing in slow motion.
@@ -101,9 +128,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos while they circle, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -113,15 +142,15 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
 Shot 1 [0-3s]: Boxer A (Image 1) walks Boxer B (Image 2) down behind a high tight guard and throws a right straight down the middle; Boxer B catches it flat on her glove and steps off the line. A handheld medium shot pushing in with a slight shake.
 Sound: a glove slapping a glove, and two sets of feet resetting.
 
-Shot 2 [3-6s]: Boxer B slips outside the straight and drives a right uppercut straight up under Boxer A's chin from a crouch, lifting with her legs. A single white impact frame flashes on contact, speed lines burst outward, and a one-frame freeze lands on the connection. Boxer A's head jolts straight up and a fan of sweat and saliva sprays upward off her chin. An extreme close-up on the point of contact from below, the moment playing in slow motion.
+Shot 2 [3-6s]: Boxer B slips outside the straight and drives a right uppercut straight up under Boxer A's chin from a crouch, lifting with her legs. The chin deforms around the glove for two frames, her head snaps upward past where it should stop and settles back, and sweat and spit fly off in a wide arc. Boxer A's head jolts straight up and a fan of sweat and saliva sprays upward off her chin. An extreme close-up on the point of contact from below, the moment playing in slow motion.
 Sound: one short dry crack straight up the middle.
 
 Shot 3 [6-9s]: Boxer A's guard splits apart and Boxer B follows with a right hook across the jaw, her whole body turning behind it, the cheek deforming around the glove. A Dutch-angled medium shot with the horizon tilted hard, the camera whipping sideways.
@@ -141,9 +170,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos while they circle, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -153,8 +184,8 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing scene between rounds, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. 162cm, a clear head taller.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. 150cm, twelve centimetres shorter.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. 162cm, a clear head taller.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. 150cm, twelve centimetres shorter.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
@@ -181,9 +212,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Animate the breathing on ones so the chests move continuously, and hold everything else — this scene is about stillness, not impact. Sweat beads form, gather and fall as discrete drops rather than streaking. Cel-shaded flat colour with hard shadow edges; no motion blur anywhere.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held. Nothing is struck in this clip, so the continuous motion lives in the breathing, the sweat running and dripping, the slow settle of wet hair against a back, and the small involuntary sway of someone standing on tired legs. Put real rendered motion blur only on the rare fast move. No impact frames, no speed lines and no smear frames anywhere. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -193,8 +226,8 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Anim
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
@@ -204,7 +237,7 @@ Sound: slow deliberate steps on canvas, unhurried.
 Shot 2 [3-6s]: Boxer B (Image 2) darts in with her triple jab; Boxer A rolls her lead shoulder and takes them on the glove and shoulder without moving her feet, staying square on the line. A shot from outside the ropes with the top rope slicing across the foreground, the camera tracking in.
 Sound: three pops that hit nothing solid.
 
-Shot 3 [6-9s]: Boxer A catches the last jab flat and fires a right straight over the top, punching downward into Boxer B's face. A white impact frame flashes, speed lines burst outward, and sweat sprays off Boxer B's hair as her head turns. A tight shot on the gloves at chest height that racks focus back to the faces behind them.
+Shot 3 [6-9s]: Boxer A catches the last jab flat and fires a right straight over the top, punching downward into Boxer B's face. Her cheek deforms around the glove, her head whips sideways and overshoots, and sweat sprays off her hair a beat after the contact. A tight shot on the gloves at chest height that racks focus back to the faces behind them.
 Sound: one heavy leather crack, and a sudden silence after it.
 
 Shot 4 [9-12s]: Boxer A bends her knees to drop to the shorter fighter's level and drives a right straight into the centre of Boxer B's stomach. Boxer B's body jackknifes forward over the glove, her mouth stretches wide open with no sound, her eyes go round, and a spray of saliva bursts out with the air. The camera tilts vertically downward following the punch, then whips back up.
@@ -221,9 +254,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos while they circle, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -233,8 +268,8 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
@@ -261,9 +296,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos while they circle, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -273,12 +310,12 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
-Shot 1 [0-3s]: Boxer B's (Image 2) back hits the ropes and Boxer A (Image 1) unloads — left hook, right hook, left hook to the head, her whole body turning behind each one. White impact frames flash on every connection and speed lines burst outward. A shot from outside the ropes with the top rope bowing across the whole frame, the camera shaking hard.
+Shot 1 [0-3s]: Boxer B's (Image 2) back hits the ropes and Boxer A (Image 1) unloads — left hook, right hook, left hook to the head, her whole body turning behind each one. Every connection deforms flesh for two frames and springs back, and her head and shoulders keep overshooting between shots. A shot from outside the ropes with the top rope bowing across the whole frame, the camera shaking hard.
 Sound: a fast run of cracks with no gaps between them.
 
 Shot 2 [3-6s]: Boxer B's head snaps side to side between the gloves, one eye swollen almost shut, and a fine dark-red spray leaves her mouth on the second hook while strands of pink hair pull loose from one bun. An extreme close-up on her head, the camera locked while everything inside the frame moves, playing in slow motion.
@@ -301,9 +338,11 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold poses on twos, then burst into full framerate for two or three frames on every punch. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```
 
 ---
@@ -313,15 +352,15 @@ Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time
 ```
 Generate a 15-second 16:9 video at 30fps: an anime boxing match, modern digital TV anime, thin tapered lineart, two-tone cel shading, glossy highlights.
 
-Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, white hand wraps, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
-Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, white hand wraps, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
+Image 1 is Boxer A — light brown hair to the jaw with blunt bangs, brown eyes, a cropped yellow short-sleeved gym shirt with white trim, white dolphin shorts with pale blue piping, and bright red boxing gloves with white cuffs. Orthodox stance, 162cm, a clear head taller with the longer reach, heavier hands.
+Image 2 is Boxer B — pink hair with a low bun on each side and blunt bangs, pink eyes, a loose cropped white short-sleeved t-shirt worn over a navy blue high-leg one-piece swimsuit, and bright blue boxing gloves with white cuffs. Orthodox stance, 150cm, twelve centimetres shorter, faster hands, works from underneath.
 Image 3 is the venue — no fighter in it, read the place only.
 Image 4 is the art style — no character in it, read the drawing look only.
 
 Shot 1 [0-2s]: Boxer A (Image 1) launches the overhand right with her whole weight behind it, swinging downward at a target a full head shorter — a huge telegraphed arc, chin lifted, lead hand hanging by her waist. A low angle looking steeply up at her, the camera swinging with the arc.
 Sound: a long whoosh of air being moved.
 
-Shot 2 [2-5s]: Boxer B (Image 2) ducks straight under the arc so the glove passes over her hair, then drives a short right uppercut up onto the point of Boxer A's chin from the crouch, lifting with her legs. A single white impact frame flashes, speed lines burst outward, and a one-frame freeze lands on the connection. Boxer A's head jolts upward and sweat, saliva and a fine dark-red spray explode upward in a fan. An extreme close-up on the point of contact from below, the moment in slow motion.
+Shot 2 [2-5s]: Boxer B (Image 2) ducks straight under the arc so the glove passes over her hair, then drives a short right uppercut up onto the point of Boxer A's chin from the crouch, lifting with her legs. The chin deforms around the glove for two frames, her head snaps upward past where it should stop and settles back, and sweat and spit fly off in a wide arc. Boxer A's head jolts upward and sweat, saliva and a fine dark-red spray explode upward in a fan. An extreme close-up on the point of contact from below, the moment in slow motion.
 Sound: one short dry crack, much quieter than everything before it.
 
 Shot 3 [5-8s]: Boxer A's eyes go empty and stop tracking, her mouth hangs slack, and a red line runs down from her nose over her lip. A rack focus from Boxer B's glove in the foreground onto Boxer A's eyes behind it, the camera holding dead still.
@@ -330,7 +369,7 @@ Sound: a long ringing tone with the room going quiet underneath it.
 Shot 4 [8-11s]: Boxer A's legs turn to rubber and she stumbles back two stiff uncontrolled steps with her arms hanging, her feet no longer landing where she puts them. A handheld camera tracking backward with her, drifting and unsteady.
 Sound: two heavy uneven steps on canvas.
 
-Shot 5 [11-13s]: Boxer B steps in — jab, right straight, then the finishing left hook flush on the jaw with everything behind it. White impact frames flash in sequence, a one-frame freeze lands on the hook, and sweat and a dark-red spray fly off the jawline. The camera rides Boxer B's gloves as she steps in, travelling with each punch.
+Shot 5 [11-13s]: Boxer B steps in — jab, right straight, then the finishing left hook flush on the jaw with everything behind it. Each one deforms the jaw and springs back, the head whips further on every shot, and sweat and a fine dark-red spray fly off the jawline a beat behind the glove. The camera rides Boxer B's gloves as she steps in, travelling with each punch.
 Sound: three impacts, the last one enormous, then nothing at all.
 
 Shot 6 [13-15s]: Boxer A lies flat on the canvas and does not move. Boxer B sways, drops to her knees beside her and raises one glove. The camera tumbles down with Boxer A to the canvas, then rises and pulls back into a high wide shot until the empty gymnasium fills the frame.
@@ -344,7 +383,9 @@ Throughout the whole clip: strictly lock every character to their reference imag
 
 Scene: The venue is Image 3 — a school gymnasium at night. A full competition ring stands raised on a platform in the middle of a polished wooden basketball court: blue canvas, red, white and blue ropes, blue corner posts on the left and red corner posts on the right. Basketball backboards hang on the side walls, tall windows show a dark blue night sky, and warm overhead lamps throw long reflections down the wooden floor. No audience at all — every seat and every inch of floor is empty. No referee and no corner team in frame.
 
-Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital TV anime: thin tapered lineart, two-tone cel shading with hard shadow edges, glossy specular highlights on the gloves and hair, a warm rim light from overhead separating the figures from a near-black background, and sweat drawn as individual droplets.
+Art style: Image 4 is the art-style reference — take only the drawing look from it, never a character. Modern digital anime: clean tapered lineart, anime faces and proportions, cel-shaded colour.
 
-Animation craft: this is hand-drawn Japanese animation, not filmed footage. Time the movement unevenly — hold the pose before each punch, then burst into full framerate for two or three frames on contact. Put a single white impact frame on each clean connection, radiating speed lines from the point of contact, and let the fastest part of a swing become a smear frame rather than a sharp arm. Keep strong anticipation before each punch and heavy follow-through after it, with hair and flesh lagging a frame behind the bone. Cel-shaded flat colour with hard shadow edges; no motion blur on the characters themselves, only on the background during fast camera moves.
+Motion and render: animate on ones, not on twos — every frame is different and nothing is held, so the movement reads continuous and fluid rather than stepped. Put real rendered motion blur on whatever is moving fastest: the glove during a punch, the hair during a head turn, the whole body during a fall. Do not draw anime smear frames, do not flash a white impact frame, and do not radiate speed lines — an impact is sold entirely by the body, never by graphics laid over it. On every clean connection the struck area deforms for two or three frames and springs back, the head or torso rotates away and overshoots before settling, soft flesh keeps oscillating for several frames after the bone has stopped, and long hair whips in one continuous arc that keeps travelling for most of a second after the head has stopped. Keep the camera drifting slightly at all times so no frame is ever locked perfectly still.
+
+Lighting and finish: light the ring like a film, not like a flat anime cel. One strong warm lamp above and slightly behind the fighters throws a hard bright rim along their shoulders, arms and hair, separating them from a background that falls away to near-black. The overhead lamps sit in frame as blown-out glowing sources with soft bloom around them. Skin carries a wet specular sheen where the light catches it, the gloves carry a tight glossy highlight, and the canvas and the polished floor throw long soft reflections. Shade with soft graded falloff rather than one hard cel edge, keep the depth of field shallow so the background dissolves into bokeh, and lay a fine film grain over the whole image.
 ```

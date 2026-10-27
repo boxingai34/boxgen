@@ -223,6 +223,38 @@ class AgentFbxController extends Controller
         return response()->json(['ok' => true, 'poll' => $poll]);
     }
 
+    /** Paket gambar + pilihan.txt untuk poll bergambar yang dibuat tangan di strawpoll.com/create. */
+    public function pollPaket(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        try {
+            $p = FbxPoll::paket((string) $request->query('kategori', ''), (array) $request->query('kandidat', []),
+                (string) $request->query('judul', ''), (int) $request->query('tutup', 0), (string) $request->query('hasil', ''),
+                (string) $request->query('tutup_teks', ''));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        }
+
+        return response($p['isi'], 200, [
+            'Content-Type'        => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="' . $p['nama'] . '"',
+        ]);
+    }
+
+    /** Tautkan poll yang dibuat tangan di StrawPoll ke kandidatnya. */
+    public function pollTautkan(Request $request): JsonResponse
+    {
+        try {
+            $poll = FbxPoll::tautkan((string) $request->input('tautan', ''), (string) $request->input('kategori', ''),
+                (array) $request->input('kandidat', []));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (RuntimeException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
+
+        return response()->json(['ok' => true, 'poll' => $poll]);
+    }
+
     /** Potret NovelAI untuk satu pilihan poll (Mixed Fight: dua potret digabung). */
     public function pollGambarNai(Request $request): JsonResponse
     {

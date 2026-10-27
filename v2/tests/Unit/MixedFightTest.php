@@ -2145,6 +2145,128 @@ class MixedFightTest extends TestCase
         }
     }
 
+    // ------------------------------------------------------------------
+    // Aksesori (standar studio 2026-10-20, AksesoriPetinju)
+    // ------------------------------------------------------------------
+
+    /** Aksesori dicopot dari bahan, aksi, dan Base; ciri tubuh tetap; UC Base memuat daftar AksesoriPetinju. */
+    public function test_aksesori_dicopot_dari_prompt_positif_dan_dicegah_di_uc_base(): void
+    {
+        $j = $this->jsonNakal();
+        $j['petinju'][0]['fisik']   = 'auburn hair, low ponytail tied with a red ribbon, green eyes, mole under eye, facial mark, tattoo on arm, gold hoop earrings, glasses, long fingernails';
+        $j['petinju'][0]['pakaian'] = 'teal sports crop top, black choker, pink hair ribbon, red sash, teal boxing shorts, white waistband, white boxing boots';
+        $j['petinju'][0]['sarung']  = 'teal boxing gloves with pink bow';
+        $j['petinju'][1]['pakaian'] = 'topless male, orange boxing trunks, black waistband, white boxing shoes, gold necklace, sunglasses on head, black cap';
+        $j['panel'][1]['base_tag'] .= ', glasses flying off';
+        $j['panel'][1]['karakter'][0]['aksi'] = 'boxing stance, fierce eyes, adjusting earring, piercing glare';
+
+        $hasil  = $this->rakit([], $j);
+        $positif = implode("\n", $this->semuaPositif($hasil));
+
+        foreach (['earring', 'glasses', 'fingernails', 'choker', 'ribbon', 'sash', 'necklace', ' cap', ' bow'] as $larang) {
+            $this->assertStringNotContainsStringIgnoringCase($larang, $positif, $larang);
+        }
+        // Ciri tubuh tetap; ekor tag yang aksesori dipotong, kepalanya tetap.
+        foreach (['mole under eye', 'facial mark', 'tattoo on arm', 'low ponytail', 'teal boxing gloves', 'white waistband', 'piercing glare'] as $tetap) {
+            $this->assertStringContainsString($tetap, $positif, $tetap);
+        }
+
+        // Yang dicopot dilaporkan, per petinju.
+        $catatan = implode("\n", $hasil['catatan']);
+        $this->assertStringContainsString('Aksesori dicopot dari Toska', $catatan);
+        $this->assertStringContainsString('gold hoop earrings', $catatan);
+        $this->assertStringContainsString('Aksesori dicopot dari Oranye', $catatan);
+
+        // UC Base memuat SELURUH daftar UC AksesoriPetinju, di setiap panel.
+        foreach ($hasil['adegan'] as $a) {
+            $uc = array_map('trim', explode(',', $a['ucBase']));
+            foreach (\AksesoriPetinju::UC as $tag) {
+                $this->assertContains(str_replace('_', ' ', $tag), $uc, $a['kunci'] . ': ' . $tag);
+            }
+        }
+    }
+
+    /** Hijab/headscarf dan headband olahraga bukan aksesori: tetap di prompt, dan "scarf" tidak dilarang di UC. */
+    public function test_hijab_dan_headband_olahraga_bukan_aksesori(): void
+    {
+        $j = $this->jsonNakal();
+        $j['petinju'][0]['pakaian'] = 'white hijab, teal long-sleeve rash guard, teal boxing shorts, white boxing boots';
+        $j['petinju'][1]['fisik']   = 'dark brown hair, short hair, red sports headband, grey eyes';
+
+        $hasil = $this->rakit([], $j);
+        $positif = implode("\n", $this->semuaPositif($hasil));
+        $this->assertStringContainsString('white hijab', $positif);
+        $this->assertStringContainsString('red sports headband', $positif);
+
+        $uc = array_map('trim', explode(',', $hasil['adegan'][0]['ucBase']));
+        $this->assertNotContains('scarf', $uc);
+        $this->assertContains('earrings', $uc);
+        $this->assertContains('hair ribbon', $uc);
+
+        // Tanpa petinju berhijab, "scarf" tetap dilarang.
+        $this->assertContains('scarf', array_map('trim', explode(',', $this->rakit()['adegan'][0]['ucBase'])));
+    }
+
+    /** Aksesori di prosa: disebut atau dilarang ("no earrings"), dicopot rapi atau kalimatnya dibuang; kata yang sama yang bukan barang tetap. */
+    public function test_aksesori_di_prosa_dicopot_tanpa_kalimat_patah(): void
+    {
+        foreach ([
+            // Larangan buatan model (aturan 5): tidak boleh tinggal.
+            'She wears no earrings.'                                             => '',
+            'No jewelry, no glasses.'                                            => '',
+            'Without her glasses, she squints at him.'                           => 'She squints at him.',
+            'Toska, wearing no jewelry, slams a hook into his jaw.'              => 'Toska slams a hook into his jaw.',
+            'She grins with no ribbon in her hair, sweat on her face.'           => 'She grins, sweat on her face.',
+            'Both boxers wear their gloves with no hand wraps and no earrings.'  => 'Both boxers wear their gloves.',
+            // Aksesori yang disebut: butir daftarnya dicopot, atau kalimatnya dibuang.
+            'A woman with gold hoop earrings and a teal crop top glares at him.' => 'A woman with a teal crop top glares at him.',
+            'On the left, a woman with long blonde hair, a black choker, a red crop top and red shorts throws a jab.'
+                => 'On the left, a woman with long blonde hair, a red crop top and red shorts throws a jab.',
+            'She wears a teal crop top and a pink hair ribbon.'                  => 'She wears a teal crop top.',
+            'Her gold earrings glint under the spotlights.'                      => '',
+            'A red sash flutters behind her as she pivots.'                      => '',
+            'She grins, glasses pushed up on her head.'                          => '',
+            // Pasangan "barang and X" tidak lagi tinggal "a woman and …".
+            'She wears a red jacket and teal shorts.'                            => 'She wears teal shorts.',
+            // Bukan aksesori: ciri tubuh, hijab, dan kata yang sama yang bukan barang.
+            'She has a mole under her left eye and a tattoo on her shoulder.'    => 'She has a mole under her left eye and a tattoo on her shoulder.',
+            'The woman in a hijab and teal gloves raises her guard.'             => 'The woman in a hijab and teal gloves raises her guard.',
+            'She wears a white head scarf and teal gloves.'                      => 'She wears a white head scarf and teal gloves.',
+            'He bows his head, a ribbon of blood running from his nose.'         => 'He bows his head, a ribbon of blood running from his nose.',
+            'Her piercing green eyes lock onto him.'                             => 'Her piercing green eyes lock onto him.',
+            'She throws a piercing jab to his chin.'                             => 'She throws a piercing jab to his chin.',
+            'She stole a glance at the clock.'                                   => 'She stole a glance at the clock.',
+        ] as $masuk => $harap) {
+            $hasil = $this->panggilPrivat('prosaBersih', $masuk, ['Toska', 'Oranye']);
+            $this->assertSame($harap, $hasil, $masuk);
+            $this->assertDoesNotMatchRegularExpression('/(^|\s)[.,;]|[.,;]\s*[.,;]/', $hasil, $masuk);
+        }
+
+        // Lewat rakit(): prompt Gemini model yang menyebut aksesori tidak
+        // diganti versi kode (larangannya tidak dihitung), dan ekornya
+        // menegaskan tanpa hiasan tanpa menyebut barangnya.
+        $j = $this->jsonNakal();
+        $j['panel'][1]['gemini'] = 'Two boxers glare at each other under bright spotlights, sweat dripping down their bruised faces. '
+            . 'She wears gold hoop earrings and a teal crop top. No jewelry, no glasses, no hair ribbons.';
+        $g = $this->rakit([], $j)['adegan'][1]['gemini'];
+        $this->assertStringStartsWith('Two boxers glare at each other under bright spotlights', $g);
+        $this->assertStringContainsString('She wears a teal crop top.', $g);
+        $this->assertStringContainsString('no adornments', $g);
+        foreach (['earring', 'jewelry', 'glasses', 'ribbon'] as $larang) {
+            $this->assertStringNotContainsStringIgnoringCase($larang, $g);
+        }
+    }
+
+    /** Aturan aksesori ada di pesan sistem — dari AksesoriPetinju::ATURAN, termasuk larangan menulisnya sebagai negasi. */
+    public function test_aturan_aksesori_di_pesan_sistem(): void
+    {
+        $system = $this->panggilPrivat('system');
+
+        $this->assertStringContainsString(\AksesoriPetinju::ATURAN, $system);
+        $this->assertStringNotContainsString('{{', $system);
+        $this->assertStringContainsString('"no earrings"', $system);
+    }
+
     /** Tokoh dewasa yang menyebut anak/adik ATAU julukan "Kid" tidak ditolak pagar umur. */
     public function test_keluarga_dan_julukan_kid_tidak_ditolak(): void
     {

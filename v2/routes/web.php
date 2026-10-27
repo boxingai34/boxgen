@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AgentFbxController;
+use App\Http\Controllers\AgentMonitorController;
 use App\Http\Controllers\CeritaController;
 use App\Http\Controllers\CmsController;
 use App\Http\Controllers\KatalogController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MixedFightController;
 use App\Http\Controllers\MonthlyShowdownController;
+use App\Http\Controllers\MouthguardController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
@@ -117,6 +119,7 @@ Route::prefix('generator')->group(function () {
             Route::get('besar/{id}/{i}', [DiscoverController::class, 'besar'])->whereNumber(['id', 'i'])->name('discover.besar');
             Route::post('karya/{id}/status', [DiscoverController::class, 'status'])->whereNumber('id')->name('discover.status');
             Route::post('karya/{id}/ai', [DiscoverController::class, 'ai'])->whereNumber('id')->name('discover.ai');
+            Route::get('contoh', [DiscoverController::class, 'contoh'])->name('discover.contoh');
             Route::post('crawl', [DiscoverController::class, 'crawl'])->name('discover.crawl');
             Route::get('jalan', [DiscoverController::class, 'jalan'])->name('discover.jalan');
             Route::post('tweet', [DiscoverController::class, 'tweet'])->name('discover.tweet');
@@ -145,10 +148,30 @@ Route::prefix('generator')->group(function () {
             Route::post('roster', [AgentFbxController::class, 'tambahRoster'])->name('fbx.roster.tambah');
             Route::post('poll', [AgentFbxController::class, 'pollBuat'])->name('fbx.poll.buat');
             Route::get('poll/{id}/hasil', [AgentFbxController::class, 'pollHasil'])->where('id', '[A-Za-z0-9]+')->name('fbx.poll.hasil');
+            Route::get('poll/paket', [AgentFbxController::class, 'pollPaket'])->name('fbx.poll.paket');
+            Route::post('poll/tautkan', [AgentFbxController::class, 'pollTautkan'])->name('fbx.poll.tautkan');
             Route::post('poll/gambar/nai', [AgentFbxController::class, 'pollGambarNai'])->name('fbx.poll.gambar.nai');
             Route::post('poll/gambar/unggah', [AgentFbxController::class, 'pollGambarUnggah'])->name('fbx.poll.gambar.unggah');
             Route::get('poll/gambar/{nama}', [AgentFbxController::class, 'pollGambar'])->where('nama', '[a-z0-9_]+\.jpg')->name('fbx.poll.gambar');
             Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
+
+            // Tambah Mouthguard: unggah → pindai → sunting/periksa per mulut.
+            Route::get('mouthguard', [MouthguardController::class, 'index'])->name('fbx.mouthguard');
+            Route::post('mouthguard', [MouthguardController::class, 'unggah'])->name('fbx.mouthguard.unggah');
+            Route::prefix('mouthguard/{kerja}')->where(['kerja' => '\d{8}-\d{6}-[a-z0-9]{6}'])->group(function () {
+                Route::get('/', [MouthguardController::class, 'lihat'])->name('fbx.mouthguard.lihat');
+                Route::post('sunting', [MouthguardController::class, 'sunting'])->name('fbx.mouthguard.sunting');
+                Route::post('periksa', [MouthguardController::class, 'periksa'])->name('fbx.mouthguard.periksa');
+                Route::post('pilih', [MouthguardController::class, 'pilih'])->name('fbx.mouthguard.pilih');
+                Route::get('{nama}', [MouthguardController::class, 'berkas'])->where('nama', '(asli|hasil)\.png')->name('fbx.mouthguard.berkas');
+            });
+        });
+
+        // ---- MONITOR AGENT: peta kerja agent & alat produksi kedua merek (admin) ----
+        // Halaman dibuka sekali, lalu data() dipanggil berulang (polling).
+        Route::middleware('admin')->prefix('monitor')->group(function () {
+            Route::get('/', [AgentMonitorController::class, 'halaman'])->name('monitor');
+            Route::get('data', [AgentMonitorController::class, 'data'])->name('monitor.data');
         });
 
         // ---- CMS halaman depan (admin) ----

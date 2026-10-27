@@ -27,6 +27,7 @@ declare(strict_types=1);
  * ke-50.
  *
  * Aturan-aturan pemilik studio — atasan satu lapis, tanpa hand wraps,
+ * tanpa aksesori yang tidak dipakai petinju sungguhan (AksesoriPetinju),
  * reference sheet tanpa luka/keringat, rambut panjang boleh diikat —
  * ditegakkan DUA kali: sekali sebagai aturan di pesan sistem, sekali lagi
  * sebagai saringan sesudah model menjawab (saring()). Yang kedua yang
@@ -94,10 +95,15 @@ final class FemboxReferensi
     /**
      * Nuansa pakaiannya. Yang menentukan potongan dan kesan, bukan tingkat
      * keterbukaan yang eksplisit — halaman ini tidak membuat ketelanjangan.
+     *
+     * "underground" dulu menulis "bold accessories allowed"; kalimat ini
+     * ikut dikirim ke model (juga oleh Monthly Showdown), jadi izin itu
+     * membantah aturan aksesori di pesan sistem. Kesan garangnya sekarang
+     * ditaruh di detail tali/gesper pada atasan dan celananya sendiri.
      */
     public const NUANSA = [
         'sexy'        => ['label' => 'Sexy', 'frasa' => 'sexy', 'arah' => 'sexy and confident: form-fitting cuts, bare midriff or shoulders where it suits the design, still fully covered where it matters'],
-        'underground' => ['label' => 'Sexy underground', 'frasa' => 'sexy underground', 'arah' => 'sexy underground fight-club look: edgy, gritty attitude, form-fitting, lace-up or strap details, fishnet or bold accessories allowed'],
+        'underground' => ['label' => 'Sexy underground', 'frasa' => 'sexy underground', 'arah' => 'sexy underground fight-club look: edgy, gritty attitude, form-fitting, lace-up, strap or buckle details on the top and trunks, fishnet allowed, no jewelry or accessories'],
         'glamor'      => ['label' => 'Glamor panggung', 'frasa' => 'glamorous showtime', 'arah' => 'glamorous ring-entrance look: shiny fabrics, gold or metallic trims, star quality'],
         'sporty'      => ['label' => 'Sporty', 'frasa' => 'sporty', 'arah' => 'clean professional athlete look: practical, sporty, not revealing'],
     ];
@@ -168,6 +174,31 @@ final class FemboxReferensi
 
     /** Tag gaya rambut yang dicopot dari ciri bawaan kalau katalog rambut dipilih. */
     private const POLA_TATANAN = '/\b(ponytail|twintails?|braids?|braided|hair bun|double bun|single hair bun|buns?|updo|hair down|hair up|side up|topknot|pigtails?)\b/i';
+
+    /**
+     * Penyambung antar-potongan di satu frasa/kalimat pakaian, untuk
+     * buangAksesori(): koma, titik koma, "and", "with", "plus".
+     *
+     * "paired with", "adorned with", dst. ditulis lebih dulu dari "with"
+     * supaya kata kerjanya ikut terbuang bersama barangnya — kalau tidak,
+     * "a top adorned with ribbons" menyisakan "a top adorned".
+     */
+    private const POLA_SAMBUNG = '/(\s*[,;]\s*(?:(?:and|plus|with)\s+)?|\s+(?:(?:along|together|paired|topped|accented|adorned|decorated|finished|complete|accessorized) with|and|with|plus)\s+)/i';
+
+    /**
+     * Pembuka kalimat verbatim ("She wears ", "The boxer is dressed in ").
+     * Disisihkan sebelum kalimatnya dipotong, supaya potongan pertama yang
+     * berisi aksesori tidak ikut membuang kata kerjanya. "sports" sengaja
+     * tidak ada: "white sports bra" akan terbaca sebagai pembuka.
+     */
+    private const POLA_PEMBUKA = '/^((?:[^\s,;]+\s+){0,5}?(?:wears|wear|wearing|is dressed in|dressed in|clad in|has on)\s+)/i';
+
+    /**
+     * Satu kata warna saja. Di "red and gold earrings" potongan "red"
+     * tinggal sendirian sesudah "gold earrings" dibuang — warna yatim
+     * seperti itu ikut dibuang, kata benda tunggal ("shorts") tidak.
+     */
+    private const POLA_WARNA = '/^(?:(?:light|dark|deep|pale|bright|hot|neon|pastel|metallic|baby|sky|royal|dusty)[- ])?(?:red|crimson|scarlet|maroon|pink|magenta|rose|orange|amber|gold|golden|yellow|lime|green|emerald|teal|cyan|turquoise|aqua|blue|navy|cobalt|indigo|purple|violet|lavender|lilac|plum|white|ivory|cream|silver|gray|grey|black|charcoal|brown|tan|beige|bronze|copper|rainbow)$/i';
 
     // =================================================================
     // Pintu masuk
@@ -440,9 +471,14 @@ final class FemboxReferensi
         $ciri = [];
         foreach (PromptBuilder::characterTags((int)$char['id']) as $t) {
             $n = (string)$t['name'];
+            // Kacamata dan hiasan rambut ("hair_ornament", "hair_ribbon"
+            // ikut lolos lewat ^hair_) dulu terbawa sebagai ciri. Sejak
+            // standar aksesori petinju keduanya bukan ciri, dan ciri kamus
+            // dipasang di bahan() SESUDAH saring() — jadi ditahan di sini.
             if ($t['role'] !== 'appearance'
+                || AksesoriPetinju::adalah($n)
                 || preg_match('/(breasts|muscular|abs|toned|chest|thighs|curvy)/', $n) === 1
-                || preg_match('/(_hair$|^hair_|_eyes$|_skin$|_horns?$|_ears$|_tail$|_bangs$|mole|freckles|glasses|heterochromia|fangs|ahoge|dark_circles)/', $n) !== 1) {
+                || preg_match('/(_hair$|^hair_|_eyes$|_skin$|_horns?$|_ears$|_tail$|_bangs$|mole|freckles|heterochromia|fangs|ahoge|dark_circles)/', $n) !== 1) {
                 continue;
             }
             $ciri[] = UbahPrompt::keNai($n);
@@ -488,7 +524,10 @@ final class FemboxReferensi
                 if ($tema !== null) {
                     $hasil['pakaian'] = [
                         'nama'    => (string)$tema['nama'],
-                        'kalimat' => (string)$tema['verbatim'],
+                        // Kalimat tema katalog dikirim ke model sebagai
+                        // "WAJIB dipakai" — aksesori di dalamnya akan
+                        // dituruti mengalahkan aturan di pesan sistem.
+                        'kalimat' => self::buangAksesori((string)$tema['verbatim']),
                         'tags'    => self::bersihKatalog(array_map([UbahPrompt::class, 'keNai'], (array)$tema['tags'])),
                     ];
                 }
@@ -509,7 +548,13 @@ final class FemboxReferensi
             if ($id > 0) {
                 $mod = PromptBuilder::loadModule($id, false, 'hair_style');
                 if ($mod !== null) {
-                    $hasil['rambut'] = ['nama' => (string)($mod['name_id'] ?: $mod['name']), 'tags' => self::tagModul($mod)];
+                    // Tag tatanan rambut menimpa "rambut_diikat" di bahan()
+                    // tanpa lewat saring(), jadi pita/jepit modulnya
+                    // dibuang di sini. Ikat rambut polos tetap.
+                    $hasil['rambut'] = [
+                        'nama' => (string)($mod['name_id'] ?: $mod['name']),
+                        'tags' => AksesoriPetinju::saring(self::tagModul($mod))[0],
+                    ];
                 }
             }
 
@@ -544,8 +589,8 @@ final class FemboxReferensi
 
     /**
      * Tag katalog tanpa yang dilarang di lembar acuan (perban, plester,
-     * hand wraps). Tema "Underground" di katalog memang membawa bandages —
-     * bagus untuk adegan tarung, salah untuk lembar desain.
+     * hand wraps, aksesori). Tema "Underground" di katalog memang membawa
+     * bandages — bagus untuk adegan tarung, salah untuk lembar desain.
      *
      * @param list<string> $tags
      * @return list<string>
@@ -554,7 +599,9 @@ final class FemboxReferensi
     {
         return array_values(array_filter(
             $tags,
-            static fn (string $t): bool => preg_match(self::POLA_KONDISI, $t) !== 1 && !preg_match('/\b(tape|wraps?)\b/i', $t)
+            static fn (string $t): bool => preg_match(self::POLA_KONDISI, $t) !== 1
+                && !preg_match('/\b(tape|wraps?)\b/i', $t)
+                && !AksesoriPetinju::adalah($t)
         ));
     }
 
@@ -685,9 +732,15 @@ final class FemboxReferensi
         return $urut;
     }
 
+    /**
+     * Aturan aksesori diambil dari AksesoriPetinju::ATURAN, bukan ditulis
+     * ulang di sini: daftar barangnya harus sama dengan yang disapu
+     * saring() dan yang ditolak di UC. Nowdoc tidak bisa menyisipkan
+     * konstanta, jadi ditempel lewat penanda {ATURAN_AKSESORI}.
+     */
     private static function system(): string
     {
-        return <<<'TXT'
+        return str_replace('{ATURAN_AKSESORI}', AksesoriPetinju::ATURAN, <<<'TXT'
 Kamu desainer karakter untuk studio BoxinGenerated. Tugasmu merancang LEMBAR ACUAN (character reference sheet) seorang karakter anime/game sebagai PETINJU WANITA, untuk digambar dengan NovelAI V5. Kamu TIDAK menulis prompt jadi — kamu menyerahkan BAHAN-nya, dan sistem yang merangkainya.
 
 ATURAN — semuanya wajib:
@@ -696,15 +749,16 @@ ATURAN — semuanya wajib:
 3. WARNA mengikuti tema warna pakaian ikonik karakter itu di anime/game-nya. Palet tepat 4 warna (bahasa Inggris, mis. "deep purple") — warna utama dulu.
 4. ATASAN CUKUP SATU LAPIS. Dilarang jaket, coat, cape, jubah, kardigan, hoodie, atau kemeja luar. Kalau ciri khas karakter ada di jaketnya (kancing, list emas, lambang), PINDAHKAN detail itu ke atasan satu lapis tersebut.
 5. WAJIB memakai sarung tinju (boxing gloves), warnanya senada dengan pakaian. Dilarang hand wraps, perban, atau plester di tangan.
-6. RAMBUT. Kalau rambut canon-nya panjang (melewati bahu), boleh diikat ponytail atau dikepang sesuai karakternya — isi "rambut_diikat" dengan tag-nya. Kalau pendek, biarkan pendek, kosongkan "rambut_diikat", dan masukkan "long hair, ponytail, braid" ke "uc_tambahan".
-7. INI LEMBAR DESAIN, BUKAN ADEGAN TARUNG: tanpa luka, memar, plester, keringat, kotoran, atau pakaian robek. Lingkaran hitam di bawah mata yang memang desain asli karakter BOLEH (itu ciri, bukan luka).
-8. Tidak eksplisit: tidak ada ketelanjangan. Kesan sexy (untuk karakter dewasa) datang dari potongan dan kesesuaian badan, bukan dari membuka bagian intim.
-9. Semua tag dalam bahasa Inggris, gaya tag NovelAI/Danbooru: huruf kecil, pakai spasi (bukan garis bawah), dipisah koma, boleh frasa pendek yang deskriptif. Tanpa bobot angka, tanpa kurung kurawal.
-10. "fisik" = ciri tubuh dan wajah canon SAJA (warna & potongan rambut, warna mata, tanda khas, tipe badan, ekspresi bawaan). JANGAN masukkan pakaian ke "fisik". Untuk karakter dewasa awali dengan "adult woman, mature female".
-11. "pakaian" = setiap potongan pakaian dari atas ke bawah (atasan satu lapis, bawahan, stoking/kaus kaki kalau ada, sepatu tinju) dengan warna dan detailnya. Sarung tinju TIDAK di sini, tapi di "sarung".
-12. "ekspresi" = tepat 6 ekspresi wajah singkat dalam bahasa Inggris; yang pertama ekspresi bawaan karakter, yang ketiga wajah bertarung yang fokus. "detail" = tepat 3 benda di desain ini yang layak digambar close-up (frasa "her ..."). "pose_depan" = satu frasa pose berdiri tinju yang cocok dengan sifatnya.
-13. Kalau ada PILIHAN KATALOG di pesan pengguna, itu WAJIB dipakai sebagai dasar rancangan (warnai sesuai tema anime).
-14. "ringkas" dalam bahasa Indonesia, 2–4 kalimat: kaitan rancangan dengan desain aslinya di anime.
+6. {ATURAN_AKSESORI} Ini berlaku juga kalau tema atau catatan pengguna menyebut aksesori, dan juga untuk ciri canon: kacamata dan hiasan rambut karakter TIDAK dipakai di lembar ini. Headband olahraga, hachimaki, bandana, dan hijab bukan aksesori (boleh).
+7. RAMBUT. Kalau rambut canon-nya panjang (melewati bahu), boleh diikat ponytail atau dikepang sesuai karakternya — isi "rambut_diikat" dengan tag-nya (ikat rambut polos, tanpa pita/jepit). Kalau pendek, biarkan pendek, kosongkan "rambut_diikat", dan masukkan "long hair, ponytail, braid" ke "uc_tambahan".
+8. INI LEMBAR DESAIN, BUKAN ADEGAN TARUNG: tanpa luka, memar, plester, keringat, kotoran, atau pakaian robek. Lingkaran hitam di bawah mata yang memang desain asli karakter BOLEH (itu ciri, bukan luka).
+9. Tidak eksplisit: tidak ada ketelanjangan. Kesan sexy (untuk karakter dewasa) datang dari potongan dan kesesuaian badan, bukan dari membuka bagian intim.
+10. Semua tag dalam bahasa Inggris, gaya tag NovelAI/Danbooru: huruf kecil, pakai spasi (bukan garis bawah), dipisah koma, boleh frasa pendek yang deskriptif. Tanpa bobot angka, tanpa kurung kurawal.
+11. "fisik" = ciri tubuh dan wajah canon SAJA (warna & potongan rambut, warna mata, tanda khas, tipe badan, ekspresi bawaan). JANGAN masukkan pakaian atau aksesori (kacamata, pita, jepit rambut) ke "fisik". Untuk karakter dewasa awali dengan "adult woman, mature female".
+12. "pakaian" = setiap potongan pakaian dari atas ke bawah (atasan satu lapis, bawahan, stoking/kaus kaki kalau ada, sepatu tinju) dengan warna dan detailnya. Sarung tinju TIDAK di sini, tapi di "sarung". Warna khas dari aksesori canon yang dibuang ditulis di sini (trim, waistband, tali sepatu) atau di "sarung" (manset).
+13. "ekspresi" = tepat 6 ekspresi wajah singkat dalam bahasa Inggris; yang pertama ekspresi bawaan karakter, yang ketiga wajah bertarung yang fokus. "detail" = tepat 3 benda di desain ini yang layak digambar close-up (frasa "her ..."), bukan aksesori. "pose_depan" = satu frasa pose berdiri tinju yang cocok dengan sifatnya.
+14. Kalau ada PILIHAN KATALOG di pesan pengguna, itu WAJIB dipakai sebagai dasar rancangan (warnai sesuai tema anime).
+15. "ringkas" dalam bahasa Indonesia, 2–4 kalimat: kaitan rancangan dengan desain aslinya di anime.
 
 Balas HANYA dengan satu objek JSON persis berbentuk:
 {
@@ -732,7 +786,7 @@ CONTOH bahan yang baik (Mujina, SSSS.Dynazenon, tema "sexy underground"):
 fisik: "adult woman, mature female, tall, curvy, toned, large breasts, wide hips, thick thighs, abs, dark purple hair, short hair, messy hair, bangs over one eye, half-closed eyes, sleepy eyes, dark circles under eyes"
 pakaian: "single layer top, white and deep purple military-style corset top, sleeveless, strapless sweetheart neckline, a row of gold buttons down the front, gold trim along the edges, short gold tassel fringe along the top edge, black lace-up sides, cleavage, bare shoulders, bare arms, bare midriff, navel, deep purple high-cut boxing shorts with a wide white waistband and gold trim, black fishnet stockings, white knee-high boxing boots with gold laces"
 uc_tambahan: "long hair, ponytail, braid, epaulettes, sleeves"
-TXT;
+TXT);
     }
 
     private static function pesan(
@@ -933,17 +987,20 @@ TXT;
         }
 
         // Ekspresi, detail, dan pose ikut ke Base Prompt — jadi ikut disaring
-        // dengan aturan yang sama dengan pakaian.
+        // dengan aturan yang sama dengan pakaian. Aksesorinya dipotong dulu
+        // (buangAksesori), bukan cuma diperiksa: "her gloves with ribbon
+        // cuffs" harus keluar sebagai "her gloves", bukan lolos utuh karena
+        // sisanya tidak kosong.
         $lolos = static fn (string $t): bool => $t !== '' && self::saring([$t], $dewasa) !== [];
         $ekspresi = array_values(array_filter(
-            array_map(static fn ($e): string => self::rapi($e, 80), (array)($j['ekspresi'] ?? [])),
+            array_map(static fn ($e): string => self::buangAksesori(self::rapi($e, 80)), (array)($j['ekspresi'] ?? [])),
             $lolos
         ));
         $detail = array_values(array_filter(
-            array_map(static fn ($e): string => self::rapi($e, 90), (array)($j['detail'] ?? [])),
+            array_map(static fn ($e): string => self::buangAksesori(self::rapi($e, 90)), (array)($j['detail'] ?? [])),
             $lolos
         ));
-        $pose = self::rapi($j['pose_depan'] ?? '', 90);
+        $pose = self::buangAksesori(self::rapi($j['pose_depan'] ?? '', 90));
         if (!$lolos($pose)) {
             $pose = 'a confident boxing stance';
         }
@@ -969,7 +1026,10 @@ TXT;
             ];
             $fisik = array_values(array_filter(
                 $fisik,
-                static fn (string $t): bool => preg_match('/\b(hair|bangs|ahoge|sidelocks?|eyes?|eyelashes|eyebrows|skin|freckles|mole|glasses|ears?|horns?|tail|fangs|heterochromia|ponytail|braids?|twintails|bun|hairclip|hair ornament|hairband|ribbon|bob|dark circles)\b/i', $t) === 1
+                // Kacamata, jepit, pita, dan bando dulu ada di daftar ini;
+                // sejak standar aksesori petinju itu bukan ciri lagi (dan
+                // saring() di atas sudah membuangnya).
+                static fn (string $t): bool => preg_match('/\b(hair|bangs|ahoge|sidelocks?|eyes?|eyelashes|eyebrows|skin|freckles|mole|ears?|horns?|tail|fangs|heterochromia|ponytail|braids?|twintails|bun|bob|dark circles)\b/i', $t) === 1
                     && preg_match(self::POLA_SEKSI, $t) !== 1
             ));
             $sarung = array_values(array_filter($sarung, static fn (string $t): bool => self::saring([$t], false) !== []))
@@ -1134,6 +1194,15 @@ TXT;
             $daftar = array_merge($daftar, self::daftar(self::UC_AMAN));
         }
 
+        // Aksesori petinju. "scarf" ditahan untuk karakter berhijab: di UC
+        // kata itu ikut menekan headscarf, padahal hijab bukan aksesori.
+        $berhijab = preg_match('/\b(hijab|headscarf|head scarf|khimar)\b/i', $tokoh) === 1;
+        foreach (AksesoriPetinju::uc() as $t) {
+            if (!($berhijab && $t === 'scarf')) {
+                $daftar[] = str_replace('_', ' ', $t);
+            }
+        }
+
         $diminta = [];
         foreach (self::daftar($tokoh) as $t) {
             $diminta[mb_strtolower($t)] = true;
@@ -1157,6 +1226,13 @@ TXT;
     {
         $hasil = [];
         foreach ($tags as $t) {
+            // Aksesori dipotong, bukan ruasnya dibuang utuh: "purple shorts
+            // with a gold sash" tetap jadi "purple shorts". Ruas yang
+            // seluruhnya aksesori ("hoop earrings") habis jadi ''.
+            $t = self::buangAksesori($t);
+            if ($t === '') {
+                continue;
+            }
             if (preg_match(self::POLA_KONDISI, $t) === 1) {
                 continue;
             }
@@ -1170,6 +1246,165 @@ TXT;
         }
 
         return self::unik($hasil);
+    }
+
+    /**
+     * Potong aksesori dari satu frasa tag atau kalimat pakaian, sisanya utuh.
+     *
+     * AksesoriPetinju::adalah() cuma bisa bilang ADA; kalau ruasnya dibuang
+     * utuh, "deep purple high-cut boxing shorts with a gold sash" kehilangan
+     * celananya juga. Jadi kalimatnya dipecah di penyambung (koma, "and",
+     * "with", lihat POLA_SAMBUNG), potongan yang berisi aksesori dibuang
+     * bersama penyambung DI DEPANNYA, lalu tata bahasanya ditambal:
+     *
+     *   "a white top with a black choker, red shorts"  → "a white top, red shorts"
+     *   "She wears pink earrings, a top and shorts."    → "She wears a top and shorts."
+     *   "a top, red shorts, and gold earrings"          → "a top and red shorts"
+     *   "red and gold earrings"                         → ""
+     *   "ponytail tied with a red ribbon"               → "ponytail"
+     *
+     * Teks tanpa aksesori dipulangkan apa adanya (tanpa dirapikan), supaya
+     * saringan ini tidak mengubah keluaran lama satu karakter pun.
+     *
+     * Publik karena Pertandingan memakainya untuk kalimat "verbatim" hasil
+     * pembacaan gambar. Tempat idealnya AksesoriPetinju; selama belum ada di
+     * sana, satu salinan di sini.
+     */
+    public static function buangAksesori(string $teks): string
+    {
+        $teks = trim($teks);
+        if ($teks === '' || !AksesoriPetinju::adalah($teks)) {
+            return $teks;
+        }
+
+        $hasil = [];
+        foreach (preg_split('/(?<=[.!?])\s+/u', $teks) ?: [$teks] as $kalimat) {
+            $k = self::buangAksesoriKalimat($kalimat);
+            if ($k !== '') {
+                $hasil[] = $k;
+            }
+        }
+
+        return implode(' ', $hasil);
+    }
+
+    /** Satu kalimat dari buangAksesori(). */
+    private static function buangAksesoriKalimat(string $kalimat): string
+    {
+        $kalimat = trim($kalimat);
+        if (!AksesoriPetinju::adalah($kalimat)) {
+            return $kalimat;
+        }
+
+        $titik = preg_match('/[.!?]+$/', $kalimat, $m) === 1 ? $m[0] : '';
+        $isi   = rtrim(substr($kalimat, 0, strlen($kalimat) - strlen($titik)));
+
+        $buka = '';
+        if (preg_match(self::POLA_PEMBUKA, $isi, $m) === 1 && !AksesoriPetinju::adalah($m[1])) {
+            $buka = $m[1];
+            $isi  = substr($isi, strlen($buka));
+        }
+
+        $potong = preg_split(self::POLA_SAMBUNG, $isi, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$isi];
+        $ruas   = [];
+        for ($i = 0, $n = count($potong); $i < $n; $i += 2) {
+            $teksRuas = $potong[$i];
+            $buang    = AksesoriPetinju::adalah($teksRuas);
+
+            // Aksesori yang cuma jadi sifat majemuk ("ribbon-laced boots",
+            // "choker-style collar") dicopot kata majemuknya saja; barang
+            // di belakangnya bukan aksesori dan tetap tinggal.
+            if ($buang) {
+                $coba = trim(preg_replace('/\s+/u', ' ', preg_replace_callback(
+                    '/[^\s,;]+-[^\s,;]+/u',
+                    static fn (array $m): string => AksesoriPetinju::adalah($m[0]) ? '' : $m[0],
+                    $teksRuas
+                ) ?? $teksRuas) ?? $teksRuas);
+                if ($coba !== '' && !AksesoriPetinju::adalah($coba)
+                    && preg_match('/^(?:(?:a|an|the|her|his|their|its|with|and)\s*)*$/i', $coba) !== 1) {
+                    $teksRuas = $coba;
+                    $buang    = false;
+                }
+            }
+
+            $ruas[] = [
+                'sambung' => $i === 0 ? '' : $potong[$i - 1],
+                'teks'    => $teksRuas,
+                'buang'   => $buang,
+            ];
+        }
+
+        $n = count($ruas);
+        for ($i = 0; $i < $n; $i++) {
+            if (!$ruas[$i]['buang'] || $i === 0) {
+                continue;
+            }
+
+            // "red and gold earrings": warna yang tertinggal di depan ikut.
+            // Tidak kalau barangnya dibuka kata sandang ("shorts and a
+            // sash") — di situ yang di depan memang barang lain.
+            if (preg_match('/^\s+and\s+$/i', $ruas[$i]['sambung']) === 1
+                && preg_match('/^(a|an|the|her|his|their|its|one|two|matching)\b/i', trim($ruas[$i]['teks'])) !== 1) {
+                for ($j = $i - 1; $j >= 0; $j--) {
+                    if ($ruas[$j]['buang'] || preg_match(self::POLA_WARNA, trim($ruas[$j]['teks'])) !== 1) {
+                        break;
+                    }
+                    $ruas[$j]['buang'] = true;
+                    if (preg_match('/^\s*,\s*$|^\s+and\s+$/i', $ruas[$j]['sambung']) !== 1) {
+                        break;
+                    }
+                }
+            }
+
+            // "ponytail tied with a ribbon": kata kerja pengikatnya yatim.
+            if (preg_match('/\bwith\s*$/i', $ruas[$i]['sambung']) === 1) {
+                for ($j = $i - 1; $j >= 0; $j--) {
+                    if (!$ruas[$j]['buang']) {
+                        $ruas[$j]['teks'] = preg_replace(
+                            '/\s+(?:tied(?: up| back)?|held(?: back)?|secured|fastened|pinned(?: up| back)?|decorated|adorned|accented|accessorized|finished)$/i',
+                            '',
+                            $ruas[$j]['teks']
+                        ) ?? $ruas[$j]['teks'];
+                        break;
+                    }
+                }
+            }
+        }
+
+        $tetap = array_values(array_filter($ruas, static fn (array $r): bool => !$r['buang'] && trim($r['teks']) !== ''));
+        if ($tetap === []) {
+            return '';
+        }
+
+        $tetap[0]['sambung'] = '';
+        $k = count($tetap);
+
+        // "and" penutup daftar ikut pindah kalau barang terakhirnya yang
+        // dibuang: "a top, shorts, and earrings" → "a top and shorts".
+        $akhirDibuang = $ruas[$n - 1]['buang'] && preg_match('/\band\b/i', $ruas[$n - 1]['sambung']) === 1;
+        if ($k >= 2 && $akhirDibuang && preg_match('/^\s*[,;]\s*$/', $tetap[$k - 1]['sambung']) === 1) {
+            $tetap[$k - 1]['sambung'] = $k > 2 ? ', and ' : ' and ';
+        }
+        // Koma Oxford untuk dua barang saja terdengar janggal.
+        if ($k === 2 && preg_match('/^\s*,\s*and\s+$/i', $tetap[1]['sambung']) === 1) {
+            $tetap[1]['sambung'] = ' and ';
+        }
+
+        $hasil = $buka;
+        foreach ($tetap as $r) {
+            $hasil .= $r['sambung'] . $r['teks'];
+        }
+        $hasil = trim(preg_replace('/\s+/u', ' ', $hasil) ?? $hasil, " \t,;");
+
+        if ($hasil === '') {
+            return '';
+        }
+        // Huruf besar pembuka kalimat ikut dipindah ke kata pertama yang baru.
+        if (preg_match('/^\p{Lu}/u', $kalimat) === 1) {
+            $hasil = mb_strtoupper(mb_substr($hasil, 0, 1)) . mb_substr($hasil, 1);
+        }
+
+        return $hasil . $titik;
     }
 
     // =================================================================

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use AksesoriPetinju;
 use App\Http\Controllers\MonthlyShowdownController;
 use App\Models\User;
 use FemboxReferensi;
@@ -68,6 +69,24 @@ class MonthlyShowdownTest extends TestCase
         $this->assertTrue($l['karakter']['dewasa']);
         $this->assertSame(['fisik', 'ikat', 'pakaian', 'sarung', 'kesan'], array_keys($l['bahan']));
         $this->assertNotContains('purple cropped jacket', $l['bahan']['pakaian']);
+    }
+
+    /**
+     * Instruksi model memuat standar aksesori bersama (satu kalimat untuk
+     * semua mesin), melarang aksesori ditulis sebagai "no ...", dan nomor
+     * aturannya tetap berurutan sesudah aturan baru disisipkan.
+     */
+    public function test_instruksi_model_memuat_standar_aksesori(): void
+    {
+        $system = (new \ReflectionMethod(MonthlyShowdown::class, 'system'))->invoke(null);
+
+        $this->assertStringContainsString(AksesoriPetinju::ATURAN, $system);
+        $this->assertStringNotContainsString('{ATURAN_AKSESORI}', $system);
+        $this->assertStringContainsString('juga tidak dalam bentuk "no ..."', $system);
+        $this->assertStringContainsString('tanpa dasi kupu-kupu', $system);
+
+        preg_match_all('/^(\d+)\. /m', $system, $m);
+        $this->assertSame(range(1, 16), array_map('intval', $m[1]));
     }
 
     public function test_opsi_halaman_tanpa_angka_tubuh(): void

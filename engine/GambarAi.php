@@ -355,6 +355,74 @@ final class GambarAi
         return ['mime' => 'image/png', 'data' => $data, 'model' => (string)$p['model'], 'byte' => $byte];
     }
 
+    /**
+     * Sunting SEBAGIAN gambar (inpainting) lewat /images/edits OpenAI.
+     *
+     * Dipakai Mouthguard: gambar NovelAI tidak bisa diberi mouthguard saat
+     * dibuat, jadi mulutnya disunting sesudahnya. $masker = PNG seukuran
+     * $gambar, BENING di bagian yang boleh diubah, opak di sisanya.
+     *
+     * Hanya provider OpenAI: Gemini tidak menerima masker, NovelAI butuh
+     * jalur inpaint sendiri. `input_fidelity` sengaja tidak dikirim —
+     * gpt-image-2.5-sunburst menolaknya (dicoba 2026-10-21).
+     *
+     * @return array{mime:string, data:string, model:string, byte:int}  data = base64 mentah
+     */
+    public static function sunting(string $gambar, string $masker, string $prompt, array $opsi = []): array
+    {
+        $p = self::ambilProfil('gambar', 'AI_GAMBAR');
+        if (!in_array($p['provider'], ['openai', 'openai_compatible'], true)) {
+            throw new RuntimeException('Sunting gambar butuh AI_GAMBAR_PROVIDER openai (model gpt-image-...).');
+        }
+        if (!function_exists('curl_init')) {
+            throw new RuntimeException('Ekstensi cURL tidak aktif di server ini.');
+        }
+
+        $base = rtrim(trim((string)($p['base_url'] ?? '')), '/') ?: 'https://api.openai.com/v1';
+        $batas = max(180, (int)$p['timeout']);
+        // AiClient memasang set_time_limit(timeout+60) tiap panggilan vision,
+        // dan di Windows hitungannya waktu nyata — suntingan sesudah pemeriksa
+        // sempat mati di tengah (fbx:halaman --mouthguard, 2026-10-21).
+        // Hitungannya dimulai ulang di sini.
+        @set_time_limit($batas + 60);
+        $ch = Http::buka($base . '/images/edits');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => [
+                'model'   => (string)$p['model'],
+                'prompt'  => $prompt,
+                'image'   => new CURLStringFile($gambar, 'gambar.png', 'image/png'),
+                'mask'    => new CURLStringFile($masker, 'masker.png', 'image/png'),
+                'size'    => (string)($opsi['ukuran'] ?? '1024x1024'),
+                'quality' => (string)($opsi['mutu'] ?? 'high'),
+                'n'       => 1,
+            ],
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $p['api_key']],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $batas,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+        $raw    = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err    = curl_error($ch);
+        curl_close($ch);
+
+        if ($raw === false) {
+            throw new RuntimeException('Gagal menghubungi OpenAI: ' . $err);
+        }
+        $json = json_decode((string)$raw, true);
+        if ($status >= 400) {
+            $msg = $json['error']['message'] ?? substr((string)$raw, 0, 300);
+            throw new RuntimeException("OpenAI menolak suntingan (HTTP {$status}): {$msg}");
+        }
+        $data = (string)($json['data'][0]['b64_json'] ?? '');
+        if ($data === '') {
+            throw new RuntimeException('OpenAI tidak mengembalikan gambar suntingan.');
+        }
+
+        return ['mime' => 'image/png', 'data' => $data, 'model' => (string)$p['model'], 'byte' => (int)floor(strlen($data) * 3 / 4)];
+    }
+
     /** Rasio video dipetakan ke salah satu dari tiga ukuran yang diterima OpenAI. */
     private static function ukuranOpenAi(array $opsi): string
     {

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -81,7 +82,7 @@ final class Discover
         try {
             $jalanId ??= DB::table('discover_jalan')->insertGetId(['mulai' => now()]);
             $ringkasan = self::jalankan($hanya, $lapor ?? fn () => null);
-            $ringkasan['_'] = self::bersihkan();
+            $ringkasan['_'] = ['contoh' => self::selaraskanContoh()] + self::bersihkan();
 
             DB::table('discover_jalan')->where('id', $jalanId)->update([
                 'selesai'   => now(),
@@ -405,6 +406,139 @@ final class Discover
     }
 
     // ------------------------------------------------------------------
+    // Folder contoh agent (_DATA\pose\contoh)
+    // ------------------------------------------------------------------
+
+    /** Folder contoh, atau null kalau tidak ada di mesin ini (hosting, Drive belum tersambung). */
+    public static function folderContoh(): ?string
+    {
+        $dir = rtrim((string) config('discover.contoh', ''), '/\\');
+
+        return $dir !== '' && is_dir($dir) ? $dir : null;
+    }
+
+    /**
+     * Samakan folder contoh dengan status karya: yang disimpan disalin ke sana
+     * (gambar besar sampai 4 halaman + catatan .txt), yang dilepas atau
+     * disembunyikan dihapus lagi. Hanya menyentuh berkas "discover-…" yang
+     * dicatat di kolom contoh — contoh pilihan tangan tidak pernah tersentuh,
+     * dan berkas yang dihapus tangan tidak disalin ulang.
+     *
+     * @return array{disalin:int, dihapus:int}|array{dilewati:string}
+     */
+    public static function selaraskanContoh(): array
+    {
+        $dir = self::folderContoh();
+        if ($dir === null) {
+            return ['dilewati' => 'folder contoh tidak ada'];
+        }
+
+        // Antre, bukan menolak: perubahan status yang datang selagi ini jalan
+        // ditangkap oleh pemanggilan berikutnya yang menunggu di sini.
+        $kunci = fopen(self::folder() . '/contoh.lock', 'c');
+        if ($kunci === false || !flock($kunci, LOCK_EX)) {
+            return ['dilewati' => 'kunci tidak bisa diambil'];
+        }
+
+        try {
+            $hasil = ['disalin' => 0, 'dihapus' => 0];
+
+            $keluar = DB::table('discover_karya')->where('status', '!=', 'simpan')->whereNotNull('contoh')->where('contoh', '!=', '')->get(['id', 'contoh']);
+            foreach ($keluar as $r) {
+                foreach (json_decode((string) $r->contoh, true) ?: [] as $f) {
+                    if (is_string($f) && $f === basename($f) && str_starts_with($f, 'discover-')) {
+                        @unlink($dir . DIRECTORY_SEPARATOR . $f);
+                    }
+                }
+                DB::table('discover_karya')->where('id', $r->id)->update(['contoh' => null]);
+                $hasil['dihapus']++;
+            }
+
+            $masuk = DB::table('discover_karya')->where('status', 'simpan')
+                ->where(fn ($q) => $q->whereNull('contoh')->orWhere('contoh', ''))->orderBy('id')->limit(50)->get();
+            foreach ($masuk as $r) {
+                $berkas = self::salinKeContoh($r, $dir);
+                if ($berkas) {
+                    DB::table('discover_karya')->where('id', $r->id)->update(['contoh' => json_encode($berkas, JSON_UNESCAPED_UNICODE)]);
+                    $hasil['disalin']++;
+                }
+            }
+
+            return $hasil;
+        } finally {
+            flock($kunci, LOCK_UN);
+            fclose($kunci);
+        }
+    }
+
+    /** @return list<string> nama berkas yang ditulis (gambar dulu, catatan .txt terakhir) */
+    private static function salinKeContoh(object $r, string $dir): array
+    {
+        $nama = 'discover-' . $r->sumber . '-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string) $r->sumber_id);
+        $slug = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(Str::ascii($r->judul !== '' ? $r->judul : $r->artist))), '-');
+        if ($slug !== '') {
+            $nama .= '-' . substr($slug, 0, 40);
+        }
+
+        $besar = json_decode((string) $r->besar, true) ?: [];
+        $berkas = [];
+        foreach (array_slice(array_keys($besar), 0, 4) as $i) {
+            $asal = self::besar((int) $r->id, (int) $i);
+            if ($asal === null) {
+                continue;
+            }
+            $f = $nama . (count($besar) > 1 ? '-p' . ($i + 1) : '') . '.' . pathinfo($asal, PATHINFO_EXTENSION);
+            if (@copy($asal, $dir . DIRECTORY_SEPARATOR . $f)) {
+                $berkas[] = $f;
+            }
+        }
+        // Gambar besar tidak bisa diambil (dihapus di sumbernya?): gambar kecil lebih baik daripada tidak ada.
+        $kecil = $r->kecil !== '' ? self::folder() . '/' . $r->kecil : '';
+        if (!$berkas && $kecil !== '' && is_file($kecil)) {
+            $f = $nama . '.' . pathinfo($kecil, PATHINFO_EXTENSION);
+            if (@copy($kecil, $dir . DIRECTORY_SEPARATOR . $f)) {
+                $berkas[] = $f;
+            }
+        }
+        if (!$berkas) {
+            return [];
+        }
+
+        file_put_contents($dir . DIRECTORY_SEPARATOR . $nama . '.txt', self::catatanContoh($r, $berkas));
+        $berkas[] = $nama . '.txt';
+
+        return $berkas;
+    }
+
+    /** Catatan di sebelah gambar: dari mana, siapa, tag apa — tag booru sering menyebut gerakannya sendiri. */
+    public static function catatanContoh(object $r, array $gambar): string
+    {
+        $tags = json_decode((string) $r->tags, true) ?: [];
+        $rating = ['e' => 'R-18', 'q' => 'R-15', 's' => 'sensitif'][$r->rating] ?? 'umum';
+        $ai = ['ai' => 'dibuat dengan AI', 'bukan' => 'karya tangan (tidak ditandai AI)'][$r->ai] ?? 'belum jelas AI atau bukan';
+        $baris = [
+            'Contoh dari DISCOVER — disalin otomatis karena disimpan di halaman DISCOVER.',
+            'Pelajari GERAKAN, sudut kamera, dan detail tinjunya saja; karakter dan gaya gambar milik artisnya.',
+            '',
+            'Gambar   : ' . implode(', ', $gambar),
+            'Sumber   : ' . (DiscoverSumber::NAMA[$r->sumber] ?? $r->sumber) . ' — ' . $r->url,
+            'Artist   : ' . ($r->artist !== '' ? $r->artist : '—') . ($r->artist_url !== '' ? ' — ' . $r->artist_url : ''),
+            'Judul    : ' . ($r->judul !== '' ? $r->judul : '—'),
+            'Rating   : ' . $rating,
+            'AI       : ' . $ai,
+            'Kata kunci crawl: ' . ($r->kata !== '' ? $r->kata : '—'),
+            'Diposting: ' . ($r->diposting_at ?? '—'),
+            'Tag      : ' . ($tags ? implode(', ', $tags) : '—'),
+        ];
+        if ($r->sumber === 'deviantart' && $r->rating === 'e') {
+            $baris[] = '';
+            $baris[] = 'Catatan: DeviantArt memburamkan karya dewasa untuk pengunjung tanpa login — buka sumbernya untuk melihat jelas.';
+        }
+
+        return implode("\r\n", $baris) . "\r\n";
+    }
+
+    // ------------------------------------------------------------------
     // Halaman
     // ------------------------------------------------------------------
 
@@ -458,8 +592,20 @@ final class Discover
             throw new RuntimeException('Status tidak dikenal.');
         }
 
-        return DB::table('discover_karya')->where('id', $id)->update(['status' => $status]) > 0
-            || DB::table('discover_karya')->where('id', $id)->exists();
+        $lama = DB::table('discover_karya')->where('id', $id)->value('status');
+        if ($lama === null) {
+            return false;
+        }
+        DB::table('discover_karya')->where('id', $id)->update(['status' => $status]);
+
+        // Masuk atau keluar dari "disimpan" = masuk atau keluar dari folder
+        // contoh agent. Mengunduh gambar besarnya bisa beberapa detik, jadi
+        // dikerjakan proses terpisah; crawl berikutnya menyusul kalau gagal.
+        if (($lama === 'simpan') !== ($status === 'simpan')) {
+            self::lepas('discover:contoh');
+        }
+
+        return true;
     }
 
     public static function ubahAi(int $id, string $ai): bool
@@ -516,8 +662,9 @@ final class Discover
         $k = DiscoverSumber::tweet($link);
         $ada = DB::table('discover_karya')->where('sumber', 'twitter')->where('sumber_id', $k['sumber_id'])->first();
         if ($ada) {
-            DB::table('discover_karya')->where('id', $ada->id)->update(['status' => 'simpan']);
             if ($ada->kecil !== '') {
+                self::ubahStatus((int) $ada->id, 'simpan');
+
                 return (int) $ada->id;
             }
             DB::table('discover_karya')->where('id', $ada->id)->delete();
@@ -529,6 +676,7 @@ final class Discover
         if ($id === null) {
             throw new RuntimeException('Gambarnya tidak bisa diunduh dari X. Coba lagi sebentar.');
         }
+        self::lepas('discover:contoh');
 
         return $id;
     }

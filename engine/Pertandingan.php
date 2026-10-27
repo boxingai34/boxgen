@@ -276,6 +276,18 @@ JSON;
             ? 'Gambar ke-3 adalah ARENA. Tidak ada petinju yang perlu dibaca dari situ — baca tempatnya saja: lantai, tali ring, tiang sudut, spanduk, penonton, dan cahayanya.'
             : 'Tidak ada gambar arena. Isi "arena" dengan ring tinju biasa yang masuk akal, dan tulis di "venue" bahwa itu bawaan, bukan hasil pembacaan.';
 
+        // Aturan aksesori untuk PEMBACA, bukan perancang: di sini tidak ada
+        // yang dirancang, jadi AksesoriPetinju::ATURAN (yang menyuruh
+        // memindah warna ke trim) tidak dipakai mentah — yang perlu cuma
+        // "abaikan". Daftar barangnya sama, dan tanpaAksesori() menyapu
+        // ulang kalau pembacanya tetap mencatat.
+        $aksesori = 'AKSESORI TIDAK DIBACA (khusus petinju). Petinju di video tidak memakai barang yang tidak dipakai '
+            . 'petinju sungguhan: perhiasan (anting, kalung, choker, liontin, gelang, gelang kaki, cincin, piercing), '
+            . 'kacamata (juga yang ditaruh di kepala), selempang/sash/syal/cape/pita kain, hiasan rambut (pita, jepit, '
+            . 'bando renda), topi, high heels, kuku panjang. Kalau terlihat di gambar, JANGAN dicatat di "hair", '
+            . '"other", maupun "verbatim" — sama seperti luka di aturan 7. Ikat rambut polos, headband olahraga, '
+            . 'hachimaki, bandana, hijab, tato, dan tanda wajah tetap dicatat. Wasit dan cornerman tidak terkena aturan ini.';
+
         return <<<TXT
 Kamu pembaca gambar acuan untuk membuat prompt video pertandingan tinju. Kamu diberi dua gambar petinju dan satu gambar arena, lalu mengubahnya jadi data yang bisa dipakai menyusun adegan.
 
@@ -289,6 +301,7 @@ ATURAN:
 5. PAKAIAN ADALAH BAGIAN YANG PALING SERING SALAH. Jangan menjawab "sports_bra" dan "boxing_shorts" sebagai jawaban aman kalau bukan itu yang terlihat. Lihat potongannya, panjang lengannya, dan warnanya. Beberapa yang sering keliru: kaos olahraga sekolah putih = gym_uniform + gym_shirt, BUKAN sports_bra; celana olahraga ketat = buruma, BUKAN boxing_shorts; atasan bikini tali = bikini_top_only, BUKAN sports_bra. Kalau tidak ada tag yang pas, kosongkan dan tulis apa adanya di "verbatim".
 6. WARNA SARUNG TANGAN WAJIB DIISI kalau terlihat. Itu penanda paling kuat untuk membedakan kedua petinju di sepanjang video — tanpa itu, model video sering menukar mereka di tengah jalan.
 7. Baca wujud DASAR mereka: belum berkeringat, belum memar. Kerusakan diatur belakangan, bukan dibaca dari sini. Kalau gambarnya sudah menunjukkan luka, tetap catat wujud dasarnya dan abaikan lukanya.
+7b. {$aksesori}
 8b. Kalau ada gambar WASIT atau CORNERMAN, isi "referee"/"cornerman" dengan present true dan baca penampilannya. Kalau gambarnya tidak ada, biarkan present false — JANGAN mengarang orangnya.
 8. "build_note" diisi apa adanya kalau terlihat jelas — lebih tinggi, lebih berat, jangkauan lebih panjang. Itu yang membuat gaya bertarung keduanya berbeda.
 
@@ -376,7 +389,7 @@ TXT;
 
         $ar = is_array($j['arena'] ?? null) ? $j['arena'] : [];
 
-        return [
+        return self::tanpaAksesori([
             'kind'  => 'video',
             'scene' => 'fight',
             'style' => [
@@ -403,7 +416,72 @@ TXT;
             'danbooru_tags' => [],
             'prose'         => '',
             'video'         => null,
-        ];
+        ]);
+    }
+
+    /**
+     * Buang aksesori dari setiap PETINJU di ekstrak (standar studio
+     * 2026-10-20, lihat AksesoriPetinju).
+     *
+     * Pembaca gambar sudah diminta tidak mencatatnya (aturan 7b), tapi
+     * pembaca yang patuh pun mencatat "hair_ornament" begitu melihat jepit
+     * rambut — dan halaman bisa mengirim ekstrak yang diketik ulang. Jadi
+     * disapu dua kali: di keEkstrak() untuk hasil bacaan, dan di rancang()
+     * untuk ekstrak yang kembali dari halaman. Idempoten.
+     *
+     * Yang disapu: daftar tag (hair, eyes, body, tags, attire.other),
+     * kalimat "verbatim" dan "hair_style" (dipotong per barang lewat
+     * FemboxReferensi::buangAksesori, sisanya utuh), alas kaki high heels
+     * (diganti sepatu biasa — petinju tetap bersepatu), dan headgear yang
+     * ternyata topi. attire.top/bottom SENGAJA tidak disentuh: itu satu tag
+     * pakaian utama, dan mengosongkannya membuat petinjunya tanpa baju di
+     * prompt — lebih buruk daripada satu hiasan yang lolos.
+     *
+     * Wasit dan cornerman tidak ikut: dasi kupu-kupu wasit itu seragamnya.
+     */
+    public static function tanpaAksesori(array $ekstrak): array
+    {
+        // Yang bukan teks dibiarkan: menyapu aksesori, bukan merapikan bentuk.
+        $daftar = static fn ($v) => is_array($v) ? array_values(array_filter(
+            $v,
+            static fn ($t): bool => !is_string($t) || !AksesoriPetinju::adalah($t)
+        )) : $v;
+
+        foreach ($ekstrak['subjects'] ?? [] as $i => $s) {
+            if (!is_array($s) || ($s['role'] ?? 'fighter') !== 'fighter') {
+                continue;
+            }
+
+            foreach (['hair', 'eyes', 'body', 'tags'] as $k) {
+                if (isset($s[$k])) {
+                    $s[$k] = $daftar($s[$k]);
+                }
+            }
+            if (is_string($s['hair_style'] ?? null)) {
+                $s['hair_style'] = FemboxReferensi::buangAksesori($s['hair_style']);
+            }
+
+            if (is_array($s['attire'] ?? null)) {
+                $a = $s['attire'];
+                if (isset($a['other'])) {
+                    $a['other'] = $daftar($a['other']);
+                }
+                if (is_string($a['verbatim'] ?? null)) {
+                    $a['verbatim'] = FemboxReferensi::buangAksesori($a['verbatim']);
+                }
+                if (is_string($a['footwear'] ?? null) && AksesoriPetinju::adalah($a['footwear'])) {
+                    $a['footwear'] = 'shoes';
+                }
+                if (is_string($a['headgear'] ?? null) && AksesoriPetinju::adalah($a['headgear'])) {
+                    $a['headgear'] = 'none';
+                }
+                $s['attire'] = $a;
+            }
+
+            $ekstrak['subjects'][$i] = $s;
+        }
+
+        return $ekstrak;
     }
 
     /** Kalimat ringkas untuk halaman. */
@@ -457,7 +535,9 @@ TXT;
         // Dinormalisasi DULU. validasi() bekerja pada bentuk baku, dan
         // ekstrak yang datang dari halaman bisa saja kehilangan blok yang
         // tidak pernah disentuh di sana.
-        $ekstrak = ReversePrompt::normalisasi($ekstrak, 'video', $perKlip);
+        // Disapu lagi sesudah dinormalisasi: ekstrak ini datang dari
+        // halaman, dan isinya bisa sudah diketik ulang. Lihat tanpaAksesori().
+        $ekstrak = self::tanpaAksesori(ReversePrompt::normalisasi($ekstrak, 'video', $perKlip));
         $val     = ReversePrompt::validasi($ekstrak);
         $nama = [];
         foreach (['a', 'b'] as $id) {
@@ -625,16 +705,55 @@ TXT;
         return array_values($urut);
     }
 
-    /** Base prompt, kotak karakter, dan undesired — bentuk yang diminta API NovelAI. */
-    private static function bagianNai(array $out): array
+    /**
+     * Base prompt, kotak karakter, dan undesired — bentuk yang diminta API NovelAI.
+     *
+     * Dipakai kartu kondisi, yang isinya SATU petinju — jadi UC aksesori
+     * petinju (AksesoriPetinju) ditempel di sini. Yang sudah ada di UC
+     * bawaan tidak diulang, dan yang justru diminta di sisi positif tidak
+     * ikut dilarang. Kalau UC bawaan nanti sudah memuatnya sendiri, langkah
+     * ini tidak menambah apa-apa.
+     */
+    public static function bagianNai(array $out): array
     {
+        $base   = (string)($out['base'] ?? '');
+        $tokoh  = array_map(
+            static fn(array $c): array => ['prompt' => (string)($c['prompt'] ?? '')],
+            is_array($out['characters'] ?? null) ? array_values(array_filter($out['characters'], 'is_array')) : []
+        );
+        $uc     = trim((string)($out['undesired'] ?? ''));
+
+        $kunci = static fn(string $t): string => strtolower(str_replace(' ', '_', trim(
+            preg_replace('/^[\d.]+::|::$|[{}\[\]]/', '', trim($t)) ?? $t
+        )));
+        $sudah = [];
+        foreach (explode(',', $uc) as $t) {
+            $sudah[$kunci($t)] = true;
+        }
+        $diminta = [];
+        foreach (explode(',', $base . ',' . implode(',', array_column($tokoh, 'prompt'))) as $t) {
+            $diminta[] = $kunci($t);
+        }
+
+        // "scarf" di UC ikut menekan headscarf; hijab bukan aksesori.
+        // Dicari sebagai kata di dalam tag ("white_hijab"), bukan tag utuh;
+        // \b tidak bisa dipakai karena garis bawah termasuk huruf baginya.
+        $berhijab = preg_match('/(?<![a-z])(hijab|headscarf|head_scarf|khimar)(?![a-z])/', implode(',', $diminta)) === 1;
+
+        $tambah = [];
+        foreach (AksesoriPetinju::uc($diminta) as $t) {
+            if (!isset($sudah[$t]) && !($berhijab && $t === 'scarf')) {
+                $tambah[] = str_replace('_', ' ', $t);
+            }
+        }
+        if ($tambah !== []) {
+            $uc .= ($uc === '' ? '' : ', ') . implode(', ', $tambah);
+        }
+
         return [
-            'base'       => (string)($out['base'] ?? ''),
-            'characters' => array_map(
-                static fn(array $c): array => ['prompt' => (string)($c['prompt'] ?? '')],
-                is_array($out['characters'] ?? null) ? $out['characters'] : []
-            ),
-            'undesired'  => (string)($out['undesired'] ?? ''),
+            'base'       => $base,
+            'characters' => $tokoh,
+            'undesired'  => $uc,
         ];
     }
 

@@ -23,7 +23,9 @@ declare(strict_types=1);
  *
  * Aturan studio ditegakkan kode memakai konstanta WaifuCrushed (satu aturan,
  * satu tempat): isian disapu dari hand wraps/mouthguard/lapisan luar/kata
- * anak-anak, setiap UC disaring dari tag terlarang, pukulan yang mendarat
+ * anak-anak dan dari aksesori yang tidak dipakai petinju sungguhan (warna
+ * aksesorinya pindah ke trim), setiap UC disaring dari tag terlarang dan
+ * memuat daftar aksesori bersama, pukulan yang mendarat
  * diberi efek kecepatan dan yang terkena diberi garis getar, dan tangan
  * pemukul dikunci lewat posisi (menghadap kanan layar = sisi kanan badan ke
  * kamera).
@@ -650,7 +652,7 @@ final class ShowdownPose
         // jadi huruf kapitalnya dipasang lagi sesudah penyaringan.
         $kalimat = mb_strtoupper(mb_substr($kalimat, 0, 1)) . mb_substr($kalimat, 1);
 
-        $uc = [WaifuCrushed::UC_KUALITAS, WaifuCrushed::UC_UMUR, self::UC_DUO, WaifuCrushed::UC_ORANG, WaifuCrushed::UC_ATURAN, WaifuCrushed::UC_WARNA, WaifuCrushed::UC_GAYA, self::UC_DARAH];
+        $uc = [WaifuCrushed::UC_KUALITAS, WaifuCrushed::UC_UMUR, self::UC_DUO, WaifuCrushed::UC_ORANG, WaifuCrushed::ucAturan(), WaifuCrushed::UC_WARNA, WaifuCrushed::UC_GAYA, self::UC_DARAH];
         if (!$aksi) {
             $uc[] = self::UC_BERSIH;
         }
@@ -688,7 +690,7 @@ final class ShowdownPose
             'rasio'    => $rasio,
             'ukuran'   => WaifuCrushed::UKURAN[$rasio],
             'base'     => implode(', ', $tagBase) . '. ' . $kalimat,
-            'ucBase'   => self::ucKotak($uc, $tagBase, self::rata([WaifuCrushed::UC_UMUR, WaifuCrushed::UC_ATURAN, WaifuCrushed::UC_WARNA])),
+            'ucBase'   => self::ucKotak($uc, $tagBase, self::rata([WaifuCrushed::UC_UMUR, WaifuCrushed::ucAturan(), WaifuCrushed::UC_WARNA])),
             'karakter' => $karakter,
             'gemini'   => $gemini,
             'catatan'  => $catatan,
@@ -753,19 +755,24 @@ final class ShowdownPose
         $nama = self::rapi($isian['nama'] ?? '', 80);
         $nama = $nama !== '' ? $nama : $peran;
 
-        $buang   = [];
+        // Tag canon tidak disapu aksesorinya (itu nama tokoh; aksesori
+        // canonnya ditahan UC Base). Ciri, ikatan rambut, pakaian, dan sarung
+        // disapu — rancangan langkah 1 seharusnya sudah bersih, tapi isian
+        // ini datang dari browser dan bisa diketik ulang.
+        $buang    = [];
+        $warnaAks = [];
         $tag     = self::bersih($isian['tag'] ?? '', $buang);
-        $fisik   = self::bersih($isian['fisik'] ?? '', $buang);
-        $ikat    = self::bersih($isian['ikat'] ?? '', $buang);
-        $pakaian = self::bersih($isian['pakaian'] ?? '', $buang);
-        $sarung  = self::bersih($isian['sarung'] ?? '', $buang);
+        $fisik   = self::bersih($isian['fisik'] ?? '', $buang, false, $warnaAks);
+        $ikat    = self::bersih($isian['ikat'] ?? '', $buang, false, $warnaAks);
+        $pakaian = self::bersih($isian['pakaian'] ?? '', $buang, false, $warnaAks);
+        $sarung  = self::bersih($isian['sarung'] ?? '', $buang, false, $warnaAks);
 
         if ($fisik === [] && $tag === []) {
             throw new InvalidArgumentException('Ciri ' . $nama . ' masih kosong — rancang ulang karakternya di langkah 1.');
         }
         if ($buang !== []) {
             $catatan[] = 'Dibuang dari isian ' . $nama . ': ' . implode(', ', self::unik($buang))
-                . ' (aturan: tanpa hand wraps/mouthguard, atasan satu lapis, petinju dewasa).';
+                . ' (aturan: tanpa hand wraps/mouthguard, tanpa aksesori, atasan satu lapis, petinju dewasa).';
         }
 
         // Sarung: satu ruas utama ber-"gloves"; sisanya ikut di ciri.
@@ -788,14 +795,27 @@ final class ShowdownPose
             $catatan[] = 'Pakaian ' . $nama . ' kosong — dipakai ' . implode(', ', $pakaian) . ' (satu lapis).';
         }
 
+        // Warna yang cuma hidup di aksesori yang dibuang pindah ke trim /
+        // sabuk celana / tali sepatu, supaya palet lembar acuannya tetap
+        // (aturan yang sama dengan Waifu Crushed, lihat warnaPindahan()).
+        $hilang = WaifuCrushed::warnaHilang($warnaAks, array_merge($fisik, $ikat, $pakaian, [$utama], array_values($sarung)));
+        if ($hilang !== []) {
+            $pindah    = WaifuCrushed::warnaPindahan($hilang);
+            $pakaian   = self::unik(array_merge($pakaian, $pindah));
+            $catatan[] = 'Warna aksesori ' . $nama . ' yang dibuang dipindah ke pakaian: ' . implode(', ', $pindah) . '.';
+        }
+
         // Penanda dewasa selalu ada, walau fisik dari langkah 1 sudah memuatnya.
         $look = self::unik(array_merge($tag, self::rata([WaifuCrushed::DEWASA]), $fisik, $ikat, $pakaian, [$utama], array_values($sarung)));
 
+        // Warna pencegah bocor. Pita dan choker tidak ada lagi di daftar
+        // bendanya (sudah disapu); trim/sabuk/tali sepatu ada, supaya warna
+        // pindahan aksesori ikut dijaga di UC lawan.
         $pola  = '/\b(' . WaifuCrushed::KATA_WARNA . ')\b/i';
         $warna = array_values(array_filter(
             array_merge($fisik, $ikat, $pakaian, [$utama]),
             static fn (string $t): bool => preg_match($pola, $t) === 1
-                && preg_match('/\b(hair|eyes?|gloves?|top|bra|shorts|trunks|skirt|bikini|leotard|boots|shoes|socks|stockings|thighhighs|pantyhose|ribbon|choker|collar|cuffs|ears)\b/i', $t) === 1
+                && preg_match('/\b(hair|eyes?|gloves?|top|bra|shorts|trunks|skirt|bikini|leotard|boots|shoes|socks|stockings|thighhighs|pantyhose|collar|cuffs|ears|trim|waistband|shoelaces)\b/i', $t) === 1
                 && preg_match(WaifuCrushed::POLA_UC_TERLARANG, $t) !== 1
         ));
 
@@ -811,8 +831,16 @@ final class ShowdownPose
         ];
     }
 
-    /** Sapu satu isian dengan pola WaifuCrushed. @return list<string> */
-    private static function bersih(mixed $teks, array &$buang, bool $venue = false): array
+    /**
+     * Sapu satu isian dengan pola WaifuCrushed. Aksesori hanya disapu kalau
+     * $warnaAksesori diberikan (kolom rupa petinju, bukan tag canon dan
+     * venue) — potongannya lewat WaifuCrushed::tanpaAksesori(), jadi
+     * "red shorts with ribbon ties" tinggal "red shorts", bukan hilang.
+     *
+     * @param list<string>|null $warnaAksesori
+     * @return list<string>
+     */
+    private static function bersih(mixed $teks, array &$buang, bool $venue = false, ?array &$warnaAksesori = null): array
     {
         $hasil = [];
         foreach (self::daftar($teks) as $t) {
@@ -824,6 +852,12 @@ final class ShowdownPose
                 || ($venue && preg_match(WaifuCrushed::POLA_ORANG_LAIN, $t) === 1)) {
                 $buang[] = $t;
                 continue;
+            }
+            if ($warnaAksesori !== null) {
+                $t = WaifuCrushed::tanpaAksesori($t, $buang, $warnaAksesori);
+                if ($t === '') {
+                    continue;
+                }
             }
             $hasil[] = $t;
         }
@@ -939,6 +973,7 @@ final class ShowdownPose
         return 'Style: Japanese anime illustration, full color, bold lineart, cel shading with soft highlights, glossy skin, cinematic lighting, dramatic manga speed lines and impact effects. '
             . 'Setting: ' . $venue['gemini'] . '. '
             . 'Both characters are adult women with exactly the outfits, colors and builds from their reference sheets. Boxing gloves are worn directly on the hands with nothing underneath, nothing is worn in the mouth, and every top is a single layer. '
+            . WaifuCrushed::GAYA_AKSESORI . ' '
             . 'Nobody else is in the ring. No text, no speech bubbles.';
     }
 

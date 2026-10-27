@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { SUMBER, diburamkan, labelRating, sejak, type Karya, type ModeBlur } from '@/lib/discover';
-import { Bookmark, BookmarkCheck, Bot, ExternalLink, EyeOff, HelpCircle, Images, PenLine, UserRound } from 'lucide-vue-next';
+import { Bookmark, BookmarkCheck, Bot, ExternalLink, EyeOff, FolderInput, HelpCircle, Images, PenLine, UserRound } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 /**
@@ -11,8 +11,11 @@ import { computed, ref } from 'vue';
  * Gambar R-18 (atau R-15 juga, tergantung mode) diburamkan sampai diklik.
  * Lencana AI bisa diklik untuk membetulkan tanda yang salah — urutannya
  * Non-AI → AI → Belum jelas.
+ *
+ * Simpan = ikut disalin ke folder contoh agent Pose FBX (_DATA\pose\contoh)
+ * kalau folder itu tersambung (`contoh`); lepas = dihapus lagi dari sana.
  */
-const props = defineProps<{ k: Karya; blur: ModeBlur; sibuk?: boolean }>();
+const props = defineProps<{ k: Karya; blur: ModeBlur; sibuk?: boolean; contoh?: boolean }>();
 const emit = defineEmits<{
     buka: [];
     simpan: [];
@@ -106,7 +109,11 @@ function klikGambar() {
                     type="button"
                     class="grid h-8 w-8 place-items-center rounded-full text-white opacity-80 transition hover:opacity-100 disabled:opacity-50"
                     :class="k.status === 'simpan' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-black/45 hover:bg-black/70'"
-                    :title="k.status === 'simpan' ? 'Disimpan — klik untuk melepas' : 'Simpan ke koleksi'"
+                    :title="
+                        k.status === 'simpan'
+                            ? `Disimpan${contoh ? ' dan ada di folder contoh agent' : ''} — klik untuk melepas`
+                            : `Simpan${contoh ? ' — ikut disalin ke folder contoh agent (_DATA\\pose\\contoh)' : ' ke koleksi'}`
+                    "
                     :disabled="sibuk"
                     @click="emit('simpan')"
                 >
@@ -157,6 +164,14 @@ function klikGambar() {
         <p class="mt-1 flex items-center gap-1.5 truncate text-[12px] text-muted-foreground" :title="`Ditemukan lewat «${k.kata}»`">
             <span class="shrink-0">{{ sejak(k.diposting) || '—' }}</span>
             <span v-if="k.kata" class="truncate opacity-70">· {{ k.kata }}</span>
+        </p>
+        <p
+            v-if="contoh && k.status === 'simpan'"
+            class="mt-1 flex items-center gap-1 text-[11px]"
+            :class="k.diContoh ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'"
+            title="Folder _DATA\pose\contoh — tempat agent Pose FBX belajar gerakan"
+        >
+            <FolderInput class="h-3 w-3 shrink-0" /> {{ k.diContoh ? 'di folder contoh agent' : 'menyalin ke folder contoh…' }}
         </p>
     </article>
 </template>

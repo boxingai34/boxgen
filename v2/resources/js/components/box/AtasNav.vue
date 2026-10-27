@@ -3,6 +3,7 @@ import Merek from '@/components/landing/Merek.vue';
 import { hemat, pasangHemat } from '@/lib/gerak';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import {
+    Activity,
     BookUser,
     Bot,
     Camera,
@@ -22,6 +23,7 @@ import {
     Moon,
     PenLine,
     Replace,
+    ShieldPlus,
     Skull,
     Sparkles,
     Sun,
@@ -129,8 +131,12 @@ const menu = computed<Menu[]>(() => {
                 { nama: 'Scout', rute: 'fbx', ikon: Telescope, ket: 'Kandidat Female Fight, Mixed Fight, Waifu Crushed minggu ini', persis: true },
                 { nama: 'Roster', rute: 'fbx.roster', ikon: BookUser, ket: 'Semua karakter yang pernah tampil', persis: false },
                 { nama: 'Tren Danbooru', rute: 'fbx.tren', ikon: Flame, ket: 'Karakter paling disukai 7 hari terakhir', persis: false },
+                { nama: 'Tambah Mouthguard', rute: 'fbx.mouthguard', ikon: ShieldPlus, ket: 'Foto jadi diberi mouthguard otomatis', persis: false },
             ],
         });
+        // Peta kerja agent & alat produksi, FEMBOX dan BoxinGenerated — bukan bagian
+        // AGENT FBX karena jalur BoxinGenerated bukan bisnis FEMBOX.
+        dasar.push({ nama: 'MONITOR AGENT', rute: 'monitor', ikon: Activity, ket: 'Agent dan alat produksi yang sedang bekerja, langsung', persis: false });
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
     }

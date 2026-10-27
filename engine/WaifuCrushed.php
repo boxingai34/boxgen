@@ -22,8 +22,9 @@ declare(strict_types=1);
  * ATURAN PEMILIK STUDIO DITEGAKKAN KODE, BUKAN DIPERCAYAKAN KE ISIAN.
  *
  * Isian petinju diketik orang dan bisa memuat apa saja. Karena itu
- * setiap isian disapu dulu (perban, mouthguard, lapisan luar, kata yang
- * mengarah ke anak-anak), setiap UC disaring dari tag yang dilarang, dan
+ * setiap isian disapu dulu (perban, mouthguard, lapisan luar, aksesori
+ * yang tidak dipakai petinju sungguhan, kata yang mengarah ke anak-anak),
+ * setiap UC disaring dari tag yang dilarang, dan
  * kalimat tinggi badan, penanda dewasa, efek kecepatan, serta garis getar
  * ditulis di kode — tidak ada satu pun yang bergantung pada orang yang
  * mengisi ingat aturannya.
@@ -62,7 +63,8 @@ final class WaifuCrushed
     public const UC_UMUR     = 'child, loli, shota, aged down';
     private const UC_SOLO     = '2girls, multiple girls';
     public const UC_ORANG    = '1boy, male, crowd, referee';
-    public const UC_ATURAN   = 'hand wraps, wrist wraps, bandages, taped wrists, mouthguard, mouthpiece, jacket, coat, layered clothing';
+    /** Selalu dipakai lewat ucAturan(), yang menambahkan daftar aksesori bersama. */
+    public const UC_ATURAN   ='hand wraps, wrist wraps, bandages, taped wrists, mouthguard, mouthpiece, jacket, coat, layered clothing';
     public const UC_WARNA    = 'monochrome, greyscale, sketch, spot color, partially colored, limited palette, desaturated';
     public const UC_GAYA     = '3d, realistic, photo, text, watermark, signature, logo, speech bubble';
     private const UC_KOMIK    = 'single panel, different characters in each panel';
@@ -99,6 +101,15 @@ final class WaifuCrushed
      * Base memintanya sementara UC Base melarangnya.
      */
     public const POLA_MONOKROM = '/\b(monochrome|greyscale|grayscale|black[- ]and[- ]white|sketch\w*|spot colou?r|partially colou?red|limited palette|desaturated|lineart only|screentone|halftone|sepia|muted colou?rs|washed out)\b/i';
+
+    /**
+     * Standar aksesori untuk paragraf gaya Gemini, ditulis sebagai keadaan
+     * yang diinginkan — tidak ada satu pun nama aksesori, juga tidak dengan
+     * "no ...", karena Gemini cenderung menggambar yang disebut. Leher dan
+     * pergelangan sengaja tidak disebut "bare": kerah lepas dan manset tema
+     * bunny bukan aksesori yang dilarang. Dipakai juga oleh ShowdownPose.
+     */
+    public const GAYA_AKSESORI = 'Every boxer has bare ears, unadorned hair and short natural nails, with flat-soled boxing shoes or boots on her feet.';
 
     /** Orang ketiga di venue: "crowd, referee" ada di UC Base setiap adegan. */
     public const POLA_ORANG_LAIN = '/\b(crowds?|referees?|audiences?|spectators?|onlookers?|cheering fans|1boy|male)\b/i';
@@ -291,19 +302,26 @@ final class WaifuCrushed
         ],
     ];
 
-    /** Contoh terisi dari lampiran templat (bagian 0.1), dipecah per kolom isian. */
+    /**
+     * Contoh terisi dari lampiran templat (bagian 0.1), dipecah per kolom isian.
+     *
+     * Sejak standar aksesori 2026-10-20, choker emas bermata merah dan pita
+     * rambut biru di lampiran tidak dipakai lagi. Warnanya tidak hilang:
+     * biru pindah ke ikat rambut polos, emas tetap di sabuk celana, merah
+     * batu choker-nya jadi trim sabuk itu — paletnya sama dengan lampiran.
+     */
     private const CONTOH = [
         'waifu' => [
             'nama'    => 'Waifu',
             'tag'     => '',
             'tinggi'  => 163,
-            'rambut'  => 'blonde hair, long hair, high ponytail, blue hair ribbon, side bangs, hair between eyes',
+            'rambut'  => 'blonde hair, long hair, high ponytail, blue hair tie, side bangs, hair between eyes',
             'mata'    => 'green eyes',
             'badan'   => 'large breasts, toned stomach, navel',
-            'pakaian' => 'gold choker with red gem, blue halter bikini top with pink trim, front-tie bikini top, blue bikini bottom, gold waistband, pink frilled miniskirt',
+            'pakaian' => 'blue halter bikini top with pink trim, front-tie bikini top, blue bikini bottom, gold waistband with red trim, pink frilled miniskirt',
             'sarung'  => 'pink boxing gloves',
             'ekstra'  => 'blush stickers',
-            'warna'   => 'blonde hair, green eyes, blue bikini, pink skirt, pink boxing gloves, blue hair ribbon, gold choker',
+            'warna'   => 'blonde hair, green eyes, blue bikini, pink skirt, pink boxing gloves, blue hair tie, gold waistband',
         ],
         'rival' => [
             'nama'    => 'Rival',
@@ -1054,7 +1072,7 @@ final class WaifuCrushed
         if ($jenisUc === 'solo') {
             $uc[] = self::UC_SOLO;
         }
-        array_push($uc, self::UC_ORANG, self::UC_ATURAN, self::UC_WARNA, self::UC_GAYA);
+        array_push($uc, self::UC_ORANG, self::ucAturan(), self::UC_WARNA, self::UC_GAYA);
         if ($jenisUc === 'komik') {
             $uc[] = self::UC_KOMIK;
         }
@@ -1077,9 +1095,9 @@ final class WaifuCrushed
             'ukuran'   => self::UKURAN[$rasio],
             'base'     => implode(', ', $tagBase) . '. ' . trim($kalimat),
             // Kelompok aturan tetap (umur, hand wraps/mouthguard/lapisan,
-            // pewarnaan, orang ketiga) tidak pernah dicopot dari UC Base,
-            // apa pun yang tertulis di Base.
-            'ucBase'   => self::ucKotak($uc, $tagBase, self::rata([self::UC_UMUR, self::UC_ATURAN, self::UC_WARNA, self::UC_ORANG])),
+            // aksesori, pewarnaan, orang ketiga) tidak pernah dicopot dari
+            // UC Base, apa pun yang tertulis di Base.
+            'ucBase'   => self::ucKotak($uc, $tagBase, self::rata([self::UC_UMUR, self::ucAturan(), self::UC_WARNA, self::UC_ORANG])),
             'karakter' => $karakter,
             // Rasio ditulis di akhir setiap prompt Gemini, mengikuti kartunya:
             // potret 3:4 tidak boleh ditutup dengan "16:9 landscape".
@@ -1186,14 +1204,18 @@ final class WaifuCrushed
             throw new InvalidArgumentException('Tinggi badan ' . $nama . ' harus ' . self::TINGGI_MIN . '–' . self::TINGGI_MAKS . ' cm (sekarang ' . $cm . ' cm).');
         }
 
-        $buang = [];
+        // Tag canon tidak disapu aksesorinya: itu NAMA tokoh, dan aksesori
+        // canonnya ditahan UC Base (ucAturan()). Kolom rupa lainnya disapu,
+        // dan warna aksesori yang dibuang dikumpulkan di $warnaAks.
+        $buang    = [];
+        $warnaAks = [];
         $tag     = self::bersih($isian['tag'] ?? '', $buang);
-        $rambut  = self::bersih($isian['rambut'] ?? '', $buang);
-        $mata    = self::bersih($isian['mata'] ?? '', $buang);
-        $badan   = self::bersih($isian['badan'] ?? '', $buang);
-        $pakaian = self::bersih($isian['pakaian'] ?? '', $buang);
-        $sarung  = self::bersih($isian['sarung'] ?? '', $buang);
-        $ekstra  = self::bersih($isian['ekstra'] ?? '', $buang);
+        $rambut  = self::bersih($isian['rambut'] ?? '', $buang, false, $warnaAks);
+        $mata    = self::bersih($isian['mata'] ?? '', $buang, false, $warnaAks);
+        $badan   = self::bersih($isian['badan'] ?? '', $buang, false, $warnaAks);
+        $pakaian = self::bersih($isian['pakaian'] ?? '', $buang, false, $warnaAks);
+        $sarung  = self::bersih($isian['sarung'] ?? '', $buang, false, $warnaAks);
+        $ekstra  = self::bersih($isian['ekstra'] ?? '', $buang, false, $warnaAks);
 
         if ($rambut === [] && $tag === []) {
             throw new InvalidArgumentException('Rambut ' . $nama . ' masih kosong — isi rambutnya atau tag karakternya.');
@@ -1216,7 +1238,7 @@ final class WaifuCrushed
 
         if ($buang !== []) {
             $catatan[] = 'Dibuang dari isian ' . $nama . ': ' . implode(', ', self::unik($buang))
-                . ' (aturan: tanpa hand wraps/mouthguard, atasan satu lapis, petinju dewasa).';
+                . ' (aturan: tanpa hand wraps/mouthguard, tanpa aksesori, atasan satu lapis, petinju dewasa).';
         }
 
         // Sarung: satu tag, selalu jamak "boxing gloves" di ciri dan tunggal
@@ -1255,7 +1277,22 @@ final class WaifuCrushed
                 . ' — dipakai ' . implode(', ', $pakaian) . ' (satu lapis' . ($warnaSarung !== '' ? ', sewarna sarung' : '') . '). Isi kolom Pakaian kalau mau busana lain.';
         }
 
-        $look = self::unik(array_merge($tag, self::daftar(self::DEWASA), $rambut, $mata, $badan, $pakaian, [$utama], $ekstra));
+        // WARNA AKSESORI tidak ikut hilang (standar studio 2026-10-20):
+        // warna yang cuma hidup di aksesori yang dibuang pindah ke trim /
+        // sabuk celana / tali sepatu di pakaian. Canon tanpa pakaian tidak
+        // diberi — "gold trim" sendirian akan terbaca sebagai busananya.
+        $hilang = self::warnaHilang($warnaAks, array_merge($rambut, $pakaian, [$utama], $ekstra));
+        if ($hilang !== [] && $pakaian !== []) {
+            $pindah    = self::warnaPindahan($hilang);
+            $pakaian   = self::unik(array_merge($pakaian, $pindah));
+            $catatan[] = 'Warna aksesori ' . $nama . ' yang dibuang dipindah ke pakaian: ' . implode(', ', $pindah)
+                . '. Ubah di kolom Pakaian kalau mau tempat lain (trim, sabuk celana, manset sarung, tali sepatu).';
+        } elseif ($hilang !== []) {
+            $catatan[] = 'Warna aksesori ' . $nama . ' yang dibuang (' . implode(', ', $hilang) . ') tidak punya tempat — '
+                . 'tulis di kolom Pakaian sebagai trim, sabuk celana, manset sarung, atau tali sepatu supaya paletnya tetap.';
+        }
+
+        $look =self::unik(array_merge($tag, self::daftar(self::DEWASA), $rambut, $mata, $badan, $pakaian, [$utama], $ekstra));
 
         // Warna pencegah bocor: isian manual DITAMBAH yang diturunkan dari
         // ruas berkata-warna di rambut, mata, pakaian, dan sarung. Isian
@@ -1263,8 +1300,12 @@ final class WaifuCrushed
         // pakaian lawan hilang dari UC (aturan 5). Turunan yang sudah
         // tercakup isian manual ("blue bikini" ⊂ "blue bikini bottom") tidak
         // ditulis dua kali.
+        // Aksesori di isian manual ("gold choker") dibuang diam-diam: barangnya
+        // sudah tidak ada di gambar, dan warnanya sudah ikut turunan dari
+        // trim pindahan di atas.
         $warna   = self::daftar(self::rapi($isian['warna'] ?? ''));
         $diketik = $warna !== [];
+        $warna   = array_values(array_filter($warna, static fn (string $t): bool => !AksesoriPetinju::adalah($t)));
         $manual  = array_map(self::kunciTag(...), $warna);
         $pola    = '/\b(' . self::KATA_WARNA . ')\b/i';
         foreach (array_merge($rambut, $mata, $pakaian, [$utama]) as $t) {
@@ -1319,10 +1360,15 @@ final class WaifuCrushed
      * pewarnaan monokrom — dan untuk venue, orang ketiga (penonton, wasit).
      * Yang dibuang dicatat supaya halaman bisa bilang terus terang.
      *
-     * @param list<string> $buang
+     * Aksesori hanya disapu kalau $warnaAksesori diberikan: kolom rupa
+     * petinju, bukan tag canon (itu nama tokoh — "ribbon girl" bukan pita)
+     * dan bukan venue (pita dan topi di dekorasi arena tidak dipakai siapa pun).
+     *
+     * @param list<string>      $buang
+     * @param list<string>|null $warnaAksesori diisi warna aksesori yang dibuang
      * @return list<string>
      */
-    private static function bersih(mixed $teks, array &$buang, bool $venue = false): array
+    private static function bersih(mixed $teks, array &$buang, bool $venue = false, ?array &$warnaAksesori = null): array
     {
         $hasil = [];
         foreach (self::daftar(self::rapi($teks)) as $t) {
@@ -1335,10 +1381,157 @@ final class WaifuCrushed
                 $buang[] = $t;
                 continue;
             }
+            if ($warnaAksesori !== null) {
+                $t = self::tanpaAksesori($t, $buang, $warnaAksesori);
+                if ($t === '') {
+                    continue;
+                }
+            }
             $hasil[] = $t;
         }
 
         return self::unik($hasil);
+    }
+
+    /**
+     * Kelompok UC aturan tetap: UC_ATURAN + daftar aksesori bersama
+     * (AksesoriPetinju::UC). Fungsi, bukan konstanta — konstanta PHP tidak
+     * bisa merangkai larik dari kelas lain. Dipakai juga oleh ShowdownPose.
+     */
+    public static function ucAturan(): string
+    {
+        return self::UC_ATURAN . ', ' . AksesoriPetinju::ucTeks();
+    }
+
+    /**
+     * Buang aksesori dari SATU ruas tanpa membuang busana yang menempel
+     * padanya (standar studio 2026-10-20, lihat AksesoriPetinju).
+     *
+     * Ruas dipotong di kata sambung "with / and / plus / featuring / &":
+     *   - "gold choker with red gem"           → habis: kepalanya aksesori,
+     *     dan "with red gem" itu hiasan choker-nya, ikut dibuang;
+     *   - "red boxing shorts with ribbon ties" → "red boxing shorts";
+     *   - "long hair tied with blue ribbon"    → "long hair" — kata kerja
+     *     yang tadinya milik pitanya (tied, pinned, held) ikut dicopot;
+     *   - "black and gold earrings"            → habis: "black" cuma warna
+     *     anting itu, bukan barang sendiri.
+     * "and" tidak menyeret ruas di belakangnya ("choker and red shorts" →
+     * "red shorts"); yang diseret hanya pengubah "with".
+     *
+     * Ruas tanpa aksesori kembali utuh, huruf per huruf — sapuan ini tidak
+     * boleh mengubah isian yang memang bersih.
+     *
+     * @param list<string> $buang potongan yang dibuang, untuk catatan
+     * @param list<string> $warna diisi warna milik aksesori yang dibuang
+     *                            (bukan warna hiasannya: "red gem" tidak)
+     * @return string sisa ruasnya; '' kalau seluruhnya aksesori
+     */
+    public static function tanpaAksesori(string $ruas, array &$buang, array &$warna): string
+    {
+        $ruas = trim($ruas);
+        if (!AksesoriPetinju::adalah($ruas)) {
+            return $ruas;
+        }
+
+        $potong  = preg_split('/\s+(with|and|plus|featuring|&)\s+/i', $ruas, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [$ruas];
+        $isi     = [];
+        $sambung = []; // $sambung[$k] = kata sambung di antara $isi[$k] dan $isi[$k + 1]
+        foreach ($potong as $i => $p) {
+            if ($i % 2 === 0) {
+                $isi[] = trim($p);
+            } else {
+                $sambung[] = mb_strtolower($p);
+            }
+        }
+        $n       = count($isi);
+        $aks     = array_map(static fn (string $s): bool => AksesoriPetinju::adalah($s), $isi);
+        $dibuang = $aks;
+
+        // Pengubah "with" milik aksesori: "choker with red gem".
+        for ($k = 1; $k < $n; $k++) {
+            if ($dibuang[$k - 1] && in_array($sambung[$k - 1], ['with', 'featuring'], true)) {
+                $dibuang[$k] = true;
+            }
+        }
+        // Warna saja di depan "and <aksesori>": "black and gold earrings".
+        // Warnanya warna anting itu juga, jadi ikut dihitung milik aksesori.
+        for ($k = $n - 2; $k >= 0; $k--) {
+            if (!$dibuang[$k] && $dibuang[$k + 1] && $sambung[$k] === 'and'
+                && preg_match('/^(?:' . self::FRASA_WARNA . ')$/i', $isi[$k]) === 1) {
+                $dibuang[$k] = true;
+                $aks[$k]     = true;
+            }
+        }
+
+        $sisa   = '';
+        $runtun = '';
+        for ($k = 0; $k < $n; $k++) {
+            if ($dibuang[$k]) {
+                $runtun = $runtun === '' ? $isi[$k] : $runtun . ' ' . $sambung[$k - 1] . ' ' . $isi[$k];
+                if ($aks[$k] && preg_match_all('/\b(' . self::FRASA_WARNA . ')\b/i', $isi[$k], $m) > 0) {
+                    foreach ($m[1] as $w) {
+                        $warna[] = mb_strtolower($w);
+                    }
+                }
+                continue;
+            }
+            if ($runtun !== '') {
+                $buang[] = $runtun;
+                $runtun  = '';
+            }
+            $bagian = $isi[$k];
+            if ($k + 1 < $n && $dibuang[$k + 1] && in_array($sambung[$k], ['with', 'featuring'], true)) {
+                $bagian = preg_replace('/\s+(?:tied|tied up|tied back|held|held back|held up|pinned|pinned up|clipped|secured|decorated|adorned|accented|accessorized)$/i', '', $bagian) ?? $bagian;
+            }
+            $sisa = $sisa === '' ? $bagian : $sisa . ' ' . $sambung[$k - 1] . ' ' . $bagian;
+        }
+        if ($runtun !== '') {
+            $buang[] = $runtun;
+        }
+
+        return trim($sisa);
+    }
+
+    /**
+     * Warna aksesori yang dibuang dan TIDAK hidup lagi di rupa mana pun
+     * (rambut, pakaian, sarung, tambahan). Warna yang masih ada — pita
+     * biru di atas bikini biru — tidak perlu dipindah.
+     *
+     * @param list<string> $warna dari tanpaAksesori()
+     * @param list<string> $sisa  ruas rupa yang tersisa
+     * @return list<string>
+     */
+    public static function warnaHilang(array $warna, array $sisa): array
+    {
+        $teks   = mb_strtolower(implode(', ', $sisa));
+        $hilang = [];
+        foreach (self::unik($warna) as $w) {
+            if (preg_match('/\b' . preg_quote(mb_strtolower($w), '/') . '\b/u', $teks) !== 1) {
+                $hilang[] = mb_strtolower($w);
+            }
+        }
+
+        return $hilang;
+    }
+
+    /**
+     * Warna yang hilang → tag pakaian pengganti, bergilir: "<warna> trim",
+     * "<warna> waistband", "<warna> shoelaces". Manset sarung tidak dipakai
+     * di sini: "red cuffs" berdiri sendiri dibaca NAI sebagai wrist cuffs,
+     * dan kolom sarung sengaja satu tag.
+     *
+     * @param list<string> $warna
+     * @return list<string>
+     */
+    public static function warnaPindahan(array $warna): array
+    {
+        $tempat = ['trim', 'waistband', 'shoelaces'];
+        $hasil  = [];
+        foreach (array_values($warna) as $i => $w) {
+            $hasil[] = $w . ' ' . $tempat[$i % count($tempat)];
+        }
+
+        return $hasil;
     }
 
     /**
@@ -1588,7 +1781,9 @@ final class WaifuCrushed
      * "hair" wajib kata TERAKHIR ruasnya: "red hair ribbon", "pink hair
      * ornament", "blue hair bow" itu aksesori, bukan warna rambut. Tanpa
      * syarat ini "long hair, red hair ribbon, black hair" disebut "the
-     * red-haired boxer" di Base dan Gemini.
+     * red-haired boxer" di Base dan Gemini. Pita dan hiasan rambut kini
+     * sudah disapu sebelum sampai sini (standar aksesori), tapi ikat rambut
+     * polos tetap boleh, dan "gold hair tie" juga bukan rambut emas.
      *
      * @param list<string> $rambut
      */
@@ -1623,6 +1818,7 @@ final class WaifuCrushed
         return 'Style: Japanese anime/manga illustration, full color, bold dark-brown lineart, cel shading with soft highlights, glossy sweaty skin, dramatic manga speed lines and impact effects. '
             . 'Setting: ' . $venue['gemini'] . '. '
             . 'All characters are adult women. Boxing gloves are worn directly on the hands with nothing underneath, nothing is worn in the mouth, and every top is a single layer. '
+            . self::GAYA_AKSESORI . ' '
             . 'Nobody else is in the ring. No text, no speech bubbles.';
     }
 

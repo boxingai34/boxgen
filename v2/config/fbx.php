@@ -25,4 +25,9 @@ return [
     // Poll StrawPoll dari kandidat Scout (App\Services\FbxPoll). Kunci API
     // dibuat di pengaturan akun strawpoll.com; kosong = tombolnya mati.
     'strawpoll_kunci' => env('STRAWPOLL_API_KEY', ''),
+
+    // Tambah Mouthguard memakai token OpenAI (edit gambar + vision) cukup
+    // banyak, jadi dimatikan pemilik studio 2026-10-21. FBX_MOUTHGUARD=true
+    // di .env untuk menyalakan lagi menu, fbx:mouthguard, dan fbx:halaman --mouthguard.
+    'mouthguard' => (bool) env('FBX_MOUTHGUARD', false),
 ];
