@@ -297,6 +297,12 @@ final class PackVideo
         }
         $nai = $kerja['nai'];
 
+        if (! isset($kerja['latar'])) {
+            $this->kabar('Menulis prompt latar (ChatGPT / Gemini)');
+            $simpan('latar', $this->latar($konteks, $rencana, self::barisArena($tetap['blok1'])));
+        }
+        $latar = $kerja['latar'];
+
         $uncensored = null;
         if (JenisLaga::perluUncensored($jenis, $isi)) {
             if (! isset($kerja['uncensored'])) {
@@ -315,7 +321,7 @@ final class PackVideo
 
         $this->kabar('Menyimpan berkas pack');
         $this->arsipkanPackLama($folder);
-        $berkas = $this->tulisBerkas($folder, $judul, $riset, $alur, $rencana, $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa);
+        $berkas = $this->tulisBerkas($folder, $judul, $riset, $alur, $rencana, $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa, $latar);
         // Bagian-bagian pack disimpan permanen (bukan lagi "kerja", supaya
         // jalan berikutnya tidak melanjutkannya): bahan untuk merakit ulang
         // atau merevisi tanpa memanggil model.
@@ -401,33 +407,65 @@ final class PackVideo
 
         $jalurBagian = $cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json';
         if (! is_file($jalurBagian)) {
-            if ($bagianBaru !== ['nai']) {
-                throw PenulisGalat::ditolak('Pack ini dibuat sebelum pack-bagian.json ada; yang bisa diperbarui hanya NovelAI (--bagian=nai).');
+            if (array_diff($bagianBaru, ['nai', 'latar']) !== []) {
+                throw PenulisGalat::ditolak('Pack ini dibuat sebelum pack-bagian.json ada; yang bisa diperbarui hanya NovelAI dan latar (--bagian=nai,latar).');
             }
             $gambar = self::gambarDariTabel($folder);
             if ($gambar === []) {
                 throw PenulisGalat::ditolak('Tabel gambar di ' . self::namaDokumen('gambar') . ' tidak terbaca.');
             }
-            $this->kabar('Menulis ulang prompt NovelAI (' . count($gambar) . ' gambar)');
-            $nai = $this->novelai($konteks, ['gambar' => $gambar], false);
-            $dir = $folder . DIRECTORY_SEPARATOR . 'REFERENSI NOVELAI';
-            if (is_dir($dir)) {
-                File::ensureDirectoryExists($folder . '/_lama');
-                File::moveDirectory($dir, $folder . '/_lama/nai ' . date('Ymd-His'));
-            }
-            File::ensureDirectoryExists($dir);
             $info = array_column($gambar, null, 'kode');
-            foreach ($nai as $kode => $n) {
-                File::put("{$dir}/{$kode}.txt", self::teksNovelai($kode, $info[$kode] ?? [], $n));
+            $arsip = $folder . '/_lama/perbarui ' . date('Ymd-His');
+            $nai = $latar = [];
+
+            if (in_array('nai', $bagianBaru, true)) {
+                $this->kabar('Menulis ulang prompt NovelAI');
+                $nai = $this->novelai($konteks, ['gambar' => $gambar], false);
+                $dir = $folder . DIRECTORY_SEPARATOR . 'REFERENSI NOVELAI';
+                if (is_dir($dir)) {
+                    File::ensureDirectoryExists($arsip);
+                    File::moveDirectory($dir, $arsip . '/REFERENSI NOVELAI');
+                }
+                File::ensureDirectoryExists($dir);
+                foreach ($nai as $kode => $n) {
+                    File::put("{$dir}/{$kode}.txt", self::teksNovelai($kode, $info[$kode] ?? [], $n));
+                }
+            }
+            if (in_array('latar', $bagianBaru, true)) {
+                $this->kabar('Menulis prompt latar (ChatGPT / Gemini)');
+                $latar = $this->latar($konteks, ['gambar' => $gambar], self::barisArena((string) @file_get_contents("{$folder}/PROMPT TXT/01.txt")));
+                $dir = $folder . DIRECTORY_SEPARATOR . 'REFERENSI LATAR';
+                if (is_dir($dir)) {
+                    File::ensureDirectoryExists($arsip);
+                    File::moveDirectory($dir, $arsip . '/REFERENSI LATAR');
+                }
+                File::ensureDirectoryExists($dir);
+                foreach ($latar as $kode => $p) {
+                    File::put("{$dir}/{$kode}.txt", self::teksLatar($kode, $info[$kode] ?? [], $p));
+                    // Versi NovelAI lama latar ini tidak dipakai lagi.
+                    if (is_file("{$folder}/REFERENSI NOVELAI/{$kode}.txt")) {
+                        File::ensureDirectoryExists($arsip . '/REFERENSI NOVELAI latar');
+                        File::move("{$folder}/REFERENSI NOVELAI/{$kode}.txt", "{$arsip}/REFERENSI NOVELAI latar/{$kode}.txt");
+                    }
+                }
             }
 
-            return ['folder' => $folder, 'nai' => count($nai), 'tag' => $this->tagPack, 'peringatan' => $this->peringatan, 'usd' => round($this->venice->totalUsd(), 4)];
+            // Tabel 01 mengikuti berkas yang sekarang ada.
+            $ada = fn (string $sub) => array_fill_keys(array_map(fn ($f) => basename($f, '.txt'), glob("{$folder}/{$sub}/*.txt") ?: []), true);
+            File::put("{$folder}/" . self::namaDokumen('gambar'), self::mdGambar($gambar, $ada('REFERENSI NOVELAI'), $ada('REFERENSI LATAR')));
+
+            return ['folder' => $folder, 'nai' => count($nai), 'latar' => count($latar), 'tag' => $this->tagPack,
+                'peringatan' => $this->peringatan, 'usd' => round($this->venice->totalUsd(), 4)];
         }
 
         $bagian = $this->bacaJson($jalurBagian);
         if (in_array('nai', $bagianBaru, true)) {
             $this->kabar('Menulis ulang prompt NovelAI');
             $bagian['nai'] = $this->novelai($konteks, $bagian['rencana'], false);
+        }
+        if (in_array('latar', $bagianBaru, true)) {
+            $this->kabar('Menulis prompt latar (ChatGPT / Gemini)');
+            $bagian['latar'] = $this->latar($konteks, $bagian['rencana'], self::barisArena((string) ($bagian['tetap']['blok1'] ?? '')));
         }
         if (in_array('uncensored', $bagianBaru, true) && JenisLaga::perluUncensored($jenis, $isi)) {
             $this->kabar('Menulis ulang varian UNCENSORED (topless)');
@@ -530,8 +568,13 @@ final class PackVideo
 
         $this->kabar('Menyimpan berkas pack');
         $this->arsipkanPackLama($folder);
+        $latar = (array) ($bagian['latar'] ?? []);
         $nai = self::pastikanNaiSepatu($bagian['nai']);
-        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa);
+        if ($latar !== []) {
+            // Latar sudah punya prompt ChatGPT/Gemini: versi NovelAI lamanya tidak ditulis lagi.
+            $nai = array_filter($nai, fn ($k) => ! self::adalahLatar((string) $k), ARRAY_FILTER_USE_KEY);
+        }
+        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa, $latar);
         File::put($cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json', self::json(['tetap' => $tetap, 'klip' => $klip, 'tester' => $tester,
             'uncensored' => $uncensored, 'nai' => $nai] + $bagian));
         $cek = $this->periksa($folder);
@@ -846,10 +889,82 @@ final class PackVideo
         return $hasil;
     }
 
+    /**
+     * Prompt gambar LATAR (BG-*) untuk ChatGPT / Gemini — permintaan pengguna
+     * 2026-10-27: latar tidak dibuat dengan NovelAI. Satu paragraf bahasa
+     * natural yang bisa ditempel ke keduanya (tanpa kolom UC: larangan ditulis
+     * di kalimatnya), gaya render pack, 16:9, kosong tanpa orang/tulisan, dan
+     * warna ring dikunci dengan baris Arena Blok 1. Pesan sistem pendek.
+     *
+     * @return array<string,string> kode → prompt
+     */
+    public function latar(string $konteks, array $rencana, string $arena): array
+    {
+        $gambar = array_values(array_filter($rencana['gambar'], fn ($g) => self::adalahLatar((string) $g['kode'])));
+        if ($gambar === []) {
+            return [];
+        }
+        $teks = ['type' => 'string'];
+        $skema = [
+            'type' => 'object', 'additionalProperties' => false, 'required' => ['latar'],
+            'properties' => ['latar' => ['type' => 'array', 'items' => [
+                'type' => 'object', 'additionalProperties' => false, 'required' => ['kode', 'prompt'],
+                'properties' => ['kode' => $teks, 'prompt' => $teks],
+            ]]],
+        ];
+        $user = $konteks . "\n\nRENDER STYLE OF THE PACK: " . (string) ($rencana['gaya_render'] ?? '') . "\n"
+            . ($arena !== '' ? "ARENA LINE OF THE VIDEO PROMPTS (lock these colours and materials): {$arena}\n" : '')
+            . "\nTASK — write one image-generation prompt per background image below, for ChatGPT (GPT image) and Gemini. Rules:\n"
+            . "- One natural-language English paragraph (90–160 words), usable as-is in both tools. No tag lists, no negative field.\n"
+            . "- A wide 16:9 landscape background plate used as a video reference. Match the pack's render style (2D cel-shaded TV anime background art with clean lineart and flat colours, unless the style is 3D); never photorealistic for a 2D pack.\n"
+            . "- Completely empty: no people, no characters, no silhouettes, no animals; no text, letters, logos, signs or watermark — say this in plain words.\n"
+            . "- Describe the camera position, the ring or space, materials and exact colours (posts, ropes, canvas), lighting and atmosphere; keep the centre clear for the fighters.\n"
+            . "\nIMAGES:\n" . self::json($gambar);
+
+        $j = $this->venice->json('You write image-generation prompts for ChatGPT and Gemini. Return JSON.', $user, $skema, [
+            'langkah' => 'pack-latar', 'nama_skema' => 'latar', 'nalar' => 'none', 'suhu' => 0.6, 'maks' => 4000,
+        ]);
+        $hasil = [];
+        foreach ((array) ($j['latar'] ?? []) as $l) {
+            $kode = (string) ($l['kode'] ?? '');
+            if (in_array($kode, array_column($gambar, 'kode'), true) && trim((string) ($l['prompt'] ?? '')) !== '') {
+                $hasil[$kode] = trim((string) $l['prompt']);
+            }
+        }
+        foreach ($gambar as $g) {
+            if (! isset($hasil[$g['kode']])) {
+                $this->peringatan[] = "Prompt latar {$g['kode']} tidak ditulis model.";
+            }
+        }
+
+        return $hasil;
+    }
+
+    /** Kode gambar latar/arena (BG-01, BG-02, …). */
+    public static function adalahLatar(string $kode): bool
+    {
+        return preg_match('/^BG-/i', $kode) === 1;
+    }
+
+    /** Baris "Arena = @image3: …" dari Blok 1 (untuk mengunci warna latar). */
+    public static function barisArena(string $teks): string
+    {
+        return preg_match('/^.*@image3\b.*$/mu', $teks, $m) === 1 ? trim($m[0]) : '';
+    }
+
+    /** Satu berkas latar: kepala lalu prompt ChatGPT/Gemini. */
+    public static function teksLatar(string $kode, array $info, string $prompt): string
+    {
+        $kepala = trim($kode . ' — ' . trim((string) ($info['siapa'] ?? '')) . (! empty($info['isi']) ? ': ' . trim((string) $info['isi']) : ''), ' —');
+
+        return $kepala . " (buat di ChatGPT atau Gemini, rasio 16:9, simpan hasilnya sebagai {$kode}.png)\n\n[PROMPT ChatGPT / Gemini]\n" . trim($prompt) . "\n";
+    }
+
     /** @return array<string,array{prompt:string, uc:string}> kode → prompt NovelAI */
     public function novelai(string $konteks, array $rencana, bool $uncensored, string $jenis = ''): array
     {
-        $gambar = $rencana['gambar'];
+        // Latar (BG-*) dibuat dengan ChatGPT/Gemini, bukan NovelAI (latar()).
+        $gambar = array_values(array_filter($rencana['gambar'], fn ($g) => ! self::adalahLatar((string) $g['kode'])));
         if ($uncensored) {
             // Hanya gambar petinju yang berubah di versi tanpa sensor.
             $gambar = array_values(array_filter($gambar, fn ($g) => preg_match('/^[AB]-K\d$/', $g['kode']) === 1));
@@ -1564,7 +1679,7 @@ final class PackVideo
             throw PenulisGalat::ditolak('Folder ini sudah berisi pack yang bukan buatan PENULIS (' . basename($folder) . '). Tidak ada yang dipindah; pakai nama folder lain.');
         }
         $pola = ['pack.json', 'Subtitle *.srt', ...array_map(fn ($n) => sprintf($n, '*'), self::DOKUMEN), ...self::DOKUMEN_LAMA];
-        $folderLama = ['PROMPT TXT', 'TEST REVISI ' . self::REVISI, 'REFERENSI NOVELAI', 'UNCENSORED'];
+        $folderLama = ['PROMPT TXT', 'TEST REVISI ' . self::REVISI, 'REFERENSI NOVELAI', 'REFERENSI LATAR', 'UNCENSORED'];
         $arsip = $folder . DIRECTORY_SEPARATOR . '_lama' . DIRECTORY_SEPARATOR . 'pack ' . date('Ymd-His');
 
         foreach ($pola as $p) {
@@ -1584,7 +1699,7 @@ final class PackVideo
 
     /** @return list<string> */
     private function tulisBerkas(string $folder, string $judul, array $riset, array $alur, array $rencana, array $tetap, array $klip, array $tester,
-        array $nai, ?array $uncensored, string $mode, string $bahasa): array
+        array $nai, ?array $uncensored, string $mode, string $bahasa, array $latar = []): array
     {
         $tulis = function (string $rel, string $isi) use ($folder, &$berkas) {
             $jalur = $folder . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $rel);
@@ -1619,7 +1734,11 @@ final class PackVideo
         foreach ($nai as $kode => $n) {
             $tulis("REFERENSI NOVELAI/{$kode}.txt", self::teksNovelai($kode, $infoGambar[$kode] ?? [], $n));
         }
-        $tulis($dok('gambar'), self::mdGambar($rencana['gambar'], $nai));
+        // Latar: ChatGPT / Gemini (permintaan pengguna 2026-10-27).
+        foreach ($latar as $kode => $p) {
+            $tulis("REFERENSI LATAR/{$kode}.txt", self::teksLatar($kode, $infoGambar[$kode] ?? [], $p));
+        }
+        $tulis($dok('gambar'), self::mdGambar($rencana['gambar'], $nai, $latar));
         $tulis($dok('kontinuitas'), self::mdKontinuitas($rencana));
 
         $subtitle = [];
@@ -1969,14 +2088,19 @@ final class PackVideo
             . "End with a verdict: READY / FIX FIRST (list) / REWRITE (why).\n```\n";
     }
 
-    private static function mdGambar(array $gambar, array $nai): string
+    public static function mdGambar(array $gambar, array $nai, array $latar = []): string
     {
-        $md = "# Referensi gambar NovelAI\n\nBuat semua gambar di bawah dengan NovelAI V5, simpan sebagai PNG di akar folder pack dengan nama persis seperti kode (mis. `A-K0.png`). "
-            . "Tiap gambar punya satu berkas di `REFERENSI NOVELAI\\` (mis. `A-K0.txt`): salin bagian **[BASE PROMPT]** ke Prompt dan **[UNDESIRED CONTENT]** ke Undesired Content. "
+        $md = "# Referensi gambar\n\nSimpan semua gambar sebagai PNG di akar folder pack dengan nama persis seperti kode (mis. `A-K0.png`, `BG-01.png`).\n\n"
+            . "**Karakter (NovelAI V5)** — tiap gambar punya satu berkas di `REFERENSI NOVELAI\\` (mis. `A-K0.txt`): salin bagian **[BASE PROMPT]** ke Prompt dan **[UNDESIRED CONTENT]** ke Undesired Content. "
             . "Buat `A-K0` dan `B-K0` dulu, lalu turunkan varian kondisi lewat Character Reference/Image2Image supaya wajah dan kostum tetap sama. "
-            . "Satu figur per gambar, latar polos — crop kalau NovelAI memberi dua figur.\n\n| Kode | Siapa | Isi | Prompt siap |\n|---|---|---|---|\n";
+            . "Satu figur per gambar, latar polos — crop kalau NovelAI memberi dua figur.\n\n"
+            . "**Latar (ChatGPT / Gemini)** — gambar `BG-*` dibuat dari berkas di `REFERENSI LATAR\\` (mis. `BG-01.txt`): tempel paragraf **[PROMPT ChatGPT / Gemini]** apa adanya, minta rasio 16:9. Latar harus kosong, tanpa orang dan tulisan.\n\n"
+            . "| Kode | Siapa | Isi | Alat | Prompt siap |\n|---|---|---|---|---|\n";
         foreach ($gambar as $g) {
-            $md .= sprintf("| %s | %s | %s | %s |\n", $g['kode'], self::sel((string) $g['siapa']), self::sel((string) $g['isi']), isset($nai[$g['kode']]) ? 'ya' : '**belum**');
+            $bg = self::adalahLatar((string) $g['kode']);
+            $siap = $bg ? (isset($latar[$g['kode']]) || isset($nai[$g['kode']])) : isset($nai[$g['kode']]);
+            $alat = $bg ? (isset($latar[$g['kode']]) || ! isset($nai[$g['kode']]) ? 'ChatGPT / Gemini' : 'NovelAI') : 'NovelAI';
+            $md .= sprintf("| %s | %s | %s | %s | %s |\n", $g['kode'], self::sel((string) $g['siapa']), self::sel((string) $g['isi']), $alat, $siap ? 'ya' : '**belum**');
         }
 
         return $md;

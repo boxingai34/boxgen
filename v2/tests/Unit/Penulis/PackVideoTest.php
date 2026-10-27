@@ -136,6 +136,11 @@ class PackVideoTest extends TestCase
         return ['tester' => [['kode' => 'T01', 'blok3' => 'Shot 1 [0-10s] turnaround.'], ['kode' => 'T02', 'blok3' => 'Shot 1 [0-10s] referee @image4 stands.']]];
     }
 
+    private static function latar(): array
+    {
+        return ['latar' => [['kode' => 'BG-01', 'prompt' => 'A wide empty anime boxing ring at night, red posts, no people, no text.']]];
+    }
+
     private static function novelai(bool $uncensored = false): array
     {
         $kode = $uncensored ? ['A-K0', 'B-K0', 'A-K1'] : ['A-K0', 'B-K0', 'A-K1', 'BG-01', 'A-R0', 'B-R0', 'C-00'];
@@ -150,15 +155,15 @@ class PackVideoTest extends TestCase
             ->push(self::jawab(self::tetap()))
             ->push(self::jawab(self::blok3()))
             ->push(self::jawab(self::tester()))
-            ->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         $hasil = (new PackVideo(new Venice()))->buat($this->pack);
 
-        Http::assertSentCount(5);
+        Http::assertSentCount(6);
         $judul = 'Rika Aoyama vs Mara Volkova';
         foreach (['pack.json', '.penulis', 'PROMPT TXT/01.txt', 'PROMPT TXT/03.txt', 'TEST REVISI 1/T01.txt', 'TEST REVISI 1/README.md',
             "04 {$judul} - Prompt Pack (Wan 3.0).md", "02 TESTER - {$judul}.md", "03 PROMPT AUDIT - {$judul}.md", 'REFERENSI NOVELAI/A-K0.txt',
-            'REFERENSI NOVELAI/C-00.txt', '01 REFERENSI GAMBAR.md', '05 KONTINUITAS DAN EDIT.md', '06 DIALOG DAN TIMING.md', '07 Arahan Suara - Wan.txt',
+            'REFERENSI NOVELAI/C-00.txt', 'REFERENSI LATAR/BG-01.txt', '01 REFERENSI GAMBAR.md', '05 KONTINUITAS DAN EDIT.md', '06 DIALOG DAN TIMING.md', '07 Arahan Suara - Wan.txt',
             'Subtitle Jepang.srt', 'Subtitle Inggris.srt', 'Subtitle Indonesia.srt', '00 MULAI DI SINI.md'] as $f) {
             $this->assertFileExists($this->pack . '/' . $f);
         }
@@ -167,6 +172,13 @@ class PackVideoTest extends TestCase
         $this->assertStringStartsWith('A-K0 — Rika: fresh (simpan hasilnya sebagai A-K0.png)', $nai);
         $this->assertTrue(strpos($nai, "[BASE PROMPT]\nprompt A-K0") < strpos($nai, "[UNDESIRED CONTENT]\nuc A-K0"));
         $this->assertSame([], glob($this->pack . '/REFERENSI NOVELAI/* - PROMPT.txt'));
+        // Latar dari ChatGPT/Gemini, bukan NovelAI.
+        $this->assertFileDoesNotExist($this->pack . '/REFERENSI NOVELAI/BG-01.txt');
+        $this->assertStringContainsString("[PROMPT ChatGPT / Gemini]
+A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFERENSI LATAR/BG-01.txt'));
+        $this->assertStringContainsString('| BG-01 | arena | ring | ChatGPT / Gemini | ya |', (string) file_get_contents($this->pack . '/01 REFERENSI GAMBAR.md'));
+        Http::assertSent(fn (Request $r) => str_contains($r->data()['messages'][1]['content'] ?? '', 'ARENA LINE OF THE VIDEO PROMPTS')
+            && str_contains($r->data()['messages'][1]['content'] ?? '', 'Arena = @image3'));
         // Urutan kerja di 00 menyebut berkas bernomor.
         $this->assertStringContainsString("`02 TESTER - {$judul}.md`", (string) file_get_contents($this->pack . '/00 MULAI DI SINI.md'));
         $this->assertDirectoryDoesNotExist($this->pack . '/UNCENSORED', 'pro fan service tidak butuh UNCENSORED');
@@ -220,11 +232,11 @@ class PackVideoTest extends TestCase
             ->push(self::jawab(self::blok3("Opening state: center.\n" . str_repeat('Shot x [0-1s] jab. ', 300))))
             ->push(self::jawab("<<<\nOpening: center.\nShot 1 [0-30s] jab.\n>>>"))
             ->push(self::jawab(self::tester()))
-            ->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         $hasil = (new PackVideo(new Venice()))->buat($this->pack);
 
-        Http::assertSentCount(6);
+        Http::assertSentCount(7);
         $this->assertLessThan(PackVideo::MAKS_PROMPT, $hasil['panjang']['02']);
         // Pemendekan memakai model penyunting, dan pembungkus/label dirapikan.
         Http::assertSent(fn (Request $r) => $r->data()['model'] === config('penulis.model_sunting')
@@ -254,11 +266,11 @@ class PackVideoTest extends TestCase
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))
             ->push(self::jawab($kurang))
             ->push(self::jawab(['klip' => [$b['klip'][1]]]))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         $hasil = (new PackVideo(new Venice()))->buat($this->pack);
 
-        Http::assertSentCount(6);
+        Http::assertSentCount(7);
         $this->assertSame(3, $hasil['klip']);
         $this->assertStringContainsString('Shot 1 [0-3s] jab.', (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
     }
@@ -268,10 +280,10 @@ class PackVideoTest extends TestCase
         // Satu urutan untuk dua tahap: 5 jawaban buat(), lalu 1 pemendekan.
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
             ->push(self::jawab('Sound: thuds. Lighting: rim.'))]);
         (new PackVideo(new Venice()))->buat($this->pack);
-        Http::assertSentCount(5);
+        Http::assertSentCount(6);
 
         // Bagian tersimpan diubah: Blok 2 laga kepanjangan dan menyebut musik.
         $jalur = $this->pack . '/CERITA/pack-bagian.json';
@@ -281,8 +293,8 @@ class PackVideoTest extends TestCase
 
         $hasil = (new PackVideo(new Venice()))->rakitUlang($this->pack);
 
-        Http::assertSentCount(6);
-        $this->assertSame(config('penulis.model_sunting'), Http::recorded()[5][0]->data()['model']);
+        Http::assertSentCount(7);
+        $this->assertSame(config('penulis.model_sunting'), Http::recorded()[6][0]->data()['model']);
         $p = (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt');
         $this->assertStringEndsWith("Sound: thuds. Lighting: rim.\n", $p);
         $this->assertStringNotContainsString('music', $p);
@@ -335,27 +347,27 @@ class PackVideoTest extends TestCase
         $tetapU['blok1'] = "Overall: {DURASI}-second 16:9 boxing scene, both boxers topless.\nMaterials: Boxer A = @image1, Boxer B = @image2, arena @image3.";
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
             ->push(self::jawab(self::tetap()))->push(self::jawab(self::novelai(true)))
             // perbarui: NovelAI utama, blok tetap UNCENSORED, NovelAI UNCENSORED
             ->push(self::jawab(['gambar' => [['kode' => 'A-K0', 'prompt' => 'official style, baru', 'uc' => 'uc baru']]]))
             ->push(self::jawab($tetapU))
             ->push(self::jawab(['gambar' => [['kode' => 'A-K0', 'prompt' => 'official style, topless', 'uc' => 'uc u']]]))]);
         (new PackVideo(new Venice()))->buat($this->pack);
-        Http::assertSentCount(7);
+        Http::assertSentCount(8);
 
         $hasil = (new PackVideo(new Venice()))->perbarui($this->pack, ['nai', 'uncensored']);
 
-        Http::assertSentCount(10);
+        Http::assertSentCount(11);
         $this->assertSame(3, $hasil['klip']);
         $this->assertStringContainsString("[BASE PROMPT]\nofficial style, baru", (string) file_get_contents($this->pack . '/REFERENSI NOVELAI/A-K0.txt'));
         $this->assertStringContainsString('both boxers topless', (string) file_get_contents($this->pack . '/UNCENSORED/PROMPT TXT/01.txt'));
         $this->assertStringContainsString("[BASE PROMPT]\nofficial style, topless", (string) file_get_contents($this->pack . '/UNCENSORED/REFERENSI NOVELAI/A-K0.txt'));
         // Permintaan: NAI wajib tag karakter; UNCENSORED wajib topless (bukan hanya laga topless).
         $kiriman = Http::recorded();
-        $this->assertStringContainsString('MUST name canon characters with their Danbooru tags', $kiriman[7][0]->data()['messages'][1]['content']);
-        $this->assertStringContainsString('fight TOPLESS', $kiriman[8][0]->data()['messages'][1]['content']);
-        $this->assertStringContainsString('is TOPLESS', $kiriman[9][0]->data()['messages'][1]['content']);
+        $this->assertStringContainsString('MUST name canon characters with their Danbooru tags', $kiriman[8][0]->data()['messages'][1]['content']);
+        $this->assertStringContainsString('fight TOPLESS', $kiriman[9][0]->data()['messages'][1]['content']);
+        $this->assertStringContainsString('is TOPLESS', $kiriman[10][0]->data()['messages'][1]['content']);
     }
 
     public function test_blok1_uncensored_dijamin_topless(): void
@@ -432,7 +444,7 @@ class PackVideoTest extends TestCase
             ->push(self::jawab(self::tetap()))
             ->push(self::jawab(self::blok3()))
             ->push(self::jawab(self::tester()))
-            ->push(self::jawab(self::novelai()))
+            ->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
             ->push(self::jawab($tetapU))
             ->push(self::jawab(self::novelai(true)))]);
 
@@ -460,7 +472,7 @@ class PackVideoTest extends TestCase
         $b['klip'][1]['blok3'] = 'Shot 1 [0-3s] she fights topless.';
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab($b))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         $hasil = (new PackVideo(new Venice()))->buat($this->pack);
 
@@ -478,7 +490,7 @@ class PackVideoTest extends TestCase
         $b['klip'][2]['blok3'] = 'Opening state: after. Both bow.';
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab($tetap))->push(self::jawab($b))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         $hasil = (new PackVideo(new Venice()))->buat($this->pack);
 
@@ -496,7 +508,7 @@ class PackVideoTest extends TestCase
         $urutan = Http::sequence();
         for ($i = 0; $i < 2; $i++) {
             $urutan->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
-                ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()));
+                ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()));
         }
         Http::fake(['api.venice.ai/*' => $urutan]);
 
@@ -520,7 +532,7 @@ class PackVideoTest extends TestCase
             ->push(['error' => 'busy'], 503)->push(['error' => 'busy'], 503)->push(['error' => 'busy'], 503)
             ->push(self::jawab(self::blok3()))
             ->push(self::jawab(self::tester()))
-            ->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         try {
             (new PackVideo(new Venice()))->buat($this->pack);
@@ -537,7 +549,7 @@ class PackVideoTest extends TestCase
             $pesan[] = $p;
         });
 
-        Http::assertSentCount(8);
+        Http::assertSentCount(9);
         $this->assertSame(3, $hasil['klip']);
         $this->assertStringContainsString('Melanjutkan pack', $pesan[0]);
         $this->assertFileDoesNotExist($this->pack . '/CERITA/pack-kerja.json');
@@ -549,7 +561,7 @@ class PackVideoTest extends TestCase
         File::put($this->pack . '/pack.json', '{"buatan":"tangan"}');
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         try {
             (new PackVideo(new Venice()))->buat($this->pack);
@@ -602,7 +614,7 @@ class PackVideoTest extends TestCase
         $b['klip'][1]['blok3'] = "Opening state: center.\nShot 1 [0-3s] Rika jabs; Ito shouts. Mara Volkova: 「来い」\nVoice Mara: low alto.";
         Http::fake(['api.venice.ai/*' => Http::sequence()
             ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab($b))
-            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))]);
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
 
         (new PackVideo(new Venice()))->buat($this->pack);
 
