@@ -12,6 +12,7 @@ use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MixedFightController;
 use App\Http\Controllers\MonthlyShowdownController;
+use App\Http\Controllers\PenulisController;
 use App\Http\Controllers\ProduksiController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
@@ -177,6 +178,15 @@ Route::prefix('generator')->group(function () {
             Route::post('take/{id}/nilai', [ProduksiController::class, 'nilai'])->whereNumber('id')->name('produksi.take.nilai');
             Route::post('take/{id}/putuskan', [ProduksiController::class, 'putuskan'])->whereNumber('id')->name('produksi.take.putuskan');
             Route::post('take/{id}/periksa', [ProduksiController::class, 'periksaLagi'])->whereNumber('id')->name('produksi.take.periksa');
+        });
+
+        // ---- PENULIS: cerita + pack video dari dua nama petinju (PC produksi saja) ----
+        Route::middleware(['admin', 'produksi.lokal'])->prefix('penulis')->group(function () {
+            Route::get('/', [PenulisController::class, 'index'])->name('penulis');
+            Route::get('status', [PenulisController::class, 'status'])->name('penulis.status');
+            Route::post('mulai', [PenulisController::class, 'mulai'])->name('penulis.mulai');
+            Route::post('aksi', [PenulisController::class, 'aksi'])->name('penulis.aksi');
+            Route::get('cerita', [PenulisController::class, 'cerita'])->name('penulis.cerita');
         });
 
         // ---- CMS halaman depan (admin) ----

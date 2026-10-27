@@ -9,6 +9,7 @@ import {
     ChevronRight,
     Clapperboard,
     Compass,
+    Feather,
     Film,
     Flame,
     Gauge,
@@ -153,6 +154,9 @@ const menu = computed<Menu[]>(() => {
                     { nama: 'Pengaturan', rute: 'produksi.pengaturan', ikon: Settings2, ket: 'Kunci Higgsfield, folder, model dan tarif', persis: false },
                 ],
             });
+            // Menulis cerita + pack lewat Venice; ikut syarat PRODUKSI
+            // (admin, folder antrian ada) karena hasilnya masuk antrian itu.
+            dasar.push({ nama: 'PENULIS', rute: 'penulis', ikon: Feather, ket: 'Cerita tinju + pack video dari dua nama petinju', persis: false });
         }
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
