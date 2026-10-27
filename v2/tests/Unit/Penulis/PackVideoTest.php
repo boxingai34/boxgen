@@ -276,6 +276,34 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringContainsString('Shot 1 [0-3s] jab.', (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
     }
 
+    public function test_tulis_ulang_satu_klip_dengan_inti_baru(): void
+    {
+        Http::fake(['api.venice.ai/*' => Http::sequence()
+            ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
+            ->push(self::jawab(['klip' => [['kode' => '2', 'blok3' => "Opening state: interval.\nShot 1 [0-3s] adegan baru.", 'kriteria' => ['Adegan baru terlihat']]]]))]);
+        (new PackVideo(new Venice()))->buat($this->pack);
+        $lama01 = (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt');
+
+        $hasil = (new PackVideo(new Venice()))->tulisUlangKlip($this->pack, ['2'], 'Inti baru dari ide pengguna');
+
+        Http::assertSentCount(7);
+        $kirim = Http::recorded()[6][0]->data()['messages'][1]['content'];
+        $this->assertStringContainsString('Inti baru dari ide pengguna', $kirim, 'inti baru masuk ke rencana yang dikirim');
+        $this->assertStringContainsString('CLIP 02', $kirim);
+        $this->assertStringNotContainsString('CLIP 01', $kirim, 'hanya klip yang diminta');
+        $this->assertStringContainsString('adegan baru', (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
+        $this->assertSame($lama01, (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'klip lain tidak berubah');
+        $bagian = json_decode((string) file_get_contents($this->pack . '/CERITA/pack-bagian.json'), true);
+        $this->assertSame('Inti baru dari ide pengguna', $bagian['rencana']['klip'][1]['inti']);
+        $this->assertSame(['Adegan baru terlihat'], $bagian['klip'][1]['kriteria']);
+        $this->assertNotEmpty(glob($this->pack . '/_lama/klip 02 */pack-bagian.json'), 'bagian lama diarsipkan');
+        $this->assertSame(3, $hasil['cek']['klip']);
+
+        $this->expectException(PenulisGalat::class);
+        (new PackVideo(new Venice()))->tulisUlangKlip($this->pack, ['09']);
+    }
+
     public function test_rakit_ulang_dari_bagian_tanpa_menulis_ulang(): void
     {
         // Satu urutan untuk dua tahap: 5 jawaban buat(), lalu 1 pemendekan.
@@ -487,6 +515,40 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringNotContainsString('glove', $b2);
         $this->assertStringContainsString('Sound: synchronized Foley only: heavy breathing, water settling. Spoken lines are audio only.', $b2);
         $this->assertStringContainsString('no fused or extra arms or hands', $b2);
+    }
+
+    public function test_lapis_akhir_penonton_nada_ruang_tokoh_laga_dan_gaya(): void
+    {
+        // Frasa dari pack Tsunade vs Mei NSFW 3 ronde (2026-10-27).
+        $this->assertSame('Opening state: Before the bout, no referee. Boxer A = @image1',
+            PackVideo::bersihkanPenonton('Opening state: Before the bout, no referee, no audience. Boxer A = @image1'));
+        $this->assertSame('Negative: nobody but two boxers inside ropes, no referee, no idle standing.',
+            PackVideo::bersihkanPenonton('Negative: nobody but two boxers inside ropes, no referee, no crowd, no idle standing.'));
+        $this->assertSame('steam; same ring every shot; background only. Beyond ropes, unlit near-black empty pavilion.',
+            PackVideo::bersihkanPenonton('steam; same ring every shot; background only, never empty. Beyond ropes, unlit near-black empty pavilion.'));
+        $this->assertSame('No referee. Positions: center.', PackVideo::bersihkanPenonton('No crowd, no referee. Positions: center.'));
+        $this->assertSame('mottled ribs. Positions: center.', PackVideo::bersihkanPenonton('mottled ribs. No crowd. Positions: center.'));
+        $this->assertSame('K1; no ref.', PackVideo::bersihkanPenonton('K1; no ref, no audience.'));
+        $this->assertSame('breathing, steam hiss.', PackVideo::bersihkanPenonton('breathing, no crowd noise, steam hiss.'));
+
+        $blok1 = "Overall: {DURASI}-second 16:9 boxing scene, stylized 3D anime, cinematic; two pro boxers in private pavilion ring at night.\nMaterials: Boxer A = @image1.";
+        $b1 = PackVideo::pastikanTanpaPenonton($blok1);
+        $this->assertStringContainsString('ring at night. ' . PackVideo::KALIMAT_TANPA_PENONTON . "\nMaterials", $b1);
+        $this->assertSame($b1, PackVideo::pastikanTanpaPenonton($b1), 'idempoten');
+        $this->assertStringContainsString('boxing scene, ' . PackVideo::GAYA_2D . ', cinematic', PackVideo::rapikanGaya($blok1));
+        $this->assertSame(PackVideo::GAYA_2D, PackVideo::rapikanGaya('stylized 3D anime render'));
+
+        $blok2 = "Sound: synchronized Foley only: heavy breathing, sponge squeezes.\nNegative: no referee.";
+        $b2 = PackVideo::pastikanNadaRuang($blok2);
+        $this->assertStringStartsWith('Sound: over the quiet room tone of the empty venue, synchronized Foley only: heavy breathing', $b2);
+        $this->assertSame($b2, PackVideo::pastikanNadaRuang($b2), 'idempoten');
+        $this->assertSame("Sound: crisp Foley over the hush of the pavilion.", PackVideo::pastikanNadaRuang("Sound: crisp Foley over the hush of the pavilion."));
+
+        $this->assertSame('Round 3, 0:00. boxers in corners, no ref. Boxer A K2', PackVideo::bersihkanTokohLaga('Round 3, 0:00. boxers in corners, cornermen out, no ref. Boxer A K2'));
+        $this->assertSame('right elbow to ribs. Boxer A K2', PackVideo::bersihkanTokohLaga('right elbow to ribs, no cornerman. Boxer A K2'));
+
+        $this->assertTrue(PackVideo::medium2d(['a' => ['medium' => 'manga'], 'b' => ['medium' => 'anime']]));
+        $this->assertFalse(PackVideo::medium2d(['a' => ['medium' => 'manga'], 'b' => ['medium' => 'video game (3D fighting)']]));
     }
 
     public function test_nai_warna_sarung_ikut_blok1_dan_gambar_tanpa_sarung(): void

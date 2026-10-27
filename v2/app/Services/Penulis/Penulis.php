@@ -100,30 +100,12 @@ final class Penulis
             return $hasil($berkas);
         }
 
-        $bagian = self::bagian($alur);
-        $kepala = self::kepala($alur, $p, $riset);
-        $bab = [];
-        foreach ($bagian as $i => $b) {
-            $this->kabar(sprintf('Menulis bab %d/%d (%s, %s)', $i + 1, count($bagian), $b['label'], $bahasa));
-            $bab[] = $this->bab($p, $riset, $alur, $bahasa, $bagian, $i, $bab === [] ? '' : end($bab));
-            $berkas['asli'] = $this->simpanMd($folder, "cerita-{$bahasa}.md", $kepala, $bab);
-        }
-        $berkas = array_values($berkas);
+        $berkas = [...$berkas, ...$this->naskah($p, $riset, $alur, $bahasa, $folder, $p['sampai'] !== 'cerita')];
 
         if ($p['sampai'] === 'cerita') {
             $berkas[] = $this->simpanLog($folder, $p, $putusan, $bahasa);
 
             return $hasil($berkas);
-        }
-
-        foreach (array_diff(['en', 'id'], [$bahasa]) as $ke) {
-            $terjemahan = [];
-            foreach ($bab as $i => $teks) {
-                $this->kabar(sprintf('Menerjemahkan bab %d/%d ke %s', $i + 1, count($bab), $ke));
-                $sumber = $i === 0 ? $kepala . "\n\n" . $teks : $teks;
-                $terjemahan[] = $this->terjemah($sumber, $bahasa, $ke);
-            }
-            $berkas[] = $this->simpanMd($folder, "cerita-{$ke}.md", '', $terjemahan);
         }
 
         // Log ditulis sebelum pack: kalau pack gagal, cerita yang sudah
@@ -137,6 +119,89 @@ final class Penulis
         $this->simpanLog($folder, $p, $putusan, $bahasa);
 
         return $hasil($berkas) + ['pack' => $pack];
+    }
+
+    /**
+     * Tulis ulang bab cerita dan terjemahannya dari CERITA\riset.json dan
+     * alur.json yang tersimpan (riset dan alur tidak ditulis ulang). Dipakai
+     * sesudah alur diedit, mis. menambah kejadian yang dilewatkan model
+     * (2026-10-27: adegan interval ronde 2→3 dari ide pengguna tidak masuk
+     * alur). Cerita lama diarsipkan ke CERITA\_lama. Pack tidak disentuh.
+     *
+     * @return array<string,mixed>
+     */
+    public function tulisUlangCerita(string $folderPack, ?callable $lapor = null): array
+    {
+        $this->lapor = $lapor;
+        $folder = rtrim($folderPack, '/\\') . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
+        $baca = function (string $nama) use ($folder) {
+            $j = is_file("{$folder}/{$nama}") ? json_decode((string) file_get_contents("{$folder}/{$nama}"), true) : null;
+            if (! is_array($j)) {
+                throw PenulisGalat::ditolak("{$nama} tidak ada atau rusak di " . $folder . '.');
+            }
+
+            return $j;
+        };
+        $riset = $baca('riset.json');
+        $alur = $baca('alur.json');
+        $p = self::rapikan((array) ($riset['permintaan'] ?? []));
+        $putusan = (array) ($riset['putusan'] ?? []);
+        $p['isi'] = (string) ($putusan['isi'] ?? $p['isi']);
+        $bahasa = (string) ($riset['bahasa'] ?? 'ja');
+
+        // Alur yang diedit tangan tetap lewat pagar tokoh dewasa.
+        if ($p['isi'] !== 'olahraga' && ($muda = self::tokohMuda($alur)) !== []) {
+            throw PenulisGalat::ditolak('Alur memuat tokoh pendukung yang belum dewasa (' . implode('; ', $muda) . '); cerita tidak ditulis.');
+        }
+
+        $arsip = $folder . DIRECTORY_SEPARATOR . '_lama' . DIRECTORY_SEPARATOR . 'cerita ' . date('Ymd-His');
+        foreach ([...glob("{$folder}/cerita-*.md") ?: [], "{$folder}/log.json"] as $f) {
+            if (is_file($f)) {
+                File::ensureDirectoryExists($arsip);
+                File::move($f, $arsip . DIRECTORY_SEPARATOR . basename($f));
+            }
+        }
+
+        $berkas = $this->naskah($p, $riset, $alur, $bahasa, $folder, true);
+        $berkas[] = $this->simpanLog($folder, $p, $putusan, $bahasa);
+
+        return ['cerita' => $folder, 'berkas' => $berkas, 'bahasa' => $bahasa, 'peringatan' => $this->peringatan,
+            'usd' => round($this->venice->totalUsd(), 4)];
+    }
+
+    /**
+     * Bab per bab dalam bahasa asal (disimpan sesudah tiap bab), lalu
+     * terjemahan en/id kalau diminta.
+     *
+     * @return list<string> berkas yang ditulis
+     */
+    private function naskah(array $p, array $riset, array $alur, string $bahasa, string $folder, bool $terjemah): array
+    {
+        $bagian = self::bagian($alur);
+        $kepala = self::kepala($alur, $p, $riset);
+        $bab = [];
+        $berkas = [];
+        foreach ($bagian as $i => $b) {
+            $this->kabar(sprintf('Menulis bab %d/%d (%s, %s)', $i + 1, count($bagian), $b['label'], $bahasa));
+            $bab[] = $this->bab($p, $riset, $alur, $bahasa, $bagian, $i, $bab === [] ? '' : end($bab));
+            $berkas['asli'] = $this->simpanMd($folder, "cerita-{$bahasa}.md", $kepala, $bab);
+        }
+        $berkas = array_values($berkas);
+        if (! $terjemah) {
+            return $berkas;
+        }
+
+        foreach (array_diff(['en', 'id'], [$bahasa]) as $ke) {
+            $terjemahan = [];
+            foreach ($bab as $i => $teks) {
+                $this->kabar(sprintf('Menerjemahkan bab %d/%d ke %s', $i + 1, count($bab), $ke));
+                $sumber = $i === 0 ? $kepala . "\n\n" . $teks : $teks;
+                $terjemahan[] = $this->terjemah($sumber, $bahasa, $ke);
+            }
+            $berkas[] = $this->simpanMd($folder, "cerita-{$ke}.md", '', $terjemahan);
+        }
+
+        return $berkas;
     }
 
     /** @return array{a:array<string,mixed>, b:array<string,mixed>} */
@@ -223,6 +288,8 @@ final class Penulis
             . ($p['ide'] !== '' ? "Story idea from the user: {$p['ide']}\n" : '')
             . "\nPlan the match:\n"
             . "- {$jumlah} Plus an opening (pembuka) and an epilogue (epilog).\n"
+            . "- The user's story idea is binding: every event it names must appear in the plan, at the moment it names. "
+            . "An event in the rest between two rounds goes into the momen of the chapter before that rest, as its last beat, starting with \"Interval:\".\n"
             . "- Costumes must fit the match type; follow the user's costume notes when they fit.\n"
             . "- Corners and referee: canon characters use cornermen from THEIR OWN series only; original characters (OC) get invented, original cornermen — never borrow characters from other franchises.\n"
             . "- Supporting characters must exist at this point of canon: nobody who is dead (or not yet introduced) at the story's time.\n"
@@ -361,6 +428,8 @@ final class Penulis
             . sprintf("Write chapter %d of %d: %s.\n", $i + 1, count($bagian), $b['label'])
             . 'Summary: ' . $b['ringkasan'] . "\n"
             . 'Beats: ' . implode(' | ', $b['momen'] ?? []) . "\n"
+            . (preg_grep('/^\s*Interval:/i', (array) ($b['momen'] ?? [])) !== []
+                ? "The beat starting with \"Interval:\" is the rest after this round: end the chapter with that rest scene, written in full.\n" : '')
             . (! empty($b['kondisi_a']) ? "End condition A: {$b['kondisi_a']}\nEnd condition B: " . ($b['kondisi_b'] ?? '') . "\n" : '')
             . (! empty($b['dialog']) ? 'Key lines: ' . implode(' | ', $b['dialog']) . "\n" : '')
             . "Length: {$panjang}.\n"

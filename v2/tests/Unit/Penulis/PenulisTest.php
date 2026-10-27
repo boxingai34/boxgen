@@ -120,6 +120,52 @@ class PenulisTest extends TestCase
         });
     }
 
+    public function test_tulis_ulang_cerita_dari_alur_tersimpan(): void
+    {
+        $urutan = Http::sequence()
+            ->push(self::jawab(json_encode(['a' => self::petinju(), 'b' => self::petinju(['nama_resmi' => 'Mara Volkova'])])))
+            ->push(self::jawab(json_encode(self::alur(2))));
+        for ($i = 0; $i < 12; $i++) {
+            $urutan->push(self::jawab("## 章\n\n「行くよ」とリカは言った。"));
+        }
+        for ($i = 0; $i < 12; $i++) {
+            $urutan->push(self::jawab("## 新しい章\n\n「もう一度」とリカは言った。"));
+        }
+        Http::fake(['api.venice.ai/*' => $urutan]);
+        (new Penulis(new Venice()))->tulis(self::minta(['sampai' => 'terjemah']));
+        Http::assertSentCount(14);
+
+        // Alur diedit: kejadian interval dari ide pengguna ditambahkan.
+        $pack = $this->akar . '/1 - ANTRIAN/Rika Aoyama vs Mara Volkova';
+        $alur = json_decode((string) file_get_contents($pack . '/CERITA/alur.json'), true);
+        $alur['bab'][0]['momen'][] = 'Interval: corner scene from the user idea';
+        file_put_contents($pack . '/CERITA/alur.json', json_encode($alur));
+
+        $hasil = (new Penulis(new Venice()))->tulisUlangCerita($pack);
+
+        Http::assertSentCount(26);
+        $this->assertStringContainsString('もう一度', (string) file_get_contents($pack . '/CERITA/cerita-ja.md'));
+        $this->assertFileExists($pack . '/CERITA/riset.json');
+        $this->assertFileExists($pack . '/CERITA/alur.json');
+        $this->assertNotEmpty(glob($pack . '/CERITA/_lama/cerita */cerita-ja.md'), 'cerita lama diarsipkan');
+        $this->assertCount(4, $hasil['berkas'], 'ja + en + id + log');
+        // Bab ronde 1 (bab ke-2) menulis adegan interval di ujungnya.
+        $bab2 = Http::recorded()[15][0]->data()['messages'][1]['content'];
+        $this->assertStringContainsString('Interval: corner scene from the user idea', $bab2);
+        $this->assertStringContainsString('end the chapter with that rest scene', $bab2);
+
+        // Alur yang diedit dengan tokoh pendukung belum dewasa ditolak tanpa panggilan.
+        $alur['tokoh'] = [['nama' => 'Adik', 'peran' => 'cornerman', 'umur_canon' => '15', 'umur_angka' => 15, 'dewasa' => false]];
+        file_put_contents($pack . '/CERITA/alur.json', json_encode($alur));
+        try {
+            (new Penulis(new Venice()))->tulisUlangCerita($pack);
+            $this->fail('tokoh muda harus ditolak');
+        } catch (PenulisGalat $e) {
+            $this->assertTrue($e->ditolak);
+        }
+        Http::assertSentCount(26);
+    }
+
     public function test_remaja_di_bikini_ditolak_sebelum_alur(): void
     {
         Http::fake(['api.venice.ai/*' => Http::sequence()->push(self::jawab(json_encode([

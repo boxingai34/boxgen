@@ -73,6 +73,12 @@ final class PackVideo
     /** Arena yang paling sering dipakai klip (biasanya BG-01): Blok 1 ditulis untuk arena ini. */
     private string $arenaUtama = "";
 
+    /** Laga tanpa penonton (privat): lihat bersihkanPenonton / pastikanNadaRuang. */
+    private bool $tanpaPenonton = false;
+
+    /** Sumber 2D: render 3D tulisan model diganti GAYA_2D. */
+    private bool $medium2d = false;
+
     /**
      * Varian UNCENSORED selalu topless (permintaan pengguna 2026-10-27: pack
      * NSFW laga privat keluar dengan sports top). Hanya sampai di sini kalau
@@ -183,6 +189,79 @@ final class PackVideo
         }
 
         return implode("\n", $baris);
+    }
+
+    /** Kalimat penutup Overall untuk laga tanpa penonton (lihat pastikanTanpaPenonton). */
+    public const KALIMAT_TANPA_PENONTON = 'The only people anywhere are the ones written in the shots.';
+
+    /** Gaya render untuk sumber 2D (manga, anime, manhwa, …). */
+    public const GAYA_2D = '2D cel-shaded TV anime style like @image1 and @image2 (clean lineart, flat colours, soft shadows, glossy eyes)';
+
+    /**
+     * Laga tanpa penonton (privat): buang "no crowd / no audience / never
+     * empty". Pelajaran Wan 3.0 (Tsunade vs Mei NSFW T03 take 1,
+     * 2026-10-27): frasa itu justru memanggil penonton; DeepSeek dan Qwen
+     * tetap menulisnya walau aturan studio melarang.
+     */
+    public static function bersihkanPenonton(string $teks): string
+    {
+        $kata = '(?:crowd|audience|spectators|onlookers)(?:\s+(?:noise|sounds?|murmur|cheering|cheers))?';
+        $ujung = '(?=\s*[,.;)]|\s*$)';
+        // Kalimat sendiri: "No crowd." di awal baris atau sesudah tanda baca.
+        $teks = (string) preg_replace('/(?<=[.;:!?])\s+No ' . $kata . '\.(?=\s|$)/mu', '', $teks);
+        $teks = (string) preg_replace('/^No ' . $kata . '\.\s*/mu', '', $teks);
+        // Butir sesudah koma: ", no crowd".
+        $teks = (string) preg_replace('/,\s*no ' . $kata . $ujung . '/iu', '', $teks);
+        // Butir di depan: "No crowd, no referee" → "No referee".
+        $teks = (string) preg_replace_callback('/\b([Nn])o ' . $kata . '\s*,\s*(\w)/u', fn ($m) => $m[1] === 'N' ? strtoupper($m[2]) : $m[2], $teks);
+
+        return (string) preg_replace('/,?\s*\bnever empty\b' . $ujung . '/iu', '', $teks);
+    }
+
+    /** Blok 1 laga tanpa penonton: tanpa frasa pemanggil penonton, Overall ditutup KALIMAT_TANPA_PENONTON. */
+    public static function pastikanTanpaPenonton(string $blok1): string
+    {
+        $blok1 = self::bersihkanPenonton($blok1);
+        if (stripos($blok1, 'the only people anywhere') !== false) {
+            return $blok1;
+        }
+
+        return (string) preg_replace_callback('/^(Overall:.*?)\s*$/mu', fn ($m) => rtrim($m[1], ' .;') . '. ' . self::KALIMAT_TANPA_PENONTON, $blok1, 1);
+    }
+
+    /**
+     * Baris Sound Blok 2 laga tanpa penonton wajib menyebut nada ruang.
+     * T03 take 2 (2026-10-27): "true silence between hits" keluar sebagai
+     * dengung penonton.
+     */
+    public static function pastikanNadaRuang(string $blok2): string
+    {
+        return (string) preg_replace_callback('/^Sound:\s*(.*)$/mu',
+            fn ($m) => preg_match('/\b(hush|room tone)\b/i', $m[1]) === 1 ? $m[0] : 'Sound: over the quiet room tone of the empty venue, ' . lcfirst($m[1]), $blok2);
+    }
+
+    /** Blok 3 klip laga: sebutan cornerman ("cornermen out", "no cornerman") dibuang; saat laga hanya dua petinju. */
+    public static function bersihkanTokohLaga(string $blok3): string
+    {
+        return (string) preg_replace('/,?\s*\b(?:cornerm[ae]n (?:out|outside|away|gone)|no cornerm[ae]n(?: [a-z ]+?)?)(?=\s*[,.;)])/iu', '', $blok3);
+    }
+
+    /** Render 3D dari model → 2D untuk sumber manga/anime (uji 2026-10-27: "stylized 3D anime" untuk Naruto). */
+    public static function rapikanGaya(string $teks): string
+    {
+        return (string) preg_replace('/\b(?:stylized |stylised )?3D (?:anime|cg|cgi|toon)(?: render(?:ing)?)?(?: style)?/iu', self::GAYA_2D, $teks);
+    }
+
+    /** Kedua petinju dari medium 2D (manga, anime, manhwa, manhua, webtoon, light novel, komik)? */
+    public static function medium2d(array $riset): bool
+    {
+        foreach (['a', 'b'] as $x) {
+            if (preg_match('/manga|anime|manhwa|manhua|webtoon|novel|comic|komik/i', (string) ($riset[$x]['medium'] ?? '')) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** Gambar petinju tanpa sarung tinju (A-L*, B-L*): luka sama dengan K*, tangan telanjang. */
@@ -429,6 +508,7 @@ final class PackVideo
         $this->peta = self::petaNama($riset, $alur);
         $this->tagPack = self::kumpulkanTag($riset, $alur);
         $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
+        $this->siapkanLapisAkhir($riset);
         $this->adaWasit = $jenisVideo !== 'private';
         $konteks = $this->konteks($riset, $alur, $jenisVideo, $mode, $bahasa);
 
@@ -561,8 +641,8 @@ final class PackVideo
     {
         $hasil = [];
         foreach ($klip as $k) {
-            $b1 = self::blok1Klip($tetapU['blok1'], (array) ($k['gambar'] ?? []), $this->isiGambar, $this->arenaUtama);
-            $b2 = self::blok2Klip($tetapU['blok2'][$k['jenis']], (array) ($k['gambar'] ?? []));
+            [$b1, $b2] = $this->blokAkhir(self::blok1Klip($tetapU['blok1'], (array) ($k['gambar'] ?? []), $this->isiGambar, $this->arenaUtama),
+                self::blok2Klip($tetapU['blok2'][$k['jenis']], (array) ($k['gambar'] ?? [])));
             $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
             $b3 = $k['blok3'];
             if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
@@ -625,6 +705,45 @@ final class PackVideo
         return [$klip, $tester, array_merge($nai, $uncensored['nai']), 'uncensored'];
     }
 
+    /**
+     * Lapis akhir Blok 1/Blok 2 satu klip, sesudah semua pemendekan: model
+     * tidak selalu menepati aturan studio (uji 2026-10-27, pack Tsunade vs
+     * Mei NSFW 3 ronde: "no crowd" di semua prompt, Overall tanpa kalimat
+     * positif, "stylized 3D anime" untuk sumber manga).
+     *
+     * @return array{0:string,1:string}
+     */
+    private function blokAkhir(string $b1, string $b2): array
+    {
+        if ($this->tanpaPenonton) {
+            $b1 = self::pastikanTanpaPenonton($b1);
+            $b2 = self::pastikanNadaRuang(self::bersihkanPenonton($b2));
+        }
+        if ($this->medium2d) {
+            $b1 = self::rapikanGaya($b1);
+        }
+
+        return [$b1, $b2];
+    }
+
+    /** Lapis akhir Blok 3: frasa penonton (laga tanpa penonton) dan cornerman di klip laga. */
+    private function bersihB3(string $b3, string $jenis): string
+    {
+        if ($this->tanpaPenonton) {
+            $b3 = self::bersihkanPenonton($b3);
+        }
+
+        return $jenis === 'laga' ? self::bersihkanTokohLaga($b3) : $b3;
+    }
+
+    /** Setelan lapis akhir dari riset (jenis video, medium sumber). */
+    private function siapkanLapisAkhir(array $riset): void
+    {
+        $jenis = (string) ($riset['putusan']['jenis'] ?? '');
+        $this->tanpaPenonton = (string) (JenisLaga::JENIS[$jenis]['video'] ?? $jenis) === 'private';
+        $this->medium2d = self::medium2d($riset);
+    }
+
     /** Jaminan mekanis prompt NovelAI: sepatu, warna sarung dari Blok 1, gambar tanpa sarung. */
     private static function rapikanNai(array $nai, string $blok1, array $rencana): array
     {
@@ -668,6 +787,7 @@ final class PackVideo
         $this->peta = self::petaNama($riset, $alur);
         $this->tagPack = self::kumpulkanTag($riset, $alur);
         $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
+        $this->siapkanLapisAkhir($riset);
         $konteks = $this->konteks($riset, $alur, (string) (JenisLaga::JENIS[$jenis]['video'] ?? $jenis), $mode, (string) ($riset['bahasa'] ?? 'ja'));
 
         $jalurBagian = $cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json';
@@ -748,6 +868,74 @@ final class PackVideo
         return $hasil;
     }
 
+    /**
+     * Tulis ulang Blok 3 klip tertentu dari rencana tersimpan, lalu rakit
+     * ulang. Klip lain, tester, blok tetap, dan NovelAI tidak ditulis ulang.
+     * `$inti` mengganti inti klip di rencana dulu, untuk kejadian yang
+     * dilewatkan model (2026-10-27: pijatan di interval ronde 2→3 dari ide
+     * pengguna tidak masuk pack). Isi adegannya tetap ditulis model, di
+     * tingkat isi pack.
+     *
+     * @param list<string> $kode
+     * @return array<string,mixed> bentuk sama dengan rakitUlang()
+     */
+    public function tulisUlangKlip(string $folder, array $kode, string $inti = '', ?callable $lapor = null): array
+    {
+        $this->lapor = $lapor;
+        $this->peringatan = [];
+        $folder = rtrim($folder, '/\\');
+        $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
+        $riset = $this->bacaJson($cerita . '/riset.json');
+        $alur = $this->bacaJson($cerita . '/alur.json');
+        $jalurBagian = $cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json';
+        $bagian = $this->bacaJson($jalurBagian);
+        $kode = array_values(array_unique(array_map(fn ($x) => sprintf('%02d', (int) $x), $kode)));
+        if ($kode === []) {
+            throw PenulisGalat::ditolak('Sebutkan kode klip, mis. 07.');
+        }
+        if ($inti !== '' && count($kode) > 1) {
+            throw PenulisGalat::ditolak('--inti hanya untuk satu klip.');
+        }
+
+        $jenis = (string) ($riset['putusan']['jenis'] ?? '');
+        $isi = (string) ($riset['putusan']['isi'] ?? '');
+        $mode = $isi === 'olahraga' ? 'olahraga' : 'dewasa';
+        $jenisVideo = (string) (JenisLaga::JENIS[$jenis]['video'] ?? $jenis);
+        $this->sistem = $this->sistem();
+        $this->peta = self::petaNama($riset, $alur);
+        $this->tagPack = self::kumpulkanTag($riset, $alur);
+        $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
+        $this->siapkanLapisAkhir($riset);
+        $this->adaWasit = $jenisVideo !== 'private';
+        $this->siapkanGambar($bagian['rencana']);
+        $konteks = $this->konteks($riset, $alur, $jenisVideo, $mode, (string) ($riset['bahasa'] ?? 'ja'));
+
+        $cari = fn (array $daftar, string $kd) => array_search($kd, array_map(fn ($k) => (string) ($k['kode'] ?? ''), $daftar), true);
+        foreach ($kode as $kd) {
+            $ir = $cari($bagian['rencana']['klip'], $kd);
+            $ib = $cari($bagian['klip'], $kd);
+            if ($ir === false || $ib === false) {
+                throw PenulisGalat::ditolak("Klip {$kd} tidak ada di pack ini.");
+            }
+            if ($inti !== '') {
+                $bagian['rencana']['klip'][$ir]['inti'] = $inti;
+            }
+            $sebelum = $ib > 0 ? (string) ($bagian['klip'][$ib - 1]['kondisi_akhir'] ?? '') : '';
+            $this->kabar("Menulis ulang Blok 3 klip {$kd}");
+            $bagian['klip'][$ib] = $this->blok3($konteks, $bagian['rencana'], $bagian['tetap'], [$bagian['rencana']['klip'][$ir]], $sebelum)[0];
+        }
+
+        $arsip = $folder . '/_lama/klip ' . implode(',', $kode) . ' ' . date('Ymd-His');
+        File::ensureDirectoryExists($arsip);
+        File::copy($jalurBagian, $arsip . '/pack-bagian.json');
+        File::put($jalurBagian, self::json($bagian));
+        $peringatan = $this->peringatan;
+        $hasil = $this->rakitUlang($folder, $lapor);
+        $hasil['peringatan'] = [...$peringatan, ...$hasil['peringatan']];
+
+        return $hasil;
+    }
+
     /** Daftar gambar (kode, siapa, isi) dari tabel 01 REFERENSI GAMBAR. @return list<array{kode:string,siapa:string,isi:string}> */
     public static function gambarDariTabel(string $folder): array
     {
@@ -798,6 +986,7 @@ final class PackVideo
         $dipakai = array_values(array_unique(array_merge(array_column($bagian['klip'], 'jenis'), array_column($bagian['tester'], 'jenis'))));
 
         $this->nsfw = JenisLaga::perluUncensored((string) ($riset['putusan']['jenis'] ?? ''), (string) ($riset['putusan']['isi'] ?? ''));
+        $this->siapkanLapisAkhir($riset);
         $rapikan = function (array $tetap) use ($mode) {
             $tetap['blok1'] = self::samarkanNama($tetap['blok1'], $this->peta);
             if ($this->nsfw) {
@@ -937,6 +1126,8 @@ final class PackVideo
             . "A clip or test whose boxers are gloves-off from the first frame (bath, rest after the fight) uses the gloves-off images A-L<n> / B-L<n> "
             . "(same damage as K<n>, bare hands) as kondisi_a / kondisi_b; a clip that takes the gloves off on screen keeps K<n> and adds A-L<n>, B-L<n> to ekstra for the shots after.\n"
             . "- kondisi_awal / kondisi_akhir: position + condition at the start / end (the end = next clip's start).\n"
+            . "- gaya_render follows the source medium: manga, anime, manhwa, manhua, light novel → 2D cel-shaded TV anime; a 3D render only for 3D games or CG films.\n"
+            . "- A `jeda` clip shows the story plan's \"Interval:\" beat for that rest, when there is one; it comes from the user's idea and is binding.\n"
             . "- dialog: 0–4 short lines per clip with detik (seconds from the clip start), siapa, asli (story language), romaji (if Japanese, else repeat asli), en, id. "
             . "Fight clips mostly 0–1 lines; entrance, faceoff, persiapan, jeda and epilog carry the dialogue.\n"
             . "- Supporting characters (referee, cornermen, announcer) come ONLY from the story plan's tokoh list. In `laga` clips and `laga` testers only the two boxers are on screen"
@@ -1328,9 +1519,9 @@ final class PackVideo
         if (! $pakaiGambar || empty($k['gambar'])) {
             $k['gambar'] = array_map(fn ($g) => $g . '.png', self::slot($k));
         }
-        $k['blok3'] = self::samarkanNama($k['blok3'], $this->peta);
-        $b1 = self::blok1Klip($tetap['blok1'], $k['gambar'], $this->isiGambar, $this->arenaUtama);
-        $b2 = self::blok2Klip($tetap['blok2'][$k['jenis']], $k['gambar']);
+        $k['blok3'] = $this->bersihB3(self::samarkanNama($k['blok3'], $this->peta), (string) $k['jenis']);
+        [$b1, $b2] = $this->blokAkhir(self::blok1Klip($tetap['blok1'], $k['gambar'], $this->isiGambar, $this->arenaUtama),
+            self::blok2Klip($tetap['blok2'][$k['jenis']], $k['gambar']));
         $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
         $k['prompt'] = $susun($k['blok3']);
         // Pack NSFW memakai versi topless sebagai utama: atasan di Blok 3
@@ -1342,7 +1533,7 @@ final class PackVideo
         if (mb_strlen($k['prompt']) > self::MAKS_PROMPT) {
             $sasaran = self::MAKS_PROMPT - (mb_strlen($k['prompt']) - mb_strlen($k['blok3']));
             $this->kabar("Memendekkan Blok 3 {$k['kode']} ke ≤ {$sasaran} karakter");
-            $k['blok3'] = self::rapiSlot(self::pendekkan($this->venice, $k['blok3'], $sasaran));
+            $k['blok3'] = $this->bersihB3(self::rapiSlot(self::pendekkan($this->venice, $k['blok3'], $sasaran)), (string) $k['jenis']);
             $k['prompt'] = $susun($k['blok3']);
         }
         // Lapis terakhir, mekanis dan gratis: model jarang menepati target
@@ -1358,6 +1549,10 @@ final class PackVideo
         }
 
         $k = $this->rapikanSlot($k, $susun);
+        // Cornerman tanpa slot: Wan mengarang wajahnya (uji 2026-10-27, jeda 1).
+        if ($k['jenis'] !== 'laga' && preg_match('/(?<!no )\bcornerm[ae]n\b/i', $k['blok3']) === 1 && preg_match('/@image[4-9]\b/', $k['blok3']) !== 1) {
+            $this->peringatan[] = "{$k['kode']}: Blok 3 menyebut cornerman tanpa @image — Wan akan mengarang wajahnya; tulis slotnya, mis. \"Boxer A's cornerman (@image4)\".";
+        }
         // Baris Negative memang wajib menyebut "no nudity … no gore" (Fight
         // Bible 12), jadi baris itu tidak ikut diperiksa.
         $tanpaNegative = (string) preg_replace('/Negative:.*$/mi', '', $k['prompt']);
