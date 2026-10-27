@@ -107,9 +107,11 @@ final class PackVideo
 
     /**
      * Gambar petinju (A-K*, B-K*, pack utama dan UNCENSORED): tag "boxing
-     * shoes" di prompt dan "barefoot" di UC. Standar kostum petinju memakai
-     * sepatu tinju high-top, tapi hasil NovelAI pertama keluar tanpa alas
-     * kaki (2026-10-27).
+     * boots" di prompt, "barefoot" HANYA di UC. Standar kostum petinju
+     * memakai sepatu tinju high-top, tapi hasil NovelAI pertama keluar tanpa
+     * alas kaki (2026-10-27); koreksi pengguna di hari yang sama: "boxing
+     * shoes" → "boxing boots", dan "barefoot" yang ditulis model di base
+     * prompt dibuang.
      *
      * @param array<string,array{prompt:string,uc:string}> $nai
      */
@@ -119,9 +121,22 @@ final class PackVideo
             if (preg_match('/^[AB]-K\d/', (string) $kode) !== 1) {
                 continue;
             }
-            $prompt = (string) ($n['prompt'] ?? '');
-            if (preg_match('/\bboxing (shoes|boots)\b/i', $prompt) !== 1) {
-                $prompt = rtrim($prompt, ', ') . ', boxing shoes';
+            $prompt = (string) preg_replace('/\bboxing shoes\b/i', 'boxing boots', (string) ($n['prompt'] ?? ''));
+            // Buang tag/kata tanpa alas kaki dari base prompt, per butir koma.
+            $butir = [];
+            foreach (explode(',', $prompt) as $b) {
+                $b = trim($b);
+                if ($b === '' || preg_match('/^(barefoot|bare ?feet|no (shoes|footwear|boots))$/i', $b) === 1) {
+                    continue;
+                }
+                $b = trim((string) preg_replace('/\s*\b(barefoot|bare ?feet)\b\s*/i', ' ', $b));
+                if ($b !== '') {
+                    $butir[] = $b;
+                }
+            }
+            $prompt = implode(', ', $butir);
+            if (preg_match('/\bboxing boots\b/i', $prompt) !== 1) {
+                $prompt = rtrim($prompt, ', ') . ', boxing boots';
             }
             $uc = (string) ($n['uc'] ?? '');
             if (preg_match('/\bbarefoot\b/i', $uc) !== 1) {

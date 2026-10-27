@@ -386,14 +386,17 @@ class PackVideoTest extends TestCase
     public function test_nai_petinju_dijamin_bersepatu(): void
     {
         $nai = PackVideo::pastikanNaiSepatu([
-            'A-K0' => ['prompt' => 'official style, boxing gloves', 'uc' => 'hand wraps'],
+            'A-K0' => ['prompt' => 'official style, boxing gloves, barefoot', 'uc' => 'hand wraps'],
+            'A-K1' => ['prompt' => 'official style, boxing shoes, standing barefoot on canvas', 'uc' => ''],
             'B-K2' => ['prompt' => 'official style, high-top boxing boots', 'uc' => 'barefoot, sandals'],
-            'C-00' => ['prompt' => 'referee', 'uc' => ''],
+            'C-00' => ['prompt' => 'referee, barefoot', 'uc' => ''],
         ]);
-        $this->assertSame('official style, boxing gloves, boxing shoes', $nai['A-K0']['prompt']);
+        $this->assertSame('official style, boxing gloves, boxing boots', $nai['A-K0']['prompt'], 'barefoot dibuang dari base prompt');
         $this->assertSame('hand wraps, barefoot', $nai['A-K0']['uc']);
+        $this->assertSame('official style, boxing boots, standing on canvas', $nai['A-K1']['prompt'], 'boxing shoes → boxing boots');
         $this->assertSame(['prompt' => 'official style, high-top boxing boots', 'uc' => 'barefoot, sandals'], $nai['B-K2']);
-        $this->assertSame(['prompt' => 'referee', 'uc' => ''], $nai['C-00'], 'wasit/cornerman tidak disentuh');
+        $this->assertSame(['prompt' => 'referee, barefoot', 'uc' => ''], $nai['C-00'], 'wasit/cornerman tidak disentuh');
+        $this->assertSame($nai, PackVideo::pastikanNaiSepatu($nai), 'tidak berubah kalau dijalankan ulang');
     }
 
     public function test_padatkan_mekanis(): void
