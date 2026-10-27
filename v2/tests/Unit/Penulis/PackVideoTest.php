@@ -360,7 +360,10 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
 
         Http::assertSentCount(11);
         $this->assertSame(3, $hasil['klip']);
-        $this->assertStringContainsString("[BASE PROMPT]\nofficial style, baru", (string) file_get_contents($this->pack . '/REFERENSI NOVELAI/A-K0.txt'));
+        // Pack NSFW: NovelAI utama = versi topless; versi aman tetap tersimpan.
+        $this->assertStringContainsString("[BASE PROMPT]\nofficial style, topless", (string) file_get_contents($this->pack . '/REFERENSI NOVELAI/A-K0.txt'));
+        $bagian = json_decode((string) file_get_contents($this->pack . '/CERITA/pack-bagian.json'), true);
+        $this->assertStringStartsWith('official style, baru', $bagian['nai']['A-K0']['prompt']);
         $this->assertStringContainsString('both boxers topless', (string) file_get_contents($this->pack . '/UNCENSORED/PROMPT TXT/01.txt'));
         $this->assertStringContainsString("[BASE PROMPT]\nofficial style, topless", (string) file_get_contents($this->pack . '/UNCENSORED/REFERENSI NOVELAI/A-K0.txt'));
         // Permintaan: NAI wajib tag karakter; UNCENSORED wajib topless (bukan hanya laga topless).
@@ -436,7 +439,11 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
             ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
             ->push(self::jawab($tetapU))->push(self::jawab(self::novelai(true)))]);
         (new PackVideo(new Venice()))->buat($this->pack);
-        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'bawaan: pack utama versi aman');
+        $this->assertStringContainsString('topless boxing scene', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'bawaan pack NSFW: utama versi topless');
+
+        PackVideo::aturUtama($this->pack, false);
+        (new PackVideo(new Venice()))->rakitUlang($this->pack);
+        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), '--utama=aman');
 
         PackVideo::aturUtama($this->pack, true);
         $hasil = (new PackVideo(new Venice()))->rakitUlang($this->pack);
@@ -446,9 +453,63 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringContainsString('topless, nipples', (string) file_get_contents($this->pack . '/REFERENSI NOVELAI/A-K0.txt'));
         $this->assertSame(3, $hasil['cek']['klip']);
 
-        PackVideo::aturUtama($this->pack, false);
-        (new PackVideo(new Venice()))->rakitUlang($this->pack);
-        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'bisa kembali ke versi aman');
+        $bagian = json_decode((string) file_get_contents($this->pack . '/CERITA/pack-bagian.json'), true);
+        $this->assertStringNotContainsString('topless', $bagian['nai']['A-K0']['prompt'], 'versi aman NovelAI tidak tertimpa');
+    }
+
+    public function test_blok1_klip_di_arena_lain_dan_tanpa_sarung(): void
+    {
+        $blok1 = "Overall: {DURASI}-second 16:9 boxing scene, cinematic; two adult boxers, private match, makeshift ring on engawa of a pavilion at night, lanterns.\n"
+            . "Materials: Boxer A = @image1 (face, hair, body, outfit exact): blonde high tail, red gloves; orthodox, 163 cm.\n"
+            . "Boxer B = @image2 (face, hair, body, outfit exact): auburn ponytail, blue gloves; orthodox, 174 cm.\n"
+            . "Arena = @image3: dark posts, pale ropes, plank canvas; background only. Beyond the ropes the engawa stays unlit.\n"
+            . "Boxer A screen-left, Boxer B screen-right; faces, outfits, glove colours never swap.\n"
+            . "Both boxers bare-chested, wearing only boxing trunks, boots, gloves.";
+        $isi = ['BG-02' => 'Empty arena image, no people. The hot-spring pool behind the pavilion at night: a dark stone basin, steam rising. No signs, no text.'];
+
+        $this->assertSame($blok1, PackVideo::blok1Klip($blok1, ['A-K3.png', 'B-K3.png', 'BG-01.png'], $isi, 'BG-01'), 'klip biasa tidak berubah');
+
+        $hasil = PackVideo::blok1Klip($blok1, ['A-L3.png', 'B-L3.png', 'BG-02.png', 'D-00.png'], $isi, 'BG-01');
+        $this->assertStringContainsString('Arena = @image3: the hot-spring pool behind the pavilion at night: a dark stone basin, steam rising; background only', $hasil);
+        $this->assertStringContainsString('private match, the hot-spring pool behind the pavilion at night, lanterns.', $hasil);
+        $this->assertDoesNotMatchRegularExpression('/\bring\b|ropes/i', $hasil);
+        $this->assertStringNotContainsString('glove', $hasil);
+        $this->assertStringContainsString('Boxer A = @image1 (face, hair, body, outfit exact): blonde high tail; orthodox, 163 cm.', $hasil);
+        $this->assertStringContainsString('faces, outfits never swap.', $hasil);
+        $this->assertStringContainsString('wearing only boxing trunks, boots.', $hasil);
+        $this->assertStringEndsWith('Both boxers are bare-handed in this clip.', $hasil);
+
+        $blok2 = "Sound: synchronized Foley only: heavy breathing, gloves and wraps coming off, water settling. Spoken lines are audio only.\n"
+            . 'Negative: no punches, no fused or extra gloves, arms or hands, no face, outfit or glove-colour swap between Boxer A and Boxer B.';
+        $this->assertSame($blok2, PackVideo::blok2Klip($blok2, ['A-K3.png', 'B-K3.png', 'BG-02.png']));
+        $b2 = PackVideo::blok2Klip($blok2, ['A-L3.png', 'B-L3.png', 'BG-02.png']);
+        $this->assertStringNotContainsString('glove', $b2);
+        $this->assertStringContainsString('Sound: synchronized Foley only: heavy breathing, water settling. Spoken lines are audio only.', $b2);
+        $this->assertStringContainsString('no fused or extra arms or hands', $b2);
+    }
+
+    public function test_nai_warna_sarung_ikut_blok1_dan_gambar_tanpa_sarung(): void
+    {
+        $blok1 = "Materials: Boxer A = @image1 (face, hair, body): blonde high tail, purple forehead diamond, red gloves; orthodox.\n"
+            . 'Boxer B = @image2 (face, hair, body): auburn ponytail, blue gloves; orthodox.';
+        $this->assertSame(['A' => 'red', 'B' => 'blue'], PackVideo::warnaSarung($blok1));
+
+        $nai = [
+            'A-K3' => ['prompt' => 'official style, tsunade (naruto), full body, standing, topless, nipples, white boxing gloves, boxing gloves, The same woman, same body, hair, trunks and glove colours, soaked in sweat., boxing boots', 'uc' => 'text, barefoot'],
+            'B-K0' => ['prompt' => 'official style, white gloves, the gloves are white', 'uc' => 'text'],
+            'D-00' => ['prompt' => 'official style, 1girl, white gloves', 'uc' => 'text'],
+        ];
+        $hasil = PackVideo::pastikanNaiSarung($nai, $blok1);
+        $this->assertStringContainsString('red boxing gloves', $hasil['A-K3']['prompt']);
+        $this->assertStringNotContainsString('white', $hasil['A-K3']['prompt']);
+        $this->assertSame('official style, blue gloves, the gloves are blue', $hasil['B-K0']['prompt']);
+        $this->assertSame($nai['D-00'], $hasil['D-00'], 'gambar bukan petinju tidak disentuh');
+
+        $l = PackVideo::pastikanNaiTanpaSarung($hasil, [['kode' => 'A-L3', 'siapa' => 'Boxer A', 'isi' => 'gloves off']]);
+        $this->assertArrayHasKey('A-L3', $l);
+        $this->assertSame('official style, tsunade (naruto), cowboy shot, standing, topless, nipples, The same woman, same body, hair, soaked in sweat., bare hands', $l['A-L3']['prompt']);
+        $this->assertSame('text, barefoot, boxing gloves, gloves', $l['A-L3']['uc']);
+        $this->assertSame($l, PackVideo::pastikanNaiTanpaSarung($l, [['kode' => 'A-L3']]), 'idempoten');
     }
 
     public function test_utama_uncensored_ditolak_kalau_tidak_ada_varian(): void
@@ -530,7 +591,7 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         // md UNCENSORED memuat prompt UNCENSORED, bukan prompt Higgsfield.
         $md = (string) file_get_contents($this->pack . '/UNCENSORED/04 Rika Aoyama vs Mara Volkova - Prompt Pack UNCENSORED.md');
         $this->assertStringContainsString('topless boxing scene', $md);
-        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'));
+        $this->assertStringContainsString('topless boxing scene', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'pack utama NSFW = versi topless');
         $this->assertStringContainsString("[BASE PROMPT]\nprompt A-K0 topless", (string) file_get_contents($this->pack . '/UNCENSORED/REFERENSI NOVELAI/A-K0.txt'));
         $this->assertFileDoesNotExist($this->pack . '/UNCENSORED/REFERENSI NOVELAI/BG-01.txt');
 

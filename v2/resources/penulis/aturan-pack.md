@@ -22,6 +22,7 @@ Write every prompt in English. Notes for the user (titles, criteria, continuity,
 - Always write `@image1`, `@image2`, … in prompts. Never "Image 1".
 - Fixed order in EVERY clip: `@image1` = Boxer A, `@image2` = Boxer B, `@image3` = arena. Extras from `@image4`: robes `A-R0`, `B-R0` (entrance only), referee `C-00`, cornermen `D-00`, `E-00`.
 - Boxer image per clip = condition image: `A-K0` (fresh) … `A-K3` (worst), same for B, following the K0–K3 ladder of Fight Bible 06. Arena images `BG-01`, `BG-02`.
+- Gloves-off images `A-L<n>` / `B-L<n>` (same damage as `K<n>`, bare hands, cowboy shot) for a clip or test whose boxers have no gloves from the first frame (bath, rest after the fight). A clip that takes the gloves off on screen keeps `K<n>` in slots 1–2 and adds `A-L<n>`, `B-L<n>` as extras for the shots after. Glove colours in every boxer image match Blok 1.
 - Every slot used in a clip must be mentioned in that clip's prompt, and no other slot.
 - Reference images: one figure only, plain background, serious face. Write "copy only the person, never the image background".
 
@@ -33,6 +34,7 @@ Total ≤ 4,800 characters (Wan rejects above 5,000). Targets: Blok 1 ±900, Blo
 
 **Blok 3 — Clip flow**: only "Boxer A / Boxer B" (no names, no outfits). Opening state with a `Positions:` line and both conditions. Shots as `Shot N [a-bs]`. Fight clips: 11–14 shots of 1.5–3 s, one action per shot, constant action — no idle "reading" shots except one quiet beat per clip; never open a fight clip with a wide arena shot of tiny boxers. One hero camera per clip. Each shot: action (only the punches written, anatomical target, reaction type) → one camera instruction → a short `Sound:`. End state (position, condition) = next clip's opening state.
 - Bells/gongs only where written. Never write the names of sounds you do NOT want (music, bell, gong, ringing): write "the only sounds are …; nothing else is heard".
+- Always name the room tone positively in the Sound line (e.g. "over the hush of the empty pavilion at night"). Silence left unfilled comes back as crowd murmur (Wan 3.0, 2026-10-27).
 - A cornered boxer clinches; every clinch has a written end (referee breaks it / pushed off and hit).
 - Finishing punch and KO fall in slow motion in one take, then "real time returns" when the body hits the canvas.
 - Close-up of a fallen boxer: only that boxer in frame.
@@ -66,4 +68,4 @@ Tags plus short English sentences. Canon characters are named with their Danboor
 
 ## 8. Uncensored variant (only when the request says so)
 
-A separate pack for platforms that allow adult content (not Higgsfield). Adults only. Both boxers ALWAYS fight topless in this variant (bare-chested, trunks, boots and gloves), whatever the match type, in Blok 1 and in the NovelAI boxer images; nudity and sensual framing are allowed as the content level says. Every other rule (slots, blocks, length, continuity, no names in video prompts) still applies.
+A separate pack for platforms that allow adult content (not Higgsfield). Adults only. Both boxers ALWAYS fight topless in this variant (bare-chested, trunks, boots and gloves), whatever the match type, in Blok 1 and in the NovelAI boxer images; nudity and sensual framing are allowed as the content level says. Every other rule (slots, blocks, length, continuity, no names in video prompts) still applies. When this variant exists it becomes the main pack (PROMPT TXT, TEST REVISI, NovelAI boxer images), so Blok 3 never names a top, bra or halter: write "outfit exactly as @image1 / @image2".

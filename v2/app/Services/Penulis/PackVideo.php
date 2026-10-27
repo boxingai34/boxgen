@@ -67,6 +67,12 @@ final class PackVideo
     /** Laga punya wasit di dalam ring (bukan private): slot wasit C-* boleh di klip laga. */
     private bool $adaWasit = true;
 
+    /** @var array<string,string> kode gambar → isi (rencana), untuk blok1Klip */
+    private array $isiGambar = [];
+
+    /** Arena yang paling sering dipakai klip (biasanya BG-01): Blok 1 ditulis untuk arena ini. */
+    private string $arenaUtama = "";
+
     /**
      * Varian UNCENSORED selalu topless (permintaan pengguna 2026-10-27: pack
      * NSFW laga privat keluar dengan sports top). Hanya sampai di sini kalau
@@ -90,7 +96,7 @@ final class PackVideo
     public static function pastikanNaiTopless(array $nai): array
     {
         foreach ($nai as $kode => $n) {
-            if (preg_match('/^[AB]-K\d/', (string) $kode) !== 1) {
+            if (preg_match('/^[AB]-[KL]\d/', (string) $kode) !== 1) {
                 continue;
             }
             $prompt = (string) ($n['prompt'] ?? '');
@@ -179,6 +185,194 @@ final class PackVideo
         return implode("\n", $baris);
     }
 
+    /** Gambar petinju tanpa sarung tinju (A-L*, B-L*): luka sama dengan K*, tangan telanjang. */
+    public static function tanpaSarung(string $kode): bool
+    {
+        return preg_match('/^[AB]-L\d$/', (string) preg_replace('/\.png$/i', '', $kode)) === 1;
+    }
+
+    /** Isi gambar latar dari rencana tanpa kalimat "Empty arena image, no people." / "No signs, no text.". */
+    public static function isiLatar(string $isi): string
+    {
+        $kalimat = array_filter(array_map('trim', preg_split('/(?<=\.)\s+/u', trim($isi)) ?: []),
+            fn ($k) => $k !== '' && preg_match('/^(empty\b.*\bimage|no (people|signs|text|one))\b/i', $k) !== 1);
+
+        return rtrim(implode(' ', $kalimat), '. ');
+    }
+
+    /**
+     * Blok 1 untuk satu klip/tester. Blok 1 ditulis sekali untuk arena utama
+     * dan petinju bersarung. Pengguna 2026-10-27 (T04 take 2, epilog di
+     * kolam): ring dan sarung tetap terender karena baris "Arena = @image3:
+     * … ropes …" dan "… gloves" tetap ada walau @image3 kolam dan sarungnya
+     * sudah lepas.
+     * - @image3 bukan arena utama → baris Arena dan butir "ring" di Overall
+     *   memakai isi gambar latar itu (dari rencana).
+     * - @image1/@image2 gambar tanpa sarung (A-L*, B-L*) → sebutan sarung
+     *   dibuang, diganti satu kalimat "bare-handed".
+     *
+     * @param list<string> $gambar urutan slot klip (A, B, arena, …)
+     * @param array<string,string> $isiGambar kode → isi (rencana)
+     */
+    public static function blok1Klip(string $blok1, array $gambar, array $isiGambar, string $arenaUtama): string
+    {
+        $kode = array_map(fn ($g) => (string) preg_replace('/\.png$/i', '', (string) $g), array_values($gambar));
+        $baris = preg_split('/\R/u', $blok1) ?: [];
+        $arena = $kode[2] ?? '';
+        $isi = self::isiLatar((string) ($isiGambar[$arena] ?? ''));
+        if ($arena !== '' && $arenaUtama !== '' && $arena !== $arenaUtama && $isi !== '') {
+            $tempat = lcfirst(trim(explode(':', $isi, 2)[0]));
+            foreach ($baris as $i => $b) {
+                if (preg_match('/^Arena\s*=\s*@image3\b/u', $b) === 1) {
+                    $baris[$i] = 'Arena = @image3: ' . lcfirst($isi) . '; background only, everything around it unlit and empty.';
+                } elseif (str_starts_with($b, 'Overall:')) {
+                    $bagian = preg_split('/([,;])/u', $b, -1, PREG_SPLIT_DELIM_CAPTURE) ?: [];
+                    foreach ($bagian as $j => $x) {
+                        if ($j > 0 && preg_match('/\bring\b/i', $x) === 1) {
+                            $bagian[$j] = ' ' . $tempat;
+                        }
+                    }
+                    $baris[$i] = implode('', $bagian);
+                }
+            }
+        }
+
+        $lepas = array_values(array_filter(['A' => $kode[0] ?? '', 'B' => $kode[1] ?? ''], [self::class, 'tanpaSarung']));
+        if ($lepas !== []) {
+            foreach ($baris as $i => $b) {
+                if (preg_match('/^(.*@image[12]\b[^:]*:\s*)([^;\n]*)(.*)$/u', $b, $m) === 1) {
+                    $butir = array_filter(array_map('trim', explode(',', $m[2])), fn ($x) => $x !== '' && stripos($x, 'glove') === false);
+                    $b = $m[1] . implode(', ', $butir) . $m[3];
+                }
+                // "faces, outfits, glove colours never swap" · "wearing only boxing trunks, boots, gloves"
+                $b = (string) preg_replace('/,?\s*(?:and\s+|or\s+)?glove[- ]colou?rs?\b/i', '', $b);
+                $baris[$i] = (string) preg_replace('/,?\s*(?:and\s+)?(?:boxing\s+)?gloves\b/i', '', $b);
+            }
+            $siapa = count($lepas) === 2 ? 'Both boxers are' : 'Boxer ' . substr($lepas[0], 0, 1) . ' is';
+            $baris[] = "{$siapa} bare-handed in this clip.";
+        }
+
+        return implode("\n", $baris);
+    }
+
+    /** Blok 2 untuk klip dengan gambar tanpa sarung: bunyi dan larangan soal sarung dibuang (lihat blok1Klip). */
+    public static function blok2Klip(string $blok2, array $gambar): string
+    {
+        $kode = array_values($gambar);
+        if (! self::tanpaSarung((string) ($kode[0] ?? '')) && ! self::tanpaSarung((string) ($kode[1] ?? ''))) {
+            return $blok2;
+        }
+        $baris = preg_split('/\R/u', $blok2) ?: [];
+        foreach ($baris as $i => $b) {
+            if (preg_match('/^(Sound:\s*)(.*)$/u', $b, $m) === 1) {
+                // Per kalimat, lalu per butir koma: "gloves and wraps coming off" hilang, sisanya tetap.
+                $kalimat = [];
+                foreach (preg_split('/(?<=\.)\s+/u', $m[2]) ?: [] as $k) {
+                    $butir = array_filter(explode(',', $k), fn ($x) => stripos($x, 'glove') === false);
+                    $k = trim(implode(',', $butir));
+                    if ($k !== '') {
+                        $kalimat[] = str_ends_with($k, '.') ? $k : $k . '.';
+                    }
+                }
+                $baris[$i] = $m[1] . implode(' ', $kalimat);
+
+                continue;
+            }
+            $b = (string) preg_replace('/\bgloves,\s*/i', '', $b);
+            $baris[$i] = (string) preg_replace('/,?\s*(?:and\s+|or\s+)?glove[- ]colou?rs?\b/i', '', $b);
+        }
+
+        return implode("\n", $baris);
+    }
+
+    /** Pola warna sarung (tanpa grup tangkap). */
+    private const WARNA = '(?:(?:light|dark|pale|deep|sky|royal|navy|hot|blood|wine|mist)[- ])?(?:white|black|red|blue|green|yellow|pink|purple|violet|orange|gold|golden|silver|grey|gray|navy|crimson|scarlet|maroon|teal|cyan|brown|beige|cream|ivory|lavender|magenta|turquoise|emerald)';
+
+    /** Warna sarung per petinju dari baris Materials Blok 1. @return array<string,string> 'A'/'B' → warna */
+    public static function warnaSarung(string $blok1): array
+    {
+        $warna = [];
+        foreach (preg_split('/\R/u', $blok1) ?: [] as $b) {
+            if (preg_match('/\bBoxer ([AB])\s*=\s*@image[12]\b/u', $b, $m) === 1
+                && preg_match('/\b(' . self::WARNA . ')(?:\s+boxing)?\s+gloves\b/i', $b, $w) === 1) {
+                $warna[$m[1]] = strtolower($w[1]);
+            }
+        }
+
+        return $warna;
+    }
+
+    /**
+     * Warna sarung di gambar petinju NovelAI (A-K*, B-K*) mengikuti Blok 1.
+     * Pengguna 2026-10-27 (T04 take 2): prompt NovelAI menulis kedua sarung
+     * putih sementara Blok 1 menulis sarung A merah, jadi Wan mengganti
+     * warna sarung dari gambar acuan.
+     *
+     * @param array<string,array{prompt:string,uc:string}> $nai
+     */
+    public static function pastikanNaiSarung(array $nai, string $blok1): array
+    {
+        $warna = self::warnaSarung($blok1);
+        foreach ($nai as $kode => $n) {
+            if (preg_match('/^([AB])-K\d/', (string) $kode, $m) !== 1 || ! isset($warna[$m[1]])) {
+                continue;
+            }
+            $w = $warna[$m[1]];
+            $p = (string) preg_replace('/\b' . self::WARNA . '(\s+boxing)?\s+gloves\b/i', $w . '$1 gloves', (string) ($n['prompt'] ?? ''));
+            $p = (string) preg_replace('/\bgloves (are|is) ' . self::WARNA . '\b/i', 'gloves $1 ' . $w, $p);
+            if (preg_match('/\b' . preg_quote($w, '/') . '(\s+boxing)?\s+gloves\b/i', $p) !== 1) {
+                $p = rtrim($p, ', ') . ", {$w} boxing gloves";
+            }
+            $nai[$kode] = ['prompt' => $p, 'uc' => (string) ($n['uc'] ?? '')];
+        }
+
+        return $nai;
+    }
+
+    /**
+     * Gambar tanpa sarung (A-L*, B-L*) yang ada di rencana: kalau belum
+     * ditulis, diturunkan dari gambar K dengan nomor yang sama; sarung,
+     * sepatu, dan "full body" dibuang, "bare hands" ditambahkan, sarung
+     * masuk UC. Dari catatan pengguna 2026-10-27 (T04 take 2): butuh
+     * referensi lepas sarung untuk epilog di kolam.
+     *
+     * @param array<string,array{prompt:string,uc:string}> $nai
+     * @param list<array<string,mixed>> $gambar rencana['gambar']
+     */
+    public static function pastikanNaiTanpaSarung(array $nai, array $gambar): array
+    {
+        foreach ($gambar as $g) {
+            $kode = (string) ($g['kode'] ?? '');
+            if (! self::tanpaSarung($kode)) {
+                continue;
+            }
+            $n = $nai[$kode] ?? $nai[(string) preg_replace('/-L(\d)$/', '-K$1', $kode)] ?? null;
+            if ($n === null) {
+                continue;
+            }
+            $butir = [];
+            foreach (explode(',', (string) ($n['prompt'] ?? '')) as $b) {
+                $b = trim($b);
+                if ($b === '' || preg_match('/\b(gloves?|boots?|shoes|barefoot|bare ?feet)\b/i', $b) === 1) {
+                    continue;
+                }
+                $butir[] = preg_match('/^full[- ]body$/i', $b) === 1 ? 'cowboy shot' : $b;
+            }
+            if (preg_grep('/^bare hands$/i', $butir) === []) {
+                $butir[] = 'bare hands';
+            }
+            $uc = (string) ($n['uc'] ?? '');
+            foreach (['boxing gloves', 'gloves'] as $u) {
+                if (preg_match('/(^|,)\s*' . $u . '\s*(,|$)/i', $uc) !== 1) {
+                    $uc = ($uc === '' ? '' : rtrim($uc, ', ') . ', ') . $u;
+                }
+            }
+            $nai[$kode] = ['prompt' => implode(', ', $butir), 'uc' => $uc];
+        }
+
+        return $nai;
+    }
+
     /** Kalimat yang dijamin ada di Blok 1 UNCENSORED (lihat pastikanTopless). */
     public const KALIMAT_TOPLESS = 'Both boxers are topless: bare-chested, wearing only their boxing trunks, boots and gloves.';
 
@@ -261,6 +455,7 @@ final class PackVideo
             $simpan('rencana', $this->rencana($konteks, $jenisVideo));
         }
         $rencana = $kerja['rencana'];
+        $this->siapkanGambar($rencana);
 
         if (! isset($kerja['tetap'])) {
             $this->kabar('Menulis Blok 1 dan Blok 2 tetap');
@@ -299,7 +494,7 @@ final class PackVideo
             $this->kabar('Menulis prompt NovelAI gambar acuan');
             $simpan('nai', $this->novelai($konteks, $rencana, false));
         }
-        $nai = $kerja['nai'];
+        $nai = self::rapikanNai($kerja['nai'], $tetap['blok1'], $rencana);
 
         if (! isset($kerja['latar'])) {
             $this->kabar('Menulis prompt latar (ChatGPT / Gemini)');
@@ -319,13 +514,15 @@ final class PackVideo
             $uncensored['tetap']['blok2'] = array_map(fn ($b) => self::samarkanNama($b, $this->peta), $uncensored['tetap']['blok2']);
             $uncensored['tetap']['blok1'] = self::buangPakaianBlok1($uncensored['tetap']['blok1']);
             $uncensored['tetap'] = self::pastikanTopless($uncensored['tetap']);
-            $uncensored['nai'] = self::pastikanNaiSepatu(self::pastikanNaiTopless($uncensored['nai']));
+            $uncensored['nai'] = self::rapikanNai(self::pastikanNaiTopless($uncensored['nai']), $uncensored['tetap']['blok1'], $rencana);
             $uncensored['prompt'] = $this->rakitUncensored($klip, $uncensored['tetap']);
         }
 
         $this->kabar('Menyimpan berkas pack');
         $this->arsipkanPackLama($folder);
-        $berkas = $this->tulisBerkas($folder, $judul, $riset, $alur, $rencana, $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa, $latar);
+        // Pack NSFW: versi topless langsung jadi pack utama (pilihUtama).
+        [$klipTulis, $testerTulis, $naiTulis, $modeTulis] = $this->pilihUtama($klip, $tester, $nai, $uncensored, $mode, true);
+        $berkas = $this->tulisBerkas($folder, $judul, $riset, $alur, $rencana, $tetap, $klipTulis, $testerTulis, $naiTulis, $uncensored, $modeTulis, $bahasa, $latar);
         // Bagian-bagian pack disimpan permanen (bukan lagi "kerja", supaya
         // jalan berikutnya tidak melanjutkannya): bahan untuk merakit ulang
         // atau merevisi tanpa memanggil model.
@@ -364,7 +561,9 @@ final class PackVideo
     {
         $hasil = [];
         foreach ($klip as $k) {
-            $susun = fn (string $b3) => self::isiDurasi($tetapU['blok1'], (int) $k['durasi']) . "\n" . $b3 . "\n" . $tetapU['blok2'][$k['jenis']];
+            $b1 = self::blok1Klip($tetapU['blok1'], (array) ($k['gambar'] ?? []), $this->isiGambar, $this->arenaUtama);
+            $b2 = self::blok2Klip($tetapU['blok2'][$k['jenis']], (array) ($k['gambar'] ?? []));
+            $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
             $b3 = $k['blok3'];
             if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
                 $b3 = self::padatkan($b3);
@@ -399,6 +598,49 @@ final class PackVideo
         }
         $b['utama_uncensored'] = $uncensored;
         File::put($jalur, self::json($b));
+    }
+
+    /**
+     * Versi yang ditulis ke PROMPT TXT / TEST REVISI / REFERENSI NOVELAI.
+     * Pack dengan varian UNCENSORED memakai versi topless sebagai utama
+     * (pengguna 2026-10-27: topless lolos di Higgsfield, "langsung jadikan
+     * referensi utama"); pagar umur sudah memastikan semua petinju dewasa.
+     * `penulis:rakit --utama=aman` mengembalikan versi aman.
+     *
+     * @return array{0:list<array<string,mixed>>,1:list<array<string,mixed>>,2:array<string,mixed>,3:string}
+     */
+    private function pilihUtama(array $klip, array $tester, array $nai, ?array $uncensored, string $mode, bool $utama): array
+    {
+        if (! $utama || $uncensored === null) {
+            return [$klip, $tester, $nai, $mode];
+        }
+        $testerU = $this->rakitUncensored($tester, $uncensored['tetap']);
+        foreach ($klip as $i => $k) {
+            $klip[$i]['prompt'] = $uncensored['prompt'][$k['kode']] ?? $k['prompt'];
+        }
+        foreach ($tester as $i => $t) {
+            $tester[$i]['prompt'] = $testerU[$t['kode']] ?? $t['prompt'];
+        }
+
+        return [$klip, $tester, array_merge($nai, $uncensored['nai']), 'uncensored'];
+    }
+
+    /** Jaminan mekanis prompt NovelAI: sepatu, warna sarung dari Blok 1, gambar tanpa sarung. */
+    private static function rapikanNai(array $nai, string $blok1, array $rencana): array
+    {
+        return self::pastikanNaiTanpaSarung(self::pastikanNaiSarung(self::pastikanNaiSepatu($nai), $blok1), (array) ($rencana['gambar'] ?? []));
+    }
+
+    /** Isi gambar dan arena utama dari rencana, untuk blok1Klip. */
+    private function siapkanGambar(array $rencana): void
+    {
+        $this->isiGambar = [];
+        foreach ((array) ($rencana['gambar'] ?? []) as $g) {
+            $this->isiGambar[(string) ($g['kode'] ?? '')] = (string) ($g['isi'] ?? '');
+        }
+        $hitung = array_count_values(array_filter(array_map(fn ($k) => (string) ($k['arena'] ?? ''), (array) ($rencana['klip'] ?? []))));
+        arsort($hitung);
+        $this->arenaUtama = (string) (array_key_first($hitung) ?? '');
     }
 
     /**
@@ -569,6 +811,7 @@ final class PackVideo
             return $tetap;
         };
         $tetap = $this->pendekkanTetap($rapikan($bagian['tetap']), $dipakai);
+        $this->siapkanGambar($bagian['rencana']);
 
         $klip = [];
         foreach ($bagian['klip'] as $k) {
@@ -584,39 +827,26 @@ final class PackVideo
             $tU = $bagian['uncensored']['tetap'];
             $tU['blok1'] = self::buangPakaianBlok1(self::samarkanNama($tU['blok1'], $this->peta));
             $tU['blok2'] = array_map(fn ($b) => self::bersihkanSuara(self::samarkanNama($b, $this->peta)), $tU['blok2']);
-            $uncensored = ['tetap' => self::pastikanTopless($this->pendekkanTetap($tU, $dipakai)),
-                'nai' => self::pastikanNaiSepatu(self::pastikanNaiTopless($bagian['uncensored']['nai']))];
+            $tU = self::pastikanTopless($this->pendekkanTetap($tU, $dipakai));
+            $uncensored = ['tetap' => $tU, 'nai' => self::rapikanNai(self::pastikanNaiTopless($bagian['uncensored']['nai']), $tU['blok1'], $bagian['rencana'])];
             $uncensored['prompt'] = $this->rakitUncensored($klip, $uncensored['tetap']);
         }
 
         $this->kabar('Menyimpan berkas pack');
         $this->arsipkanPackLama($folder);
         $latar = (array) ($bagian['latar'] ?? []);
-        $nai = self::pastikanNaiSepatu($bagian['nai']);
+        $nai = self::rapikanNai($bagian['nai'], $tetap['blok1'], $bagian['rencana']);
         if ($latar !== []) {
             // Latar sudah punya prompt ChatGPT/Gemini: versi NovelAI lamanya tidak ditulis lagi.
             $nai = array_filter($nai, fn ($k) => ! self::adalahLatar((string) $k), ARRAY_FILTER_USE_KEY);
         }
 
-        // Pack utama = versi topless (pengguna 2026-10-27: versi topless lolos
-        // di Higgsfield dan diuji lewat PRODUKSI). PROMPT TXT, TEST REVISI, dan
-        // gambar petinju NovelAI memakai versi UNCENSORED; pagar umur sudah
-        // memastikan semua petinju dewasa. Diatur lewat penulis:rakit --utama.
-        $klipTulis = $klip;
-        $testerTulis = $tester;
-        $modeTulis = $mode;
-        if (! empty($bagian['utama_uncensored']) && $uncensored !== null) {
-            $testerU = $this->rakitUncensored($tester, $uncensored['tetap']);
-            foreach ($klipTulis as $i => $k) {
-                $klipTulis[$i]['prompt'] = $uncensored['prompt'][$k['kode']] ?? $k['prompt'];
-            }
-            foreach ($testerTulis as $i => $t) {
-                $testerTulis[$i]['prompt'] = $testerU[$t['kode']] ?? $t['prompt'];
-            }
-            $nai = array_merge($nai, $uncensored['nai']);
-            $modeTulis = 'uncensored';
-        }
-        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klipTulis, $testerTulis, $nai, $uncensored, $modeTulis, $bahasa, $latar);
+        // Pack NSFW: versi topless jadi pack utama kecuali diatur --utama=aman.
+        [$klipTulis, $testerTulis, $naiTulis, $modeTulis] = $this->pilihUtama($klip, $tester, $nai, $uncensored, $mode,
+            (bool) ($bagian['utama_uncensored'] ?? true));
+        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klipTulis, $testerTulis, $naiTulis, $uncensored, $modeTulis, $bahasa, $latar);
+        // 'nai' = versi aman saja; versi topless tetap di 'uncensored' (sebelum
+        // 2026-10-27 sore, gabungannya ikut tersimpan dan menimpa versi aman).
         File::put($cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json', self::json(['tetap' => $tetap, 'klip' => $klip, 'tester' => $tester,
             'uncensored' => $uncensored, 'nai' => $nai] + $bagian));
         $cek = $this->periksa($folder);
@@ -702,7 +932,9 @@ final class PackVideo
             . "- waktu (round + round clock), inti, unggul, judul in Indonesian. momen = hero moment as \"<file> · <exact entry heading>\" from files 01/03/04/05/10/11; "
             . "kamera = hero camera as \"02 · <exact entry heading>\" (or 10/11 entries for entrance/jeda). Follow the variation rules against _riwayat pakai.\n"
             . "- kondisi_a / kondisi_b = the boxer image code for that clip (A-K0…A-K3 / B-K0…B-K3), arena = BG-01 or BG-02, ekstra = extra image codes "
-            . "(A-R0, B-R0 robes in the entrance only; C-00 referee; D-00/E-00 cornermen) in slot order from @image4.\n"
+            . "(A-R0, B-R0 robes in the entrance only; C-00 referee; D-00/E-00 cornermen) in slot order from @image4. "
+            . "A clip or test whose boxers are gloves-off from the first frame (bath, rest after the fight) uses the gloves-off images A-L<n> / B-L<n> "
+            . "(same damage as K<n>, bare hands) as kondisi_a / kondisi_b; a clip that takes the gloves off on screen keeps K<n> and adds A-L<n>, B-L<n> to ekstra for the shots after.\n"
             . "- kondisi_awal / kondisi_akhir: position + condition at the start / end (the end = next clip's start).\n"
             . "- dialog: 0–4 short lines per clip with detik (seconds from the clip start), siapa, asli (story language), romaji (if Japanese, else repeat asli), en, id. "
             . "Fight clips mostly 0–1 lines; entrance, faceoff, persiapan, jeda and epilog carry the dialogue.\n"
@@ -710,7 +942,7 @@ final class PackVideo
             . ($jenisVideo === 'private' ? '' : ' (plus the referee)')
             . "; cornermen and other characters appear only in entrance/faceoff/persiapan, jeda and epilog clips.
 "
-            . "- gambar: every image code used anywhere, with siapa and isi (what the NovelAI image must show, in English). All boxer images are full-body character references.\n"
+            . "- gambar: every image code used anywhere, with siapa and isi (what the NovelAI image must show, in English). All boxer images are full-body character references, except gloves-off A-L*/B-L* (cowboy shot, bare hands visible).\n"
             . "- tester: 3–4 tests (T01…) per the tester rules; blok2 = which Blok 2 version the test uses; kriteria in Indonesian, observable; kalau_gagal in Indonesian.\n"
             . "- suara: Voice profile per speaking character (timbre, register, delivery; no voice actor names).\n"
             . "- kontinuitas: Indonesian continuity locks, citing clips by two-digit code like \"(03)\", \"02/06\", \"04–05\", \"mulai 02\". kondisi_luka: injuries per anatomical side per clip. "
@@ -1096,8 +1328,15 @@ final class PackVideo
             $k['gambar'] = array_map(fn ($g) => $g . '.png', self::slot($k));
         }
         $k['blok3'] = self::samarkanNama($k['blok3'], $this->peta);
-        $susun = fn (string $b3) => self::isiDurasi($tetap['blok1'], (int) $k['durasi']) . "\n" . $b3 . "\n" . $tetap['blok2'][$k['jenis']];
+        $b1 = self::blok1Klip($tetap['blok1'], $k['gambar'], $this->isiGambar, $this->arenaUtama);
+        $b2 = self::blok2Klip($tetap['blok2'][$k['jenis']], $k['gambar']);
+        $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
         $k['prompt'] = $susun($k['blok3']);
+        // Pack NSFW memakai versi topless sebagai utama: atasan di Blok 3
+        // bertabrakan dengan Blok 1 (T01 take 1 keluar ber-sports bra).
+        if ($this->nsfw && preg_match('/\b(sports bra|bra|halter( top)?|crop top|tank top|bikini top|tube top)\b/i', $k['blok3'], $t) === 1) {
+            $this->peringatan[] = "{$k['kode']}: Blok 3 menyebut \"{$t[0]}\" padahal pack NSFW memakai versi topless — tulis \"outfit exactly as @image1 / @image2\".";
+        }
 
         if (mb_strlen($k['prompt']) > self::MAKS_PROMPT) {
             $sasaran = self::MAKS_PROMPT - (mb_strlen($k['prompt']) - mb_strlen($k['blok3']));
