@@ -5,9 +5,7 @@ namespace Tests\Unit;
 use App\Models\User;
 use App\Services\AgentFbx;
 use App\Services\FbxGambar;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -23,6 +21,8 @@ use Tests\TestCase;
  */
 class AgentFbxTest extends TestCase
 {
+    use TabelFbx;
+
     private string $dir;
 
     protected function setUp(): void
@@ -34,60 +34,7 @@ class AgentFbxTest extends TestCase
         mkdir($this->dir . '/riset', 0777, true);
         config(['fbx.data' => $this->dir]);
 
-        Schema::create('fbx_kandidat', function (Blueprint $t) {
-            $t->increments('id');
-            foreach (['minggu', 'kategori', 'karakter', 'sumber', 'pasangan', 'tingkat_umur', 'umur_canon', 'tinggi_cm',
-                'status', 'bukti_url', 'danbooru_tag', 'pasangan_tag'] as $k) {
-                $t->string($k)->default('');
-            }
-            $t->text('alasan')->nullable();
-            $t->text('ide_kostum')->nullable();
-            $t->timestamps();
-            $t->unique(['minggu', 'kategori', 'karakter', 'pasangan']);
-        });
-        Schema::create('fbx_roster', function (Blueprint $t) {
-            $t->increments('id');
-            foreach (AgentFbx::KOLOM_ROSTER as $k) {
-                $t->string($k)->default('');
-            }
-        });
-        Schema::create('fbx_tren', function (Blueprint $t) {
-            foreach (['minggu', 'karakter_tag', 'judul_tag', 'perubahan'] as $k) {
-                $t->string($k)->default('');
-            }
-            foreach (['peringkat', 'post_minggu', 'skor_minggu', 'solo_cewek', 'total_post'] as $k) {
-                $t->integer($k)->default(0);
-            }
-            $t->decimal('rasio_baru', 8, 4)->default(0);
-            $t->primary(['minggu', 'karakter_tag']);
-        });
-        Schema::create('fbx_riset', function (Blueprint $t) {
-            $t->string('minggu')->primary();
-            $t->text('ringkasan')->nullable();
-            $t->text('isi')->nullable();
-            $t->timestamp('updated_at')->nullable();
-        });
-        Schema::create('fbx_gambar', function (Blueprint $t) {
-            $t->increments('id');
-            $t->string('danbooru_tag');
-            $t->integer('post_id');
-            $t->integer('urutan')->default(0);
-            $t->string('kecil');
-            $t->string('besar');
-            $t->integer('lebar')->default(0);
-            $t->integer('tinggi')->default(0);
-            $t->integer('skor')->default(0);
-            $t->string('rating')->default('g');
-        });
-        Schema::create('fbx_tag_cek', function (Blueprint $t) {
-            $t->string('danbooru_tag')->primary();
-            $t->integer('jumlah')->default(0);
-            $t->integer('diminta')->default(0);
-            $t->integer('versi')->default(1);
-            $t->string('jenis')->default('');
-            $t->boolean('dewasa')->default(false);
-            $t->timestamp('dicek_at')->nullable();
-        });
+        $this->buatTabelFbx();
     }
 
     protected function tearDown(): void

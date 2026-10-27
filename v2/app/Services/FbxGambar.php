@@ -257,7 +257,8 @@ final class FbxGambar
         return file_put_contents($ke, $isi) !== false;
     }
 
-    private static function jenis(string $isi): ?string
+    /** Jenis gambar dari byte awalnya; dipakai juga FbxKirim untuk berkas kiriman. */
+    public static function jenis(string $isi): ?string
     {
         return match (true) {
             str_starts_with($isi, "\xFF\xD8\xFF") => 'image/jpeg',

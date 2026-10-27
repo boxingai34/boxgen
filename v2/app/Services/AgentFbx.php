@@ -276,7 +276,11 @@ final class AgentFbx
             : $awal->format('j') . ' ' . $bulan[(int) $awal->format('n')] . ' – ' . $akhir->format('j') . ' ' . $bulan[(int) $akhir->format('n')] . ' ' . $akhir->format('Y');
     }
 
-    /** Ubah status satu kandidat dari halaman admin, lalu tulis balik ke CSV. */
+    /**
+     * Ubah status satu kandidat dari halaman admin, lalu tulis balik ke CSV.
+     * Di server tanpa folder Drive (hosting) perubahannya masuk antre, dan
+     * fbx:kirim berikutnya membawanya pulang ke CSV — lihat FbxKirim.
+     */
     public static function ubahStatus(int $id, string $status): bool
     {
         if (!in_array($status, self::STATUS, true)) {
@@ -285,6 +289,8 @@ final class AgentFbx
         $n = DB::table('fbx_kandidat')->where('id', $id)->update(['status' => $status]);
         if ($n > 0 && self::bisaSinkron()) {
             self::tulisKandidat();
+        } elseif ($n > 0) {
+            FbxKirim::catatStatus($id, $status);
         }
 
         return $n > 0 || DB::table('fbx_kandidat')->where('id', $id)->exists();

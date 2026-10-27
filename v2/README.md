@@ -600,6 +600,28 @@ di `v2/storage/logs/laravel.log`.
 `../config.local.php` (kunci API dan setelan database) tetap dipakai dari
 aplikasi lama, jadi tidak perlu disalin ulang.
 
+### AGENT FBX di hosting
+
+Hosting tidak bisa menyinkronkan AGENT FBX sendiri: Scout menulis ke folder
+Drive di komputer studio, dan galeri Danbooru diunduh ke disk komputer itu.
+Isinya **dikirim** dari komputer studio:
+
+```
+C:\xampp2\php\php.exe C:\xampp2\htdocs\boxgen\v2\artisan fbx:kirim
+```
+
+Sekali pasang: isi `FBX_KIRIM_KE=https://domain.com` dan `FBX_KIRIM_KUNCI`
+di `.env` komputer studio, lalu `FBX_KIRIM_KUNCI` yang **sama** di `.env`
+hosting (kalau config di-cache, jalankan `php artisan config:cache` lagi atau
+hapus `bootstrap/cache/config.php`). `fbx:kirim --cek` memeriksa sambungan dan
+kuncinya tanpa mengirim apa pun. Migrasi 016 dan 017 harus sudah diimpor.
+
+Tiap kirim mengganti tabel `fbx_*` di hosting dan hanya mengirim berkas galeri
+yang belum ada di sana. Klik Masuk poll / Terpilih / Tolak di halaman hosting
+masuk antre (`storage/app/fbx-antre-status.json`) dan dibawa pulang ke
+`kandidat.csv` pada kirim berikutnya. Aturan umur diperiksa ulang di hosting.
+Rinciannya di `App\Services\FbxKirim`.
+
 ## Kalau pindah nama domain
 
 Domain tidak bisa diganti namanya — yang ada cuma mendaftarkan yang baru lalu

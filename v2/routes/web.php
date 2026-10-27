@@ -7,6 +7,7 @@ use App\Http\Controllers\KatalogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiscoverAdeganController;
 use App\Http\Controllers\DiscoverController;
+use App\Http\Controllers\FbxTerimaController;
 use App\Http\Controllers\FemboxController;
 use App\Http\Controllers\GambarController;
 use App\Http\Controllers\LandingController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\UbahController;
 use App\Http\Controllers\WaifuCrushedController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -161,6 +163,14 @@ Route::prefix('generator')->group(function () {
             Route::post('katalog/gambar', [KatalogController::class, 'gambar'])->name('cms.katalog.gambar');
             Route::delete('katalog/gambar', [KatalogController::class, 'hapusGambar'])->name('cms.katalog.gambar.hapus');
         });
+    });
+
+    // ---- AGENT FBX: kiriman dari komputer studio (php artisan fbx:kirim) ----
+    // Di luar auth dan tanpa CSRF: penjaganya tanda tangan FBX_KIRIM_KUNCI.
+    Route::prefix('fbx/terima')->withoutMiddleware([ValidateCsrfToken::class])->group(function () {
+        Route::post('antre', [FbxTerimaController::class, 'antre'])->name('fbx.terima.antre');
+        Route::post('data', [FbxTerimaController::class, 'data'])->name('fbx.terima.data');
+        Route::post('gambar', [FbxTerimaController::class, 'gambar'])->name('fbx.terima.gambar');
     });
 
     require __DIR__.'/settings.php';

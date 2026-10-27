@@ -14,4 +14,11 @@ return [
 
     // Berapa gambar Danbooru per karakter di galeri.
     'gambar_per_karakter' => (int) env('FBX_GAMBAR', 6),
+
+    // Hosting tidak punya folder Drive, jadi isinya dikirim dari komputer
+    // studio lewat `php artisan fbx:kirim` (App\Services\FbxKirim).
+    // Komputer studio: FBX_KIRIM_KE = alamat situs + FBX_KIRIM_KUNCI.
+    // Hosting: FBX_KIRIM_KUNCI yang sama saja. Kosong = rute terimanya mati.
+    'kirim_ke'    => env('FBX_KIRIM_KE', ''),
+    'kirim_kunci' => env('FBX_KIRIM_KUNCI', ''),
 ];
