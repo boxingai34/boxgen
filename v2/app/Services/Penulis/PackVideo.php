@@ -550,6 +550,7 @@ final class PackVideo
         if ($mode !== 'olahraga') {
             $tetap['blok2'] = array_map([self::class, 'bersihkanNegative'], $tetap['blok2']);
         }
+        $tetap = $this->lapisTetap($tetap);
 
         $klip = (array) ($kerja['klip'] ?? []);
         foreach (array_chunk($rencana['klip'], self::PER_PANGGIL) as $kelompok) {
@@ -593,7 +594,7 @@ final class PackVideo
             $uncensored['tetap']['blok1'] = self::samarkanNama($uncensored['tetap']['blok1'], $this->peta);
             $uncensored['tetap']['blok2'] = array_map(fn ($b) => self::samarkanNama($b, $this->peta), $uncensored['tetap']['blok2']);
             $uncensored['tetap']['blok1'] = self::buangPakaianBlok1($uncensored['tetap']['blok1']);
-            $uncensored['tetap'] = self::pastikanTopless($uncensored['tetap']);
+            $uncensored['tetap'] = $this->lapisTetap(self::pastikanTopless($uncensored['tetap']));
             $uncensored['nai'] = self::rapikanNai(self::pastikanNaiTopless($uncensored['nai']), $uncensored['tetap']['blok1'], $rencana);
             $uncensored['prompt'] = $this->rakitUncensored($klip, $uncensored['tetap']);
         }
@@ -648,9 +649,11 @@ final class PackVideo
             if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
                 $b3 = self::padatkan($b3);
             }
-            if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
+            // Dua kesempatan: penyunting tidak selalu menepati target (uji 2026-10-27: klip 07 UNCENSORED 5.054).
+            for ($coba = 0; $coba < 2 && mb_strlen($susun($b3)) > self::MAKS_PROMPT; $coba++) {
                 $this->kabar("Memendekkan Blok 3 {$k['kode']} untuk UNCENSORED");
-                $b3 = self::rapiSlot(self::pendekkan($this->venice, $b3, self::MAKS_PROMPT - (mb_strlen($susun($b3)) - mb_strlen($b3))));
+                $sasaran = self::MAKS_PROMPT - (mb_strlen($susun($b3)) - mb_strlen($b3)) - $coba * 250;
+                $b3 = $this->bersihB3(self::rapiSlot(self::pendekkan($this->venice, $b3, $sasaran)), (string) $k['jenis']);
             }
             $hasil[$k['kode']] = $susun($b3);
             if (mb_strlen($hasil[$k['kode']]) > self::BATAS_WAN) {
@@ -724,6 +727,23 @@ final class PackVideo
         }
 
         return [$b1, $b2];
+    }
+
+    /**
+     * Lapis akhir pada blok tetap (Blok 1 + semua Blok 2), SEBELUM
+     * pendekkanTetap dan anggaran Blok 3, supaya tambahannya (gaya 2D,
+     * kalimat tanpa penonton, nada ruang: ±160 karakter) ikut dihitung.
+     * Uji 2026-10-27: tanpa ini klip 07 UNCENSORED jadi 5.054 karakter.
+     * blokAkhir() tetap dipanggil saat perakitan (idempoten).
+     */
+    private function lapisTetap(array $tetap): array
+    {
+        [$tetap['blok1']] = $this->blokAkhir((string) $tetap['blok1'], '');
+        foreach ((array) $tetap['blok2'] as $j => $b) {
+            [, $tetap['blok2'][$j]] = $this->blokAkhir('', (string) $b);
+        }
+
+        return $tetap;
     }
 
     /** Lapis akhir Blok 3: frasa penonton (laga tanpa penonton) dan cornerman di klip laga. */
@@ -999,7 +1019,7 @@ final class PackVideo
 
             return $tetap;
         };
-        $tetap = $this->pendekkanTetap($rapikan($bagian['tetap']), $dipakai);
+        $tetap = $this->pendekkanTetap($this->lapisTetap($rapikan($bagian['tetap'])), $dipakai);
         $this->siapkanGambar($bagian['rencana']);
 
         $klip = [];
@@ -1016,7 +1036,7 @@ final class PackVideo
             $tU = $bagian['uncensored']['tetap'];
             $tU['blok1'] = self::buangPakaianBlok1(self::samarkanNama($tU['blok1'], $this->peta));
             $tU['blok2'] = array_map(fn ($b) => self::bersihkanSuara(self::samarkanNama($b, $this->peta)), $tU['blok2']);
-            $tU = self::pastikanTopless($this->pendekkanTetap($tU, $dipakai));
+            $tU = self::pastikanTopless($this->pendekkanTetap($this->lapisTetap(self::pastikanTopless($tU)), $dipakai));
             $uncensored = ['tetap' => $tU, 'nai' => self::rapikanNai(self::pastikanNaiTopless($bagian['uncensored']['nai']), $tU['blok1'], $bagian['rencana'])];
             $uncensored['prompt'] = $this->rakitUncensored($klip, $uncensored['tetap']);
         }
@@ -1267,7 +1287,11 @@ final class PackVideo
         $tugas = [];
         foreach ($kelompok as $k) {
             $slot = self::slot($k);
-            $budget = self::MAKS_PROMPT - mb_strlen(self::isiDurasi($tetap['blok1'], $k['durasi'])) - mb_strlen($tetap['blok2'][$k['jenis']]) - 4;
+            // Pack NSFW memakai versi topless sebagai utama: Blok 1/2-nya
+            // lebih panjang (kalimat topless, isi tanpa sensor), jadi Blok 3
+            // diberi cadangan.
+            $budget = self::MAKS_PROMPT - mb_strlen(self::isiDurasi($tetap['blok1'], $k['durasi'])) - mb_strlen($tetap['blok2'][$k['jenis']]) - 4
+                - ($this->nsfw ? 200 : 0);
             $tugas[] = "CLIP {$k['kode']} ({$k['jenis']}, {$k['durasi']} s) — Blok 3 HARD LIMIT {$budget} characters in total. " . self::anggaran($budget, (int) $k['durasi']) . "\n"
                 . 'Slots: ' . implode('; ', array_map(fn ($i, $g) => '@image' . ($i + 1) . " = {$g}", array_keys($slot), $slot)) . "\n"
                 . 'Plan: ' . self::json(array_diff_key($k, array_flip(['gambar']))) . "\n"
@@ -1530,8 +1554,8 @@ final class PackVideo
             $this->peringatan[] = "{$k['kode']}: Blok 3 menyebut \"{$t[0]}\" padahal pack NSFW memakai versi topless — tulis \"outfit exactly as @image1 / @image2\".";
         }
 
-        if (mb_strlen($k['prompt']) > self::MAKS_PROMPT) {
-            $sasaran = self::MAKS_PROMPT - (mb_strlen($k['prompt']) - mb_strlen($k['blok3']));
+        for ($coba = 0; $coba < 2 && mb_strlen($k['prompt']) > self::MAKS_PROMPT; $coba++) {
+            $sasaran = self::MAKS_PROMPT - (mb_strlen($k['prompt']) - mb_strlen($k['blok3'])) - $coba * 250;
             $this->kabar("Memendekkan Blok 3 {$k['kode']} ke ≤ {$sasaran} karakter");
             $k['blok3'] = $this->bersihB3(self::rapiSlot(self::pendekkan($this->venice, $k['blok3'], $sasaran)), (string) $k['jenis']);
             $k['prompt'] = $susun($k['blok3']);
@@ -1662,7 +1686,7 @@ final class PackVideo
             $baru = $venice->chat('You are a strict copy editor for AI video prompts. You only shorten; you never add or explain.',
                 "TEXT:\n<<<\n{$teks}\n>>>\n\nRewrite the TEXT above so it is at most {$target} characters (it is " . mb_strlen($teks) . ' now). '
                 . 'Keep every line label exactly as written (e.g. "Opening state:", "Shot N [a-bs]", "End state:", "Positions:", "Voice:", "Negative:"), '
-                . 'the timestamps, every @imageN and @audioN, any {DURASI} token, and the quoted dialogue unchanged. Cut adjectives and minor details. Output only the rewritten text.',
+                . 'the timestamps, every @imageN and @audioN, any {DURASI} token, and the quoted dialogue unchanged. Cut adjectives and minor details, but keep every action, touch and body part and the content level exactly: never soften, censor or drop a scene. Output only the rewritten text.',
                 ['langkah' => 'pack-pendekkan', 'model' => (string) config('penulis.model_sunting', config('penulis.model')),
                     'nalar' => 'none', 'suhu' => 0.3, 'maks' => 4000]);
             $baru = self::rapikanSuntingan($baru);
