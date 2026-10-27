@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import BuatPoll from '@/components/fbx/BuatPoll.vue';
+import DaftarPoll from '@/components/fbx/DaftarPoll.vue';
 import KartuKandidat from '@/components/fbx/KartuKandidat.vue';
 import Lightbox from '@/components/fbx/Lightbox.vue';
 import NavMinggu from '@/components/fbx/NavMinggu.vue';
 import TambahRoster from '@/components/fbx/TambahRoster.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { KATEGORI, KISI_KARTU, STATUS, inisial, type CalonRoster, type Gambar, type Kandidat } from '@/lib/fbx';
+import { KATEGORI, KISI_KARTU, STATUS, inisial, type CalonRoster, type Gambar, type Kandidat, type Poll } from '@/lib/fbx';
 import { kirim } from '@/lib/kirim';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, ChevronDown, FileText, Flame, RefreshCw, ShieldAlert, Sparkles, Telescope } from 'lucide-vue-next';
+import { ArrowRight, ChevronDown, FileText, Flame, RefreshCw, ShieldAlert, Sparkles, Telescope, Vote } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 /**
@@ -26,7 +28,12 @@ const props = defineProps<{
     bisaSinkron: boolean;
     folder: string;
     kategoriRoster: string[];
+    poll: Poll[];
+    bisaPoll: boolean;
 }>();
+
+// ---- StrawPoll ----
+const bukaPoll = ref(false);
 
 // ---- Saringan ----
 const kategori = ref<string>('semua');
@@ -120,6 +127,14 @@ async function jalankanSinkron() {
     >
         <template #kanan>
             <button
+                type="button"
+                class="flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[hsl(var(--sorot)/0.5)] hover:text-foreground"
+                title="Buat poll dari kandidat Masuk poll"
+                @click="bukaPoll = true"
+            >
+                <Vote class="h-4 w-4" /> Buat StrawPoll
+            </button>
+            <button
                 v-if="bisaSinkron"
                 type="button"
                 class="flex h-9 items-center gap-2 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[hsl(var(--sorot)/0.5)] hover:text-foreground disabled:opacity-60"
@@ -199,6 +214,8 @@ async function jalankanSinkron() {
                 </Link>
             </div>
 
+            <DaftarPoll v-if="poll.length" class="mt-5" :poll="poll" @berubah="router.reload({ only: ['kandidat'] })" />
+
             <!-- Pil kategori + status -->
             <div class="mt-5 flex flex-wrap items-center gap-1.5">
                 <button
@@ -275,5 +292,6 @@ async function jalankanSinkron() {
 
         <Lightbox v-model="galeriIndeks" :gambar="galeri" :judul="galeriJudul" />
         <TambahRoster v-model:calon="calon" :daftar-kategori="kategoriRoster" @tersimpan="rosterTersimpan" />
+        <BuatPoll v-model:buka="bukaPoll" :kandidat="kandidat" :bisa="bisaPoll" @dibuat="router.reload({ only: ['poll'] })" />
     </AppLayout>
 </template>

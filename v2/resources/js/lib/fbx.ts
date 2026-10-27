@@ -78,6 +78,24 @@ export type CalonRoster = {
     jejak: Jejak[];
 };
 
+/** Poll StrawPoll yang dibuat dari kandidat Scout (App\Services\FbxPoll). */
+export type PilihanPoll = { kandidat_id: number; label: string; keterangan: string; opsi?: string; suara?: number };
+export type Poll = {
+    id: string;
+    url: string;
+    judul: string;
+    kategori: string;
+    tutup: number;
+    hasil: string;
+    dibuat: string;
+    pilihan: PilihanPoll[];
+};
+
+/** Unixtime → "1 Nov 23:59". */
+export function waktuPendek(detik: number): string {
+    return new Date(detik * 1000).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 export const STATUS: Array<{ nilai: string; label: string }> = [
     { nilai: 'baru', label: 'Baru' },
     { nilai: 'dipoll', label: 'Masuk poll' },

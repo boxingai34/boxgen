@@ -143,6 +143,8 @@ Route::prefix('generator')->group(function () {
                 ->where('nama', '[0-9]+-[kb]\.[a-z0-9]+')->name('fbx.gambar');
             Route::post('kandidat/{id}/status', [AgentFbxController::class, 'status'])->whereNumber('id')->name('fbx.status');
             Route::post('roster', [AgentFbxController::class, 'tambahRoster'])->name('fbx.roster.tambah');
+            Route::post('poll', [AgentFbxController::class, 'pollBuat'])->name('fbx.poll.buat');
+            Route::get('poll/{id}/hasil', [AgentFbxController::class, 'pollHasil'])->where('id', '[A-Za-z0-9]+')->name('fbx.poll.hasil');
             Route::post('sinkron', [AgentFbxController::class, 'sinkron'])->name('fbx.sinkron');
         });
 

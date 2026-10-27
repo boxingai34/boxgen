@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\AgentFbx;
 use App\Services\FbxGambar;
+use App\Services\FbxPoll;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,6 +86,8 @@ class AgentFbxController extends Controller
             'bisaSinkron' => AgentFbx::bisaSinkron(),
             'folder'     => AgentFbx::folder(),
             'kategoriRoster' => AgentFbx::KATEGORI_ROSTER,
+            'poll'       => FbxPoll::daftar(),
+            'bisaPoll'   => FbxPoll::bisa(),
         ]);
     }
 
@@ -197,6 +200,32 @@ class AgentFbxController extends Controller
         }
 
         return response()->json(['ok' => true, 'baris' => $baris, 'keCsv' => AgentFbx::bisaSinkron()]);
+    }
+
+    /** Buat StrawPoll dari kandidat yang dicentang. Aturannya di FbxPoll::buat(). */
+    public function pollBuat(Request $request): JsonResponse
+    {
+        try {
+            $poll = FbxPoll::buat((string) $request->input('kategori', ''), (array) $request->input('kandidat', []),
+                (string) $request->input('judul', ''), (int) $request->input('tutup', 0), (string) $request->input('hasil', ''));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+        } catch (RuntimeException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
+
+        return response()->json(['ok' => true, 'poll' => $poll]);
+    }
+
+    public function pollHasil(string $id): JsonResponse
+    {
+        try {
+            return response()->json(['ok' => true] + FbxPoll::hasil($id));
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 404);
+        } catch (RuntimeException $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 502);
+        }
     }
 
     public function status(Request $request, int $id): JsonResponse

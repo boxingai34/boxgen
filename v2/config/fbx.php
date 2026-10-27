@@ -21,4 +21,8 @@ return [
     // Hosting: FBX_KIRIM_KUNCI yang sama saja. Kosong = rute terimanya mati.
     'kirim_ke'    => env('FBX_KIRIM_KE', ''),
     'kirim_kunci' => env('FBX_KIRIM_KUNCI', ''),
+
+    // Poll StrawPoll dari kandidat Scout (App\Services\FbxPoll). Kunci API
+    // dibuat di pengaturan akun strawpoll.com; kosong = tombolnya mati.
+    'strawpoll_kunci' => env('STRAWPOLL_API_KEY', ''),
 ];
