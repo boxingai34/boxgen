@@ -10,7 +10,8 @@ Write every prompt in English. Notes for the user (titles, criteria, continuity,
   - `entrance` 30 s — walkout in robes (Fight Bible 10). Followed by `faceoff` 20 s — robes off, referee instructions, face-off.
   - `persiapan` 30 s — PRIVATE matches only, replaces entrance + faceoff: gloves laced, the cornermen state the rules, glove touch. No robes, no referee.
   - `laga` 30 s — fight action. Every fight is 3 rounds; each round is 2–3 laga clips in a row (6–9 laga clips in total).
-  - `jeda` 20 s — exactly two rest clips: after round 1 and after round 2 (Fight Bible 11). No other jeda.
+  - `jeda` 15 s — two rests (after round 1 and after round 2, Fight Bible 11), each split into two clips: `NNA` shows only Boxer A's corner, `NNB` only Boxer B's corner. No bell in a jeda clip: its sound gets cut at the end. The first laga clip of the next round opens with the bell at 0 s.
+- Never name an unwanted sound, not even in Negative ("no unwritten bell" made a bell ring). Every jab and light punch carries a short, sharp "tss" breath, written in the shot.
   - `epilog` 20 s — result and aftermath.
 - Private match: no walkout, no robes, no referee. Knockdowns are not counted; the fallen boxer rises alone; a KO ends it with the fallen boxer staying down; cornermen come in only after the fight. Cornermen are canon friends/relatives of each boxer.
 - Underground: walkout without robes is fine; a sketchy organizer instead of a real referee.

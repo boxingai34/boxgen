@@ -208,7 +208,7 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertSame('json', $hasil['cek']['format']);
         $this->assertSame(3, $hasil['cek']['klip']);
         // Fixture cuma 3 klip: satu-satunya peringatan = format 3 ronde.
-        $this->assertSame(['Rencana memuat 1 klip laga dan 0 jeda (format: 3 ronde × 2–3 klip laga, 2 jeda).'], $hasil['peringatan']);
+        $this->assertSame(['Rencana memuat 1 klip laga dan 0 istirahat (format: 3 ronde × 2–3 klip laga, 2 istirahat jeda A + jeda B).'], $hasil['peringatan']);
 
         // SRT: klip 03 mulai di detik 60, dialog detik 2 → 00:01:02.
         $this->assertStringContainsString("00:01:02,000 -->", (string) file_get_contents($this->pack . '/Subtitle Inggris.srt'));
@@ -242,7 +242,7 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         // Pemendekan memakai model penyunting, dan pembungkus/label dirapikan.
         Http::assertSent(fn (Request $r) => $r->data()['model'] === config('penulis.model_sunting')
             && str_contains($r->data()['messages'][1]['content'] ?? '', 'Rewrite the TEXT above'));
-        $this->assertStringContainsString("Opening state: center.\nShot 1 [0-30s] jab.", (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
+        $this->assertStringContainsString("Opening state: center.\nShot 1 [0-30s] jab; sharp \"tss\" on each jab.", (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
     }
 
     public function test_larangan_bunyi_dibuang_dari_blok2(): void
@@ -273,7 +273,7 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
 
         Http::assertSentCount(7);
         $this->assertSame(3, $hasil['klip']);
-        $this->assertStringContainsString('Shot 1 [0-3s] jab.', (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
+        $this->assertStringContainsString('Shot 1 [0-3s] jab; sharp "tss" on each jab.', (string) file_get_contents($this->pack . '/PROMPT TXT/02.txt'));
     }
 
     public function test_tulis_ulang_satu_klip_dengan_inti_baru(): void
@@ -515,6 +515,73 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringNotContainsString('glove', $b2);
         $this->assertStringContainsString('Sound: synchronized Foley only: heavy breathing, water settling. Spoken lines are audio only.', $b2);
         $this->assertStringContainsString('no fused or extra arms or hands', $b2);
+    }
+
+    public function test_bunyi_tss_bel_dan_nada_ruang_dari_catatan_klip_03(): void
+    {
+        // Jab tanpa "tss" diberi isyarat; yang sudah ada / tanpa jab dibiarkan.
+        $b3 = "Shot 1 [0-3s] Boxer B's long jab meets only air.\nShot 2 [3-6s] two jabs, \"tss, tss\".\nShot 3 [6-9s] overhand right lands.";
+        $this->assertSame("Shot 1 [0-3s] Boxer B's long jab meets only air; sharp \"tss\" on each jab.\nShot 2 [3-6s] two jabs, \"tss, tss\".\nShot 3 [6-9s] overhand right lands.",
+            PackVideo::pastikanTss($b3));
+
+        // "no unwritten bell" memanggil bel (klip 03 take 1, detik 0,4).
+        $this->assertSame('Negative: no referee, no gore, no slow motion unless written.',
+            PackVideo::bersihkanSuara('Negative: no referee, no gore, no unwritten bell, no slow motion unless written.'));
+        $this->assertSame('mottled ribs. Positions: center.', PackVideo::bersihkanSuara('mottled ribs. No bell. Positions: center.'));
+        $this->assertSame('Shot 7 [27-30s] the bell rings once.', PackVideo::bersihkanSuara('Shot 7 [27-30s] the bell rings once.'), 'bel yang ditulis tetap');
+        $this->assertSame('No clean faces. So it stays.', PackVideo::bersihkanSuara('No clean faces. No bell after 0:00. So it stays.'));
+        $this->assertSame('Both K1.', PackVideo::bersihkanTokohLaga('Both K1. Cornermen outside ropes.'));
+        $this->assertSame('two taps, faint steam.', PackVideo::bersihkanSuara('two taps, faint steam; no bell.'));
+        $this->assertSame('right ribs. No referee. Sounds: bell 0:00.', PackVideo::bersihkanSuara('right ribs. No referee, no bell except 0:00. Sounds: bell 0:00.'));
+        $this->assertSame('a rope creak; only the quiet room tone between sounds.', PackVideo::gantiSunyi('a rope creak; true silence between sounds.'));
+
+        // Jeda satu sudut (04A/04B …): lawan yang "not in frame / off-frame" tidak disebut sama sekali.
+        $this->assertSame("Opening state: Rest. Boxer A on the stool, faint red mark. One cornerman works. The whole clip stays on this one corner.\nInjuries: Boxer A: swelling under the left eye.",
+            PackVideo::bersihkanLawanJeda("Opening state: Rest. Boxer A on the stool, faint red mark. Boxer B sits in the far corner, not in frame. One cornerman works.\nInjuries: Boxer A: swelling under the left eye; Boxer B: not in frame.", '04A'));
+        $this->assertSame('Opening state: Rest. Boxer B K2, sweat heavy. The whole clip stays on this one corner.',
+            PackVideo::bersihkanLawanJeda('Opening state: Rest. Boxer B K2, sweat heavy; Boxer A and her corner are off frame.', '07B'));
+        $this->assertSame('Opening state: Rest. Boxer B is not in frame.', PackVideo::bersihkanLawanJeda('Opening state: Rest. Boxer B is not in frame.', '04'), 'jeda tanpa A/B tidak disentuh');
+
+        // Jaring pengaman mekanis: klausa terakhir shot terpanjang dibuang; slot, "tss", dialog aman.
+        $b3 = "Opening state: center, @image1 left, @image2 right.\n"
+            . "Shot 1 [0-3s] Medium two-shot, eye level, handheld: Boxer B steps out first, Boxer A follows, sweat flies off the hair, lanterns sway.\n"
+            . "Shot 2 [3-6s] Close-up: jab lands on the guard, Boxer A walks through; sharp \"tss\" on each jab.\n"
+            . 'Boxer B [4s]: 「見えていますわよ。」';
+        $hasil = PackVideo::pangkas($b3, mb_strlen($b3) - 30);
+        $this->assertLessThanOrEqual(mb_strlen($b3) - 30, mb_strlen($hasil));
+        $this->assertStringContainsString('Boxer B steps out first, Boxer A follows.', $hasil);
+        $this->assertStringContainsString('sharp "tss" on each jab.', $hasil);
+        $this->assertStringContainsString('@image1 left, @image2 right.', $hasil);
+        $this->assertStringContainsString('「見えていますわよ。」', $hasil);
+        $this->assertSame($b3, PackVideo::pangkas($b3, 10000), 'tidak menyentuh yang sudah muat');
+
+        // "never copy its … room tone" bukan nada ruang; "true silence" diganti.
+        $s = 'Sound: crisp, dry Foley, true silence between hits. @audio1 = timbre ref; never copy timing/room tone.';
+        $hasil = PackVideo::pastikanNadaRuang($s);
+        $this->assertStringContainsString('only the quiet room tone between hits', $hasil);
+        $this->assertStringNotContainsString('silence', $hasil);
+        $this->assertSame($hasil, PackVideo::pastikanNadaRuang($hasil), 'idempoten');
+        $this->assertStringStartsWith('Sound: over the quiet room tone of the empty venue, crisp Foley',
+            PackVideo::pastikanNadaRuang('Sound: crisp Foley. @audio1 timbre only; never copy its room tone.'));
+    }
+
+    public function test_istirahat_jadi_jeda_a_dan_b_dengan_satu_nomor(): void
+    {
+        $this->assertSame(['02', '02', '04A', '04B', '07', '04B'], array_map([PackVideo::class, 'kodeKlip'], ['2', 'Klip 02', '04a', '04B', '07 (jeda)', 'Clip 4b']));
+
+        $r = self::rencana();
+        $r['klip'] = [
+            ['jenis' => 'persiapan'] + $r['klip'][0], ['jenis' => 'laga'] + $r['klip'][1],
+            ['jenis' => 'jeda'] + $r['klip'][1], ['jenis' => 'jeda'] + $r['klip'][1],
+            ['jenis' => 'laga'] + $r['klip'][1], ['jenis' => 'epilog'] + $r['klip'][2],
+        ];
+        foreach ($r['klip'] as $i => $k) {
+            $r['klip'][$i]['jenis'] = ['persiapan', 'laga', 'jeda', 'jeda', 'laga', 'epilog'][$i];
+        }
+        $rapikan = new \ReflectionMethod(PackVideo::class, 'rapikanRencana');
+        $hasil = $rapikan->invoke(new PackVideo(new Venice()), $r);
+
+        $this->assertSame(['01', '02', '03A', '03B', '04', '05'], array_column($hasil['klip'], 'kode'));
     }
 
     public function test_lapis_akhir_penonton_nada_ruang_tokoh_laga_dan_gaya(): void
