@@ -64,6 +64,9 @@ final class PackVideo
     /** Pack tipe NSFW (tanpa sensor / topless): Blok 1 tanpa pakaian (buangPakaianBlok1). */
     private bool $nsfw = false;
 
+    /** Laga punya wasit di dalam ring (bukan private): slot wasit C-* boleh di klip laga. */
+    private bool $adaWasit = true;
+
     /**
      * Varian UNCENSORED selalu topless (permintaan pengguna 2026-10-27: pack
      * NSFW laga privat keluar dengan sports top). Hanya sampai di sini kalau
@@ -232,6 +235,7 @@ final class PackVideo
         $this->peta = self::petaNama($riset, $alur);
         $this->tagPack = self::kumpulkanTag($riset, $alur);
         $this->nsfw = JenisLaga::perluUncensored($jenis, $isi);
+        $this->adaWasit = $jenisVideo !== 'private';
         $konteks = $this->konteks($riset, $alur, $jenisVideo, $mode, $bahasa);
 
         // Tiap langkah yang sudah dibayar disimpan; kalau proses putus di
@@ -376,6 +380,25 @@ final class PackVideo
         }
 
         return $hasil;
+    }
+
+    /**
+     * Pilih versi pack utama: true = PROMPT TXT dan TEST REVISI memakai versi
+     * UNCENSORED (topless), false = versi aman. Disimpan di pack-bagian.json,
+     * jadi rakit ulang berikutnya mengikuti pilihan ini.
+     */
+    public static function aturUtama(string $folder, bool $uncensored): void
+    {
+        $jalur = rtrim($folder, '/\\') . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA') . DIRECTORY_SEPARATOR . 'pack-bagian.json';
+        $b = is_file($jalur) ? json_decode((string) file_get_contents($jalur), true) : null;
+        if (! is_array($b)) {
+            throw PenulisGalat::ditolak('pack-bagian.json tidak ada; jalankan penulis:pack dulu.');
+        }
+        if ($uncensored && empty($b['uncensored'])) {
+            throw PenulisGalat::ditolak('Pack ini tidak punya varian UNCENSORED (hanya untuk laga topless / tanpa sensor).');
+        }
+        $b['utama_uncensored'] = $uncensored;
+        File::put($jalur, self::json($b));
     }
 
     /**
@@ -574,7 +597,26 @@ final class PackVideo
             // Latar sudah punya prompt ChatGPT/Gemini: versi NovelAI lamanya tidak ditulis lagi.
             $nai = array_filter($nai, fn ($k) => ! self::adalahLatar((string) $k), ARRAY_FILTER_USE_KEY);
         }
-        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klip, $tester, $nai, $uncensored, $mode, $bahasa, $latar);
+
+        // Pack utama = versi topless (pengguna 2026-10-27: versi topless lolos
+        // di Higgsfield dan diuji lewat PRODUKSI). PROMPT TXT, TEST REVISI, dan
+        // gambar petinju NovelAI memakai versi UNCENSORED; pagar umur sudah
+        // memastikan semua petinju dewasa. Diatur lewat penulis:rakit --utama.
+        $klipTulis = $klip;
+        $testerTulis = $tester;
+        $modeTulis = $mode;
+        if (! empty($bagian['utama_uncensored']) && $uncensored !== null) {
+            $testerU = $this->rakitUncensored($tester, $uncensored['tetap']);
+            foreach ($klipTulis as $i => $k) {
+                $klipTulis[$i]['prompt'] = $uncensored['prompt'][$k['kode']] ?? $k['prompt'];
+            }
+            foreach ($testerTulis as $i => $t) {
+                $testerTulis[$i]['prompt'] = $testerU[$t['kode']] ?? $t['prompt'];
+            }
+            $nai = array_merge($nai, $uncensored['nai']);
+            $modeTulis = 'uncensored';
+        }
+        $berkas = $this->tulisBerkas($folder, basename($folder), $riset, $alur, $bagian['rencana'], $tetap, $klipTulis, $testerTulis, $nai, $uncensored, $modeTulis, $bahasa, $latar);
         File::put($cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json', self::json(['tetap' => $tetap, 'klip' => $klip, 'tester' => $tester,
             'uncensored' => $uncensored, 'nai' => $nai] + $bagian));
         $cek = $this->periksa($folder);
@@ -664,7 +706,9 @@ final class PackVideo
             . "- kondisi_awal / kondisi_akhir: position + condition at the start / end (the end = next clip's start).\n"
             . "- dialog: 0–4 short lines per clip with detik (seconds from the clip start), siapa, asli (story language), romaji (if Japanese, else repeat asli), en, id. "
             . "Fight clips mostly 0–1 lines; entrance, faceoff, persiapan, jeda and epilog carry the dialogue.\n"
-            . "- Supporting characters (referee, cornermen, announcer) come ONLY from the story plan's tokoh list.
+            . "- Supporting characters (referee, cornermen, announcer) come ONLY from the story plan's tokoh list. In `laga` clips and `laga` testers only the two boxers are on screen"
+            . ($jenisVideo === 'private' ? '' : ' (plus the referee)')
+            . "; cornermen and other characters appear only in entrance/faceoff/persiapan, jeda and epilog clips.
 "
             . "- gambar: every image code used anywhere, with siapa and isi (what the NovelAI image must show, in English). All boxer images are full-body character references.\n"
             . "- tester: 3–4 tests (T01…) per the tester rules; blok2 = which Blok 2 version the test uses; kriteria in Indonesian, observable; kalau_gagal in Indonesian.\n"
@@ -757,7 +801,8 @@ final class PackVideo
         return $tetap;
     }
 
-    public const MAKS_BLOK1 = 1000;
+    /** 1.050: Blok 1 UNCENSORED dengan kalimat "di luar tali gelap dan kosong" ±1.012 (2026-10-27). */
+    public const MAKS_BLOK1 = 1050;
 
     public const MAKS_BLOK2 = 1700;
 
@@ -1463,11 +1508,25 @@ final class PackVideo
             }
         }
 
+        // Saat laga hanya dua petinju (dan wasit kalau laganya punya wasit);
+        // cornerman dan tokoh lain cuma di persiapan/entrance/face-off, jeda,
+        // dan epilog. Koreksi pengguna 2026-10-27: Ao muncul di atas ring di
+        // tester T02 laga.
+        $saringLaga = function (array $x, string $jenisKlip) {
+            if ($jenisKlip === 'laga') {
+                $x['ekstra'] = array_values(array_filter((array) ($x['ekstra'] ?? []),
+                    fn ($e) => $this->adaWasit && str_starts_with((string) $e, 'C-')));
+            }
+
+            return $x;
+        };
+
         $kodeGambar = array_column($j['gambar'], 'kode');
         $klip = [];
         foreach (array_values($j['klip']) as $i => $k) {
             $k['kode'] = sprintf('%02d', $i + 1);
             $k['jenis'] = in_array($k['jenis'] ?? '', self::JENIS_KLIP, true) ? $k['jenis'] : 'laga';
+            $k = $saringLaga($k, $k['jenis']);
             $k['durasi'] = in_array((int) ($k['durasi'] ?? 0), [15, 20, 30], true) ? (int) $k['durasi'] : ($k['jenis'] === 'laga' || $k['jenis'] === 'entrance' || $k['jenis'] === 'persiapan' ? 30 : 20);
             $k['dialog'] = array_values(array_filter((array) ($k['dialog'] ?? []), fn ($d) => is_array($d) && trim((string) ($d['asli'] ?? '')) !== ''));
             $klip[] = $k;
@@ -1476,6 +1535,7 @@ final class PackVideo
         foreach (array_values($j['tester']) as $i => $t) {
             $t['kode'] = sprintf('T%02d', $i + 1);
             $t['blok2'] = in_array($t['blok2'] ?? '', self::JENIS_KLIP, true) ? $t['blok2'] : 'laga';
+            $t = $saringLaga($t, $t['blok2']);
             $t['kriteria'] = self::daftarTeks($t['kriteria'] ?? [], 8);
             $tester[] = $t;
         }
@@ -2079,8 +2139,12 @@ final class PackVideo
         return "# PROMPT AUDIT — {$judul}\n\nTempel teks di bawah ke ChatGPT atau Claude bersama isi pack (`PROMPT TXT\\`, `TEST REVISI " . self::REVISI . "\\`), "
             . '`' . self::namaDokumen('dialog') . "`, dan `REFERENSI NOVELAI\\`.\n\n```text\n"
             . "You are auditing a Wan 3.0 boxing video prompt pack before paid generation. Check every clip and tester and report problems as a table (clip · problem · fix).\n\n"
-            . "1. SAFETY: canon ages — " . implode('; ', $umur) . '. Mode: ' . ($mode === 'olahraga' ? 'non-sexual sports mode for the whole pack' : 'adult sporty fan service') . ". "
-            . "No real people's or actors' names, no franchise names inside prompts, no nudity/topless, no wardrobe malfunction, no sexual poses, no crotch focus, no gore; blood only as thin drops where written.\n"
+            . "1. SAFETY: canon ages — " . implode('; ', $umur) . '. Mode: '
+            . (['olahraga' => 'non-sexual sports mode for the whole pack', 'uncensored' => 'adult topless variant (both boxers are canon adults)'][$mode] ?? 'adult sporty fan service')
+            . '. '
+            . ($mode === 'uncensored'
+                ? "Every person on screen must be a canon adult. No real people's or actors' names, no franchise names inside prompts, no gore; blood only as thin drops where written.\n"
+                : "No real people's or actors' names, no franchise names inside prompts, no nudity/topless, no wardrobe malfunction, no sexual poses, no crotch focus, no gore; blood only as thin drops where written.\n")
             . "2. CONSISTENCY: Blok 1 identical in every clip except the seconds; positions (A screen-left, B screen-right) never jump; injuries per anatomical side climb and never reset; each clip's End state = next clip's Opening state; glove and ring colours locked.\n"
             . "3. WAN RULES: Blok 1 → Blok 3 → Blok 2; ≤ 4,800 characters; @imageN slots match the upload table; timestamps continuous and inside the clip length; bells only where written; no unwanted sound words in Sound lines; one attacker per beat; no headguards or mouthguards.\n"
             . "4. DIALOGUE & AUDIO: dialogue lines equal the dialogue table; a Voice line for every speaker in that clip; 'audio only, never on-screen text'.\n"

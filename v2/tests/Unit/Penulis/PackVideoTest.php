@@ -426,6 +426,81 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertSame($hasil, PackVideo::buangPakaianBlok1($hasil));
     }
 
+    public function test_utama_uncensored_memakai_versi_topless_di_prompt_dan_tester(): void
+    {
+        $this->tulisCerita('topless', 'tanpa_sensor');
+        $tetapU = self::tetap();
+        $tetapU['blok1'] = "Overall: {DURASI}-second 16:9 topless boxing scene.\nMaterials: Boxer A = @image1, Boxer B = @image2, arena @image3.";
+        Http::fake(['api.venice.ai/*' => Http::sequence()
+            ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
+            ->push(self::jawab($tetapU))->push(self::jawab(self::novelai(true)))]);
+        (new PackVideo(new Venice()))->buat($this->pack);
+        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'bawaan: pack utama versi aman');
+
+        PackVideo::aturUtama($this->pack, true);
+        $hasil = (new PackVideo(new Venice()))->rakitUlang($this->pack);
+
+        $this->assertStringContainsString('topless boxing scene', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'));
+        $this->assertStringContainsString('topless boxing scene', (string) file_get_contents($this->pack . '/TEST REVISI 1/T01.txt'));
+        $this->assertStringContainsString('topless, nipples', (string) file_get_contents($this->pack . '/REFERENSI NOVELAI/A-K0.txt'));
+        $this->assertSame(3, $hasil['cek']['klip']);
+
+        PackVideo::aturUtama($this->pack, false);
+        (new PackVideo(new Venice()))->rakitUlang($this->pack);
+        $this->assertStringNotContainsString('topless', (string) file_get_contents($this->pack . '/PROMPT TXT/01.txt'), 'bisa kembali ke versi aman');
+    }
+
+    public function test_utama_uncensored_ditolak_kalau_tidak_ada_varian(): void
+    {
+        Http::fake(['api.venice.ai/*' => Http::sequence()
+            ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))]);
+        (new PackVideo(new Venice()))->buat($this->pack);
+
+        $this->expectException(PenulisGalat::class);
+        PackVideo::aturUtama($this->pack, true);
+    }
+
+    public function test_laga_tanpa_tokoh_tambahan(): void
+    {
+        // Satu urutan jawaban untuk dua putaran (Http::fake kedua tidak menggantikan yang pertama).
+        $urutan = Http::sequence();
+        foreach (['private', 'pro'] as $jenis) {
+            $r = self::rencana();
+            $r['klip'][1]['ekstra'] = ['C-00', 'D-00'];
+            $r['tester'][1]['ekstra'] = ['C-00', 'D-00'];
+            $b = self::blok3();
+            $b['klip'][1]['blok3'] = 'Opening state: center. ' . ($jenis === 'pro' ? 'The referee @image4 watches.' : 'Only the boxers.');
+            $t = self::tester();
+            $t['tester'][1]['blok3'] = 'Shot 1 [0-10s] ' . ($jenis === 'pro' ? 'referee @image4 stands.' : 'both boxers circle.');
+            $urutan->push(self::jawab($r))->push(self::jawab(self::tetap()))->push(self::jawab($b))
+                ->push(self::jawab($t))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()));
+        }
+        Http::fake(['api.venice.ai/*' => $urutan]);
+
+        foreach (['private' => [], 'pro' => ['C-00.png']] as $jenis => $ekstraLaga) {
+            $this->tulisCerita($jenis, 'fanservice');
+            File::delete($this->pack . '/.penulis');
+            $r = self::rencana();
+            $r['klip'][1]['ekstra'] = ['C-00', 'D-00'];
+            $r['tester'][1]['ekstra'] = ['C-00', 'D-00'];
+            $b = self::blok3();
+            $b['klip'][1]['blok3'] = 'Opening state: center. ' . ($jenis === 'pro' ? 'The referee @image4 watches.' : 'Only the boxers.');
+            $t = self::tester();
+            $t['tester'][1]['blok3'] = 'Shot 1 [0-10s] ' . ($jenis === 'pro' ? 'referee @image4 stands.' : 'both boxers circle.');
+            (new PackVideo(new Venice()))->buat($this->pack);
+
+            $j = json_decode((string) file_get_contents($this->pack . '/pack.json'), true);
+            $this->assertSame(['A-K0.png', 'B-K0.png', 'BG-01.png', ...$ekstraLaga], $j['klip'][1]['gambar'], "{$jenis}: klip laga tanpa cornerman");
+            $this->assertSame(['A-K0.png', 'B-K0.png', 'BG-01.png', ...$ekstraLaga], $j['tester'][1]['gambar'], "{$jenis}: tester laga tanpa cornerman");
+            $this->assertContains('C-00.png', $j['klip'][2]['gambar'], 'epilog tetap boleh tokoh tambahan');
+            Http::assertSent(fn (Request $q) => str_contains($q->data()['messages'][1]['content'] ?? '', 'In `laga` clips and `laga` testers only the two boxers are on screen'));
+            File::deleteDirectory($this->pack);
+            File::ensureDirectoryExists($this->pack . '/CERITA');
+        }
+    }
+
     public function test_padatkan_mekanis(): void
     {
         $this->assertSame('Shot 2 [2-4s] Close-up, static: jab lands.', PackVideo::padatkan('Shot 2 [2-4s] Close-up, 50mm, static: jab lands.'));

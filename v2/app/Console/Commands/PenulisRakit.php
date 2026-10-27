@@ -16,7 +16,8 @@ use Illuminate\Console\Command;
  */
 class PenulisRakit extends Command
 {
-    protected $signature = 'penulis:rakit {folder : nama folder pack di antrian, atau jalur lengkap}';
+    protected $signature = 'penulis:rakit {folder : nama folder pack di antrian, atau jalur lengkap}
+        {--utama= : uncensored = PROMPT TXT/TEST memakai versi topless; aman = kembali ke versi aman}';
 
     protected $description = 'Rakit ulang pack PENULIS dari bagian tersimpan (samarkan nama, bersihkan, pendekkan yang lewat batas)';
 
@@ -25,6 +26,23 @@ class PenulisRakit extends Command
         $folder = (string) $this->argument('folder');
         if (! is_dir($folder)) {
             $folder = rtrim((string) config('produksi.antrian'), '/\\') . DIRECTORY_SEPARATOR . $folder;
+        }
+
+        $utama = (string) $this->option('utama');
+        if ($utama !== '') {
+            if (! in_array($utama, ['uncensored', 'aman'], true)) {
+                $this->error('--utama harus uncensored atau aman.');
+
+                return self::FAILURE;
+            }
+            try {
+                PackVideo::aturUtama($folder, $utama === 'uncensored');
+            } catch (PenulisGalat $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
+            $this->line('  · Pack utama: ' . ($utama === 'uncensored' ? 'versi topless (UNCENSORED)' : 'versi aman'));
         }
 
         $mulai = microtime(true);

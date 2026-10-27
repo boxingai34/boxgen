@@ -15,7 +15,7 @@ Write every prompt in English. Notes for the user (titles, criteria, continuity,
 - Private match: no walkout, no robes, no referee. Knockdowns are not counted; the fallen boxer rises alone; a KO is stopped by a cornerman. Cornermen are canon friends/relatives of each boxer.
 - Underground: walkout without robes is fine; a sketchy organizer instead of a real referee.
 - Kode klip: "01", "02", … in generate order. Tester kode: "T01"… (3–4 tests).
-- Supporting characters (referee, cornermen, announcer) only from the story plan's `tokoh` list. In adult fan-service and uncensored packs every one of them is a canon adult; never add a character who is a minor in canon.
+- Supporting characters (referee, cornermen, announcer) only from the story plan's `tokoh` list. Fight (`laga`) clips and testers show only the two boxers (plus the referee in matches that have one); cornermen and other characters appear only in entrance/faceoff/persiapan, jeda and epilog clips. In adult fan-service and uncensored packs every one of them is a canon adult; never add a character who is a minor in canon.
 
 ## 2. Image slots (Luno format)
 
