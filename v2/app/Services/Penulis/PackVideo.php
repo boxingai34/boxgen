@@ -928,7 +928,8 @@ final class PackVideo
         $user = $konteks . "\n\nTASK — plan the video pack (no prompts yet):\n"
             . "- klip: every clip in generate order, kode \"01\", \"02\", …; jenis from the clip types in the rules"
             . ($jenisVideo === 'private' ? ' (PRIVATE match: start with `persiapan`, no entrance/faceoff, no referee)' : ' (start with `entrance` then `faceoff`)')
-            . "; a `jeda` at every round change shown; end with `epilog`. durasi 30 or 20. Cover the story plan's chapters in order.\n"
+            . "; the fight is 3 rounds: each round is 2–3 `laga` clips in a row, with exactly one `jeda` after round 1 and one after round 2 (2 jeda in total, none elsewhere); "
+            . "end with `epilog`. durasi 30 or 20. Cover the story plan's chapters in order.\n"
             . "- waktu (round + round clock), inti, unggul, judul in Indonesian. momen = hero moment as \"<file> · <exact entry heading>\" from files 01/03/04/05/10/11; "
             . "kamera = hero camera as \"02 · <exact entry heading>\" (or 10/11 entries for entrance/jeda). Follow the variation rules against _riwayat pakai.\n"
             . "- kondisi_a / kondisi_b = the boxer image code for that clip (A-K0…A-K3 / B-K0…B-K3), arena = BG-01 or BG-02, ekstra = extra image codes "
@@ -1780,6 +1781,13 @@ final class PackVideo
         }
         $j['klip'] = $klip;
         $j['tester'] = $tester;
+
+        // Format 3 ronde (pengguna 2026-10-27): 2–3 klip laga per ronde, 2 jeda.
+        $hitung = array_count_values(array_column($klip, 'jenis'));
+        $laga = (int) ($hitung['laga'] ?? 0);
+        if ((int) ($hitung['jeda'] ?? 0) !== 2 || $laga < 6 || $laga > 9) {
+            $this->peringatan[] = sprintf('Rencana memuat %d klip laga dan %d jeda (format: 3 ronde × 2–3 klip laga, 2 jeda).', $laga, (int) ($hitung['jeda'] ?? 0));
+        }
 
         // Kode gambar yang dipakai tapi tidak didaftar: tambahkan supaya
         // NovelAI tetap menulis prompt untuknya.

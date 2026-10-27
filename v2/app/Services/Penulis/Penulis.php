@@ -210,11 +210,12 @@ final class Penulis
         $sistem = 'You are a fight choreographer and story planner for a boxing fiction studio. You plan a boxing match as chapters of a novel '
             . "that will later be adapted into video. Return JSON.\n\n"
             . "MATCH TYPE — {$jenis['label']}: {$jenis['aturan']}\n\n"
+            . JenisLaga::FORMAT . "\n\n"
             . 'CONTENT LEVEL: ' . JenisLaga::ISI[$p['isi']]['aturan']
             . ($bible !== '' ? "\n\nSTUDIO REFERENCE (Indonesian) — apply its dramaturgy principles, condition ladder K0–K3 and arcs:\n\n" . $bible : '');
 
         $jumlah = $p['bab'] === 'auto'
-            ? 'Choose the number of fight chapters yourself (2 to 6). A chapter may cover one round or a group of rounds (label it "Rounds 4–6").'
+            ? 'Use one fight chapter per round: exactly 3 chapters, labelled "Round 1", "Round 2", "Round 3".'
             : "The bab array must contain EXACTLY {$p['bab']} item(s): tell the whole fight in {$p['bab']} chapter(s), grouping rounds as needed (label it \"Rounds 1–4\").";
 
         $user = "FIGHTERS:\n" . self::ringkasPetinju($riset) . "\n\n"

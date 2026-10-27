@@ -9,10 +9,10 @@ Write every prompt in English. Notes for the user (titles, criteria, continuity,
 - Clip types and default lengths:
   - `entrance` 30 s — walkout in robes (Fight Bible 10). Followed by `faceoff` 20 s — robes off, referee instructions, face-off.
   - `persiapan` 30 s — PRIVATE matches only, replaces entrance + faceoff: gloves laced, the cornermen state the rules, glove touch. No robes, no referee.
-  - `laga` 30 s — fight action. About 6 laga clips (3 minutes) by default; scale with the story plan.
-  - `jeda` 20 s — one rest clip at EVERY round change shown (Fight Bible 11).
+  - `laga` 30 s — fight action. Every fight is 3 rounds; each round is 2–3 laga clips in a row (6–9 laga clips in total).
+  - `jeda` 20 s — exactly two rest clips: after round 1 and after round 2 (Fight Bible 11). No other jeda.
   - `epilog` 20 s — result and aftermath.
-- Private match: no walkout, no robes, no referee. Knockdowns are not counted; the fallen boxer rises alone; a KO is stopped by a cornerman. Cornermen are canon friends/relatives of each boxer.
+- Private match: no walkout, no robes, no referee. Knockdowns are not counted; the fallen boxer rises alone; a KO ends it with the fallen boxer staying down; cornermen come in only after the fight. Cornermen are canon friends/relatives of each boxer.
 - Underground: walkout without robes is fine; a sketchy organizer instead of a real referee.
 - Kode klip: "01", "02", … in generate order. Tester kode: "T01"… (3–4 tests).
 - Supporting characters (referee, cornermen, announcer) only from the story plan's `tokoh` list. Fight (`laga`) clips and testers show only the two boxers (plus the referee in matches that have one); cornermen and other characters appear only in entrance/faceoff/persiapan, jeda and epilog clips. In adult fan-service and uncensored packs every one of them is a canon adult; never add a character who is a minor in canon.
@@ -31,6 +31,7 @@ Write every prompt in English. Notes for the user (titles, criteria, continuity,
 Total ≤ 4,800 characters (Wan rejects above 5,000). Targets: Blok 1 ±900, Blok 3 ±2,000–2,300 for 30 s (±1,300–1,600 for 20 s), Blok 2 ±1,650.
 
 **Blok 1 — Cast & Arena**: identical in every clip except the duration. Use the literal token `{DURASI}` where the seconds go ("Overall: {DURASI}-second 16:9 boxing scene, …"). The only place for outfit, hair, glove colour, height (cm), stance, render style. Outfit always "exactly as shown in @image1" + 3–8 matching words. Lock ring post/rope/canvas colours from the arena. Boxer A screen-left, Boxer B screen-right unless a shot says otherwise; faces, outfits and glove colours never swap or blend. Render style follows the source medium: TV anime 2D → "2D cel-shaded TV anime style like @image1 and @image2 (clean thin lineart, flat colours, soft shadows, glossy eyes), cinematic"; 3D anime/game → stylized 3D render.
+- Matches without an audience (private, closed gym): never write "no crowd", "empty seats" or "never empty" — Wan answers with spectators (2026-10-27). Write it positively: the Overall line ends with "the only people anywhere are the ones written in the shots", the Arena line ends with "Beyond the ropes <the room> stays unlit, near-black and empty", and the Negative line says "nobody but the people written in the shots".
 
 **Blok 3 — Clip flow**: only "Boxer A / Boxer B" (no names, no outfits). Opening state with a `Positions:` line and both conditions. Shots as `Shot N [a-bs]`. Fight clips: 11–14 shots of 1.5–3 s, one action per shot, constant action — no idle "reading" shots except one quiet beat per clip; never open a fight clip with a wide arena shot of tiny boxers. One hero camera per clip. Each shot: action (only the punches written, anatomical target, reaction type) → one camera instruction → a short `Sound:`. End state (position, condition) = next clip's opening state.
 - Bells/gongs only where written. Never write the names of sounds you do NOT want (music, bell, gong, ringing): write "the only sounds are …; nothing else is heard".

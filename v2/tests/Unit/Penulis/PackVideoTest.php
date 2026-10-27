@@ -207,7 +207,8 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         // Dibaca menu PRODUKSI sebagai pack.json.
         $this->assertSame('json', $hasil['cek']['format']);
         $this->assertSame(3, $hasil['cek']['klip']);
-        $this->assertSame([], $hasil['peringatan']);
+        // Fixture cuma 3 klip: satu-satunya peringatan = format 3 ronde.
+        $this->assertSame(['Rencana memuat 1 klip laga dan 0 jeda (format: 3 ronde × 2–3 klip laga, 2 jeda).'], $hasil['peringatan']);
 
         // SRT: klip 03 mulai di detik 60, dialog detik 2 → 00:01:02.
         $this->assertStringContainsString("00:01:02,000 -->", (string) file_get_contents($this->pack . '/Subtitle Inggris.srt'));

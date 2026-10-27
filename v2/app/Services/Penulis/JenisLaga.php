@@ -19,9 +19,9 @@ final class JenisLaga
             'aturan' => 'Sanctioned professional bout in a proper boxing ring with ropes and corner posts. A referee is in the ring, '
                 . 'three judges at ringside, a crowd, standard boxing gloves and athletic boxing attire (sports top and trunks). '
                 . 'The fight opens with a walkout in robes and the referee\'s instructions; each corner has a canon cornerman/coach. '
-                . 'YOU choose the format and vary it from fight to fight: scheduled rounds (4, 6, 8, 10 or 12), round length (2 or 3 minutes), '
-                . 'and the ending — knockout, referee stoppage, the corner throwing in the towel, unanimous or split decision, a draw, '
-                . 'a late comeback, a knockdown that changes everything. Do not default to a knockout in the last round. '
+                . 'YOU choose the round length (2 or 3 minutes) and vary the ending from fight to fight — knockout, referee stoppage, '
+                . 'the corner throwing in the towel, unanimous or split decision, a draw, a late comeback, a knockdown that changes everything. '
+                . 'Do not default to a knockout. '
                 . 'Tone: exciting, sexy and sensual, but always sporty — real boxing first.',
         ],
         'underground' => [
@@ -51,6 +51,14 @@ final class JenisLaga
                 . 'Cornermen, if any, are canon characters from their own series. They agree the rules between themselves. Ends when one cannot continue or gives up.',
         ],
     ];
+
+    /**
+     * Format semua laga (pengguna 2026-10-27: "cukup 3 ronde, tapi 1 ronde
+     * terdiri dari 2–3 klip; interval jangan terlalu banyak" → 2 jeda).
+     * Menggantikan permintaan awal "variasikan jumlah ronde".
+     */
+    public const FORMAT = 'FORMAT (studio rule, every match type): the fight lasts exactly 3 rounds — it goes the distance or ends inside round 3, '
+        . 'never earlier and never later. Each round is told in depth (2–3 video clips of action per round), with one rest between rounds 1–2 and one between rounds 2–3.';
 
     public const ISI = [
         'olahraga' => [
