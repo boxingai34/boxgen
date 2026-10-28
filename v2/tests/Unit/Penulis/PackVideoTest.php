@@ -304,6 +304,27 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         (new PackVideo(new Venice()))->tulisUlangKlip($this->pack, ['09']);
     }
 
+    public function test_rakit_ulang_tetap_jalan_saat_saldo_venice_habis(): void
+    {
+        // 2026-10-28: Venice HTTP 402 di langkah pemendekan menggagalkan seluruh rakit.
+        Http::fake(['api.venice.ai/*' => Http::sequence()
+            ->push(self::jawab(self::rencana()))->push(self::jawab(self::tetap()))->push(self::jawab(self::blok3()))
+            ->push(self::jawab(self::tester()))->push(self::jawab(self::novelai()))->push(self::jawab(self::latar()))
+            ->push(['error' => 'Insufficient USD or Diem balance to complete request.'], 402)]);
+        (new PackVideo(new Venice()))->buat($this->pack);
+
+        $jalur = $this->pack . '/CERITA/pack-bagian.json';
+        $bagian = json_decode((string) file_get_contents($jalur), true);
+        $bagian['tetap']['blok2']['laga'] = 'Sound: thuds. ' . str_repeat('Lighting: rim. ', 130);
+        File::put($jalur, json_encode($bagian));
+
+        $hasil = (new PackVideo(new Venice()))->rakitUlang($this->pack);
+
+        Http::assertSentCount(7);
+        $this->assertSame(3, $hasil['cek']['klip']);
+        $this->assertNotEmpty(array_filter($hasil['peringatan'], fn ($p) => str_contains($p, 'Penyunting tidak bisa dipanggil')));
+    }
+
     public function test_rakit_ulang_dari_bagian_tanpa_menulis_ulang(): void
     {
         // Satu urutan untuk dua tahap: 5 jawaban buat(), lalu 1 pemendekan.
@@ -565,6 +586,90 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
             PackVideo::pastikanNadaRuang('Sound: crisp Foley. @audio1 timbre only; never copy its room tone.'));
     }
 
+    public function test_suara_tertutup_tanpa_audio_dan_tanpa_kata_pro(): void
+    {
+        // Klip 03 take 3: penonton terdengar; T03 take 3 tanpa penonton punya daftar bunyi tertutup di Blok 3.
+        $b3 = "Opening state: x.\nShot 1 [0-3s] jab.\nEnd state: y.\nBoxer B [4s]: 「…」";
+        $hasil = PackVideo::pastikanSuaraTertutup($b3, 'laga');
+        $this->assertStringContainsString("End state: y.\nSound: the only sounds are glove impacts", $hasil);
+        $this->assertStringContainsString('nothing else is heard.', $hasil);
+        $this->assertSame($hasil, PackVideo::pastikanSuaraTertutup($hasil, 'laga'), 'idempoten');
+        $this->assertSame("Shot 1 [0-3s] x.\nSound: the only sounds are a thud; nothing else is heard.",
+            PackVideo::pastikanSuaraTertutup("Shot 1 [0-3s] x.\nSound: the only sounds are a thud; nothing else is heard.", 'laga'), 'Sound yang ada tidak ditimpa');
+
+        // PRODUKSI tidak mengirim file audio: rujukan @audio1 dibuang, deskripsi "tss" tetap.
+        $this->assertSame('Sound: every jab carries a sharp "tss" breath through the teeth. Heavy hooks: thud.',
+            PackVideo::bersihkanSuara('Sound: every jab carries a sharp "tss" breath through the teeth (@audio1 = timbre ref only; never copy its timing). Heavy hooks: thud.'));
+        $this->assertSame('Sound: crisp Foley. Light taps get the hiss.',
+            PackVideo::bersihkanSuara('Sound: crisp Foley. @audio1 = timbre reference only for the short "tss" hiss on jabs; never copy its timing or room tone. Light taps get the hiss.'));
+
+        // "inside ropes" menyiratkan orang di luar tali; "pro boxers" memanggil arena.
+        $this->assertSame('Negative: no limb interpenetration, nobody but the people written in the shots, no idle standing.',
+            PackVideo::bersihkanPenonton('Negative: no limb interpenetration, nobody but two boxers inside ropes, no idle standing.'));
+        $this->assertStringContainsString('two boxers in private pavilion ring', PackVideo::pastikanTanpaPenonton("Overall: 30-second scene; two pro boxers in private pavilion ring at night."));
+    }
+
+    public function test_label_petinju_dipulihkan_dan_sound_ditutup(): void
+    {
+        // Penyunting menyingkat "Boxer A/B" (klip 03 dan 06, 2026-10-28).
+        $this->assertSame('Strict profile: Boxer B jabs with sharp "tss"; Boxer A\'s overhand right loads over it.',
+            PackVideo::pulihkanLabel('Strict profile: B jabs with sharp "tss"; A\'s overhand right loads over it.'));
+        $this->assertSame('Wide: Boxer B flat on back; Boxer A walks to neutral area. A folded towel lies on the apron. A K3, B K3.',
+            PackVideo::pulihkanLabel('Wide: B flat on back; A walks to neutral area. A folded towel lies on the apron. A K3, B K3.'));
+        $this->assertSame('no swap between Boxer A/B; Boxer A and Boxer B touch gloves.', PackVideo::pulihkanLabel('no swap between Boxer A/B; A and B touch gloves.'));
+        $this->assertSame('Boxer B\'s cornerman (@image3).', PackVideo::pulihkanLabel('Boxer B\'s cornerman (@image3).'), 'yang sudah lengkap tidak berubah');
+
+        // Daftar bunyi yang sudah ada ditutup (04B, 07A, T02).
+        $this->assertSame("End state: y.
+Sound: steam hiss, breathing, a towel squeeze; nothing else is heard.",
+            PackVideo::pastikanSuaraTertutup("End state: y.
+Sound: steam hiss, breathing, a towel squeeze.", 'jeda'));
+    }
+
+    public function test_jeda_satu_sudut_tanpa_gambar_lawan(): void
+    {
+        $this->assertSame('B', PackVideo::satuSudut('04B', 'jeda'));
+        $this->assertSame('A', PackVideo::satuSudut('07A', 'jeda'));
+        $this->assertNull(PackVideo::satuSudut('04', 'jeda'));
+        $this->assertNull(PackVideo::satuSudut('04B', 'laga'));
+
+        // Klip 04B take 2: Boxer A muncul karena gambarnya tetap diunggah sebagai @image1.
+        $gambar = ['A-K1.png', 'B-K1.png', 'BG-01.png', 'E-00.png'];
+        $b3 = "Opening state: Boxer B (@image2) alone; Boxer B's cornerman (@image4) ducks in.";
+        [$g, $t] = PackVideo::lepasLawan($gambar, $b3, 'B');
+        $this->assertSame(['B-K1.png', 'BG-01.png', 'E-00.png'], $g);
+        $this->assertSame("Opening state: Boxer B (@image1) alone; Boxer B's cornerman (@image3) ducks in.", $t);
+        $this->assertSame([$g, $t], PackVideo::lepasLawan($g, $t, 'B'), 'idempoten');
+        [$g, $t] = PackVideo::lepasLawan(['A-K1.png', 'B-K1.png', 'BG-01.png', 'D-00.png'], 'Boxer A (@image1); cornerman (@image4).', 'A');
+        $this->assertSame(['A-K1.png', 'BG-01.png', 'D-00.png'], $g);
+        $this->assertSame('Boxer A (@image1); cornerman (@image3).', $t);
+
+        $blok1 = "Overall: 15-second 16:9 boxing scene, anime style like @image1 and @image2, cinematic; two pro boxers in private pavilion ring at night.\n"
+            . "Materials: Boxer A = @image1 (exact): blonde high ponytail; red gloves; 163 cm.\n"
+            . "Boxer B = @image2 (exact): long auburn ponytail; blue gloves; 174 cm.\n"
+            . "Arena = @image3: raised wooden floor, four dark posts.\n"
+            . "Boxer A screen-left, Boxer B screen-right unless specified; faces, outfits, glove colors never swap or blend.\n"
+            . 'Both boxers topless: bare-chested, wearing only boxing trunks, boots and gloves.';
+        $b = PackVideo::blok1SatuSudut($blok1, 'B');
+        $this->assertStringNotContainsString('Boxer A', $b);
+        $this->assertStringContainsString('anime style like @image1, cinematic; one pro boxer in private pavilion ring', $b);
+        $this->assertStringContainsString("Materials: Boxer B = @image1 (exact): long auburn ponytail; blue gloves; 174 cm.\nArena = @image2:", $b);
+        $this->assertStringContainsString('Boxer B is the only boxer in this clip, in the screen-right corner', $b);
+        $this->assertStringContainsString('Boxer B topless: bare-chested', $b);
+        $a = PackVideo::blok1SatuSudut($blok1, 'A');
+        $this->assertStringNotContainsString('Boxer B', $a);
+        $this->assertStringContainsString("Materials: Boxer A = @image1 (exact): blonde high ponytail; red gloves; 163 cm.\nArena = @image2:", $a);
+
+        $blok2 = 'Negative: no punches, no face/outfit/glove-color swap between Boxer A/B, no boxer in wrong corner.';
+        $this->assertSame('Negative: no punches, no boxer in wrong corner.', PackVideo::blok2SatuSudut($blok2, 'B'));
+        $this->assertSame('Negative: no punches, no boxer in wrong corner.', PackVideo::blok2SatuSudut($blok2, 'A'));
+
+        // Laga privat: wasit dan hitungan juga tidak disebut (04A take 1).
+        $this->assertSame('Opening state: Rest. Boxer A sits.', PackVideo::bersihkanPenonton('Opening state: Rest. No referee. Boxer A sits.'));
+        $this->assertSame('K1, steam.', PackVideo::bersihkanPenonton('K1, no count, steam.'));
+        $this->assertSame('Negative: no punches, nobody but people written in shots.', PackVideo::bersihkanPenonton('Negative: no punches, no referee/crowd, nobody but people written in shots.'));
+    }
+
     public function test_istirahat_jadi_jeda_a_dan_b_dengan_satu_nomor(): void
     {
         $this->assertSame(['02', '02', '04A', '04B', '07', '04B'], array_map([PackVideo::class, 'kodeKlip'], ['2', 'Klip 02', '04a', '04B', '07 (jeda)', 'Clip 4b']));
@@ -587,15 +692,15 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
     public function test_lapis_akhir_penonton_nada_ruang_tokoh_laga_dan_gaya(): void
     {
         // Frasa dari pack Tsunade vs Mei NSFW 3 ronde (2026-10-27).
-        $this->assertSame('Opening state: Before the bout, no referee. Boxer A = @image1',
+        $this->assertSame('Opening state: Before the bout. Boxer A = @image1',
             PackVideo::bersihkanPenonton('Opening state: Before the bout, no referee, no audience. Boxer A = @image1'));
-        $this->assertSame('Negative: nobody but two boxers inside ropes, no referee, no idle standing.',
+        $this->assertSame('Negative: nobody but the people written in the shots, no idle standing.',
             PackVideo::bersihkanPenonton('Negative: nobody but two boxers inside ropes, no referee, no crowd, no idle standing.'));
         $this->assertSame('steam; same ring every shot; background only. Beyond ropes, unlit near-black empty pavilion.',
             PackVideo::bersihkanPenonton('steam; same ring every shot; background only, never empty. Beyond ropes, unlit near-black empty pavilion.'));
-        $this->assertSame('No referee. Positions: center.', PackVideo::bersihkanPenonton('No crowd, no referee. Positions: center.'));
+        $this->assertSame('Positions: center.', PackVideo::bersihkanPenonton('No crowd, no referee. Positions: center.'));
         $this->assertSame('mottled ribs. Positions: center.', PackVideo::bersihkanPenonton('mottled ribs. No crowd. Positions: center.'));
-        $this->assertSame('K1; no ref.', PackVideo::bersihkanPenonton('K1; no ref, no audience.'));
+        $this->assertSame('K1.', PackVideo::bersihkanPenonton('K1; no ref, no audience.'));
         $this->assertSame('breathing, steam hiss.', PackVideo::bersihkanPenonton('breathing, no crowd noise, steam hiss.'));
 
         $blok1 = "Overall: {DURASI}-second 16:9 boxing scene, stylized 3D anime, cinematic; two pro boxers in private pavilion ring at night.\nMaterials: Boxer A = @image1.";

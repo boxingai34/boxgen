@@ -205,15 +205,23 @@ final class PackVideo
      */
     public static function bersihkanPenonton(string $teks): string
     {
-        $kata = '(?:crowd|audience|spectators|onlookers)(?:\s+(?:noise|sounds?|murmur|cheering|cheers))?';
+        // Laga privat: wasit dan hitungan juga tidak disebut (klip 04A take 1: "No referee", "no count").
+        $orang = '(?:crowd|audience|spectators|onlookers|referee|ref|standing count|referee count|count|counting)';
+        $kata = $orang . '(?:\s+(?:noise|sounds?|murmur|cheering|cheers))?(?:\/' . $orang . ')*';
         $ujung = '(?=\s*[,.;)]|\s*$)';
-        // Kalimat sendiri: "No crowd." di awal baris atau sesudah tanda baca.
-        $teks = (string) preg_replace('/(?<=[.;:!?])\s+No ' . $kata . '\.(?=\s|$)/mu', '', $teks);
-        $teks = (string) preg_replace('/^No ' . $kata . '\.\s*/mu', '', $teks);
-        // Butir sesudah koma: ", no crowd".
-        $teks = (string) preg_replace('/,\s*no ' . $kata . $ujung . '/iu', '', $teks);
-        // Butir di depan: "No crowd, no referee" → "No referee".
-        $teks = (string) preg_replace_callback('/\b([Nn])o ' . $kata . '\s*,\s*(\w)/u', fn ($m) => $m[1] === 'N' ? strtoupper($m[2]) : $m[2], $teks);
+        // Dua putaran: membuang satu butir bisa menyisakan kalimat "No crowd." baru.
+        for ($putaran = 0; $putaran < 2; $putaran++) {
+            // Kalimat sendiri: "No crowd." di awal baris atau sesudah tanda baca.
+            $teks = (string) preg_replace('/(?<=[.;:!?])\s+No ' . $kata . '\.(?=\s|$)/mu', '', $teks);
+            $teks = (string) preg_replace('/^No ' . $kata . '\.\s*/mu', '', $teks);
+            // Butir sesudah koma: ", no crowd".
+            $teks = (string) preg_replace('/[,;]\s*no ' . $kata . $ujung . '/iu', '', $teks);
+            // Butir di depan: "No crowd, no referee" → "No referee".
+            $teks = (string) preg_replace_callback('/\b([Nn])o ' . $kata . '\s*,\s*(\w)/u', fn ($m) => $m[1] === 'N' ? strtoupper($m[2]) : $m[2], $teks);
+        }
+
+        // "inside ropes" menyiratkan ada orang di luar tali.
+        $teks = (string) preg_replace('/\bnobody but (?:the )?two boxers inside (?:the )?ropes\b/iu', 'nobody but the people written in the shots', $teks);
 
         return (string) preg_replace('/,?\s*\bnever empty\b' . $ujung . '/iu', '', $teks);
     }
@@ -221,7 +229,8 @@ final class PackVideo
     /** Blok 1 laga tanpa penonton: tanpa frasa pemanggil penonton, Overall ditutup KALIMAT_TANPA_PENONTON. */
     public static function pastikanTanpaPenonton(string $blok1): string
     {
-        $blok1 = self::bersihkanPenonton($blok1);
+        // Laga privat: "pro boxers" memanggil suasana arena.
+        $blok1 = (string) preg_replace('/\b(?:pro|professional) (boxers?)\b/iu', '$1', self::bersihkanPenonton($blok1));
         if (stripos($blok1, 'the only people anywhere') !== false) {
             return $blok1;
         }
@@ -262,6 +271,55 @@ final class PackVideo
         }, $blok3);
     }
 
+    /**
+     * Pulihkan "Boxer A/B" yang disingkat penyunting (uji 2026-10-28: klip 03
+     * dan 06 jadi "A walks", "B's right"). "B" dan "A's" selalu petinju;
+     * "A" hanya kalau jelas subjek ("A walks", "; A follows"), supaya
+     * artikel "A folded towel" tidak tersentuh. Kondisi "A K3" dibiarkan.
+     */
+    public static function pulihkanLabel(string $teks): string
+    {
+        $teks = (string) preg_replace("/(?<!Boxer )(?<![\\w@\\/-])B(?='s\\b| [a-z(])/u", 'Boxer B', $teks);
+        $teks = (string) preg_replace("/(?<!Boxer )(?<![\\w@\\/-])A(?='s\\b)/u", 'Boxer A', $teks);
+        // "A" kapital di tengah kalimat bukan artikel (artikel di tengah kalimat ditulis "a").
+        $teks = (string) preg_replace('/(?<!Boxer )(?<=[a-z,;(] )A(?= [a-z])/u', 'Boxer A', $teks);
+
+        $teks = (string) preg_replace('/(?<=[.:!?] |^)A(?= (?:and|[a-z]+s)\b)/mu', 'Boxer A', $teks);
+
+        // Pengaman: "Boxer Boxer A" (2026-10-28 sempat terjadi) → "Boxer A".
+        return (string) preg_replace('/\b(?:Boxer\s+){2,}/u', 'Boxer ', $teks);
+    }
+
+    /** Daftar bunyi tertutup per jenis klip (pastikanSuaraTertutup). */
+    private const SUARA_TERTUTUP = [
+        'laga'      => 'Sound: the only sounds are glove impacts, the "tss" breaths on jabs, grunts, breathing and floor creaks over the quiet room tone; nothing else is heard.',
+        'jeda'      => 'Sound: the only sounds are breathing, water and towel sounds, the written lines and floor creaks over the quiet room tone; nothing else is heard.',
+        'persiapan' => 'Sound: the only sounds are glove straps, light taps, breathing, the written lines and floor creaks over the quiet room tone; nothing else is heard.',
+        'epilog'    => 'Sound: the only sounds are breathing, water, steam and the written lines over the quiet room tone; nothing else is heard.',
+    ];
+
+    /**
+     * Laga tanpa penonton: Blok 3 wajib punya daftar bunyi tertutup. Klip 03
+     * take 3 (2026-10-28) penonton terdengar; T03 take 3 tanpa penonton dan
+     * Blok 3-nya memuat "Sound: …; nothing else." (pelajaran Wan 2026-10-25).
+     */
+    public static function pastikanSuaraTertutup(string $b3, string $jenis): string
+    {
+        if (preg_match('/^Sound:/mu', $b3) === 1) {
+            // Daftar yang sudah ada ditutup (04B, 07A, T02: "Sound: steam hiss, breathing, a towel squeeze").
+            return (string) preg_replace_callback('/^(Sound:.*)$/mu', fn ($m) => preg_match('/nothing else/i', $m[1]) === 1 ? $m[1] : rtrim($m[1], ' .;') . '; nothing else is heard.', $b3, 1);
+        }
+        if (! isset(self::SUARA_TERTUTUP[$jenis])) {
+            return $b3;
+        }
+        $baris = self::SUARA_TERTUTUP[$jenis];
+        $hasil = (string) preg_replace('/^(End state:.*)$/mu', "$1
+{$baris}", $b3, 1, $n);
+
+        return $n === 1 ? $hasil : rtrim($b3) . "
+" . $baris;
+    }
+
     /** "(true) silence between …" → nada ruang yang tenang (sunyi kosong kembali sebagai dengung penonton). */
     public static function gantiSunyi(string $teks): string
     {
@@ -282,14 +340,8 @@ final class PackVideo
         $lawan = $m[1] === 'A' ? 'Boxer B' : 'Boxer A';
         $absen = '(?:not in (?:the )?frame|off[- ]?frame|out of frame|not visible|never visible|unseen|not shown)';
         // Klausa (; atau ,) lalu kalimat yang memuat lawan + absen.
-        $b3 = (string) preg_replace('/[;,]\s*[^;,.
-]*\b' . $lawan . '\b[^;,.
-]*\b' . $absen . '[^;,.
-]*(?=[.;,])/u', '', $b3);
-        $b3 = (string) preg_replace('/(?<=^|[.:])\s*[^.
-:]*\b' . $lawan . '\b[^.
-]*\b' . $absen . '[^.
-]*\.(?=\s|$)/mu', '', $b3);
+        $b3 = (string) preg_replace('/[;,]\s*[^;,.\n]*\b' . $lawan . '\b[^;,.\n]*\b' . $absen . '[^;,.\n]*(?=[.;,])/u', '', $b3);
+        $b3 = (string) preg_replace('/(?<=^|[.:])\s*[^.\n:]*\b' . $lawan . '\b[^.\n]*\b' . $absen . '[^.\n]*\.(?=\s|$)/mu', '', $b3);
         if (stripos($b3, 'stays on this one corner') === false) {
             $b3 = (string) preg_replace('/^(Opening state:.*?)\s*$/mu', '$1 The whole clip stays on this one corner.', $b3, 1);
         }
@@ -300,8 +352,7 @@ final class PackVideo
     /** Blok 3 klip laga: sebutan cornerman ("cornermen out", "no cornerman") dibuang; saat laga hanya dua petinju. */
     public static function bersihkanTokohLaga(string $blok3): string
     {
-        $blok3 = (string) preg_replace('/(?<=[.;:])\s*Cornerm[ae]n (?:out|outside|away|gone)\b[^.
-]*\.(?=\s|$)/u', '', $blok3);
+        $blok3 = (string) preg_replace('/(?<=[.;:])\s*Cornerm[ae]n (?:out|outside|away|gone)\b[^.\n]*\.(?=\s|$)/u', '', $blok3);
 
         return (string) preg_replace('/,?\s*\b(?:cornerm[ae]n (?:out|outside|away|gone)|no cornerm[ae]n(?: [a-z ]+?)?)(?=\s*[,.;)])/iu', '', $blok3);
     }
@@ -355,9 +406,11 @@ final class PackVideo
      */
     public static function blok1Klip(string $blok1, array $gambar, array $isiGambar, string $arenaUtama): string
     {
-        $kode = array_map(fn ($g) => (string) preg_replace('/\.png$/i', '', (string) $g), array_values($gambar));
+        // Dicari menurut awalan, bukan posisi: klip satu sudut tidak punya slot lawan (lepasLawan).
+        $kode = array_map(fn ($g) => (string) preg_replace('/\.png$/i', '', basename((string) $g)), array_values($gambar));
+        $cari = fn (string $pola) => (string) (array_values(preg_grep($pola, $kode))[0] ?? '');
         $baris = preg_split('/\R/u', $blok1) ?: [];
-        $arena = $kode[2] ?? '';
+        $arena = $cari('/^BG-/');
         $isi = self::isiLatar((string) ($isiGambar[$arena] ?? ''));
         if ($arena !== '' && $arenaUtama !== '' && $arena !== $arenaUtama && $isi !== '') {
             $tempat = lcfirst(trim(explode(':', $isi, 2)[0]));
@@ -376,7 +429,7 @@ final class PackVideo
             }
         }
 
-        $lepas = array_values(array_filter(['A' => $kode[0] ?? '', 'B' => $kode[1] ?? ''], [self::class, 'tanpaSarung']));
+        $lepas = array_values(array_filter(['A' => $cari('/^A-/'), 'B' => $cari('/^B-/')], [self::class, 'tanpaSarung']));
         if ($lepas !== []) {
             foreach ($baris as $i => $b) {
                 if (preg_match('/^(.*@image[12]\b[^:]*:\s*)([^;\n]*)(.*)$/u', $b, $m) === 1) {
@@ -397,8 +450,7 @@ final class PackVideo
     /** Blok 2 untuk klip dengan gambar tanpa sarung: bunyi dan larangan soal sarung dibuang (lihat blok1Klip). */
     public static function blok2Klip(string $blok2, array $gambar): string
     {
-        $kode = array_values($gambar);
-        if (! self::tanpaSarung((string) ($kode[0] ?? '')) && ! self::tanpaSarung((string) ($kode[1] ?? ''))) {
+        if (array_filter(array_map(fn ($g) => basename((string) $g), $gambar), [self::class, 'tanpaSarung']) === []) {
             return $blok2;
         }
         $baris = preg_split('/\R/u', $blok2) ?: [];
@@ -422,6 +474,94 @@ final class PackVideo
         }
 
         return implode("\n", $baris);
+    }
+
+    /**
+     * Klip jeda satu sudut (kode NNA / NNB): petinju yang hadir, 'A' atau
+     * 'B'; null untuk klip lain. Klip 04B take 2 (2026-10-28): Boxer A ikut
+     * muncul karena gambarnya tetap diunggah sebagai @image1.
+     */
+    public static function satuSudut(string $kode, string $jenis): ?string
+    {
+        return $jenis === 'jeda' && preg_match('/^\d+([AB])$/', $kode, $m) === 1 ? $m[1] : null;
+    }
+
+    /** Buang sebutan slot @imageN lalu geser nomor di atasnya turun satu. */
+    public static function geserSlot(string $teks, int $n): string
+    {
+        $teks = (string) preg_replace('/\s*\(@image' . $n . '\)|@image' . $n . '\s+and\s+|\s+and\s+@image' . $n . '\b/u', '', $teks);
+
+        return (string) preg_replace_callback('/@image(\d+)\b/', fn ($m) => '@image' . ((int) $m[1] > $n ? (int) $m[1] - 1 : (int) $m[1]), $teks);
+    }
+
+    /**
+     * Klip satu sudut: gambar petinju lawan keluar dari daftar unggahan dan
+     * slot Blok 3 dirapatkan. Idempoten: kalau gambar lawan sudah tidak ada,
+     * tidak ada yang diubah.
+     *
+     * @param list<string> $gambar
+     * @return array{0:list<string>,1:string}
+     */
+    public static function lepasLawan(array $gambar, string $b3, string $hadir): array
+    {
+        $gambar = array_values($gambar);
+        $absen = $hadir === 'A' ? 'B' : 'A';
+        foreach ($gambar as $i => $g) {
+            if (str_starts_with(basename((string) $g), $absen . '-')) {
+                array_splice($gambar, $i, 1);
+
+                return [$gambar, self::geserSlot($b3, $i + 1)];
+            }
+        }
+
+        return [$gambar, $b3];
+    }
+
+    /**
+     * Blok 1 klip satu sudut: baris materi lawan dibuang, "two boxers" jadi
+     * satu, "Both boxers" jadi petinju yang hadir, baris posisi diganti satu
+     * kalimat positif, lalu slot dirapatkan (lawan = @image1 untuk A, @image2
+     * untuk B, sesuai urutan tetap Blok 1).
+     */
+    public static function blok1SatuSudut(string $blok1, string $hadir): string
+    {
+        $absen = $hadir === 'A' ? 'B' : 'A';
+        $sisi = $hadir === 'A' ? 'left' : 'right';
+        $baris = [];
+        $labelMateri = false;
+        foreach (preg_split('/\R/u', $blok1) ?: [] as $b) {
+            if (preg_match('/\bBoxer ' . $absen . '\s*=\s*@image\d/u', $b) === 1) {
+                $labelMateri = $labelMateri || str_starts_with($b, 'Materials:');
+
+                continue;
+            }
+            if (preg_match('/screen-(left|right).*screen-(left|right)/i', $b) === 1 && str_contains($b, 'Boxer ' . $absen)) {
+                $b = "Boxer {$hadir} is the only boxer in this clip, in the screen-{$sisi} corner; face, outfit and glove colour exact.";
+            }
+            $b = (string) preg_replace('/\bBoth boxers are\b/u', "Boxer {$hadir} is", $b);
+            $b = (string) preg_replace('/\bBoth boxers\b/u', "Boxer {$hadir}", $b);
+            $b = (string) preg_replace('/\btwo (adult |grown )?(pro |professional )?(women |female )?boxers\b/iu', 'one $1$2$3boxer', $b);
+            if ($labelMateri && preg_match('/^Boxer ' . $hadir . '\s*=\s*@image\d/u', $b) === 1) {
+                $b = 'Materials: ' . $b;
+                $labelMateri = false;
+            }
+            $baris[] = $b;
+        }
+
+        return self::geserSlot(implode("\n", $baris), $absen === 'A' ? 1 : 2);
+    }
+
+    /** Blok 2 klip satu sudut: butir yang menyebut petinju lawan dibuang ("no … swap between Boxer A/B"). */
+    public static function blok2SatuSudut(string $blok2, string $hadir): string
+    {
+        $absen = $hadir === 'A' ? 'B' : 'A';
+        $pola = $absen === 'A' ? '/\bBoxer A\b/u' : '/\bBoxer (A\/)?B\b|\bA\/B\b/u';
+
+        return (string) preg_replace_callback('/^([A-Z][a-z]+:\s*)(.*)$/mu', function ($m) use ($pola) {
+            $butir = array_filter(explode(',', $m[2]), fn ($x) => preg_match($pola, $x) !== 1);
+
+            return $m[1] . ltrim(implode(',', $butir));
+        }, $blok2);
     }
 
     /** Pola warna sarung (tanpa grup tangkap). */
@@ -542,6 +682,7 @@ final class PackVideo
     {
         $this->lapor = $lapor;
         $this->peringatan = [];
+        self::$suntingGagal = null;
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
 
@@ -704,6 +845,10 @@ final class PackVideo
         foreach ($klip as $k) {
             [$b1, $b2] = $this->blokAkhir(self::blok1Klip($tetapU['blok1'], (array) ($k['gambar'] ?? []), $this->isiGambar, $this->arenaUtama),
                 self::blok2Klip($tetapU['blok2'][$k['jenis']], (array) ($k['gambar'] ?? [])));
+            if (($hadir = self::satuSudut((string) $k['kode'], (string) $k['jenis'])) !== null) {
+                $b1 = self::blok1SatuSudut($b1, $hadir);
+                $b2 = self::blok2SatuSudut($b2, $hadir);
+            }
             $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
             $b3 = $k['blok3'];
             if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
@@ -789,7 +934,7 @@ final class PackVideo
             $b1 = self::rapikanGaya($b1);
         }
 
-        return [$b1, $b2];
+        return [self::pulihkanLabel($b1), self::pulihkanLabel($b2)];
     }
 
     /**
@@ -816,9 +961,9 @@ final class PackVideo
             $b3 = self::bersihkanLawanJeda($b3, $kode);
         }
         // "Slots: @image1 = … No other slot." = gema instruksi, bukan isi klip (klip 05, 2026-10-28).
-        $b3 = trim((string) preg_replace('/^Slots?:.*(\R|$)/mu', '', self::bersihkanSuara($b3)));
+        $b3 = self::pulihkanLabel(trim((string) preg_replace('/^Slots?:.*(\R|$)/mu', '', self::bersihkanSuara($b3))));
         if ($this->tanpaPenonton) {
-            $b3 = self::gantiSunyi(self::bersihkanPenonton($b3));
+            $b3 = self::pastikanSuaraTertutup(self::gantiSunyi(self::bersihkanPenonton($b3)), $jenis);
         }
 
         return $jenis === 'laga' ? self::pastikanTss(self::bersihkanTokohLaga($b3)) : $b3;
@@ -864,6 +1009,7 @@ final class PackVideo
     {
         $this->lapor = $lapor;
         $this->peringatan = [];
+        self::$suntingGagal = null;
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -971,6 +1117,7 @@ final class PackVideo
     {
         $this->lapor = $lapor;
         $this->peringatan = [];
+        self::$suntingGagal = null;
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1057,6 +1204,7 @@ final class PackVideo
     {
         $this->lapor = $lapor;
         $this->peringatan = [];
+        self::$suntingGagal = null;
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1128,6 +1276,9 @@ final class PackVideo
         File::put($cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json', self::json(['tetap' => $tetap, 'klip' => $klip, 'tester' => $tester,
             'uncensored' => $uncensored, 'nai' => $nai] + $bagian));
         $cek = $this->periksa($folder);
+        if (self::$suntingGagal !== null) {
+            $this->peringatan[] = 'Penyunting tidak bisa dipanggil (' . mb_substr(self::$suntingGagal, 0, 90) . '): pemendekan diganti pemangkasan mekanis; prompt di atas 4.800 dibiarkan selama di bawah batas Wan 5.000.';
+        }
 
         return [
             'folder'     => $folder,
@@ -1614,9 +1765,18 @@ final class PackVideo
         if (! $pakaiGambar || empty($k['gambar'])) {
             $k['gambar'] = array_map(fn ($g) => $g . '.png', self::slot($k));
         }
+        // Jeda satu sudut: gambar lawan tidak diunggah, slot dirapatkan (04B take 2).
+        $hadir = self::satuSudut((string) $k['kode'], (string) $k['jenis']);
+        if ($hadir !== null) {
+            [$k['gambar'], $k['blok3']] = self::lepasLawan($k['gambar'], (string) $k['blok3'], $hadir);
+        }
         $k['blok3'] = $this->bersihB3(self::samarkanNama($k['blok3'], $this->peta), (string) $k['jenis'], (string) $k['kode']);
         [$b1, $b2] = $this->blokAkhir(self::blok1Klip($tetap['blok1'], $k['gambar'], $this->isiGambar, $this->arenaUtama),
             self::blok2Klip($tetap['blok2'][$k['jenis']], $k['gambar']));
+        if ($hadir !== null) {
+            $b1 = self::blok1SatuSudut($b1, $hadir);
+            $b2 = self::blok2SatuSudut($b2, $hadir);
+        }
         $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
         $k['prompt'] = $susun($k['blok3']);
         // Pack NSFW memakai versi topless sebagai utama: atasan di Blok 3
@@ -1649,7 +1809,14 @@ final class PackVideo
 
         $k = $this->rapikanSlot($k, $susun);
         // Cornerman tanpa slot: Wan mengarang wajahnya (uji 2026-10-27, jeda 1).
-        if ($k['jenis'] !== 'laga' && preg_match('/(?<!no )\bcornerm[ae]n\b/i', $k['blok3']) === 1 && preg_match('/@image[4-9]\b/', $k['blok3']) !== 1) {
+        $slotTokoh = [];
+        foreach (array_values($k['gambar']) as $i => $g) {
+            if (preg_match('/^(?!BG-)[C-Z]-/', basename((string) $g)) === 1) {
+                $slotTokoh[] = '@image' . ($i + 1);
+            }
+        }
+        $tokohDisebut = array_filter($slotTokoh, fn ($s) => preg_match('/' . $s . '\b/', (string) $k['blok3']) === 1);
+        if ($k['jenis'] !== 'laga' && preg_match('/(?<!no )\bcornerm[ae]n\b/i', $k['blok3']) === 1 && $tokohDisebut === []) {
             $this->peringatan[] = "{$k['kode']}: Blok 3 menyebut cornerman tanpa @image — Wan akan mengarang wajahnya; tulis slotnya, mis. \"Boxer A's cornerman (@image4)\".";
         }
         // Baris Negative memang wajib menyebut "no nudity … no gore" (Fight
@@ -1730,11 +1897,13 @@ final class PackVideo
     {
         $teks = (string) preg_replace('/\s*\bNo (?:background |backing )?(?:music|score|soundtrack)(?: (?:or|and) [a-z ]+)?\.?/iu', '', $teks);
         $teks = (string) preg_replace('/\s*\bNo (?:dialogue|spoken words|voices?)(?: except [^.]*)?\.?/iu', '', $teks);
+        // Tanpa @audio: PRODUKSI tidak mengirim file audio (body take hanya image_urls), dan pengguna
+        // 2026-10-28: "@audio1 malah merusak, buat tss via prompt saja".
+        $teks = (string) preg_replace('/\s*\([^()\n]*@audio\d+[^()\n]*\)/u', '', $teks);
+        $teks = (string) preg_replace('/(?<=[.:]|^)\s*[^.\n:]*@audio\d+[^.\n]*\./mu', '', $teks);
         // Klip 03 take 1 (2026-10-28): "no unwritten bell" di Negative → bel berbunyi di detik 0,4.
-        $teks = (string) preg_replace('/[,;]\s*no (?:unwritten |unscripted |extra |random |other )?(?:bells?|gongs?|ringing|buzzers?)(?: (?:unless|except)[^,.;
-]*)?(?=\s*[,.;)]|\s*$)/iu', '', $teks);
-        $teks = (string) preg_replace('/(?<=[.;:])\s*No (?:other |unwritten |extra |more )?(?:bells?|gongs?)\b[^.
-]*\.(?=\s|$)/u', '', $teks);
+        $teks = (string) preg_replace('/[,;]\s*no (?:unwritten |unscripted |extra |random |other )?(?:bells?|gongs?|ringing|buzzers?)(?: (?:unless|except)[^,.;\n]*)?(?=\s*[,.;)]|\s*$)/iu', '', $teks);
+        $teks = (string) preg_replace('/(?<=[.;:])\s*No (?:other |unwritten |extra |more )?(?:bells?|gongs?)\b[^.\n]*\.(?=\s|$)/u', '', $teks);
 
         return (string) preg_replace('/,\s*(?=[.\n]|$)/u', '', $teks);
     }
@@ -1787,16 +1956,26 @@ final class PackVideo
      * Label baris dikembalikan kalau model menyingkatnya ("Opening:" →
      * "Opening state:"). Hasil yang tidak lebih pendek dibuang.
      */
+    /** Galat penyunting pertama dalam satu proses; sesudahnya pemendekan lewat model dilewati. */
+    public static ?string $suntingGagal = null;
+
     public static function pendekkan(Venice $venice, string $teks, int $sasaran): string
     {
-        for ($putaran = 1; $putaran <= 2 && mb_strlen($teks) > $sasaran; $putaran++) {
+        for ($putaran = 1; $putaran <= 2 && mb_strlen($teks) > $sasaran && self::$suntingGagal === null; $putaran++) {
             $target = (int) ($sasaran * ($putaran === 1 ? 0.97 : 0.9));
-            $baru = $venice->chat('You are a strict copy editor for AI video prompts. You only shorten; you never add or explain.',
+            try {
+                $baru = $venice->chat('You are a strict copy editor for AI video prompts. You only shorten; you never add or explain.',
                 "TEXT:\n<<<\n{$teks}\n>>>\n\nRewrite the TEXT above so it is at most {$target} characters (it is " . mb_strlen($teks) . ' now). '
                 . 'Keep every line label exactly as written (e.g. "Opening state:", "Shot N [a-bs]", "End state:", "Positions:", "Voice:", "Negative:"), '
-                . 'the timestamps, every @imageN and @audioN, any {DURASI} token, and the quoted dialogue unchanged. Cut adjectives and minor details, but keep every action, touch and body part and the content level exactly: never soften, censor or drop a scene. Output only the rewritten text.',
+                . 'the timestamps, every @imageN, any {DURASI} token, and the quoted dialogue unchanged. Cut adjectives and minor details, but keep every action, touch and body part and the content level exactly: never soften, censor or drop a scene. Always write "Boxer A" and "Boxer B" in full, never "A" or "B". Output only the rewritten text.',
                 ['langkah' => 'pack-pendekkan', 'model' => (string) config('penulis.model_sunting', config('penulis.model')),
                     'nalar' => 'none', 'suhu' => 0.3, 'maks' => 4000]);
+            } catch (PenulisGalat $e) {
+                // Saldo habis / jaringan putus (HTTP 402, 2026-10-28): rakit tidak gagal;
+                // panggilan penyunting berikutnya dilewati dan pangkas() menjaga batas Wan.
+                self::$suntingGagal = $e->getMessage();
+                break;
+            }
             $baru = self::rapikanSuntingan($baru);
             if ($baru === '' || mb_strlen($baru) >= mb_strlen($teks)) {
                 break;
