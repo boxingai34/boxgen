@@ -46,7 +46,12 @@ Kalau Notion belum tersambung (galat `NOTION_API_KEY`):
 - **Selalu cek arsip Drive dulu** (`D:\My Drive\BOXINGENERATED\2026\<Bulan>\{input,output,original}`):
   `ARTISAN request:arsip "<tag karakter 1>" "<tag karakter 2>"`. Isinya prompt SFW asli dari metadata PNG NovelAI
   (base, karakter, UC); file NSFW hanya tercatat ada.
-  - Request berulang ("again", "Pt. 2", "same outfit"): pakai kostum, warna sarung, setting, dan gaya dari arsip itu.
+  - **Karakter yang pernah digambar** (permintaan pengguna 2026-10-29, berlaku untuk semua kartu, bukan cuma "again"):
+    tarik detail kostum (atasan, bawahan, warna sarung, rambut) dari arsip terbaru karakter itu, lalu ganti pose,
+    kondisi (luka, keringat, KO), dan adegan sesuai request terbaru. Catat sumbernya di `catatan` (bulan + judul file).
+  - Kartu `sfw` (remaja / tak jelas): kalau kostum arsipnya seksi (bikini, kemeja terbuka, micro skirt), ambil
+    warna dan rambutnya saja; potongannya tetap pakaian atlet bersih.
+  - Request berulang ("again", "Pt. 2", "same outfit"): pakai juga warna sarung, setting, dan gaya dari arsip itu.
     Kalau prompt arsip tidak menyebut atasan (atasan hasil inpaint), lihat JPG di `output\` (perkecil dulu dengan
     `magick … -resize 1200x`) dan tulis kostumnya dari gambar.
   - Jalankan `request:arsip --pindai` kalau bulan berjalan baru diisi (inkremental; scan penuh ±10 menit karena Drive).
