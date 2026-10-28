@@ -79,6 +79,9 @@ final class PackVideo
     /** Sumber 2D: render 3D tulisan model diganti GAYA_2D. */
     private bool $medium2d = false;
 
+    /** @var array<string,array<string,mixed>|null> uji klip versi UNCENSORED per kode klip (rakitUncensored) */
+    private array $ujiU = [];
+
     /** Pengurang anggaran Blok 3 (penulis:klip --ringkas): prompt lebih pendek dan padat. */
     private int $potongAnggaran = 0;
 
@@ -711,6 +714,7 @@ final class PackVideo
         $this->peringatan = [];
         self::$suntingGagal = null;
         self::$cachePendek = [];
+        $this->ujiU = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
 
@@ -893,6 +897,9 @@ final class PackVideo
                 $b3 = self::pangkas($b3, $batas - (mb_strlen($susun($b3)) - mb_strlen($b3)));
             }
             $hasil[$k['kode']] = $susun($b3);
+            if (! str_starts_with((string) $k['kode'], 'T')) {
+                $this->ujiU[$k['kode']] = self::ujiKlip(['blok3' => $b3] + $k, $b1, $b2);
+            }
             if (mb_strlen($hasil[$k['kode']]) > self::BATAS_WAN) {
                 $this->peringatan[] = sprintf('UNCENSORED %s %d karakter — di atas %d.', $k['kode'], mb_strlen($hasil[$k['kode']]), self::BATAS_WAN);
             }
@@ -937,6 +944,7 @@ final class PackVideo
         $testerU = $this->rakitUncensored($tester, $uncensored['tetap']);
         foreach ($klip as $i => $k) {
             $klip[$i]['prompt'] = $uncensored['prompt'][$k['kode']] ?? $k['prompt'];
+            $klip[$i]['uji'] = $this->ujiU[$k['kode']] ?? ($k['uji'] ?? null);
         }
         foreach ($tester as $i => $t) {
             $tester[$i]['prompt'] = $testerU[$t['kode']] ?? $t['prompt'];
@@ -1045,6 +1053,7 @@ final class PackVideo
         $this->peringatan = [];
         self::$suntingGagal = null;
         self::$cachePendek = [];
+        $this->ujiU = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1155,6 +1164,7 @@ final class PackVideo
         $this->peringatan = [];
         self::$suntingGagal = null;
         self::$cachePendek = [];
+        $this->ujiU = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1246,6 +1256,7 @@ final class PackVideo
         $this->peringatan = [];
         self::$suntingGagal = null;
         self::$cachePendek = [];
+        $this->ujiU = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1870,6 +1881,10 @@ final class PackVideo
             $this->peringatan[] = "{$k['kode']}: kata \"{$t[0]}\" tidak boleh ada di pack Higgsfield — periksa sebelum kirim.";
         }
 
+        if (! str_starts_with((string) $k['kode'], 'T')) {
+            $k['uji'] = self::ujiKlip($k, $b1, $b2);
+        }
+
         return $k;
     }
 
@@ -1950,6 +1965,166 @@ final class PackVideo
         $teks = (string) preg_replace('/(?<=[.;:])\s*No (?:other |unwritten |extra |more )?(?:bells?|gongs?)\b[^.\n]*\.(?=\s|$)/u', '', $teks);
 
         return (string) preg_replace('/,\s*(?=[.\n]|$)/u', '', $teks);
+    }
+
+    /** Durasi uji klip (PRODUKSI menerima 2–30 dtk). */
+    public const UJI_MIN = 5;
+
+    public const UJI_MAKS = 10;
+
+    /**
+     * Uji klip (kode U + kode klip): potongan 5–10 dtk dari klip penuh, untuk
+     * dicoba sebelum membayar klip 30 dtk (permintaan pengguna 2026-10-28).
+     * Mekanis, tanpa model: rangkaian shot berturut-turut dengan skor risiko
+     * tertinggi (slow motion, pukulan mendarat/jatuh, dialog, adegan dewasa,
+     * tokoh pendukung, close-up, "tss"), dengan kalimat PERSIS seperti klip
+     * penuh — hanya waktu shot digeser ke 0 — supaya lolos uji berarti
+     * kalimat yang sama lolos di klip penuh. Blok 1 dan Blok 2 sama.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function ujiKlip(array $k, string $b1, string $b2): ?array
+    {
+        $baris = preg_split('/\R/u', (string) ($k['blok3'] ?? '')) ?: [];
+        $shot = [];
+        foreach ($baris as $i => $l) {
+            if (preg_match('/^Shot \d+ \[(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*s\]\s*(.*)$/u', $l, $m) === 1) {
+                $shot[] = ['i' => $i, 'a' => (float) $m[1], 'b' => (float) $m[2], 'isi' => $m[3]];
+            }
+        }
+        if ($shot === []) {
+            return null;
+        }
+        // Baris dialog: 「…」 atau "Nama: “…”"; waktu dari "[6s]" atau "at 4 s" (format berbeda per klip).
+        $polaWaktu = '/\[(\d+(?:\.\d+)?)\s*s\]|\bat (\d+(?:\.\d+)?)\s*s\b/u';
+        $dialog = [];
+        $dialogTanpaWaktu = [];
+        foreach ($baris as $i => $l) {
+            if (preg_match('/「|^[^:\n]{1,60}:\s*["“]/u', $l) !== 1 || preg_match('/^(Shot \d+|Opening state|End state)/u', $l) === 1) {
+                continue;
+            }
+            if (preg_match($polaWaktu, $l, $m) === 1) {
+                $dialog[$i] = (float) ($m[1] !== '' ? $m[1] : $m[2]);
+            } else {
+                $dialogTanpaWaktu[$i] = true;
+            }
+        }
+        $skor = function (array $s) use ($dialog): int {
+            $x = $s['isi'];
+            $n = 3 * preg_match_all('/slow[- ]motion/i', $x)
+                + 3 * preg_match_all('/\b(lands?|flush|knock\w*|drops?|falls?|crumples?|collapses?)\b/i', $x)
+                + 2 * preg_match_all('/\b(massag\w*|knead\w*|breasts?|chest|waistband|trunks|nipples?|topless|bare-chested)\b/i', $x)
+                + 2 * preg_match_all('/@image[3-9]\b/', $x)
+                + preg_match_all('/\btss\b/i', $x) + preg_match_all('/close-up/i', $x);
+            foreach ($dialog as $t) {
+                $n += $t >= $s['a'] && $t < $s['b'] ? 3 : 0;
+            }
+
+            return $n;
+        };
+
+        // Jendela terbaik: skor tertinggi, lalu yang lebih panjang (≤ 10 dtk).
+        $terbaik = null;
+        foreach ($shot as $i => $s) {
+            $jumlah = 0;
+            for ($j = $i; $j < count($shot); $j++) {
+                $lama = $shot[$j]['b'] - $s['a'];
+                if ($lama > self::UJI_MAKS) {
+                    break;
+                }
+                $jumlah += $skor($shot[$j]);
+                if ($lama >= self::UJI_MIN || $j === count($shot) - 1) {
+                    if ($terbaik === null || $jumlah > $terbaik['skor'] || ($jumlah === $terbaik['skor'] && $lama > $terbaik['lama'])) {
+                        $terbaik = ['i' => $i, 'j' => $j, 'skor' => $jumlah, 'lama' => $lama];
+                    }
+                }
+            }
+        }
+        $terbaik ??= ['i' => 0, 'j' => 0, 'lama' => min(self::UJI_MAKS, $shot[0]['b'] - $shot[0]['a'])];
+        $a0 = $shot[$terbaik['i']]['a'];
+        $b0 = $shot[$terbaik['j']]['b'];
+        $durasi = max(self::UJI_MIN, min(self::UJI_MAKS, (int) ceil($b0 - $a0)));
+        $angka = fn (float $f) => rtrim(rtrim(number_format($f, 1, '.', ''), '0'), '.');
+
+        $dalam = array_flip(array_map(fn ($s) => $s['i'], array_slice($shot, $terbaik['i'], $terbaik['j'] - $terbaik['i'] + 1)));
+        $bicara = false;
+        foreach (array_keys($dalam) as $i) {
+            $bicara = $bicara || preg_match('/\b(says?|speaks?|answers?|whispers?|line)\b/i', $baris[$i]) === 1;
+        }
+        // Dialog yang masuk potongan dihitung dulu: judul "Dialogue…", Voice, dan
+        // Spoken lines hanya ikut kalau ada dialog yang ikut.
+        $ikut = [];
+        foreach ($dialog as $i => $t) {
+            if ($t >= $a0 && $t < $a0 + $durasi) {
+                $ikut[$i] = true;
+            }
+        }
+        if ($bicara) {
+            $ikut += $dialogTanpaWaktu;
+        }
+        $adaDialog = $ikut !== [];
+
+        $keluar = [];
+        $nomor = 0;
+        foreach ($baris as $i => $l) {
+            if (str_starts_with($l, 'Opening state:')) {
+                // Setup asli tetap ikut: slot tokoh pendukung ("cornerman (@image3)") tidak hilang.
+                $sebelum = $terbaik['i'] > 0 ? rtrim((string) preg_replace('/^Shot \d+ \[[^\]]*\]\s*/u', '', $baris[$shot[$terbaik['i'] - 1]['i']]), '. ') : '';
+                $keluar[] = $a0 <= 0 ? $l : 'Opening state: excerpt starting at ' . $angka($a0) . 's of the full clip. Clip setup: '
+                    . rtrim((string) preg_replace('/^Opening state:\s*/u', '', $l), '. ') . '.' . ($sebelum !== '' ? " Right before this excerpt: {$sebelum}." : '');
+            } elseif (isset($dalam[$i])) {
+                $s = $shot[array_search($i, array_column($shot, 'i'), true)];
+                $nomor++;
+                $keluar[] = "Shot {$nomor} [" . $angka($s['a'] - $a0) . '-' . $angka(min($s['b'], $a0 + $durasi) - $a0) . 's] ' . $s['isi'];
+            } elseif (isset($dialog[$i]) || isset($dialogTanpaWaktu[$i])) {
+                if (isset($ikut[$i])) {
+                    $keluar[] = isset($dialog[$i])
+                        ? (string) preg_replace_callback($polaWaktu, fn ($m) => $m[1] !== '' ? '[' . $angka($dialog[$i] - $a0) . 's]' : 'at ' . $angka($dialog[$i] - $a0) . ' s', $l, 1)
+                        : $l;
+                }
+            } elseif (preg_match('/^Shot \d+ \[/u', $l) === 1 || str_starts_with($l, 'End state:')) {
+                if (str_starts_with($l, 'End state:') && $terbaik['j'] === count($shot) - 1) {
+                    $keluar[] = $l;
+                }
+            } elseif (preg_match('/^(Voice|Spoken lines|Dialogue\b)/u', $l) === 1) {
+                if ($adaDialog) {
+                    $keluar[] = $l;
+                }
+            } else {
+                $keluar[] = $l;
+            }
+        }
+
+        // Slot yang tidak disebut di potongan ini tidak diunggah; nomor dirapatkan.
+        $prompt = self::isiDurasi($b1, $durasi) . "\n" . implode("\n", $keluar) . "\n" . $b2;
+        $gambar = array_values((array) ($k['gambar'] ?? []));
+        preg_match_all('/@image(\d+)\b/', $prompt, $m);
+        $disebut = array_values(array_unique(array_map('intval', $m[1])));
+        sort($disebut);
+        $peta = [];
+        $gambarUji = [];
+        foreach ($disebut as $n) {
+            if (isset($gambar[$n - 1])) {
+                $gambarUji[] = $gambar[$n - 1];
+                $peta[$n] = count($gambarUji);
+            }
+        }
+        $prompt = (string) preg_replace_callback('/@image(\d+)\b/', fn ($x) => '@image' . ($peta[(int) $x[1]] ?? $x[1]), $prompt);
+
+        $kode = (string) $k['kode'];
+        $rentang = $angka($a0) . '–' . $angka($a0 + $durasi);
+
+        return [
+            'kode'        => 'U' . $kode,
+            'judul'       => "Uji klip {$kode}, detik {$rentang}: " . (string) ($k['judul'] ?? ''),
+            'tujuan'      => "Mencoba bagian paling berisiko klip {$kode} ({$durasi} dtk, kalimat sama persis) sebelum membayar klip penuh {$k['durasi']} dtk.",
+            'kalau_gagal' => "Revisi klip {$kode}, lalu uji ulang U{$kode} sebelum klip penuh.",
+            'durasi'      => $durasi,
+            'jenis'       => (string) ($k['jenis'] ?? 'laga'),
+            'gambar'      => $gambarUji,
+            'kriteria'    => array_values(array_merge(["Potongan detik {$rentang} klip {$kode} tampil sesuai prompt"], (array) ($k['kriteria'] ?? []))),
+            'prompt'      => $prompt,
+        ];
     }
 
     /**
@@ -2617,6 +2792,9 @@ final class PackVideo
         foreach ($klip as $k) {
             $tulis("PROMPT TXT/{$k['kode']}.txt", $k['prompt']);
         }
+        // Uji klip (U…) ikut sebagai tester: 5–10 dtk per klip, dikirim PRODUKSI
+        // dengan resolusi tester, tidak mengunci klip lain.
+        $tester = [...$tester, ...array_values(array_filter(array_map(fn ($k) => $k['uji'] ?? null, $klip)))];
         foreach ($tester as $t) {
             $tulis("{$tes}/{$t['kode']}.txt", $t['prompt']);
         }
@@ -2945,7 +3123,7 @@ final class PackVideo
 
     public static function mdReadmeTester(string $judul, array $tester): string
     {
-        $md = "# Tester — {$judul} (Revisi " . self::REVISI . ")\n\nSetiap tes **10 detik**, 480p, satu sisi per tes. Generate tester dulu, baru klip penuh.\n\n"
+        $md = "# Tester — {$judul} (Revisi " . self::REVISI . ")\n\nTes `T…` = 10 detik, satu sisi per tes; uji klip `U…` = potongan 5–10 detik paling berisiko dari tiap klip, dengan kalimat sama persis. Resolusi tester dipilih PRODUKSI (termurah). Generate tes dulu, baru klip penuh.\n\n"
             . "| Tes | Tujuan | Urutan gambar |\n|---|---|---|\n";
         foreach ($tester as $t) {
             $md .= sprintf("| %s | %s | %s |\n", $t['kode'], self::sel($t['judul'] . ' — ' . $t['tujuan']),
@@ -2961,7 +3139,7 @@ final class PackVideo
 
     private static function mdTester(string $judul, array $tester): string
     {
-        $md = "# TESTER — {$judul}\n\nJalankan semua tes (10 detik, 480p) sebelum klip penuh. Prompt siap tempel ada di `TEST REVISI " . self::REVISI . "\\`.\n";
+        $md = "# TESTER — {$judul}\n\nJalankan tes T (10 detik) sebelum klip penuh, dan uji `U…` (5–10 detik) sebelum klip yang sama. Prompt siap tempel ada di `TEST REVISI " . self::REVISI . "\\`.\n";
         foreach ($tester as $t) {
             $md .= "\n## {$t['kode']} — {$t['judul']}\n\n**Tujuan:** {$t['tujuan']}\n\n**Gambar:** "
                 . implode(', ', array_map(fn ($i, $g) => '@image' . ($i + 1) . " = {$g}", array_keys($t['gambar']), $t['gambar'])) . "\n\n**Lolos kalau:**\n"

@@ -41,6 +41,9 @@ return [
 
     'model'    => env('PRODUKSI_MODEL', 'wan-3.0'),
     'resolusi' => '720p',
+    // Resolusi tester (T…) dan uji klip (U…): "termurah" = tarif per detik terendah
+    // di model_tersedia (2026-10-28: 720p promo $0,04 < 480p $0,05), atau 480p/720p/1080p.
+    'resolusi_tester' => env('PRODUKSI_RESOLUSI_TESTER', 'termurah'),
     'rasio'    => '16:9',
     'audio'    => true,
 

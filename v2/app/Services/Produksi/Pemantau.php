@@ -124,7 +124,7 @@ class Pemantau
         $packs = [];
         foreach ($this->rapikanPilihan($pilihan) as [$item, $takes]) {
             $pack = $packs[$item->pack_id] ??= $this->packAtauGalat((int) $item->pack_id);
-            $m = $this->pilihanModel($pack);
+            $m = $this->pilihanModel($pack, $item);
             $perTake = self::perTake(self::tarifWajib($m), (int) $item->durasi);
 
             $rincian[] = [
@@ -195,8 +195,10 @@ class Pemantau
 
         $ids = [];
         $total = 0.0;
-        DB::transaction(function () use ($daftar, $m, $tarif, &$ids, &$total) {
+        DB::transaction(function () use ($daftar, $m, $pack, &$ids, &$total) {
             foreach ($daftar as [$item, $takes, $audio]) {
+                $mi = $this->pilihanModel($pack, $item);
+                $tarif = self::tarifWajib($mi);
                 // Baris item dikunci (MySQL) supaya dua kiriman bersamaan tidak berebut nomor take.
                 DB::table('produksi_item')->where('id', $item->id)->lockForUpdate()->first();
                 $nomor = (int) DB::table('produksi_take')->where('item_id', $item->id)->max('nomor');
@@ -211,9 +213,9 @@ class Pemantau
                         'item_id'      => $item->id,
                         'nomor'        => $nomor + $i,
                         'sumber'       => 'api',
-                        'model'        => $m['model'],
-                        'resolusi'     => $m['resolusi'],
-                        'rasio'        => $m['rasio'],
+                        'model'        => $mi['model'],
+                        'resolusi'     => $mi['resolusi'],
+                        'rasio'        => $mi['rasio'],
                         'durasi'       => (int) $item->durasi,
                         'audio'        => ($audio ?? $m['audio']) ? 1 : 0,
                         'seed'         => $seed,
@@ -257,7 +259,7 @@ class Pemantau
     {
         $item = $this->itemAtauGalat($itemId);
 
-        return self::perTake(self::tarifWajib($this->pilihanModel($this->packAtauGalat((int) $item->pack_id))), (int) $item->durasi);
+        return self::perTake(self::tarifWajib($this->pilihanModel($this->packAtauGalat((int) $item->pack_id), $item)), (int) $item->durasi);
     }
 
     /**
@@ -278,8 +280,9 @@ class Pemantau
      */
     public function testerKurang(int $packId): array
     {
+        // Uji klip (kode U…, PENULIS 2026-10-28) hanya untuk klipnya sendiri, tidak mengunci klip lain.
         return DB::table('produksi_item')->where('pack_id', $packId)->where('jenis', 'tester')->where('urutan', '>', 0)
-            ->where('status', '!=', 'lolos')->orderBy('urutan')->orderBy('id')->pluck('kode')->map(fn ($k) => (string) $k)->all();
+            ->where('kode', 'not like', 'U%')->where('status', '!=', 'lolos')->orderBy('urutan')->orderBy('id')->pluck('kode')->map(fn ($k) => (string) $k)->all();
     }
 
     // ------------------------------------------------------------------
@@ -1503,9 +1506,9 @@ class Pemantau
             return 'cek';
         }
 
-        $item = DB::table('produksi_item')->where('pack_id', $packId)->where('urutan', '>', 0)->get(['id', 'jenis', 'status', 'take_pilihan']);
+        $item = DB::table('produksi_item')->where('pack_id', $packId)->where('urutan', '>', 0)->get(['id', 'jenis', 'kode', 'status', 'take_pilihan']);
         $klip = $item->where('jenis', 'klip');
-        $testerLolos = $item->where('jenis', 'tester')->every(fn ($i) => $i->status === 'lolos');
+        $testerLolos = $item->where('jenis', 'tester')->filter(fn ($i) => ! str_starts_with((string) ($i->kode ?? ''), 'U'))->every(fn ($i) => $i->status === 'lolos');
         if (!$testerLolos && !(int) $pack->klip_dibuka) {
             return 'tester';
         }
@@ -1661,11 +1664,16 @@ class Pemantau
      *
      * @return array{model:string, nama:string, resolusi:string, rasio:string, audio:bool, tarif:?float}
      */
-    private function pilihanModel(object $pack): array
+    private function pilihanModel(object $pack, ?object $item = null): array
     {
         $daftar = (array) config('produksi.model_tersedia', []);
         $model = is_array($daftar[(string) $pack->model] ?? null) ? (string) $pack->model : (string) config('produksi.model', 'wan-3.0');
         $resolusi = in_array($pack->resolusi, Higgsfield::RESOLUSI, true) ? (string) $pack->resolusi : (string) config('produksi.resolusi', '720p');
+        // Tester (T…, uji klip U…) dikirim dengan resolusi tester: "termurah" =
+        // tarif per detik paling rendah (2026-10-28: 720p promo $0,04 < 480p $0,05).
+        if ($item !== null && (string) $item->jenis === 'tester') {
+            $resolusi = self::resolusiTester((array) ($daftar[$model]['tarif'] ?? []), $resolusi);
+        }
         $rasio = in_array($pack->rasio, Higgsfield::RASIO, true) ? (string) $pack->rasio : (string) config('produksi.rasio', '16:9');
         $tarif = is_array($daftar[$model]['tarif'] ?? null) ? ($daftar[$model]['tarif'][$resolusi] ?? null) : null;
 
@@ -1677,6 +1685,22 @@ class Pemantau
             'audio'    => (bool) config('produksi.audio', true),
             'tarif'    => is_numeric($tarif) && $tarif >= 0 ? (float) $tarif : null,
         ];
+    }
+
+    /** Resolusi tester dari config produksi.resolusi_tester: "termurah" atau 480p/720p/1080p. */
+    public static function resolusiTester(array $tarif, string $bawaan): string
+    {
+        $pilih = (string) config('produksi.resolusi_tester', 'termurah');
+        if (in_array($pilih, Higgsfield::RESOLUSI, true)) {
+            return $pilih;
+        }
+        $ada = array_filter($tarif, fn ($v, $r) => is_numeric($v) && in_array($r, Higgsfield::RESOLUSI, true), ARRAY_FILTER_USE_BOTH);
+        if ($ada === []) {
+            return $bawaan;
+        }
+        asort($ada);
+
+        return (string) array_key_first($ada);
     }
 
     private static function tarifWajib(array $m): float

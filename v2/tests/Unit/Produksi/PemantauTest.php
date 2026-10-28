@@ -248,11 +248,21 @@ class PemantauTest extends TestCase
         $this->assertSame(0.4, $pm->tarifPerTake((int) $this->item('T01')->id));
         $this->assertSame([], $this->hf->kiriman);
 
-        // Resolusi pack ikut menentukan tarif; model yang tidak dikenal jatuh ke bawaan config.
+        // Resolusi pack ikut menentukan tarif klip; model yang tidak dikenal jatuh ke bawaan config.
         DB::table('produksi_pack')->update(['resolusi' => '1080p', 'model' => 'model-aneh']);
-        $p = $pm->perkiraan(self::pilih($this->item('T01')));
-        $this->assertSame(2.0, $p['total']);
+        $p = $pm->perkiraan(self::pilih($this->item('01')));
+        $this->assertSame(6.0, $p['total']);
         $this->assertSame('wan-3.0', $p['rincian'][0]['model']);
+
+        // Tester memakai resolusi tester: "termurah" (720p promo $0,04) walau pack 1080p (2026-10-28).
+        $p = $pm->perkiraan(self::pilih($this->item('T01')));
+        $this->assertSame('720p', $p['rincian'][0]['resolusi']);
+        $this->assertSame(0.4, $p['total']);
+        config(['produksi.resolusi_tester' => '480p']);
+        $p = $pm->perkiraan(self::pilih($this->item('T01')));
+        $this->assertSame('480p', $p['rincian'][0]['resolusi']);
+        $this->assertSame(0.5, $p['total']);
+        config(['produksi.resolusi_tester' => 'termurah']);
 
         $this->harusGalat(fn () => $pm->perkiraan(self::pilih($this->item('T01'), 4)), 'harus 1 sampai 3');
         $this->harusGalat(fn () => $pm->perkiraan([['item_id' => 999, 'takes' => 1]]), 'tidak ditemukan');
@@ -1223,6 +1233,11 @@ class PemantauTest extends TestCase
         // Gerbang tester: klip terkunci sampai semua tester lolos.
         $this->harusGalat(fn () => $pm->kirim($packId, self::pilih($k01)), 'Klip masih terkunci: tester T01 dan T02 belum lolos');
         $this->assertSame(['T01', 'T02'], $pm->testerKurang($packId));
+        // Uji klip (U…) tidak ikut mengunci (PENULIS 2026-10-28).
+        DB::table('produksi_item')->insert(['pack_id' => $packId, 'jenis' => 'tester', 'kode' => 'U01', 'judul' => 'Uji klip 01', 'urutan' => 9,
+            'durasi' => 10, 'gambar' => '[]', 'prompt' => 'x', 'status' => 'belum']);
+        $this->assertSame(['T01', 'T02'], $pm->testerKurang($packId));
+        DB::table('produksi_item')->where('pack_id', $packId)->where('kode', 'U01')->delete();
         $this->assertStringContainsString('Klip masih terkunci', $pm->alasanTidakKirim((int) $k01->id));
         $this->assertNull($pm->alasanTidakKirim((int) $t01->id));
 

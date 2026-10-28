@@ -195,7 +195,13 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertSame(['A-K0.png', 'B-K0.png', 'BG-01.png', 'A-R0.png', 'B-R0.png'], $j['klip'][0]['gambar']);
         $this->assertSame(['A-K1.png', 'B-K0.png', 'BG-01.png', 'C-00.png'], $j['klip'][2]['gambar']);
         $this->assertSame(['01', '02', '03'], array_column($j['klip'], 'kode'));
-        $this->assertSame(['T01', 'T02'], array_column($j['tester'], 'kode'));
+        // Uji klip U02 ikut sebagai tester (klip 01/03 fixture tanpa baris Shot).
+        $this->assertSame(['T01', 'T02', 'U02'], array_column($j['tester'], 'kode'));
+        $u02 = $j['tester'][2];
+        $this->assertSame(5, $u02['durasi']);
+        $this->assertSame(['A-K0.png', 'B-K0.png', 'BG-01.png'], $u02['gambar']);
+        $this->assertStringContainsString('Shot 1 [0-3s] jab', (string) file_get_contents($this->pack . '/TEST REVISI 1/U02.txt'));
+        $this->assertStringStartsWith('Overall: 5-second', (string) file_get_contents($this->pack . '/TEST REVISI 1/U02.txt'));
         $this->assertEquals(['ja' => 'Subtitle Jepang.srt', 'en' => 'Subtitle Inggris.srt', 'id' => 'Subtitle Indonesia.srt'], $j['subtitle']);
         $this->assertSame(27, $j['karakter'][0]['umur']);
 
@@ -612,6 +618,65 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertSame('Negative: no limb interpenetration, nobody but the people written in the shots, no idle standing.',
             PackVideo::bersihkanPenonton('Negative: no limb interpenetration, nobody but two boxers inside ropes, no idle standing.'));
         $this->assertStringContainsString('two boxers in private pavilion ring', PackVideo::pastikanTanpaPenonton("Overall: 30-second scene; two pro boxers in private pavilion ring at night."));
+    }
+
+    public function test_uji_klip_memilih_potongan_paling_berisiko(): void
+    {
+        $k = [
+            'kode' => '03', 'judul' => 'Ronde 1', 'durasi' => 30, 'jenis' => 'laga', 'kriteria' => ['KO terasa'],
+            'gambar' => ['A-K1.png', 'B-K1.png', 'BG-01.png', 'D-00.png'],
+            'blok3' => "Opening state: Round 1, 1:00.\n"
+                . "Shot 1 [0-4s] Boxer A walks Boxer B down the ropes.\n"
+                . "Shot 2 [4-8s] Boxer A feints.\n"
+                . "Shot 3 [8-12s] Boxer B circles.\n"
+                . "Shot 4 [12-14s] Boxer B jabs with a sharp \"tss\".\n"
+                . "Shot 5 [14-16s] Slow motion, extreme close-up: the red glove lands flush on Boxer B's jaw.\n"
+                . "Shot 6 [16-18s] Slow motion: Boxer B drops flat on her back.\n"
+                . "Shot 7 [18-30s] Boxer B rises; the cornerman (@image4) watches.\n"
+                . "End state: Boxer B standing.\n"
+                . "Boxer A [15s]: 「立て。」\n"
+                . "Voice A: low husky.\n"
+                . 'Sound: only glove impacts; nothing else is heard.',
+        ];
+        $uji = PackVideo::ujiKlip($k, "Overall: {DURASI}-second scene like @image1 and @image2.\nArena = @image3.", "Tempo: fast.\nNegative: none.");
+
+        $this->assertSame('U03', $uji['kode']);
+        $this->assertSame(10, $uji['durasi']);
+        $this->assertStringStartsWith('Overall: 10-second scene', $uji['prompt']);
+        // Potongan detik 8–18: shot berisiko (tss, slow motion mendarat, jatuh) + dialog detik 15.
+        $this->assertStringContainsString('Opening state: excerpt starting at 8s of the full clip. Clip setup: Round 1, 1:00. Right before this excerpt: Boxer A feints.', $uji['prompt']);
+        $this->assertStringContainsString("Shot 1 [0-4s] Boxer B circles.\nShot 2 [4-6s] Boxer B jabs", $uji['prompt']);
+        $this->assertStringContainsString('Shot 3 [6-8s] Slow motion, extreme close-up', $uji['prompt']);
+        $this->assertStringContainsString('Shot 4 [8-10s] Slow motion: Boxer B drops', $uji['prompt']);
+        $this->assertStringContainsString("Boxer A [7s]: 「立て。」\nVoice A: low husky.", $uji['prompt']);
+        $this->assertStringNotContainsString('rises', $uji['prompt']);
+        $this->assertStringNotContainsString('End state', $uji['prompt']);
+        $this->assertStringContainsString('Sound: only glove impacts; nothing else is heard.', $uji['prompt']);
+        // Cornerman tidak ada di potongan: slot @image4 tidak diunggah.
+        $this->assertSame(['A-K1.png', 'B-K1.png', 'BG-01.png'], $uji['gambar']);
+        $this->assertSame(['Potongan detik 8–18 klip 03 tampil sesuai prompt', 'KO terasa'], $uji['kriteria']);
+
+        $this->assertNull(PackVideo::ujiKlip(['blok3' => 'Opening state: x.'] + $k, 'b1', 'b2'), 'tanpa shot, tanpa uji');
+
+        // Format dialog lain (04A: "[6s] Nama: 「…」" di bawah judul; 05: "at 4 s"), slot cornerman dari setup.
+        $k2 = ['blok3' => "Opening state: rest; her cornerman (@image3) kneels.
+Shot 1 [0-3s] overhead.
+Shot 2 [3-7s] close-up: ice bag on the cheek.
+Shot 3 [7-11s] the cornerman taps her cheekbone.
+Shot 4 [11-15s] she stands.
+Voice: cornerman - quick.
+Dialogue (Japanese, audio only):
+[6s] Boxer A's cornerman: 「綱手様。」
+[12s] Boxer A: 「読んだ。」
+Dialogue: Boxer A, at 9 s: 「よし。」",
+            'gambar' => ['A-K1.png', 'BG-01.png', 'D-00.png'], 'durasi' => 15] + $k;
+        $u = PackVideo::ujiKlip($k2, 'Overall: {DURASI}-second, like @image1. Arena = @image2.', 'Tempo: rest.');
+        $this->assertStringContainsString('Clip setup: rest; her cornerman (@image3) kneels.', $u['prompt']);
+        $this->assertStringContainsString("Dialogue (Japanese, audio only):
+[3s] Boxer A's cornerman: 「綱手様。」", $u['prompt']);
+        $this->assertStringContainsString('Dialogue: Boxer A, at 6 s: 「よし。」', $u['prompt']);
+        $this->assertStringContainsString('Voice: cornerman - quick.', $u['prompt']);
+        $this->assertSame(['A-K1.png', 'BG-01.png', 'D-00.png'], $u['gambar'], 'slot cornerman tetap');
     }
 
     public function test_klip_tanpa_dialog_ditulis_tanpa_kata(): void
