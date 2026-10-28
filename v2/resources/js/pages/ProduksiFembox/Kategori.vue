@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim, salin } from '@/lib/kirim';
 import { ASAL, KATEGORI, nadaLangkah, teksLangkah, type PesertaRingkas, type Siap } from '@/lib/produksiFembox';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowDown, ArrowUp, Copy, Plus, Search, Trash2 } from 'lucide-vue-next';
+import { ArrowDown, ArrowRight, ArrowUp, Copy, Plus, Search, Trash2 } from 'lucide-vue-next';
 import { computed, reactive, ref } from 'vue';
 
 type Scout = { id: number; minggu: string; kategori: string; karakter: string; pasangan: string; sumber: string; tingkat: string; status: string; foto: string | null };
@@ -141,7 +141,10 @@ async function salinDrive() {
                     </div>
                     <p class="mt-1.5 text-[15px] text-muted-foreground">{{ info.ket }}</p>
                 </div>
-                <Tombol jenis="garis" @click="salinDrive"><Copy class="h-4 w-4" /> {{ tersalin ? 'Tersalin' : 'Salin alamat folder' }}</Tombol>
+                <div class="flex flex-wrap gap-2.5">
+                    <Tombol jenis="garis" @click="salinDrive"><Copy class="h-4 w-4" /> {{ tersalin ? 'Tersalin' : 'Salin alamat folder' }}</Tombol>
+                    <Tombol :href="r('produksi-fembox.pose', { slug })">Halaman pose <ArrowRight class="h-4 w-4" /></Tombol>
+                </div>
             </div>
 
             <p v-if="pesan" class="m-0 rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300" role="status">{{ pesan }}</p>
@@ -183,6 +186,16 @@ async function salinDrive() {
                                                     <div class="min-w-0">
                                                         <Link :href="r('produksi-fembox.peserta', { id: p.id })" class="font-semibold hover:underline">{{ p.nama }}</Link>
                                                         <p class="m-0 text-xs text-muted-foreground">{{ p.sumber }}<span v-if="p.jk === 'pria'"> · pria</span></p>
+                                                        <label class="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                                            Label pose
+                                                            <input
+                                                                :value="p.label"
+                                                                maxlength="24"
+                                                                :placeholder="p.nama.toUpperCase()"
+                                                                class="h-7 w-32 rounded-md border border-border bg-background px-2 font-mono text-[11px] uppercase"
+                                                                @change="aksi('label', r('produksi-fembox.label', { id: p.id }), { label: ($event.target as HTMLInputElement).value }, 'Label disimpan.')"
+                                                            />
+                                                        </label>
                                                     </div>
                                                 </div>
                                             </td>

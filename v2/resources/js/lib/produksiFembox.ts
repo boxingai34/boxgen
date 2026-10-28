@@ -17,6 +17,8 @@ export type Langkah = {
 export type PesertaRingkas = {
     id: string;
     nama: string;
+    /** Label di halaman pose; kosong = nama lengkap. */
+    label: string;
     sumber: string;
     tag: string;
     jk: 'wanita' | 'pria';

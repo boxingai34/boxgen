@@ -15,7 +15,14 @@ import { Head, router } from '@inertiajs/vue3';
 import { ArrowRight, Copy, FolderPlus, Lock } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
-type Kat = { nama: string; slug: string; maks: number; peserta: PesertaRingkas[]; kostum: number };
+type Kat = {
+    nama: string;
+    slug: string;
+    maks: number;
+    peserta: PesertaRingkas[];
+    kostum: number;
+    pose: { halaman: number; disusun: boolean; dibuat: number; disetujui: number };
+};
 type Papan = {
     bulan: string;
     label: string;
@@ -45,6 +52,8 @@ const total = computed(() => {
         karakter: k.reduce((n, x) => n + x.peserta.length, 0),
         maks: k.reduce((n, x) => n + x.maks, 0),
         kostum: k.reduce((n, x) => n + x.kostum, 0),
+        halaman: k.reduce((n, x) => n + x.pose.halaman, 0),
+        disetujui: k.reduce((n, x) => n + x.pose.disetujui, 0),
     };
 });
 
@@ -54,7 +63,11 @@ function langkah(k: Kat): Langkah[] {
     return [
         { label: `Karakter ${n}/${butuh}`, isi: n / butuh, nada: n >= butuh ? 'lolos' : n > 0 ? 'jalan' : 'belum' },
         { label: `Kostum ${k.kostum}/${n || butuh}`, isi: n ? k.kostum / n : 0, nada: n && k.kostum >= n ? 'lolos' : k.kostum > 0 ? 'jalan' : 'belum' },
-        { label: 'Pose · tahap 2', isi: 0, nada: 'belum' },
+        {
+            label: k.pose.disusun ? `Pose ${k.pose.disetujui}/${k.pose.halaman}` : 'Pose',
+            isi: k.pose.halaman ? k.pose.disetujui / k.pose.halaman : 0,
+            nada: k.pose.halaman && k.pose.disetujui >= k.pose.halaman ? 'lolos' : k.pose.disusun ? 'jalan' : 'belum',
+        },
         { label: 'Serahkan · tahap 3', isi: 0, nada: 'belum' },
     ];
 }
@@ -151,9 +164,9 @@ function jam(iso: string): string {
                         <span class="text-[13px] text-muted-foreground">2 · Kostum SFW + NSFW selesai</span>
                         <p class="m-0 text-[28px] font-bold tracking-[-0.03em]">{{ total.kostum }} / {{ total.karakter }}</p>
                     </div>
-                    <div class="kartu flex flex-col gap-1 px-5 py-4 opacity-70">
-                        <span class="text-[13px] text-muted-foreground">3 · Halaman pose</span>
-                        <p class="m-0 text-[15px] font-semibold">Tahap 2 · menyusul</p>
+                    <div class="kartu flex flex-col gap-1 px-5 py-4">
+                        <span class="text-[13px] text-muted-foreground">3 · Halaman pose disetujui</span>
+                        <p class="m-0 text-[28px] font-bold tracking-[-0.03em]">{{ total.disetujui }} / {{ total.halaman }}</p>
                     </div>
                     <div class="kartu flex flex-col gap-1 px-5 py-4 opacity-70">
                         <span class="text-[13px] text-muted-foreground">4 · Diserahkan</span>
@@ -184,14 +197,23 @@ function jam(iso: string): string {
                                     <span v-if="!k.peserta.length" class="text-xs text-muted-foreground">Belum ada karakter.</span>
                                 </div>
                                 <BarLangkah :langkah="langkah(k)" :label="`Tahap ${KATEGORI[k.nama].label}`" />
-                                <Tombol
-                                    class="self-start"
-                                    ukuran="kecil"
-                                    :jenis="k.peserta.length < k.maks ? 'utama' : 'garis'"
-                                    :href="route('produksi-fembox.kategori', { bulan: papan.bulan, slug: k.slug })"
-                                >
-                                    Buka {{ KATEGORI[k.nama].label }} <ArrowRight class="h-3.5 w-3.5" />
-                                </Tombol>
+                                <div class="flex flex-wrap gap-2">
+                                    <Tombol
+                                        ukuran="kecil"
+                                        :jenis="k.peserta.length < k.maks ? 'utama' : 'garis'"
+                                        :href="route('produksi-fembox.kategori', { bulan: papan.bulan, slug: k.slug })"
+                                    >
+                                        Karakter & kostum <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                    <Tombol
+                                        v-if="k.pose.halaman || k.pose.disusun"
+                                        ukuran="kecil"
+                                        jenis="garis"
+                                        :href="route('produksi-fembox.pose', { bulan: papan.bulan, slug: k.slug })"
+                                    >
+                                        Halaman pose <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                </div>
                             </article>
 
                             <article class="kartu flex flex-col gap-3.5 p-5">

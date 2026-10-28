@@ -291,6 +291,17 @@ final class Peserta
         });
     }
 
+    /** Label nama di halaman pose (mis. "KRONII" untuk Ouro Kronii). Kosong = nama lengkap. */
+    public static function ubahLabel(string $bulan, string $id, string $label): array
+    {
+        return Bulan::ubah($bulan, function (array $s) use ($id, $label) {
+            $c = Bulan::cariWajib($s, $id);
+            $s['kategori'][$c['kategori']]['peserta'][$c['indeks']]['label'] = mb_substr(trim($label), 0, 24);
+
+            return $s;
+        });
+    }
+
     /** Pemenang SF1 / SF2 / Final. Null = belum ditentukan. */
     public static function pemenang(string $bulan, string $laga, ?string $id): array
     {

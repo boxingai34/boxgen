@@ -234,10 +234,23 @@ Route::prefix('generator')->group(function () {
                     ->where('slug', implode('|', array_keys(ProduksiFemboxController::SLUG)))->name('produksi-fembox.kategori');
                 Route::post('peserta', [ProduksiFemboxController::class, 'tambah'])->name('produksi-fembox.tambah');
                 Route::post('pemenang', [ProduksiFemboxController::class, 'pemenang'])->name('produksi-fembox.pemenang');
+                // Tahap 2: halaman pose per kategori (n = urutan halaman di paket, mulai 0).
+                Route::prefix('pose/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SLUG))])->group(function () {
+                    Route::get('/', [ProduksiFemboxController::class, 'pose'])->name('produksi-fembox.pose');
+                    Route::post('susun', [ProduksiFemboxController::class, 'susunPose'])->name('produksi-fembox.pose.susun');
+                    Route::post('setuju/{kunci}', [ProduksiFemboxController::class, 'setujuPose'])->where('kunci', '[a-z0-9-]{1,30}')->name('produksi-fembox.pose.setuju');
+                    Route::prefix('{n}')->whereNumber('n')->group(function () {
+                        Route::post('buat', [ProduksiFemboxController::class, 'buatPose'])->name('produksi-fembox.pose.buat');
+                        Route::post('panel', [ProduksiFemboxController::class, 'panelPose'])->name('produksi-fembox.pose.panel');
+                        Route::post('tolak', [ProduksiFemboxController::class, 'tolakPose'])->name('produksi-fembox.pose.tolak');
+                        Route::get('gambar', [ProduksiFemboxController::class, 'gambarPose'])->name('produksi-fembox.pose.gambar');
+                    });
+                });
                 Route::prefix('peserta/{id}')->where(['id' => $p])->group(function () {
                     Route::get('/', [ProduksiFemboxController::class, 'peserta'])->name('produksi-fembox.peserta');
                     Route::post('hapus', [ProduksiFemboxController::class, 'hapus'])->name('produksi-fembox.hapus');
                     Route::post('geser', [ProduksiFemboxController::class, 'geser'])->name('produksi-fembox.geser');
+                    Route::post('label', [ProduksiFemboxController::class, 'label'])->name('produksi-fembox.label');
                     Route::post('galeri', [ProduksiFemboxController::class, 'galeri'])->name('produksi-fembox.galeri');
                     Route::post('acuan/danbooru', [ProduksiFemboxController::class, 'acuanDanbooru'])->name('produksi-fembox.acuan.danbooru');
                     Route::post('acuan/unggah', [ProduksiFemboxController::class, 'acuanUnggah'])->name('produksi-fembox.acuan.unggah');

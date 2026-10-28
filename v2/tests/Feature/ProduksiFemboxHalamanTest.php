@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\ProduksiFembox\Bulan;
 use App\Services\ProduksiFembox\Kostum;
 use App\Services\ProduksiFembox\Peserta;
+use App\Services\ProduksiFembox\Pose;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -118,6 +119,41 @@ class ProduksiFemboxHalamanTest extends TestCase
         // NSFW tanpa prompt SFW: galat biasa, bukan gangguan server.
         $this->actingAs($this->admin())->postJson(route('produksi-fembox.kostum.nsfw', ['bulan' => '2026-11', 'id' => $id]))
             ->assertStatus(422)->assertJsonPath('ok', false);
+    }
+
+    public function test_halaman_pose_susun_ganti_dan_setuju(): void
+    {
+        $pose = $this->akar . '/FEMBOX/_DATA/pose';
+        File::ensureDirectoryExists($pose);
+        $qa = [];
+        foreach (['siap-sudut', 'cu-wajah', 'cu-perut', 'reaksi-wajah', 'reaksi-perut', 'nyaris-tumbang', 'perut-penentu', 'ko-perut', 'cu-mata'] as $p) {
+            File::put("$pose/{$p}__AB__v1.png", "\x89PNG");
+            $qa["{$p}__AB__v1"] = ['lolos' => true, 'skor' => 9];
+        }
+        File::put("$pose/qa.json", json_encode($qa));
+        Bulan::buat('2026-11');
+        $hsin = DB::table('fbx_kandidat')->insertGetId([
+            'minggu' => '2026-W44', 'kategori' => 'WAIFU CRUSHED', 'karakter' => 'Hsin', 'sumber' => 'WuWa', 'pasangan' => '',
+            'danbooru_tag' => 'hsin', 'pasangan_tag' => '', 'tingkat_umur' => 'DEWASA', 'umur_canon' => '200', 'tinggi_cm' => '',
+            'status' => 'terpilih', 'bukti_url' => '',
+        ]);
+        Peserta::dariScout('2026-11', 'WAIFU CRUSHED', $hsin);
+        $b = ['bulan' => '2026-11', 'slug' => 'waifu-crushed'];
+
+        $this->actingAs($this->admin())->get(route('produksi-fembox.pose', $b))->assertInertia(fn (Assert $p) => $p
+            ->component('ProduksiFembox/Pose', false)->where('ada', false)->has('rencana', 4));
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.pose.susun', $b))->assertOk();
+        $this->actingAs($this->admin())->get(route('produksi-fembox.pose', $b))->assertInertia(fn (Assert $p) => $p
+            ->where('ada', true)->where('basi', false)->has('halaman', 4)
+            ->where('halaman.1.panel.0.judul', 'Close-up wajah saat kena')->where('halaman.0.gambar', null)->has('calon.AB'));
+
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.pose.panel', $b + ['n' => 1]), ['p' => 0, 'pose' => 'cu-mata__AB'])->assertOk();
+        $this->assertSame('cu-mata__AB', Pose::paket('2026-11', 'WAIFU CRUSHED')['halaman'][1]['panel'][0]);
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.pose.setuju', $b + ['kunci' => 'wc1']))->assertStatus(422);
+        $this->actingAs($this->admin())->get(route('produksi-fembox.pose.gambar', $b + ['n' => 0]))->assertNotFound();
+
+        $this->actingAs($this->admin())->get(route('produksi-fembox', ['b' => '2026-11']))->assertInertia(fn (Assert $p) => $p
+            ->where('papan.kategori.2.nama', 'WAIFU CRUSHED')->where('papan.kategori.2.pose.halaman', 4)->where('papan.kategori.2.pose.disusun', true));
     }
 
     public function test_berkas_kerja_hanya_nama_yang_sah(): void

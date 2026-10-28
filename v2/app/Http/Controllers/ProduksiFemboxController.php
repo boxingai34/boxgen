@@ -11,6 +11,8 @@ use App\Services\ProduksiFembox\CekUmur;
 use App\Services\ProduksiFembox\Galat;
 use App\Services\ProduksiFembox\Kostum;
 use App\Services\ProduksiFembox\Peserta;
+use App\Services\ProduksiFembox\Pose;
+use App\Services\PustakaPose;
 use FemboxReferensi;
 use GambarAi;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response as TampilanInertia;
+use PoseFbx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
@@ -307,6 +310,140 @@ class ProduksiFemboxController extends Controller
         });
     }
 
+    public function label(Request $request, string $bulan, string $id): JsonResponse
+    {
+        $request->validate(['label' => ['nullable', 'string', 'max:24']]);
+
+        return $this->jalankan(function () use ($request, $bulan, $id) {
+            Peserta::ubahLabel($bulan, $id, (string) $request->input('label', ''));
+
+            return [];
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Tahap 2: halaman pose
+
+    public function pose(string $bulan, string $slug): TampilanInertia
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $s = $this->papanAtau404($bulan);
+        $paket = Pose::paket($bulan, $kategori);
+        $qa = PustakaPose::qa();
+        $tersedia = Pose::tersedia(null, $qa);
+        $status = $s['pose'][$kategori] ?? [];
+
+        $halaman = [];
+        foreach ($paket['halaman'] ?? [] as $n => $h) {
+            $kunci = (string) ($h['pfx']['kunci'] ?? $n);
+            $nama = (array) ($h['nama'] ?? []);
+            $st = $status['halaman'][$kunci] ?? null;
+            $cek = Pose::berkasCek((string) $h['keluar']);
+            $berkas = is_file($cek) ? $cek : (is_file((string) $h['keluar']) ? (string) $h['keluar'] : null);
+            $halaman[] = [
+                'n'       => $n,
+                'kunci'   => $kunci,
+                'judul'   => (string) ($h['pfx']['judul'] ?? basename((string) $h['keluar'], '.png')),
+                'berkas'  => basename((string) $h['keluar']),
+                'bentuk'  => (string) ($h['bentuk'] ?? 'landscape'),
+                'label'   => ($h['label'] ?? true) !== false,
+                'nama'    => $nama,
+                'panel'   => array_map(fn ($p) => Pose::uraiPanel((string) $p, $nama, $qa, $tersedia), $h['panel']),
+                'status'  => $st,
+                'gambar'  => $berkas !== null && $st !== null
+                    ? route('produksi-fembox.pose.gambar', ['bulan' => $bulan, 'slug' => $slug, 'n' => $n], false) . '?v=' . filemtime($berkas)
+                    : null,
+            ];
+        }
+
+        // Pilihan ganti panel: semua pose di pustaka, dikelompokkan per arah.
+        $calon = [];
+        foreach ($tersedia as $k => $t) {
+            [$pose, $arah] = explode('__', $k);
+            $calon[$arah][] = ['id' => $k, 'judul' => (string) (PoseFbx::POSE[$pose]['judul'] ?? $pose), 'lolos' => $t['lolos'],
+                'ko' => in_array($pose, PoseFbx::KO, true)];
+        }
+
+        return Inertia::render('ProduksiFembox/Pose', [
+            'bulan'      => $bulan,
+            'label'      => Bulan::label($bulan),
+            'kategori'   => $kategori,
+            'slug'       => $slug,
+            'ada'        => $paket !== null,
+            'basi'       => $paket !== null && Pose::basi($s, $kategori, $paket),
+            'rencana'    => array_map(fn ($r) => ['kunci' => $r['kunci'], 'judul' => $r['judul']], Pose::rencana($s, $kategori)),
+            'peringatan' => $status['peringatan'] ?? [],
+            'halaman'    => $halaman,
+            'calon'      => $calon,
+            'paket'      => Pose::berkasPaket($bulan, $kategori),
+            'ff'         => $kategori === 'FEMALE FIGHT' ? $s['kategori']['FEMALE FIGHT']['pemenang'] : null,
+        ]);
+    }
+
+    public function susunPose(string $bulan, string $slug): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+
+        return $this->jalankan(fn () => ['peringatan' => Pose::susun($bulan, $kategori)['peringatan']]);
+    }
+
+    public function buatPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $n) {
+            ignore_user_abort(true);
+
+            return Pose::buat($bulan, $kategori, $n, $request->boolean('susunan_baru'));
+        });
+    }
+
+    public function panelPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $request->validate(['p' => ['required', 'integer', 'min:0'], 'pose' => ['required', 'string', 'regex:/^[a-z0-9-]+__[ABP]{2}$/']]);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $n) {
+            Pose::gantiPanel($bulan, $kategori, $n, (int) $request->input('p'), (string) $request->input('pose'));
+
+            return [];
+        });
+    }
+
+    public function tolakPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $request->validate(['p' => ['required', 'integer', 'min:0'], 'alasan' => ['nullable', 'string', 'max:300']]);
+
+        return $this->jalankan(fn () => ['varian' => Pose::tolakVarian($bulan, $kategori, $n, (int) $request->input('p'), (string) $request->input('alasan', ''))]);
+    }
+
+    public function setujuPose(Request $request, string $bulan, string $slug, string $kunci): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $kunci) {
+            Pose::setujui($bulan, $kategori, $kunci, $request->boolean('ya', true));
+
+            return [];
+        });
+    }
+
+    /** Gambar halaman: versi cek bernomor kalau ada, kalau tidak hasil di Drive. */
+    public function gambarPose(Request $request, string $bulan, string $slug, int $n): BinaryFileResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $keluar = (string) (Pose::paket($bulan, $kategori)['halaman'][$n]['keluar'] ?? abort(404));
+        $cek = Pose::berkasCek($keluar);
+        $f = $request->boolean('asli') || ! is_file($cek) ? $keluar : $cek;
+        // Hanya berkas PNG di bawah folder FEMBOX — paket bisa disunting tangan.
+        $akar = realpath(Bulan::drive());
+        $nyata = realpath($f);
+        abort_unless($akar !== false && $nyata !== false && str_starts_with($nyata, $akar . DIRECTORY_SEPARATOR) && str_ends_with(strtolower($nyata), '.png'), 404);
+
+        return response()->file($nyata, ['Cache-Control' => 'private, max-age=60']);
+    }
+
     /** Kandidat kostum dan acuan unggahan dari folder kerja lokal. */
     public function berkas(string $bulan, string $id, string $nama): BinaryFileResponse
     {
@@ -369,12 +506,20 @@ class ProduksiFemboxController extends Controller
         $kategori = [];
         foreach (Bulan::KATEGORI as $k) {
             $ps = array_map(fn ($p) => $this->ringkasPeserta($p, $foto), $s['kategori'][$k]['peserta']);
+            $paket = Pose::paket($s['bulan'], $k);
+            $st = array_values($s['pose'][$k]['halaman'] ?? []);
             $kategori[] = [
                 'nama'    => $k,
                 'slug'    => array_search($k, self::SLUG, true),
                 'maks'    => (int) config("produksi_fembox.maks.$k"),
                 'peserta' => $ps,
                 'kostum'  => count(array_filter($ps, fn ($p) => $p['langkah']['kostum_selesai'])),
+                'pose'    => [
+                    'halaman'   => $paket !== null ? count($paket['halaman']) : count(Pose::rencana($s, $k)),
+                    'disusun'   => $paket !== null,
+                    'dibuat'    => count(array_filter($st, fn ($h) => $h['ok'] ?? false)),
+                    'disetujui' => count(array_filter($st, fn ($h) => $h['disetujui'] ?? false)),
+                ],
             ];
         }
         $t = Bulan::turunan($s);
@@ -398,6 +543,7 @@ class ProduksiFemboxController extends Controller
         return [
             'id'      => $p['id'],
             'nama'    => $p['nama'],
+            'label'   => (string) ($p['label'] ?? ''),
             'sumber'  => $p['sumber'],
             'tag'     => $p['tag'],
             'jk'      => $p['jk'],
