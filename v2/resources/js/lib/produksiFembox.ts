@@ -52,3 +52,8 @@ export function teksLangkah(n: NadaLangkah, siap = 'Dipilih'): string {
 }
 
 export const ASAL: Record<string, string> = { scout: 'Scout', roster: 'Roster', manual: 'Ketik' };
+
+/** Hawt Shot dan Championee tidak punya halaman peserta sendiri: pesertanya diatur di Female Fight. */
+export function slugPeserta(kategori: string, slug: string): string {
+    return ['HAWT SHOT', 'CHAMPIONEE'].includes(kategori) ? 'female-fight' : slug;
+}

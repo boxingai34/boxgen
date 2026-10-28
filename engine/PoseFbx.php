@@ -440,7 +440,60 @@ final class PoseFbx
             'pemukul'  => 'source#punching, follow-through, straight punch, arm extended, leaning forward, shouting',
             'penerima' => 'target#punching, face punch, thrown back against ring ropes, arms draped over ropes, head back, rolling eyes, trembling, spitting',
         ],
+
+        // ---- Hawt Shot (finalis Female Fight) & Championee (juaranya): satu art solo ----
+        // Sexy-sporty, tetap SFW (UC_SFW berlaku) — versi NSFW dibuat artis dari pose yang sama.
+        'hs-lirik-bahu' => [
+            'judul' => 'Hawt Shot — melirik dari balik bahu', 'rasio' => '3:4', 'kiri' => 'penerima', 'fokus' => '50% 35%',
+            'solo'  => true,
+            'base'  => 'cowboy shot, from behind, slightly from below, inside boxing ring, ring ropes in background, spotlight, rim light, '
+                . 'glistening skin, light sweat, sporty pin-up composition',
+            'pemukul'  => '',
+            'penerima' => 'solo, standing, back to viewer, looking back at viewer, looking over shoulder, one boxing glove resting on shoulder, '
+                . 'other glove at side, smirk, half-closed eyes, confident, toned back, toned legs',
+        ],
+        'hs-tali-duduk' => [
+            'judul' => 'Hawt Shot — duduk di tali ring', 'rasio' => '3:4', 'kiri' => 'penerima', 'fokus' => '50% 40%',
+            'solo'  => true,
+            'base'  => 'full body, from below, ring corner, sitting on ring ropes, turnbuckle, spotlight from above, rim light, glistening skin, '
+                . 'light sweat, sporty pin-up composition',
+            'pemukul'  => '',
+            'penerima' => 'solo, sitting on rope, crossed legs, leaning forward, boxing gloves resting on knee, looking at viewer, confident smile, '
+                . 'sultry gaze, toned legs',
+        ],
+        'hs-flex' => [
+            'judul' => 'Hawt Shot — pamer otot, sarung terangkat', 'rasio' => '3:4', 'kiri' => 'penerima', 'fokus' => '50% 40%',
+            'solo'  => true,
+            'base'  => 'cowboy shot, from below, slightly dutch angle, center of boxing ring, spotlight from above, rim light, lens flare, '
+                . 'glistening skin, light sweat, sporty pin-up composition',
+            'pemukul'  => '',
+            'penerima' => 'solo, flexing, both arms raised, boxing gloves raised, toned abs, muscular arms, confident grin, one eye closed, '
+                . 'looking at viewer',
+        ],
+        'ch-sabuk-angkat' => [
+            'judul' => 'Championee — mengangkat sabuk juara', 'rasio' => '3:4', 'kiri' => 'penerima', 'fokus' => '50% 35%',
+            'solo'  => true,
+            'base'  => 'full body, from below, low angle, center of boxing ring, spotlight from above, confetti falling, lens flare, rim light, '
+                . 'triumphant atmosphere, light sweat',
+            'pemukul'  => '',
+            'penerima' => 'solo, holding championship belt above head, both arms raised, gold championship belt, triumphant smile, '
+                . 'looking up, victorious, proud',
+            'uc'    => 'trophy',
+        ],
+        'ch-sabuk-pinggang' => [
+            'judul' => 'Championee — sabuk di pinggang, tinju terangkat', 'rasio' => '3:4', 'kiri' => 'penerima', 'fokus' => '50% 40%',
+            'solo'  => true,
+            'base'  => 'cowboy shot, from below, center of boxing ring, spotlight, confetti falling, rim light, light sweat, champion pose',
+            'pemukul'  => '',
+            'penerima' => 'solo, gold championship belt around waist, one boxing glove raised in a fist, other glove on hip, proud expression, '
+                . 'confident smile, looking at viewer',
+        ],
     ];
+
+    /** Pose Hawt Shot (satu per finalis, tidak kembar) dan Championee. */
+    public const HAWT_SHOT = ['hs-lirik-bahu', 'hs-tali-duduk', 'hs-flex'];
+
+    public const CHAMPIONEE = ['ch-sabuk-angkat', 'ch-sabuk-pinggang'];
 
     /**
      * Pose yang dihitung adegan KO/knockdown. Satu halaman paling banyak SATU
@@ -535,6 +588,11 @@ final class PoseFbx
         'tatap-tajam'         => 'An extreme close-up of one boxer\'s (the RECEIVER\'s) face with an intense, determined glare. Nobody else is in the image.',
         'istirahat-sudut'     => 'Exactly one boxer (the RECEIVER) sits on a stool in the ring corner resting between rounds, arms draped on the ropes, exhausted. Nobody else is in the image.',
         'tali-terlempar'      => 'The ATTACKER lands a straight punch on the RECEIVER\'s face, throwing the RECEIVER back against the ring ropes, which bend under the weight.',
+        'hs-lirik-bahu'       => 'Exactly one boxer (the RECEIVER) stands with her back toward the viewer and looks back over her shoulder at the viewer, wearing boxing gloves and her sports outfit. Nobody else is in the image.',
+        'hs-tali-duduk'       => 'Exactly one boxer (the RECEIVER) sits on the ring ropes in a corner with her legs crossed and her gloves resting on her knee, looking at the viewer. Nobody else is in the image.',
+        'hs-flex'             => 'Exactly one boxer (the RECEIVER) raises both boxing gloves in a flexing pose toward the viewer, showing her toned stomach. Nobody else is in the image.',
+        'ch-sabuk-angkat'     => 'Exactly one boxer (the RECEIVER) holds a gold championship belt above her head with both arms raised in the boxing ring. Nobody else is in the image.',
+        'ch-sabuk-pinggang'   => 'Exactly one boxer (the RECEIVER) wears a gold championship belt around her waist and raises one gloved fist. Nobody else is in the image.',
     ];
 
     /** Ciri petinju generik dalam kalimat, untuk pemeriksa. */

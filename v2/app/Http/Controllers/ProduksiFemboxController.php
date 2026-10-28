@@ -43,6 +43,12 @@ class ProduksiFemboxController extends Controller
         'monthly-showdown' => 'MONTHLY SHOWDOWN',
     ];
 
+    /** Halaman pose dan serah juga untuk turunan Female Fight (pesertanya dari sana). */
+    public const SEMUA = self::SLUG + [
+        'hawt-shot'  => 'HAWT SHOT',
+        'championee' => 'CHAMPIONEE',
+    ];
+
     public function papan(Request $request): TampilanInertia
     {
         $daftar = Bulan::daftar();
@@ -327,7 +333,7 @@ class ProduksiFemboxController extends Controller
 
     public function pose(string $bulan, string $slug): TampilanInertia
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $s = $this->papanAtau404($bulan);
         $paket = Pose::paket($bulan, $kategori);
         $qa = PustakaPose::qa();
@@ -383,14 +389,14 @@ class ProduksiFemboxController extends Controller
 
     public function susunPose(string $bulan, string $slug): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
 
         return $this->jalankan(fn () => ['peringatan' => Pose::susun($bulan, $kategori)['peringatan']]);
     }
 
     public function buatPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $n) {
             ignore_user_abort(true);
@@ -401,7 +407,7 @@ class ProduksiFemboxController extends Controller
 
     public function panelPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $request->validate(['p' => ['required', 'integer', 'min:0'], 'pose' => ['required', 'string', 'regex:/^[a-z0-9-]+__[ABP]{2}$/']]);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $n) {
@@ -413,7 +419,7 @@ class ProduksiFemboxController extends Controller
 
     public function tolakPose(Request $request, string $bulan, string $slug, int $n): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $request->validate(['p' => ['required', 'integer', 'min:0'], 'alasan' => ['nullable', 'string', 'max:300']]);
 
         return $this->jalankan(fn () => ['varian' => Pose::tolakVarian($bulan, $kategori, $n, (int) $request->input('p'), (string) $request->input('alasan', ''))]);
@@ -421,7 +427,7 @@ class ProduksiFemboxController extends Controller
 
     public function setujuPose(Request $request, string $bulan, string $slug, string $kunci): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $kunci) {
             Pose::setujui($bulan, $kategori, $kunci, $request->boolean('ya', true));
@@ -433,7 +439,7 @@ class ProduksiFemboxController extends Controller
     /** Gambar halaman: versi cek bernomor kalau ada, kalau tidak hasil di Drive. */
     public function gambarPose(Request $request, string $bulan, string $slug, int $n): BinaryFileResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $keluar = (string) (Pose::paket($bulan, $kategori)['halaman'][$n]['keluar'] ?? abort(404));
         $cek = Pose::berkasCek($keluar);
         $f = $request->boolean('asli') || ! is_file($cek) ? $keluar : $cek;
@@ -450,7 +456,7 @@ class ProduksiFemboxController extends Controller
 
     public function serahkan(string $bulan, string $slug): TampilanInertia
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $s = $this->papanAtau404($bulan);
         $baca = fn (string $f) => is_file($f) ? (string) file_get_contents($f) : null;
         $status = $s['serah'][$kategori] ?? [];
@@ -514,14 +520,14 @@ class ProduksiFemboxController extends Controller
 
     public function siapkan(Request $request, string $bulan, string $slug, string $unit): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
 
         return $this->jalankan(fn () => Serah::siapkan($bulan, $kategori, $unit, $request->boolean('ulang')));
     }
 
     public function simpanBrief(Request $request, string $bulan, string $slug, string $unit): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $request->validate(['isi' => ['required', 'string', 'max:20000']]);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
@@ -533,7 +539,7 @@ class ProduksiFemboxController extends Controller
 
     public function briefNsfw(Request $request, string $bulan, string $slug, string $unit): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $request->validate(['ide' => ['nullable', 'string', 'max:600']]);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
@@ -546,7 +552,7 @@ class ProduksiFemboxController extends Controller
 
     public function tandaiSerah(Request $request, string $bulan, string $slug, string $unit): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
         $request->validate(['artist' => ['required', 'string', 'max:80'], 'tanggal' => ['required', 'date_format:Y-m-d'], 'catatan' => ['nullable', 'string', 'max:500']]);
 
         return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
@@ -558,7 +564,7 @@ class ProduksiFemboxController extends Controller
 
     public function batalSerah(string $bulan, string $slug, string $unit): JsonResponse
     {
-        $kategori = self::SLUG[$slug] ?? abort(404);
+        $kategori = self::SEMUA[$slug] ?? abort(404);
 
         return $this->jalankan(function () use ($bulan, $kategori, $unit) {
             Serah::batal($bulan, $kategori, $unit);
@@ -629,25 +635,13 @@ class ProduksiFemboxController extends Controller
         $kategori = [];
         foreach (Bulan::KATEGORI as $k) {
             $ps = array_map(fn ($p) => $this->ringkasPeserta($p, $foto), $s['kategori'][$k]['peserta']);
-            $paket = Pose::paket($s['bulan'], $k);
-            $st = array_values($s['pose'][$k]['halaman'] ?? []);
             $kategori[] = [
                 'nama'    => $k,
                 'slug'    => array_search($k, self::SLUG, true),
                 'maks'    => (int) config("produksi_fembox.maks.$k"),
                 'peserta' => $ps,
                 'kostum'  => count(array_filter($ps, fn ($p) => $p['langkah']['kostum_selesai'])),
-                'pose'    => [
-                    'halaman'   => $paket !== null ? count($paket['halaman']) : count(Pose::rencana($s, $k)),
-                    'disusun'   => $paket !== null,
-                    'dibuat'    => count(array_filter($st, fn ($h) => $h['ok'] ?? false)),
-                    'disetujui' => count(array_filter($st, fn ($h) => $h['disetujui'] ?? false)),
-                ],
-                'serah'   => [
-                    'unit'       => count(Serah::unit($s, $k)),
-                    'diserahkan' => count(array_filter($s['serah'][$k] ?? [], fn ($x) => isset($x['diserahkan']))),
-                ],
-            ];
+            ] + $this->progres($s, $k);
         }
         $t = Bulan::turunan($s);
 
@@ -660,8 +654,30 @@ class ProduksiFemboxController extends Controller
             'turunan'  => [
                 'finalis' => array_map(fn ($p) => $this->ringkasPeserta($p, $foto) + ['terkunci' => $p['tingkat'] !== 'DEWASA'], $t['finalis']),
                 'juara'   => $t['juara'] !== null ? $this->ringkasPeserta($t['juara'], $foto) : null,
+                'hs'      => ['slug' => 'hawt-shot'] + $this->progres($s, 'HAWT SHOT'),
+                'ch'      => ['slug' => 'championee'] + $this->progres($s, 'CHAMPIONEE'),
             ],
             'log'      => array_reverse(array_slice($s['log'], -8)),
+        ];
+    }
+
+    /** Progres halaman pose dan serah satu kategori (juga turunan). */
+    private function progres(array $s, string $k): array
+    {
+        $paket = Pose::paket($s['bulan'], $k);
+        $st = array_values($s['pose'][$k]['halaman'] ?? []);
+
+        return [
+            'pose'  => [
+                'halaman'   => $paket !== null ? count($paket['halaman']) : count(Pose::rencana($s, $k)),
+                'disusun'   => $paket !== null,
+                'dibuat'    => count(array_filter($st, fn ($h) => $h['ok'] ?? false)),
+                'disetujui' => count(array_filter($st, fn ($h) => $h['disetujui'] ?? false)),
+            ],
+            'serah' => [
+                'unit'       => count(Serah::unit($s, $k)),
+                'diserahkan' => count(array_filter($s['serah'][$k] ?? [], fn ($x) => isset($x['diserahkan']))),
+            ],
         ];
     }
 

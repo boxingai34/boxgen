@@ -72,6 +72,11 @@ final class Serah
         'tatap-tajam'         => 'Close-up tatapan tajam {B}.',
         'istirahat-sudut'     => '{B} istirahat di sudut antarronde.',
         'tali-terlempar'      => '{B} terpental ke tali ring kena pukulan {A}.',
+        'hs-lirik-bahu'       => '{B} berdiri membelakangi kamera, melirik dari balik bahu, satu sarung ditaruh di bahu.',
+        'hs-tali-duduk'       => '{B} duduk di tali ring di sudut, kaki disilangkan, sarung bertumpu di lutut, natap kamera.',
+        'hs-flex'             => '{B} pamer otot: dua sarung diangkat, perut kelihatan, senyum sambil kedip.',
+        'ch-sabuk-angkat'     => '{B} ngangkat sabuk juara tinggi-tinggi di tengah ring, confetti berjatuhan.',
+        'ch-sabuk-pinggang'   => '{B} pakai sabuk juara di pinggang, satu tinju diangkat, gaya juara.',
     ];
 
     private const WARNA_GENERIK = ['A' => 'merah', 'B' => 'biru', 'P' => 'hijau'];
@@ -85,6 +90,7 @@ final class Serah
             str_starts_with($kunciHalaman, 'final')                      => 'final',
             in_array($kunciHalaman, ['pria-kalah', 'wanita-kalah'], true) => 'mf',
             str_starts_with($kunciHalaman, 'wc')                         => 'wc',
+            str_starts_with($kunciHalaman, 'hs')                         => 'hs',
             default                                                      => $kunciHalaman,
         };
     }
@@ -134,14 +140,24 @@ final class Serah
             $u['kunci'] === 'final'                            => 'Final · ' . $n('A') . ' vs ' . $n('B'),
             $u['kunci'] === 'mf'                               => 'Mixed Fight · ' . $n('A') . ' vs ' . $n('P'),
             $u['kunci'] === 'wc'                               => 'Waifu Crushed · ' . $n('B'),
+            $u['kunci'] === 'hs'                               => 'Hawt Shot · ' . implode(' & ', array_column($u['peserta'], 'nama')),
+            $u['kunci'] === 'ch'                               => 'Championee · ' . $n('B'),
             preg_match('/^match(\d+)$/', $u['kunci'], $m) === 1 => "Match {$m[1]} · " . $n('A') . ' vs ' . $n('B'),
             default                                            => $u['kunci'],
         };
     }
 
-    /** Folder kostum/acuan dilihat dari folder satuan: salinan di 01/02, kecuali satuan = folder kategori itu sendiri. */
+    /**
+     * Folder kostum/acuan dilihat dari folder satuan: salinan di 01/02, kecuali
+     * satuan = folder kategori itu sendiri (KOSTUM/ACUAN-nya sudah di sana).
+     * Hawt Shot dan Championee meminjam kostum Female Fight, jadi selalu disalin.
+     */
     private static function subfolder(array $s, string $kategori, array $u): array
     {
+        if (in_array($kategori, Bulan::TURUNAN, true)) {
+            return ['KOSTUM', 'ACUAN', true];
+        }
+
         return rtrim($u['folder'], '\\/') === rtrim(Bulan::folderReferensi($s, $kategori), '\\/')
             ? ['KOSTUM', 'ACUAN', false]
             : ['01 KOSTUM', '02 ACUAN', true];
@@ -164,7 +180,7 @@ final class Serah
         $ms = $kategori === 'MONTHLY SHOWDOWN';
         $sumber = fn (array $p) => $p['sumber'] !== '' ? " ({$p['sumber']})" : '';
 
-        $baris = ['FEMBOX COLLECTION — ' . $kategori . (in_array($u['kunci'], ['mf', 'wc'], true) ? '' : ' · ' . mb_strtoupper(explode(' · ', $u['judul'])[0]))];
+        $baris = ['FEMBOX COLLECTION — ' . $kategori . (in_array($u['kunci'], ['mf', 'wc', 'hs', 'ch'], true) ? '' : ' · ' . mb_strtoupper(explode(' · ', $u['judul'])[0]))];
         $baris[] = implode(' vs ', array_map(fn ($p) => mb_strtoupper($p['nama']) . $sumber($p), $u['peserta']));
 
         $ff = $s['kategori']['FEMALE FIGHT']['pemenang'] ?? [];
@@ -173,6 +189,8 @@ final class Serah
             $u['kunci'] === 'final'            => ($ff['final'] ?? null) !== null ? "Juaranya: $A" : "Juara belum ditentukan (sementara $A).",
             $u['kunci'] === 'mf'               => "Dua versi: $lawan kalah, lalu $A kalah.",
             $u['kunci'] === 'wc'               => "$lawan yang dihajar sampai KO.",
+            $u['kunci'] === 'hs'               => 'Art solo sexy-sporty, satu per finalis Female Fight.',
+            $u['kunci'] === 'ch'               => "Juara Female Fight bulan ini: $lawan.",
             default                            => "$A yang mendaratkan pukulan penentu.",
         };
 
@@ -194,23 +212,35 @@ final class Serah
         // ---- Siapa jadi siapa
         $baris[] = '';
         $baris[] = 'SIAPA JADI SIAPA DI HALAMAN POSE';
-        foreach (['A', 'B', 'P'] as $h) {
-            $p = current(array_filter($u['peserta'], fn ($x) => $x['huruf'] === $h)) ?: null;
-            $adaHuruf = array_filter($u['halaman'], fn ($r) => array_key_exists($h, $r['petinju']));
-            if ($adaHuruf === []) {
-                continue;
-            }
-            if ($p === null) {
-                $baris[] = "- Petinju $h (" . self::WARNA_GENERIK[$h] . ') = lawan bebas, nggak perlu karakter tertentu.';
-                continue;
-            }
+        $orang = function (array $p, string $awal) use ($ms, $dirKostum): array {
             $kostum = $p['kostum']['sfw']['drive'] ?? null;
             $label = Pose::label($p);
-            $baris[] = "- Petinju $h (" . self::WARNA_GENERIK[$h] . ') = ' . mb_strtoupper($p['nama'])
-                . ($label !== mb_strtoupper($p['nama']) ? " (label di halaman pose: $label)" : '')
-                . (! $ms && $p['tinggi'] ? " · {$p['tinggi']} cm" : '')
-                . ($p['tingkat'] === '16-17' ? ' · umur 16–17' : '');
-            $baris[] = '  kostum: ' . ($kostum ? "$dirKostum/" . basename((string) $kostum) : '(kostum belum dipilih)');
+
+            return [
+                $awal . mb_strtoupper($p['nama'])
+                    . ($label !== mb_strtoupper($p['nama']) ? " (label di halaman pose: $label)" : '')
+                    . (! $ms && $p['tinggi'] ? " · {$p['tinggi']} cm" : '')
+                    . ($p['tingkat'] === '16-17' ? ' · umur 16–17' : ''),
+                '  kostum: ' . ($kostum ? "$dirKostum/" . basename((string) $kostum) : '(kostum belum dipilih)'),
+            ];
+        };
+        if ($u['kunci'] === 'hs') {
+            // Tiap finalis punya halamannya sendiri; dua-duanya petinju B (biru) di pustaka.
+            foreach ($u['halaman'] as $r) {
+                array_push($baris, ...$orang($r['petinju']['B'], '- ' . basename($r['keluar']) . ': petinju biru = '));
+            }
+        } else {
+            foreach (['A', 'B', 'P'] as $h) {
+                $p = current(array_filter($u['peserta'], fn ($x) => $x['huruf'] === $h)) ?: null;
+                if (array_filter($u['halaman'], fn ($r) => array_key_exists($h, $r['petinju'])) === []) {
+                    continue;
+                }
+                if ($p === null) {
+                    $baris[] = "- Petinju $h (" . self::WARNA_GENERIK[$h] . ') = lawan bebas, nggak perlu karakter tertentu.';
+                    continue;
+                }
+                array_push($baris, ...$orang($p, "- Petinju $h (" . self::WARNA_GENERIK[$h] . ') = '));
+            }
         }
         $baris[] = '  Petinju di halaman pose itu cuma model generik, jadi tinggal digambar jadi karakter aslinya pakai kostum di atas.';
         if (array_filter($u['peserta'], fn ($p) => ($p['acuan'] ?? []) !== [])) {
@@ -308,7 +338,8 @@ final class Serah
             }
             // Satuan di folder kategori sendiri (Mixed Fight, Waifu Crushed) sudah berisi ACUAN\.
             if ($salin) {
-                foreach (glob(Acuan::folderDrive($s, $kategori, $p['nama']) . DIRECTORY_SEPARATOR . '*.*') ?: [] as $f) {
+                $asalKat = in_array($kategori, Bulan::TURUNAN, true) ? 'FEMALE FIGHT' : $kategori;
+                foreach (glob(Acuan::folderDrive($s, $asalKat, $p['nama']) . DIRECTORY_SEPARATOR . '*.*') ?: [] as $f) {
                     $ke = $u['folder'] . DIRECTORY_SEPARATOR . $dirAcuan . DIRECTORY_SEPARATOR . Kostum::namaBerkas($p['nama']);
                     Bulan::pastikanDir($ke);
                     copy($f, $ke . DIRECTORY_SEPARATOR . basename($f));

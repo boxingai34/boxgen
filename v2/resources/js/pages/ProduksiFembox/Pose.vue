@@ -12,7 +12,7 @@ import Tombol from '@/components/box/Tombol.vue';
 import ChipStatus from '@/components/produksi/ChipStatus.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { GalatKirim, kirim, salin } from '@/lib/kirim';
-import { KATEGORI } from '@/lib/produksiFembox';
+import { KATEGORI, slugPeserta } from '@/lib/produksiFembox';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Check, Copy, LayoutGrid, Play, RefreshCw, ThumbsDown, Wand2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -129,7 +129,7 @@ async function salinPaket() {
             <nav aria-label="Jejak" class="text-[13px]">
                 <Link :href="route('produksi-fembox', { b: bulan })" class="text-[hsl(var(--sorot))] hover:underline">Papan Bulan</Link>
                 <span class="text-muted-foreground"> / </span>
-                <Link :href="route('produksi-fembox.kategori', { bulan, slug })" class="text-[hsl(var(--sorot))] hover:underline">{{ info.label }}</Link>
+                <Link :href="route('produksi-fembox.kategori', { bulan, slug: slugPeserta(kategori, slug) })" class="text-[hsl(var(--sorot))] hover:underline">{{ info.label }}</Link>
                 <span class="text-muted-foreground"> / </span><span>Halaman pose</span>
             </nav>
 

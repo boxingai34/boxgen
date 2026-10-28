@@ -15,6 +15,11 @@ import { Head, router } from '@inertiajs/vue3';
 import { ArrowRight, Copy, FolderPlus, Lock } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
+type Progres = {
+    pose: { halaman: number; disusun: boolean; dibuat: number; disetujui: number };
+    serah: { unit: number; diserahkan: number };
+};
+type Turunan = Progres & { slug: string };
 type Kat = {
     nama: string;
     slug: string;
@@ -30,7 +35,7 @@ type Papan = {
     folder: string;
     jalur: string;
     kategori: Kat[];
-    turunan: { finalis: PesertaRingkas[]; juara: PesertaRingkas | null };
+    turunan: { finalis: PesertaRingkas[]; juara: PesertaRingkas | null; hs: Turunan; ch: Turunan };
     log: { waktu: string; pesan: string }[];
 };
 
@@ -49,14 +54,17 @@ const tersalin = ref(false);
 
 const total = computed(() => {
     const k = props.papan?.kategori ?? [];
+    const t = props.papan?.turunan;
+    // Halaman dan laga Hawt Shot / Championee ikut dihitung; kostumnya tidak (dipinjam dari Female Fight).
+    const semua: Progres[] = [...k, ...(t ? [t.hs, t.ch] : [])];
     return {
         karakter: k.reduce((n, x) => n + x.peserta.length, 0),
         maks: k.reduce((n, x) => n + x.maks, 0),
         kostum: k.reduce((n, x) => n + x.kostum, 0),
-        halaman: k.reduce((n, x) => n + x.pose.halaman, 0),
-        disetujui: k.reduce((n, x) => n + x.pose.disetujui, 0),
-        unit: k.reduce((n, x) => n + x.serah.unit, 0),
-        diserahkan: k.reduce((n, x) => n + x.serah.diserahkan, 0),
+        halaman: semua.reduce((n, x) => n + x.pose.halaman, 0),
+        disetujui: semua.reduce((n, x) => n + x.pose.disetujui, 0),
+        unit: semua.reduce((n, x) => n + x.serah.unit, 0),
+        diserahkan: semua.reduce((n, x) => n + x.serah.diserahkan, 0),
     };
 });
 
@@ -66,6 +74,25 @@ function langkah(k: Kat): Langkah[] {
     return [
         { label: `Karakter ${n}/${butuh}`, isi: n / butuh, nada: n >= butuh ? 'lolos' : n > 0 ? 'jalan' : 'belum' },
         { label: `Kostum ${k.kostum}/${n || butuh}`, isi: n ? k.kostum / n : 0, nada: n && k.kostum >= n ? 'lolos' : k.kostum > 0 ? 'jalan' : 'belum' },
+        ...progresLangkah(k),
+    ];
+}
+
+/** Hawt Shot / Championee: pesertanya dan kostumnya dipinjam dari Female Fight. */
+function langkahTurunan(peserta: PesertaRingkas[], butuh: number, t: Turunan): Langkah[] {
+    const ada = peserta.length >= butuh;
+    const kunci = peserta.some((p) => p.terkunci);
+    const kostum = peserta.filter((p) => p.langkah.kostum_selesai).length;
+    return [
+        { label: ada ? 'Dari Female Fight ✓' : 'Menunggu pemenang', isi: peserta.length / butuh, nada: kunci ? 'kunci' : ada ? 'lolos' : 'belum' },
+        { label: `Kostum dari FF ${kostum}/${butuh}`, isi: kostum / butuh, nada: kostum >= butuh ? 'lolos' : kostum > 0 ? 'jalan' : 'belum' },
+        ...progresLangkah(t),
+    ];
+}
+
+/** Langkah Pose dan Serahkan, sama untuk kategori biasa dan turunan. */
+function progresLangkah(k: Progres): Langkah[] {
+    return [
         {
             label: k.pose.disusun ? `Pose ${k.pose.disetujui}/${k.pose.halaman}` : 'Pose',
             isi: k.pose.halaman ? k.pose.disetujui / k.pose.halaman : 0,
@@ -76,19 +103,6 @@ function langkah(k: Kat): Langkah[] {
             isi: k.serah.unit ? k.serah.diserahkan / k.serah.unit : 0,
             nada: k.serah.unit && k.serah.diserahkan >= k.serah.unit ? 'lolos' : k.serah.diserahkan > 0 ? 'jalan' : 'belum',
         },
-    ];
-}
-
-/** Hawt Shot / Championee: pesertanya dan kostumnya dipinjam dari Female Fight. */
-function langkahTurunan(peserta: PesertaRingkas[], butuh: number): Langkah[] {
-    const ada = peserta.length >= butuh;
-    const kunci = peserta.some((p) => p.terkunci);
-    const kostum = peserta.filter((p) => p.langkah.kostum_selesai).length;
-    return [
-        { label: ada ? 'Dari Female Fight ✓' : 'Menunggu pemenang', isi: peserta.length / butuh, nada: kunci ? 'kunci' : ada ? 'lolos' : 'belum' },
-        { label: `Kostum dari FF ${kostum}/${butuh}`, isi: kostum / butuh, nada: kostum >= butuh ? 'lolos' : kostum > 0 ? 'jalan' : 'belum' },
-        { label: 'Pose · tahap 4', isi: 0, nada: 'belum' },
-        { label: 'Serahkan · tahap 4', isi: 0, nada: 'belum' },
     ];
 }
 
@@ -248,10 +262,18 @@ function jam(iso: string): string {
                                     </span>
                                     <span v-if="!papan.turunan.finalis.length" class="text-xs text-muted-foreground">Tentukan pemenang semi final di Female Fight.</span>
                                 </div>
-                                <BarLangkah :langkah="langkahTurunan(papan.turunan.finalis, 2)" label="Tahap Hawt Shot" />
+                                <BarLangkah :langkah="langkahTurunan(papan.turunan.finalis, 2, papan.turunan.hs)" label="Tahap Hawt Shot" />
                                 <p v-if="papan.turunan.finalis.some((p) => p.terkunci)" class="m-0 text-xs text-red-600 dark:text-red-300">
                                     Finalis 16–17 tidak masuk Hawt Shot — slotnya terkunci.
                                 </p>
+                                <div v-if="papan.turunan.hs.pose.halaman || papan.turunan.hs.pose.disusun" class="flex flex-wrap gap-2">
+                                    <Tombol ukuran="kecil" :href="route('produksi-fembox.pose', { bulan: papan.bulan, slug: 'hawt-shot' })">
+                                        Halaman pose <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                    <Tombol ukuran="kecil" jenis="garis" :href="route('produksi-fembox.serahkan', { bulan: papan.bulan, slug: 'hawt-shot' })">
+                                        Serahkan <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                </div>
                             </article>
 
                             <article class="kartu flex flex-col gap-3.5 p-5">
@@ -267,7 +289,15 @@ function jam(iso: string): string {
                                     </span>
                                     <span v-else class="text-xs text-muted-foreground">Tentukan juara final di Female Fight.</span>
                                 </div>
-                                <BarLangkah :langkah="langkahTurunan(papan.turunan.juara ? [papan.turunan.juara] : [], 1)" label="Tahap Championee" />
+                                <BarLangkah :langkah="langkahTurunan(papan.turunan.juara ? [papan.turunan.juara] : [], 1, papan.turunan.ch)" label="Tahap Championee" />
+                                <div v-if="papan.turunan.ch.pose.halaman || papan.turunan.ch.pose.disusun" class="flex flex-wrap gap-2">
+                                    <Tombol ukuran="kecil" :href="route('produksi-fembox.pose', { bulan: papan.bulan, slug: 'championee' })">
+                                        Halaman pose <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                    <Tombol ukuran="kecil" jenis="garis" :href="route('produksi-fembox.serahkan', { bulan: papan.bulan, slug: 'championee' })">
+                                        Serahkan <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                </div>
                             </article>
                         </div>
                     </div>

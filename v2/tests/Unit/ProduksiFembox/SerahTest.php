@@ -214,6 +214,51 @@ class SerahTest extends TestCase
         $this->assertSame('tidak', $cek['BRIEF NSFW · tidak berlaku']);
     }
 
+    public function test_hawt_shot_dan_championee_dari_hasil_female_fight(): void
+    {
+        $this->ff();
+        $hs = Pose::susun('2026-11', 'HAWT SHOT')['paket']['halaman'];
+        $this->assertCount(2, $hs);
+        $this->assertSame(['tegak', 'tegak'], array_column($hs, 'bentuk'));
+        $this->assertStringEndsWith('REFERENSI KARAKTER\\HAWT SHOT\\HAWT SHOT 1 - LIHUA.png', $hs[0]['keluar']);
+        $pose = [explode('__', $hs[0]['panel'][0])[0], explode('__', $hs[1]['panel'][0])[0]];
+        $this->assertNotSame($pose[0], $pose[1], 'dua finalis dapat pose berbeda');
+        $this->assertSame([], array_diff($pose, PoseFbx::HAWT_SHOT));
+        $ch = Pose::susun('2026-11', 'CHAMPIONEE')['paket']['halaman'];
+        $this->assertStringEndsWith('CHAMPIONEE - LIHUA.png', $ch[0]['keluar']);
+        $this->assertContains(explode('__', $ch[0]['panel'][0])[0], PoseFbx::CHAMPIONEE);
+
+        // Serah: kostum dipinjam dari Female Fight, disalin ke folder Hawt Shot.
+        $h = Serah::siapkan('2026-11', 'HAWT SHOT', 'hs');
+        $this->assertFileExists($h['folder'] . '/KOSTUM/LIHUA SFW.png');
+        $this->assertFileExists($h['folder'] . '/KOSTUM/YOR NSFW.png');
+        $brief = (string) file_get_contents($h['folder'] . '/BRIEF.md');
+        $this->assertStringStartsWith("FEMBOX COLLECTION — HAWT SHOT\n", $brief);
+        $this->assertStringContainsString('- HAWT SHOT 2 - YOR.png: petinju biru = YOR · 165 cm', $brief);
+        $this->assertStringContainsString('kostum: KOSTUM/YOR SFW.png', $brief);
+        $this->assertStringContainsString('PANEL — HAWT SHOT 1 · LIHUA', $brief);
+        $this->assertNull(Serah::alasanTanpaNsfw(Serah::cariUnit(Bulan::bacaWajib('2026-11'), 'HAWT SHOT', 'hs')));
+    }
+
+    public function test_finalis_remaja_tidak_masuk_hawt_shot_dan_juaranya_sfw_saja(): void
+    {
+        $ids = $this->ff(true);
+        Peserta::pemenang('2026-11', 'sf2', $ids[3]);
+        Peserta::pemenang('2026-11', 'final', $ids[3]);
+        $s = Bulan::bacaWajib('2026-11');
+
+        $this->assertSame(['hs1'], array_column(Pose::rencana($s, 'HAWT SHOT'), 'kunci'), 'hanya finalis dewasa');
+        $u = Serah::unit($s, 'CHAMPIONEE')[0];
+        $this->assertSame('Championee · Rio', $u['judul']);
+        $this->assertTrue($u['remaja']);
+        $this->assertNotNull(Serah::alasanTanpaNsfw($u));
+        Pose::susun('2026-11', 'CHAMPIONEE');
+        $brief = Serah::brief(Bulan::bacaWajib('2026-11'), 'CHAMPIONEE', $u);
+        $this->assertStringContainsString('Juara Female Fight bulan ini: RIO.', $brief);
+        $this->assertStringContainsString('Versi SFW saja', $brief);
+        $this->assertStringContainsString('Gaya olahraga bersih', $brief);
+    }
+
     public function test_serah_terima_dan_tenggat(): void
     {
         $this->ff();

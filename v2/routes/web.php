@@ -236,7 +236,7 @@ Route::prefix('generator')->group(function () {
                 Route::post('pemenang', [ProduksiFemboxController::class, 'pemenang'])->name('produksi-fembox.pemenang');
                 // Tahap 3: brief + serah, per satuan (folder laga).
                 Route::post('tenggat', [ProduksiFemboxController::class, 'tenggat'])->name('produksi-fembox.tenggat');
-                Route::prefix('serahkan/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SLUG))])->group(function () {
+                Route::prefix('serahkan/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SEMUA))])->group(function () {
                     Route::get('/', [ProduksiFemboxController::class, 'serahkan'])->name('produksi-fembox.serahkan');
                     Route::prefix('{unit}')->where(['unit' => '[a-z0-9]{1,20}'])->group(function () {
                         Route::post('siapkan', [ProduksiFemboxController::class, 'siapkan'])->name('produksi-fembox.serah.siapkan');
@@ -247,7 +247,7 @@ Route::prefix('generator')->group(function () {
                     });
                 });
                 // Tahap 2: halaman pose per kategori (n = urutan halaman di paket, mulai 0).
-                Route::prefix('pose/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SLUG))])->group(function () {
+                Route::prefix('pose/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SEMUA))])->group(function () {
                     Route::get('/', [ProduksiFemboxController::class, 'pose'])->name('produksi-fembox.pose');
                     Route::post('susun', [ProduksiFemboxController::class, 'susunPose'])->name('produksi-fembox.pose.susun');
                     Route::post('setuju/{kunci}', [ProduksiFemboxController::class, 'setujuPose'])->where('kunci', '[a-z0-9-]{1,30}')->name('produksi-fembox.pose.setuju');

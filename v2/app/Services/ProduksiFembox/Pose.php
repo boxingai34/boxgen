@@ -40,6 +40,8 @@ final class Pose
         'penentu' => ['uppercut', 'uppercut-dekat', 'hook-penentu', 'perut-penentu', 'body-blow', 'tali-terlempar'],
         'ko'      => ['ko-terkapar', 'ko-sudut', 'ko-lebar', 'ko-lengan-atas', 'tumbang-merangkak', 'tumbang'],
         'ko-besar' => ['ko-lebar', 'ko-lengan-atas', 'ko-terkapar', 'ko-sudut'],
+        'hawt-shot'  => PoseFbx::HAWT_SHOT,
+        'championee' => PoseFbx::CHAMPIONEE,
     ];
 
     /**
@@ -55,6 +57,8 @@ final class Pose
         'MIXED FIGHT'      => 'Mixed Fight',
         'WAIFU CRUSHED'    => 'Waifu Crushed',
         'MONTHLY SHOWDOWN' => 'Monthly Showdown',
+        'HAWT SHOT'        => 'Hawt Shot',
+        'CHAMPIONEE'       => 'Championee',
     ];
 
     public static function berkasPaket(string $bulan, string $kategori): string
@@ -92,7 +96,8 @@ final class Pose
      */
     public static function rencana(array $s, string $kategori): array
     {
-        $ps = $s['kategori'][$kategori]['peserta'];
+        // Hawt Shot dan Championee tidak punya peserta sendiri: diturunkan dari Female Fight.
+        $ps = $s['kategori'][$kategori]['peserta'] ?? [];
         $dir = Bulan::folderReferensi($s, $kategori);
         $byId = array_column($ps, null, 'id');
         $label = fn (?array $p) => $p !== null ? self::label($p) : '?';
@@ -151,6 +156,22 @@ final class Pose
                     [['cu-wajah', 'AB'], ['cu-perut', 'AB'], ['reaksi-wajah', 'AB'], ['reaksi-perut', 'AB'], ['nyaris-tumbang', 'AB']], ['label' => false]);
                 $hasil[] = self::halaman('wc3', 'Pukulan penentu', $dir . "\\WAIFU CRUSHED 3 - PUKULAN PENENTU ($n vs LAWAN).png", 'landscape', $tetap, [['perut-penentu', 'AB']], ['label' => false]);
                 $hasil[] = self::halaman('wc4', 'KO', $dir . "\\WAIFU CRUSHED 4 - KO ($n).png", 'landscape', $tetap, [['ko-perut', 'AB']], ['label' => false]);
+            }
+        } elseif ($kategori === 'HAWT SHOT') {
+            // Satu art solo per finalis — hanya finalis dewasa (16–17 tidak masuk Hawt Shot).
+            foreach (Bulan::turunan($s)['finalis'] as $i => $p) {
+                if ($p['tingkat'] !== 'DEWASA') {
+                    continue;
+                }
+                $n = $i + 1;
+                $hasil[] = self::halaman("hs$n", "Hawt Shot $n · {$p['nama']}", $dir . "\\HAWT SHOT $n - " . $label($p) . '.png', 'tegak',
+                    ['B' => $p], [['hawt-shot', 'AB']]);
+            }
+        } elseif ($kategori === 'CHAMPIONEE') {
+            $j = Bulan::turunan($s)['juara'];
+            if ($j !== null) {
+                $hasil[] = self::halaman('ch', "Championee · {$j['nama']}", $dir . '\\CHAMPIONEE - ' . $label($j) . '.png', 'tegak',
+                    ['B' => $j], [['championee', 'AB']]);
             }
         } elseif ($kategori === 'MONTHLY SHOWDOWN') {
             for ($i = 0; $i + 1 < count($ps); $i += 2) {
@@ -391,6 +412,8 @@ final class Pose
             'MIXED FIGHT'      => 'Mixed Fight butuh satu petinju wanita dan satu pria dulu.',
             'WAIFU CRUSHED'    => 'Waifu Crushed butuh waifunya dulu.',
             'MONTHLY SHOWDOWN' => 'Monthly Showdown butuh setidaknya satu pasangan (2 peserta).',
+            'HAWT SHOT'        => 'Hawt Shot butuh pemenang semi final Female Fight yang dewasa (finalis 16–17 tidak masuk).',
+            'CHAMPIONEE'       => 'Championee butuh juara Female Fight dulu.',
             default            => 'Kategori ini belum punya peserta.',
         };
     }
