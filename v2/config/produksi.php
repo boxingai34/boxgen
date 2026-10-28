@@ -51,10 +51,10 @@ return [
         'wan-3.0' => [
             'nama'     => 'Wan 3.0',
             'endpoint' => '/alibaba/wan-3.0/reference-to-video',
-            // USD per detik video keluaran. 720p sedang promo $0.04 (dari
-            // pengguna, 2026-10-25); harga normalnya $0.10. Ubah di sini kalau
-            // promo selesai. 480p/1080p masih harga normal.
-            'tarif'    => ['480p' => 0.05, '720p' => 0.04, '1080p' => 0.20],
+            // USD per detik video keluaran. Promo dari pengguna: 720p $0.04
+            // (2026-10-25, normal $0.10), 480p $0.02 (2026-10-28, normal $0.05).
+            // Ubah di sini kalau promo selesai. 1080p masih harga normal.
+            'tarif'    => ['480p' => 0.02, '720p' => 0.04, '1080p' => 0.20],
         ],
         'wan-3.0-prime' => [
             'nama'     => 'Wan 3.0 Prime',
