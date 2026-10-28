@@ -17,7 +17,8 @@ class PenulisKlip extends Command
 {
     protected $signature = 'penulis:klip {folder : nama folder pack di antrian, atau jalur lengkap}
         {kode* : kode klip, mis. 07}
-        {--inti= : ganti inti klip di rencana sebelum ditulis ulang (satu klip)}';
+        {--inti= : ganti inti klip di rencana sebelum ditulis ulang (satu klip)}
+        {--ringkas : Blok 3 lebih ringkas (anggaran 600 karakter lebih kecil), untuk prompt yang terlalu panjang}';
 
     protected $description = 'Tulis ulang Blok 3 klip tertentu dari rencana pack, lalu rakit ulang';
 
@@ -31,7 +32,7 @@ class PenulisKlip extends Command
         $mulai = microtime(true);
         try {
             $hasil = (new PackVideo(new Venice()))->tulisUlangKlip($folder, (array) $this->argument('kode'), trim((string) $this->option('inti')),
-                fn (string $p) => $this->line('  · ' . $p));
+                fn (string $p) => $this->line('  · ' . $p), $this->option('ringkas') ? 600 : 0);
         } catch (PenulisGalat $e) {
             $this->error($e->getMessage());
 
