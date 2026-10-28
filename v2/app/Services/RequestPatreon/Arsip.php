@@ -108,10 +108,18 @@ final class Arsip
         if ($kata === []) {
             return [];
         }
+        // Judul file memakai nama pendek ("Rangiku vs Kuukaku"), jadi untuk judul
+        // cukup satu kata nama (≥ 4 huruf) yang sama — file NSFW hanya punya judul.
+        $kataNama = array_map(static fn ($k) => array_filter(explode(' ', $k), static fn ($w) => mb_strlen($w) >= 4), $kata);
         $grup = [];
         foreach ($this->indeks()['file'] as $jalur => $e) {
-            $teks = self::normal((string) ($e['judul'] ?? '') . ' ' . json_encode($e['sfw'] ?? null));
-            $cocok = count(array_filter($kata, static fn ($k) => str_contains($teks, $k)));
+            $judul = self::normal((string) ($e['judul'] ?? ''));
+            $teks = $judul . ' ' . self::normal((string) json_encode($e['sfw'] ?? null));
+            $cocok = 0;
+            foreach ($kata as $i => $k) {
+                $kenaJudul = array_filter($kataNama[$i], static fn ($w) => preg_match('/\b' . preg_quote($w, '/') . '\b/u', $judul) === 1) !== [];
+                $cocok += (str_contains($teks, $k) || $kenaJudul) ? 1 : 0;
+            }
             if ($cocok === 0) {
                 continue;
             }

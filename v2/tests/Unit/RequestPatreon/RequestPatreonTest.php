@@ -321,7 +321,7 @@ class RequestPatreonTest extends TestCase
         $this->assertSame(['file' => 3, 'dibaca' => 3, 'berprompt' => 2, 'hilang' => 0], $h);
         $this->assertSame(0, $arsip->pindai()['dibaca'], 'pindai kedua tidak membaca ulang file yang sama');
 
-        $g = $arsip->cari(['Shiba Kuukaku', 'rangiku'])[0];
+        $g = $arsip->cari(['Shiba Kuukaku', 'matsumoto rangiku'])[0];
         $this->assertSame(['July', 'Rangiku vs Kuukaku', 2], [$g['bulan'], $g['judul'], $g['cocok']]);
         $this->assertEqualsCanonicalizing(['SFW', 'NSFW'], $g['versi']);
         $this->assertStringContainsString('red halter top', $g['sfw']['karakter'][0]['prompt']);

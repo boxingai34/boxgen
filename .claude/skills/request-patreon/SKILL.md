@@ -1,6 +1,6 @@
 ---
 name: request-patreon
-description: Proses kartu request member Patreon BOXINGENERATED di Notion (status ON QUEUE) — baca isi kartu, cek umur canon lewat kode, tulis prompt NovelAI V5 SFW lengkap (Base, UC Base, Character + UC per karakter), versi NSFW lewat DeepSeek untuk karakter dewasa, simpan ke kartu Notion dan pindahkan status ke Prompt Siap. Art saja, kartu video dilewati. Pakai saat pengguna bilang "proses request", "request patreon", "buat prompt request", atau "cek antrian request".
+description: Proses kartu request member Patreon BOXINGENERATED di Notion (status ON QUEUE) — baca isi kartu, cek arsip Drive untuk request berulang, cek umur canon lewat kode, tulis prompt NovelAI V5 SFW lengkap (Base, UC Base, Character + UC per karakter), versi NSFW dengan resep pengguna (opsi DeepSeek) untuk karakter dewasa, simpan ke kartu Notion dan pindahkan status ke Prompt Siap. Art saja, kartu video dilewati. Pakai saat pengguna bilang "proses request", "request patreon", "buat prompt request", atau "cek antrian request".
 ---
 
 # Request Patreon → prompt NovelAI V5
