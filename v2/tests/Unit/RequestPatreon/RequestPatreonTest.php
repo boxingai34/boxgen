@@ -203,6 +203,12 @@ class RequestPatreonTest extends TestCase
             $this->assertStringContainsString($t, $g['uc_base']);
         }
         $this->assertStringNotContainsString(',,', $g['karakter'][0]['prompt']);
+
+        // NSFW: barefoot dibuang, kecuali versi SFW-nya memang bertelanjang kaki (Muay Thai).
+        $muay = ['base' => 'muay thai, barefoot, ankle wraps', 'uc_base' => '', 'karakter' => [['prompt' => 'shego, barefoot', 'uc' => '']]];
+        $this->assertStringNotContainsString('barefoot', Aturan::rapikan($muay, true)['base']);
+        $this->assertStringContainsString('barefoot', Aturan::rapikan($muay, true, true)['base']);
+        $this->assertStringContainsString('mosaic censoring', Aturan::rapikan($muay, true, true)['uc_base']);
     }
 
     public function test_cek_olahraga_menemukan_tag_seksual(): void

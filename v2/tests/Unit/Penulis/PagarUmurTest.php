@@ -36,6 +36,31 @@ class PagarUmurTest extends TestCase
         $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['umur_angka' => 12])));
         $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 300, 'rupa' => 'loli body, small'])));
         $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['umur_canon' => 'middle school student'])));
+
+        // Kilas balik masa kecil bukan keadaan sekarang (Rangiku, 2026-10-28)…
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'adult Shinigami, centuries old',
+            'bukti_umur' => 'Gotei 13 lieutenant, was already a child when she met Gin Ichimaru a century before the main story'])));
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 31, 'umur_canon' => 'adult, 31',
+            'bukti_umur' => 'lost her parents when she was a little child'])));
+        // Anak milik tokoh itu = status orang tua (Draco, Nagatoro epilog, 2026-10-28)…
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 37, 'umur_canon' => 'adult, 37',
+            'bukti_umur' => 'Epilogue: he sees his son off at King\'s Cross; his children attend Hogwarts.'])));
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 37, 'umur_canon' => 'adult, 37',
+            'bukti_umur' => 'Harry Potter and the Cursed Child is set in 2017, when he is 37.'])));
+        // "plays with the other children" tetap penanda anak (bukan anak miliknya).
+        $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'immortal, plays with the other children'])));
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'adult, married with a child (epilogue)'])));
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'adult, mother of two children'])));
+        // Negasi status sekolah bukan penanda sekolah (Shego, 2026-10-28)…
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 25, 'umur_canon' => 'dewasa, 25',
+            'bukti_umur' => 'Biodata resmi menyebut Shego berusia 25 tahun; ia bukan pelajar dan bekerja sebagai mercenary.'])));
+        $this->assertSame(PagarUmur::DEWASA, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 22, 'umur_canon' => 'adult, 22, no longer a high school student'])));
+        // …tapi status murid yang tidak dinegasikan tetap bentrok.
+        $this->assertSame(PagarUmur::TAK_JELAS, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_angka' => 18, 'umur_canon' => 'a high school student, 18'])));
+        // …tapi penanda anak di keadaan sekarang tetap menolak.
+        $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'immortal, but she is a child in appearance'])));
+        $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'centuries old', 'rupa' => 'appears as a child'])));
+        $this->assertSame(PagarUmur::ANAK, PagarUmur::tingkat(self::r(['dewasa' => true, 'umur_canon' => 'was a child when the story starts, 11', 'umur_angka' => 11])));
     }
 
     public function test_dewasa_boleh_semua(): void

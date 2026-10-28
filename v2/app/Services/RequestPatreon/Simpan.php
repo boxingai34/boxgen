@@ -126,25 +126,46 @@ final class Simpan
         $this->gudang->simpanPrompt($id, $data);
 
         if ($keNotion && $this->notion->siap()) {
-            foreach ($data['notion_blok'] as $b) {
-                $this->notion->hapus((string) $b);
-            }
-            $data['notion_blok'] = $this->notion->tambah($id, Blok::susun($data));
-            $data['notion'] = 'tertulis';
-
-            // Status hanya maju dari ON QUEUE; kartu yang sudah lebih jauh tidak dimundurkan.
-            $sekarang = (string) ($kartu['status'] ?? Kartu::ANTRI);
-            if ($data['keputusan'] === 'buat' && (Kartu::posisi($sekarang) ?? 0) === 0) {
-                $this->notion->ubahStatus($id, Kartu::PROMPT_SIAP);
-                $this->gudang->ubahKartu($id, ['status' => Kartu::PROMPT_SIAP]);
-                $data['status_notion'] = Kartu::PROMPT_SIAP;
-            }
-            $this->gudang->simpanPrompt($id, $data);
+            $data = $this->keNotion($id);
         } elseif ($keNotion) {
             $peringatan[] = 'Notion belum tersambung (NOTION_API_KEY kosong): prompt hanya tersimpan lokal, bagian kartu dan status belum diubah.';
         }
 
         return $data + ['peringatan' => $peringatan];
+    }
+
+    /**
+     * Tulis prompt yang SUDAH tersimpan ke kartu Notion (tanpa memanggil
+     * DeepSeek lagi): bagian lama diganti, status ON QUEUE → Prompt Siap.
+     *
+     * @return array<string,mixed> data prompt sesudah ditulis
+     *
+     * @throws RequestGalat belum ada prompt, atau Notion menolak
+     */
+    public function keNotion(string $id): array
+    {
+        $data = $this->gudang->prompt($id);
+        if ($data === null) {
+            throw new RequestGalat("Belum ada prompt tersimpan untuk kartu $id.");
+        }
+        $kartu = $this->gudang->daftar()['kartu'][$id] ?? [];
+
+        foreach ((array) ($data['notion_blok'] ?? []) as $b) {
+            $this->notion->hapus((string) $b);
+        }
+        $data['notion_blok'] = $this->notion->tambah($id, Blok::susun($data));
+        $data['notion'] = 'tertulis';
+
+        // Status hanya maju dari ON QUEUE; kartu yang sudah lebih jauh tidak dimundurkan.
+        $sekarang = (string) ($kartu['status'] ?? Kartu::ANTRI);
+        if (($data['keputusan'] ?? '') === 'buat' && (Kartu::posisi($sekarang) ?? 0) === 0) {
+            $this->notion->ubahStatus($id, Kartu::PROMPT_SIAP);
+            $this->gudang->ubahKartu($id, ['status' => Kartu::PROMPT_SIAP]);
+            $data['status_notion'] = Kartu::PROMPT_SIAP;
+        }
+        $this->gudang->simpanPrompt($id, $data);
+
+        return $data;
     }
 
     /**

@@ -40,6 +40,9 @@ Kalau Notion belum tersambung (galat `NOTION_API_KEY`):
 - **Karakter + sumber.** Tulis nama resmi dan judul seri. Kalau ada versi resmi dewasa (time skip, sequel, epilog),
   sebut versinya. Contoh: `"Maomao" "The Apothecary Diaries (anime season 3 / LN vol 5+)"`. Jangan pernah mengarang versi
   dewasa.
+- **Versi epilog hanya kalau rupanya memang dewasa.** Kalau tag Danbooru tetap menggambar versi remaja (Nagatoro dan
+  Gamo-chan epilog, MHA epilog), kunci ke cerita utama: `"Hayase Nagatoro" "… (main story, high school)"`.
+  Kode yang memutuskan dari versi itu.
 - **Request lanjutan** ("Pt. 2", "same outfit as last one", "the usual naked one"):
   - Cari dulu kartu lama patron yang sama di `…\request-patreon\prompt\*.json`. Kalau ada, pakai pakaian dan detailnya.
   - Kalau tidak ada, cari di Notion (judul serupa, status uploaded/Archived).
@@ -145,6 +148,11 @@ Tulis `MASUK\<id>.json`, lalu jalankan `ARTISAN request:simpan "<berkas>"`.
 - **Hasilnya:** bagian "🥊 PROMPT NOVELAI" di ujung kartu (toggle per gambar, code block bertombol salin; simpan ulang
   mengganti bagian lama) dan status → Prompt Siap. Kartu yang statusnya sudah lebih jauh tidak dimundurkan.
 - **Galat tag seksual / UC kurang:** perbaiki JSON, lalu jalankan ulang. Biaya DeepSeek ±$0,002 per gambar.
+- **Notion menolak (404 / belum dibagikan):** simpan dengan `--tanpa-notion`, lalu sesudah database dibagikan ke
+  integrasi jalankan `ARTISAN request:notion` (menulis semua yang belum tertulis tanpa memanggil DeepSeek lagi).
+- **Putusan umur aneh** (karakter jelas dewasa keluar "anak"/"tak jelas"): lihat `bukti` di `umur.json`. Penyebab yang
+  sudah ditambal: kilas balik masa kecil, anak milik tokoh itu, judul karya ("Cursed Child"), negasi "bukan pelajar".
+  Pola baru → tambal di `PagarUmur` + tes, lalu `request:umur --ulang`. Jangan cuma mengulang sampai lolos.
 
 ## 6. Lapor ke pengguna
 

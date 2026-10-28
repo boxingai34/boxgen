@@ -30,6 +30,30 @@ final class PagarUmur
     /** Penanda anak — kalau muncul di keterangan umur atau rupa: anak. */
     private const POLA_ANAK = '/\b(loli(ta|con)?|shota(con)?|child(ren|like|ish)?|kids?|toddler|infant|elementary|grade[\s-]?school(er)?|primary school|middle[\s-]?school(er)?|junior high|anak[\s-]anak|balita|bocah|murid sd|siswi? sd|siswi? smp)\b|小学|中学|幼女|幼児|児童|ロリ/iu';
 
+    /**
+     * Kilas balik masa kecil di bukti umur — "was already a child when she
+     * met Gin" (Rangiku, 2026-10-28) — bukan keadaan versi yang dipakai.
+     * Sengaja sempit: hanya kalimat lampau yang terikat "when/since/while";
+     * "is a child", "appears as a child", angka umur, dan rupa tetap dibaca.
+     */
+    private const POLA_MASA_KECIL = '/\b(?:when|since|while)\s+(?:she|he|they)\s+(?:was|were)\s+(?:still\s+)?(?:an?\s+)?(?:little\s+|young\s+|small\s+)?(?:child|kid)\b'
+        . '|\b(?:was|were)\s+(?:already\s+|still\s+|just\s+|only\s+)?(?:an?\s+)?(?:little\s+|young\s+|small\s+)?(?:child|kid)\s+when\b'
+        // Anak MILIK tokoh itu ("his son and children", "married with a child",
+        // "mother of two children") — status orang tua, bukan umurnya sendiri.
+        . '|\b(?:his|her|their)\s+(?:own\s+)?(?:young\s+)?(?:child|children|kids?)\b'
+        . '|\b(?:mother|father|parent)\s+of\s+(?:an?\s+|one\s+|two\s+|three\s+|\d+\s+)?(?:young\s+)?(?:child|children|kids?)\b'
+        . '|\bwith\s+(?:an?\s+|one\s+|two\s+|three\s+|\d+\s+)?(?:young\s+)?(?:child|children|kids?)\b'
+        // Judul karya yang memuat kata itu (Draco: "Harry Potter and the Cursed
+        // Child", 2026-10-28). Daftar tetap, bukan teks bebas dari model.
+        . '|\b(?:harry potter and the\s+)?cursed child\b|\bwolf children\b|\bchildren of the whales\b|\bchild of light\b/iu';
+
+    /**
+     * Negasi status sekolah — "ia bukan pelajar" (Shego, 2026-10-28), "not a
+     * student", "no longer a high school student" — dibuang sebelum pola
+     * sekolah dibaca. Angka umur dan bendera dewasa tetap menentukan.
+     */
+    private const POLA_BUKAN_SEKOLAH = '/\b(?:not|no longer|never|bukan|tidak lagi|bukan lagi)\s+(?:a\s+|an\s+|seorang\s+)?(?:high[\s-]?school\s+)?(?:student|schoolgirl|schoolboy|pelajar|siswi?|murid)\b/iu';
+
     /** Penanda remaja sekolah — tidak dewasa walau model menulis angka 18+. */
     private const POLA_SEKOLAH = '/\b(high[\s-]?school(er)?|schoolgirl|schoolboy|school uniform student|sma|smu|siswi|pelajar|kōkōsei|koukousei|joshikousei|jk)\b|高校生|女子高生|高校/iu';
 
@@ -67,7 +91,8 @@ final class PagarUmur
         $ket = trim(((string) ($r['umur_canon'] ?? '')) . ' ' . ((string) ($r['bukti_umur'] ?? '')));
         $rupa = (string) ($r['rupa'] ?? '');
 
-        if (preg_match(self::POLA_ANAK, $ket . ' ' . $rupa) === 1) {
+        $ketAnak = preg_replace(self::POLA_MASA_KECIL, ' ', $ket) ?? $ket;
+        if (preg_match(self::POLA_ANAK, $ketAnak . ' ' . $rupa) === 1) {
             return self::ANAK;
         }
         if ($angka !== null && $angka > 0 && $angka < 16) {
@@ -77,7 +102,7 @@ final class PagarUmur
             return self::REMAJA;
         }
 
-        $ketSekolah = preg_replace(self::POLA_SEKOLAH_DEWASA, ' ', $ket) ?? $ket;
+        $ketSekolah = preg_replace([self::POLA_SEKOLAH_DEWASA, self::POLA_BUKAN_SEKOLAH], ' ', $ket) ?? $ket;
         $sekolah = preg_match(self::POLA_SEKOLAH, $ketSekolah) === 1;
         $angkaMuda = preg_match(self::POLA_ANGKA_MUDA, $ketSekolah) === 1;
 

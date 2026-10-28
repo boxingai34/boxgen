@@ -43,17 +43,20 @@ final class Aturan
      * @param array{base:string, uc_base:string, karakter:list<array{nama?:string, prompt:string, uc:string}>} $g
      * @return array{base:string, uc_base:string, karakter:list<array{nama?:string, prompt:string, uc:string}>}
      */
-    public static function rapikan(array $g, bool $nsfw = false): array
+    public static function rapikan(array $g, bool $nsfw = false, bool $kakiBebas = false): array
     {
         $larangUc = $nsfw ? array_merge(self::UC_TERLARANG, self::UC_TERLARANG_NSFW) : self::UC_TERLARANG;
+        // Versi NSFW tidak boleh "melepas sepatu" sendiri; kecuali versi SFW-nya
+        // memang bertelanjang kaki (Muay Thai/kickboxing) — $kakiBebas.
+        $buangKaki = $nsfw && ! $kakiBebas;
 
-        $g['base'] = self::buang((string) $g['base'], fn (string $t) => str_contains($t, 'hand wrap') || ($nsfw && self::kaki($t)));
+        $g['base'] = self::buang((string) $g['base'], fn (string $t) => str_contains($t, 'hand wrap') || ($buangKaki && self::kaki($t)));
         $g['uc_base'] = self::pastikan(
             self::buang((string) $g['uc_base'], fn (string $t) => in_array($t, $larangUc, true)),
             $nsfw ? array_merge(self::UC_WAJIB, self::UC_WAJIB_NSFW) : self::UC_WAJIB
         );
         foreach ($g['karakter'] as $i => $k) {
-            $g['karakter'][$i]['prompt'] = self::buang((string) $k['prompt'], fn (string $t) => str_contains($t, 'hand wrap') || ($nsfw && self::kaki($t)));
+            $g['karakter'][$i]['prompt'] = self::buang((string) $k['prompt'], fn (string $t) => str_contains($t, 'hand wrap') || ($buangKaki && self::kaki($t)));
             $g['karakter'][$i]['uc'] = self::buang((string) $k['uc'], fn (string $t) => in_array($t, $larangUc, true));
         }
 

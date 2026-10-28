@@ -43,7 +43,8 @@ final class CekUmur
             . "teenagers, or a child-like design = false. When unsure = false. If the character has an OFFICIAL later version (time skip, sequel, epilogue) in which they are "
             . "an adult, you may use that version — name it in \"versi\" and give that version's age. Never invent a time skip and never \"age up\" a minor.\n"
             . "3. umur_canon: short description of the age of the version used ONLY (e.g. \"adult, 24\", \"time skip, ~19\", \"high school 2nd year, 17\"). "
-            . "bukti_umur: where canon states it.\n"
+            . "bukti_umur: where canon states it. Write umur_canon, bukti_umur and rupa in English, about this character's version used only, in present tense — "
+            . "no childhood flashbacks, no backstory ages, no ages or schools of other characters, and no negations such as \"not a student\".\n"
             . "4. tinggi_cm: canon height, or a sensible estimate; null if unknown.\n"
             . "5. jenis_kelamin: \"wanita\" or \"pria\". tokoh_nyata: true only if this is a real person. rupa: hair, eyes, build (no clothing).";
 

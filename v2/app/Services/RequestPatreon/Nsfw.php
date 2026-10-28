@@ -48,7 +48,7 @@ final class Nsfw
             . "emotion, sweat/bruises, setting, lighting, art style tags (artist:...), quality tags, and the first tag of each character prompt (the Danbooru character tag) "
             . "plus hair, eyes, skin, body type and height.\n"
             . "2. Change only clothing and exposure as the NSFW IDEA says, using precise Danbooru/NovelAI tags so the image renders uncensored. Keep boxing gloves "
-            . "(same colors) and boxing boots unless the IDEA removes them. Never write barefoot.\n"
+            . "(same colors) and keep footwear exactly as in the SFW prompt (boxing boots stay boots; a barefoot Muay Thai fighter stays barefoot) unless the IDEA changes it.\n"
             . "3. base starts with \"nsfw\". Same number of character prompts, same order, each keeps its own colors.\n"
             . "4. uc_base: keep the SFW negatives that still make sense, drop any that block the IDEA (clothing-forcing or anti-nudity tags). "
             . "Each character uc: keep the opponent-color leak tags, drop tags that block the IDEA.\n"
@@ -98,7 +98,8 @@ final class Nsfw
             $hasil['karakter'][] = ['nama' => (string) ($k['nama'] ?? ''), 'prompt' => $p, 'uc' => trim((string) ($r['karakter'][$i]['uc'] ?? ''))];
         }
         $hasil['base'] = Aturan::didepan($hasil['base'], 'nsfw');
-        $hasil = Aturan::rapikan($hasil, true);
+        $sfwTeks = $g['base'] . ' ' . implode(' ', array_column($g['karakter'], 'prompt'));
+        $hasil = Aturan::rapikan($hasil, true, preg_match('/\b(barefoot|bare feet)\b/i', $sfwTeks) === 1);
 
         if (Aturan::adaPenandaAnak($hasil)) {
             throw new RequestGalat('Versi NSFW dari DeepSeek memuat penanda anak; tidak disimpan.');
