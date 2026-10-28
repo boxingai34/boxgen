@@ -10,6 +10,7 @@ import {
     ChevronRight,
     Clapperboard,
     Compass,
+    Feather,
     Film,
     Flame,
     Gauge,
@@ -19,11 +20,14 @@ import {
     Image,
     LayoutDashboard,
     LibraryBig,
+    ListVideo,
     LogOut,
+    MonitorPlay,
     Moon,
     PenLine,
     Replace,
     ShieldPlus,
+    Settings2,
     Skull,
     Sparkles,
     Sun,
@@ -32,6 +36,7 @@ import {
     Trophy,
     UserRound,
     UsersRound,
+    Video,
     Wrench,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref, type Component } from 'vue';
@@ -60,6 +65,8 @@ defineProps<{ judul: string; anak?: string }>();
 const halaman = usePage();
 const user = computed(() => (halaman.props as any).auth?.user ?? null);
 const admin = computed(() => Boolean((halaman.props as any).auth?.user?.admin));
+/** Server hanya menyalakan ini di PC produksi (folder antrian ada) dan untuk admin. */
+const produksi = computed(() => Boolean((halaman.props as any).produksi));
 
 type Menu = { nama: string; rute: string; ikon: Component; ket: string; persis: boolean; anak?: Menu[] };
 
@@ -137,6 +144,26 @@ const menu = computed<Menu[]>(() => {
         // Peta kerja agent & alat produksi, FEMBOX dan BoxinGenerated — bukan bagian
         // AGENT FBX karena jalur BoxinGenerated bukan bisnis FEMBOX.
         dasar.push({ nama: 'MONITOR AGENT', rute: 'monitor', ikon: Activity, ket: 'Agent dan alat produksi yang sedang bekerja, langsung', persis: false });
+        // Generate video lewat API Higgsfield (memakai saldo). Hanya di PC
+        // produksi: di tempat lain rutenya 404 dan prop `produksi` false.
+        if (produksi.value) {
+            dasar.push({
+                nama: 'PRODUKSI',
+                rute: 'produksi',
+                ikon: Video,
+                ket: 'Dari prompt pack jadi sampai take terbaik siap dibawa ke CapCut',
+                persis: false,
+                anak: [
+                    // /produksi itu sendiri Papan Produksi, jadi dicocokkan persis.
+                    { nama: 'Papan Produksi', rute: 'produksi', ikon: MonitorPlay, ket: 'Pack yang sedang dikerjakan dan langkah berikutnya', persis: true },
+                    { nama: 'Antrian Generate', rute: 'produksi.antrian', ikon: ListVideo, ket: 'Semua take yang dikirim ke Higgsfield', persis: false },
+                    { nama: 'Pengaturan', rute: 'produksi.pengaturan', ikon: Settings2, ket: 'Kunci Higgsfield, folder, model dan tarif', persis: false },
+                ],
+            });
+            // Menulis cerita + pack lewat Venice; ikut syarat PRODUKSI
+            // (admin, folder antrian ada) karena hasilnya masuk antrian itu.
+            dasar.push({ nama: 'PENULIS', rute: 'penulis', ikon: Feather, ket: 'Cerita tinju + pack video dari dua nama petinju', persis: false });
+        }
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });
     }

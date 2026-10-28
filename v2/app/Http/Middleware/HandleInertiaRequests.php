@@ -43,6 +43,9 @@ class HandleInertiaRequests extends Middleware
                 ],
             ],
             'lama'  => $user === null ? null : config('app.legacy_url'),
+            // Menu PRODUKSI: admin, dan hanya di PC yang punya folder antrian
+            // (lihat ProduksiLokal). Cukup satu is_dir(), tanpa membaca isinya.
+            'produksi' => $user !== null && $user->isAdmin() && is_dir((string) config('produksi.antrian', '')),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
             ],
