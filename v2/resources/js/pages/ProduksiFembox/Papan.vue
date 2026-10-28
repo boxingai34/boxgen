@@ -22,6 +22,7 @@ type Kat = {
     peserta: PesertaRingkas[];
     kostum: number;
     pose: { halaman: number; disusun: boolean; dibuat: number; disetujui: number };
+    serah: { unit: number; diserahkan: number };
 };
 type Papan = {
     bulan: string;
@@ -54,6 +55,8 @@ const total = computed(() => {
         kostum: k.reduce((n, x) => n + x.kostum, 0),
         halaman: k.reduce((n, x) => n + x.pose.halaman, 0),
         disetujui: k.reduce((n, x) => n + x.pose.disetujui, 0),
+        unit: k.reduce((n, x) => n + x.serah.unit, 0),
+        diserahkan: k.reduce((n, x) => n + x.serah.diserahkan, 0),
     };
 });
 
@@ -68,7 +71,11 @@ function langkah(k: Kat): Langkah[] {
             isi: k.pose.halaman ? k.pose.disetujui / k.pose.halaman : 0,
             nada: k.pose.halaman && k.pose.disetujui >= k.pose.halaman ? 'lolos' : k.pose.disusun ? 'jalan' : 'belum',
         },
-        { label: 'Serahkan · tahap 3', isi: 0, nada: 'belum' },
+        {
+            label: k.serah.unit ? `Serahkan ${k.serah.diserahkan}/${k.serah.unit}` : 'Serahkan',
+            isi: k.serah.unit ? k.serah.diserahkan / k.serah.unit : 0,
+            nada: k.serah.unit && k.serah.diserahkan >= k.serah.unit ? 'lolos' : k.serah.diserahkan > 0 ? 'jalan' : 'belum',
+        },
     ];
 }
 
@@ -168,9 +175,9 @@ function jam(iso: string): string {
                         <span class="text-[13px] text-muted-foreground">3 · Halaman pose disetujui</span>
                         <p class="m-0 text-[28px] font-bold tracking-[-0.03em]">{{ total.disetujui }} / {{ total.halaman }}</p>
                     </div>
-                    <div class="kartu flex flex-col gap-1 px-5 py-4 opacity-70">
-                        <span class="text-[13px] text-muted-foreground">4 · Diserahkan</span>
-                        <p class="m-0 text-[15px] font-semibold">Tahap 3 · menyusul</p>
+                    <div class="kartu flex flex-col gap-1 px-5 py-4">
+                        <span class="text-[13px] text-muted-foreground">4 · Laga diserahkan</span>
+                        <p class="m-0 text-[28px] font-bold tracking-[-0.03em]">{{ total.diserahkan }} / {{ total.unit }}</p>
                     </div>
                 </section>
 
@@ -212,6 +219,14 @@ function jam(iso: string): string {
                                         :href="route('produksi-fembox.pose', { bulan: papan.bulan, slug: k.slug })"
                                     >
                                         Halaman pose <ArrowRight class="h-3.5 w-3.5" />
+                                    </Tombol>
+                                    <Tombol
+                                        v-if="k.serah.unit"
+                                        ukuran="kecil"
+                                        jenis="garis"
+                                        :href="route('produksi-fembox.serahkan', { bulan: papan.bulan, slug: k.slug })"
+                                    >
+                                        Serahkan <ArrowRight class="h-3.5 w-3.5" />
                                     </Tombol>
                                 </div>
                             </article>

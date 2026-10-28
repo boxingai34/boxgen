@@ -143,6 +143,7 @@ async function salinDrive() {
                 </div>
                 <div class="flex flex-wrap gap-2.5">
                     <Tombol jenis="garis" @click="salinDrive"><Copy class="h-4 w-4" /> {{ tersalin ? 'Tersalin' : 'Salin alamat folder' }}</Tombol>
+                    <Tombol jenis="garis" :href="r('produksi-fembox.serahkan', { slug })">Brief & serahkan</Tombol>
                     <Tombol :href="r('produksi-fembox.pose', { slug })">Halaman pose <ArrowRight class="h-4 w-4" /></Tombol>
                 </div>
             </div>

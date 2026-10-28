@@ -234,6 +234,18 @@ Route::prefix('generator')->group(function () {
                     ->where('slug', implode('|', array_keys(ProduksiFemboxController::SLUG)))->name('produksi-fembox.kategori');
                 Route::post('peserta', [ProduksiFemboxController::class, 'tambah'])->name('produksi-fembox.tambah');
                 Route::post('pemenang', [ProduksiFemboxController::class, 'pemenang'])->name('produksi-fembox.pemenang');
+                // Tahap 3: brief + serah, per satuan (folder laga).
+                Route::post('tenggat', [ProduksiFemboxController::class, 'tenggat'])->name('produksi-fembox.tenggat');
+                Route::prefix('serahkan/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SLUG))])->group(function () {
+                    Route::get('/', [ProduksiFemboxController::class, 'serahkan'])->name('produksi-fembox.serahkan');
+                    Route::prefix('{unit}')->where(['unit' => '[a-z0-9]{1,20}'])->group(function () {
+                        Route::post('siapkan', [ProduksiFemboxController::class, 'siapkan'])->name('produksi-fembox.serah.siapkan');
+                        Route::post('brief', [ProduksiFemboxController::class, 'simpanBrief'])->name('produksi-fembox.serah.brief');
+                        Route::post('nsfw', [ProduksiFemboxController::class, 'briefNsfw'])->name('produksi-fembox.serah.nsfw');
+                        Route::post('tandai', [ProduksiFemboxController::class, 'tandaiSerah'])->name('produksi-fembox.serah.tandai');
+                        Route::post('batal', [ProduksiFemboxController::class, 'batalSerah'])->name('produksi-fembox.serah.batal');
+                    });
+                });
                 // Tahap 2: halaman pose per kategori (n = urutan halaman di paket, mulai 0).
                 Route::prefix('pose/{slug}')->where(['slug' => implode('|', array_keys(ProduksiFemboxController::SLUG))])->group(function () {
                     Route::get('/', [ProduksiFemboxController::class, 'pose'])->name('produksi-fembox.pose');

@@ -41,6 +41,12 @@ final class Kostum
     /** Tag yang tidak boleh ada di prompt NSFW sama sekali — ditolak, bukan dibuang diam-diam. */
     private const POLA_MUDA = '/\b(loli\w*|shota\w*|child\w*|kids?|toddler|aged[ _]down|younger|little girl|young girl|teen\w*|school ?girl|school uniform|elementary|middle school|junior high|high school|petite child)\b/i';
 
+    /** Penanda umur muda di teks buatan model — dipakai juga untuk brief NSFW. */
+    public static function adaPenandaMuda(string $teks): bool
+    {
+        return PagarUmur::periksaProsa($teks) !== null || preg_match(self::POLA_MUDA, $teks) === 1;
+    }
+
     /** Tidak boleh di Undesired Content mana pun (permintaan pemilik studio, novelai-prompt-preferensi #13). */
     private const BUKAN_UC = '/^(nsfw|nudity|nude|topless|nipples?|bottomless|wardrobe malfunction|ahegao|tongue out|panties|pantyshot|upskirt|breast focus|chest focus|underboob|cleavage)$/i';
 

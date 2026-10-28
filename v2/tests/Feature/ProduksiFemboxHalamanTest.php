@@ -154,6 +154,21 @@ class ProduksiFemboxHalamanTest extends TestCase
 
         $this->actingAs($this->admin())->get(route('produksi-fembox', ['b' => '2026-11']))->assertInertia(fn (Assert $p) => $p
             ->where('papan.kategori.2.nama', 'WAIFU CRUSHED')->where('papan.kategori.2.pose.halaman', 4)->where('papan.kategori.2.pose.disusun', true));
+
+        // ---- Tahap 3: brief & serahkan
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.tenggat', ['bulan' => '2026-11']), ['tanggal' => '2026-11-29'])->assertOk();
+        $this->actingAs($this->admin())->get(route('produksi-fembox.serahkan', $b))->assertInertia(fn (Assert $p) => $p
+            ->component('ProduksiFembox/Serahkan', false)->has('unit', 1)->where('unit.0.kunci', 'wc')->where('unit.0.brief', null)
+            ->where('unit.0.nsfw.alasan', null)->where('tenggat', '2026-11-29'));
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.serah.siapkan', $b + ['unit' => 'wc']))->assertOk()
+            ->assertJsonPath('catatan.0', 'Kostum SFW Hsin belum dipilih.');
+        $this->actingAs($this->admin())->get(route('produksi-fembox.serahkan', $b))->assertInertia(fn (Assert $p) => $p
+            ->where('unit.0.brief', fn ($isi) => str_contains($isi, 'HSIN yang dihajar sampai KO.') && str_contains($isi, 'DEADLINE: 29 November 2026')));
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.serah.tandai', $b + ['unit' => 'wc']), ['artist' => '', 'tanggal' => '2026-11-03'])->assertStatus(422);
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.serah.tandai', $b + ['unit' => 'wc']), ['artist' => 'Artist A', 'tanggal' => '2026-11-03'])->assertOk();
+        $this->actingAs($this->admin())->get(route('produksi-fembox', ['b' => '2026-11']))->assertInertia(fn (Assert $p) => $p
+            ->where('papan.kategori.2.serah.unit', 1)->where('papan.kategori.2.serah.diserahkan', 1));
+        $this->actingAs($this->admin())->postJson(route('produksi-fembox.serah.siapkan', $b + ['unit' => 'tidakada']))->assertStatus(422);
     }
 
     public function test_berkas_kerja_hanya_nama_yang_sah(): void

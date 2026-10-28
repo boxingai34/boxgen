@@ -12,6 +12,7 @@ use App\Services\ProduksiFembox\Galat;
 use App\Services\ProduksiFembox\Kostum;
 use App\Services\ProduksiFembox\Peserta;
 use App\Services\ProduksiFembox\Pose;
+use App\Services\ProduksiFembox\Serah;
 use App\Services\PustakaPose;
 use FemboxReferensi;
 use GambarAi;
@@ -444,6 +445,128 @@ class ProduksiFemboxController extends Controller
         return response()->file($nyata, ['Cache-Control' => 'private, max-age=60']);
     }
 
+    // ------------------------------------------------------------------
+    // Tahap 3: brief & serahkan
+
+    public function serahkan(string $bulan, string $slug): TampilanInertia
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $s = $this->papanAtau404($bulan);
+        $baca = fn (string $f) => is_file($f) ? (string) file_get_contents($f) : null;
+        $status = $s['serah'][$kategori] ?? [];
+        $poseSt = $s['pose'][$kategori]['halaman'] ?? [];
+        $paket = Pose::paket($bulan, $kategori);
+        $nomor = [];
+        foreach ($paket['halaman'] ?? [] as $n => $h) {
+            $nomor[$h['pfx']['kunci'] ?? ''] = $n;
+        }
+
+        $unit = array_map(function (array $u) use ($s, $kategori, $baca, $status, $poseSt, $nomor, $bulan, $slug) {
+            $st = $status[$u['kunci']] ?? [];
+            $alasan = Serah::alasanTanpaNsfw($u);
+
+            return [
+                'kunci'   => $u['kunci'],
+                'judul'   => $u['judul'],
+                'folder'  => $u['folder'],
+                'remaja'  => $u['remaja'],
+                'peserta' => array_map(fn ($p) => ['nama' => $p['nama'], 'tingkat' => $p['tingkat'], 'jk' => $p['jk']], $u['peserta']),
+                'halaman' => array_map(fn ($r) => [
+                    'judul'  => $r['judul'],
+                    'gambar' => ($poseSt[$r['kunci']]['ok'] ?? false) && isset($nomor[$r['kunci']])
+                        ? route('produksi-fembox.pose.gambar', ['bulan' => $bulan, 'slug' => $slug, 'n' => $nomor[$r['kunci']]], false) . '?asli=1' : null,
+                ], $u['halaman']),
+                'cek'     => Serah::cek($s, $kategori, $u),
+                'brief'   => $baca($u['folder'] . DIRECTORY_SEPARATOR . 'BRIEF.md'),
+                'disunting' => (bool) ($st['brief_disunting'] ?? false),
+                'nsfw'    => [
+                    'alasan' => $alasan,
+                    'isi'    => $alasan === null ? $baca($u['folder'] . DIRECTORY_SEPARATOR . 'BRIEF NSFW.md') : null,
+                    'ide'    => (string) ($st['nsfw']['ide'] ?? ''),
+                    'usd'    => (float) ($st['nsfw']['usd'] ?? 0),
+                ],
+                'disiapkan'  => $st['disiapkan'] ?? null,
+                'diserahkan' => $st['diserahkan'] ?? null,
+            ];
+        }, Serah::unit($s, $kategori));
+
+        return Inertia::render('ProduksiFembox/Serahkan', [
+            'bulan'    => $bulan,
+            'label'    => Bulan::label($bulan),
+            'kategori' => $kategori,
+            'slug'     => $slug,
+            'tenggat'  => $s['tenggat_artist'] ?? null,
+            'unit'     => $unit,
+            'siap'     => $this->siap(),
+        ]);
+    }
+
+    public function tenggat(Request $request, string $bulan): JsonResponse
+    {
+        $request->validate(['tanggal' => ['nullable', 'date_format:Y-m-d']]);
+
+        return $this->jalankan(function () use ($request, $bulan) {
+            Serah::tenggat($bulan, $request->input('tanggal') ?: null);
+
+            return [];
+        });
+    }
+
+    public function siapkan(Request $request, string $bulan, string $slug, string $unit): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+
+        return $this->jalankan(fn () => Serah::siapkan($bulan, $kategori, $unit, $request->boolean('ulang')));
+    }
+
+    public function simpanBrief(Request $request, string $bulan, string $slug, string $unit): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $request->validate(['isi' => ['required', 'string', 'max:20000']]);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
+            Serah::simpanBrief($bulan, $kategori, $unit, (string) $request->input('isi'));
+
+            return [];
+        });
+    }
+
+    public function briefNsfw(Request $request, string $bulan, string $slug, string $unit): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $request->validate(['ide' => ['nullable', 'string', 'max:600']]);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
+            @set_time_limit(0);
+            ignore_user_abort(true);
+
+            return Serah::tulisNsfw($bulan, $kategori, $unit, (string) $request->input('ide', ''), Venice::adaKunci() ? new Venice() : null);
+        });
+    }
+
+    public function tandaiSerah(Request $request, string $bulan, string $slug, string $unit): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+        $request->validate(['artist' => ['required', 'string', 'max:80'], 'tanggal' => ['required', 'date_format:Y-m-d'], 'catatan' => ['nullable', 'string', 'max:500']]);
+
+        return $this->jalankan(function () use ($request, $bulan, $kategori, $unit) {
+            Serah::serahkan($bulan, $kategori, $unit, (string) $request->input('artist'), (string) $request->input('tanggal'), (string) $request->input('catatan', ''));
+
+            return [];
+        });
+    }
+
+    public function batalSerah(string $bulan, string $slug, string $unit): JsonResponse
+    {
+        $kategori = self::SLUG[$slug] ?? abort(404);
+
+        return $this->jalankan(function () use ($bulan, $kategori, $unit) {
+            Serah::batal($bulan, $kategori, $unit);
+
+            return [];
+        });
+    }
+
     /** Kandidat kostum dan acuan unggahan dari folder kerja lokal. */
     public function berkas(string $bulan, string $id, string $nama): BinaryFileResponse
     {
@@ -519,6 +642,10 @@ class ProduksiFemboxController extends Controller
                     'disusun'   => $paket !== null,
                     'dibuat'    => count(array_filter($st, fn ($h) => $h['ok'] ?? false)),
                     'disetujui' => count(array_filter($st, fn ($h) => $h['disetujui'] ?? false)),
+                ],
+                'serah'   => [
+                    'unit'       => count(Serah::unit($s, $k)),
+                    'diserahkan' => count(array_filter($s['serah'][$k] ?? [], fn ($x) => isset($x['diserahkan']))),
                 ],
             ];
         }
