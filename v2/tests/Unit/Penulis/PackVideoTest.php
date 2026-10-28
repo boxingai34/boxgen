@@ -351,6 +351,11 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertSame(3, $hasil['klip']);
         $this->assertSame('json', $hasil['cek']['format']);
         $this->assertCount(1, File::directories($this->pack . '/_lama'), 'pack sebelumnya diarsipkan');
+
+        // Hasil pemendekan tersimpan: rakit ulang berikutnya tidak membayar lagi.
+        PackVideo::$cachePendek = [];
+        (new PackVideo(new Venice()))->rakitUlang($this->pack);
+        Http::assertSentCount(7);
     }
 
     public function test_rapikan_pack_lama_tanpa_model(): void
@@ -609,6 +614,17 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringContainsString('two boxers in private pavilion ring', PackVideo::pastikanTanpaPenonton("Overall: 30-second scene; two pro boxers in private pavilion ring at night."));
     }
 
+    public function test_klip_tanpa_dialog_ditulis_tanpa_kata(): void
+    {
+        // 04B take 3: cornerman menggerakkan bibir tanpa suara di klip tanpa dialog.
+        $this->assertSame("Opening state: rest. Boxer B sits. The whole clip is wordless; every mouth stays closed.\nShot 1 [0-4s] towel.",
+            PackVideo::pastikanTanpaKata("Opening state: rest. Boxer B sits.\nShot 1 [0-4s] towel."));
+        $ada = "Opening state: rest.\nBoxer B's cornerman [6s]: 「メイ様、角度を。」";
+        $this->assertSame($ada, PackVideo::pastikanTanpaKata($ada), 'klip berdialog tidak disentuh');
+        $sekali = PackVideo::pastikanTanpaKata("Opening state: rest.\nShot 1 [0-4s] towel.");
+        $this->assertSame($sekali, PackVideo::pastikanTanpaKata($sekali), 'idempoten');
+    }
+
     public function test_label_petinju_dipulihkan_dan_sound_ditutup(): void
     {
         // Penyunting menyingkat "Boxer A/B" (klip 03 dan 06, 2026-10-28).
@@ -705,7 +721,8 @@ Sound: steam hiss, breathing, a towel squeeze.", 'jeda'));
 
         $blok1 = "Overall: {DURASI}-second 16:9 boxing scene, stylized 3D anime, cinematic; two pro boxers in private pavilion ring at night.\nMaterials: Boxer A = @image1.";
         $b1 = PackVideo::pastikanTanpaPenonton($blok1);
-        $this->assertStringContainsString('ring at night. ' . PackVideo::KALIMAT_TANPA_PENONTON . "\nMaterials", $b1);
+        $this->assertStringContainsString('ring at night. ' . PackVideo::KALIMAT_TANPA_PENONTON . "\n" . PackVideo::BARIS_AUDIO . "\nMaterials", $b1);
+        $this->assertStringNotContainsString('Only people present', PackVideo::pastikanTanpaPenonton("Overall: x; two boxers. Only people present are those written. The only people anywhere are the ones written in the shots."));
         $this->assertSame($b1, PackVideo::pastikanTanpaPenonton($b1), 'idempoten');
         $this->assertStringContainsString('boxing scene, ' . PackVideo::GAYA_2D . ', cinematic', PackVideo::rapikanGaya($blok1));
         $this->assertSame(PackVideo::GAYA_2D, PackVideo::rapikanGaya('stylized 3D anime render'));

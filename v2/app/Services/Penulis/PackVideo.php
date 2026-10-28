@@ -79,6 +79,9 @@ final class PackVideo
     /** Sumber 2D: render 3D tulisan model diganti GAYA_2D. */
     private bool $medium2d = false;
 
+    /** Pengurang anggaran Blok 3 (penulis:klip --ringkas): prompt lebih pendek dan padat. */
+    private int $potongAnggaran = 0;
+
     /**
      * Varian UNCENSORED selalu topless (permintaan pengguna 2026-10-27: pack
      * NSFW laga privat keluar dengan sports top). Hanya sampai di sini kalau
@@ -231,12 +234,22 @@ final class PackVideo
     {
         // Laga privat: "pro boxers" memanggil suasana arena.
         $blok1 = (string) preg_replace('/\b(?:pro|professional) (boxers?)\b/iu', '$1', self::bersihkanPenonton($blok1));
-        if (stripos($blok1, 'the only people anywhere') !== false) {
-            return $blok1;
+        if (stripos($blok1, 'the only people anywhere') === false) {
+            $blok1 = (string) preg_replace_callback('/^(Overall:.*?)\s*$/mu', fn ($m) => rtrim($m[1], ' .;') . '. ' . self::KALIMAT_TANPA_PENONTON, $blok1, 1);
+        }
+        // Kalimat ganda dari penyunting ("Only people present are those written.") dibuang.
+        $blok1 = (string) preg_replace('/\s*\bOnly people present are (?:those|the ones) written(?: in the shots)?\.\s*(?=The only people anywhere)/iu', ' ', $blok1);
+        // Suara latar di baris kedua: Wan memberi bobot pada baris awal, dan baris
+        // Sound di ujung prompt tidak cukup (klip 03 take 4: penonton di detik 0).
+        if (stripos($blok1, self::BARIS_AUDIO) === false) {
+            $blok1 = (string) preg_replace('/^(Overall:.*)$/mu', '$1' . "\n" . self::BARIS_AUDIO, $blok1, 1);
         }
 
-        return (string) preg_replace_callback('/^(Overall:.*?)\s*$/mu', fn ($m) => rtrim($m[1], ' .;') . '. ' . self::KALIMAT_TANPA_PENONTON, $blok1, 1);
+        return $blok1;
     }
+
+    /** Baris kedua Blok 1 laga tanpa penonton (pastikanTanpaPenonton). */
+    public const BARIS_AUDIO = 'Audio: a silent, empty hall at night; only the sounds written in the shots are heard.';
 
     /**
      * Baris Sound Blok 2 laga tanpa penonton wajib menyebut nada ruang.
@@ -288,6 +301,20 @@ final class PackVideo
 
         // Pengaman: "Boxer Boxer A" (2026-10-28 sempat terjadi) → "Boxer A".
         return (string) preg_replace('/\b(?:Boxer\s+){2,}/u', 'Boxer ', $teks);
+    }
+
+    /**
+     * Klip non-laga tanpa baris dialog: satu kalimat positif "wordless" di
+     * Opening state. 04B take 3 (12,0 dtk): cornerman menggerakkan bibir tanpa
+     * suara, padahal klip itu memang tanpa dialog.
+     */
+    public static function pastikanTanpaKata(string $b3): string
+    {
+        if (preg_match('/「|^[^:\n]{1,60}(?:\[\d+s\])?:\s*["“]/mu', $b3) === 1 || stripos($b3, 'wordless') !== false) {
+            return $b3;
+        }
+
+        return (string) preg_replace('/^(Opening state:.*?)\s*$/mu', '$1 The whole clip is wordless; every mouth stays closed.', $b3, 1);
     }
 
     /** Daftar bunyi tertutup per jenis klip (pastikanSuaraTertutup). */
@@ -683,6 +710,7 @@ final class PackVideo
         $this->lapor = $lapor;
         $this->peringatan = [];
         self::$suntingGagal = null;
+        self::$cachePendek = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
 
@@ -851,17 +879,18 @@ final class PackVideo
             }
             $susun = fn (string $b3) => self::isiDurasi($b1, (int) $k['durasi']) . "\n" . $b3 . "\n" . $b2;
             $b3 = $k['blok3'];
-            if (mb_strlen($susun($b3)) > self::MAKS_PROMPT) {
+            if (mb_strlen($susun($b3)) > self::maksKlip($k)) {
                 $b3 = self::padatkan($b3);
             }
             // Dua kesempatan: penyunting tidak selalu menepati target (uji 2026-10-27: klip 07 UNCENSORED 5.054).
-            for ($coba = 0; $coba < 2 && mb_strlen($susun($b3)) > self::MAKS_PROMPT; $coba++) {
+            for ($coba = 0; $coba < 2 && mb_strlen($susun($b3)) > self::maksKlip($k); $coba++) {
                 $this->kabar("Memendekkan Blok 3 {$k['kode']} untuk UNCENSORED");
-                $sasaran = self::MAKS_PROMPT - (mb_strlen($susun($b3)) - mb_strlen($b3)) - $coba * 250;
+                $sasaran = self::maksKlip($k) - (mb_strlen($susun($b3)) - mb_strlen($b3)) - $coba * 250;
                 $b3 = $this->bersihB3(self::rapiSlot(self::pendekkan($this->venice, $b3, $sasaran)), (string) $k['jenis'], (string) $k['kode']);
             }
-            if (mb_strlen($susun($b3)) > self::BATAS_WAN) {
-                $b3 = self::pangkas($b3, self::BATAS_WAN - 30 - (mb_strlen($susun($b3)) - mb_strlen($b3)));
+            $batas = self::maksKlip($k) < self::MAKS_PROMPT ? self::maksKlip($k) : self::BATAS_WAN - 30;
+            if (mb_strlen($susun($b3)) > $batas) {
+                $b3 = self::pangkas($b3, $batas - (mb_strlen($susun($b3)) - mb_strlen($b3)));
             }
             $hasil[$k['kode']] = $susun($b3);
             if (mb_strlen($hasil[$k['kode']]) > self::BATAS_WAN) {
@@ -959,6 +988,11 @@ final class PackVideo
     {
         if ($jenis === 'jeda') {
             $b3 = self::bersihkanLawanJeda($b3, $kode);
+            // "ready for Round 2" memanggil bel dan suasana arena (04B take 3, 12,7 dtk).
+            $b3 = (string) preg_replace('/,?\s*\b(?:ready|set) for (?:the )?(?:next )?round(?: \d+)?\b/iu', '', $b3);
+        }
+        if ($jenis !== 'laga') {
+            $b3 = self::pastikanTanpaKata($b3);
         }
         // "Slots: @image1 = … No other slot." = gema instruksi, bukan isi klip (klip 05, 2026-10-28).
         $b3 = self::pulihkanLabel(trim((string) preg_replace('/^Slots?:.*(\R|$)/mu', '', self::bersihkanSuara($b3))));
@@ -1010,6 +1044,7 @@ final class PackVideo
         $this->lapor = $lapor;
         $this->peringatan = [];
         self::$suntingGagal = null;
+        self::$cachePendek = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1113,11 +1148,13 @@ final class PackVideo
      * @param list<string> $kode
      * @return array<string,mixed> bentuk sama dengan rakitUlang()
      */
-    public function tulisUlangKlip(string $folder, array $kode, string $inti = '', ?callable $lapor = null): array
+    public function tulisUlangKlip(string $folder, array $kode, string $inti = '', ?callable $lapor = null, int $ringkas = 0): array
     {
+        $this->potongAnggaran = max(0, $ringkas);
         $this->lapor = $lapor;
         $this->peringatan = [];
         self::$suntingGagal = null;
+        self::$cachePendek = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
@@ -1154,6 +1191,9 @@ final class PackVideo
             }
             if ($inti !== '') {
                 $bagian['rencana']['klip'][$ir]['inti'] = $inti;
+            }
+            if ($this->potongAnggaran > 0) {
+                $bagian['rencana']['klip'][$ir]['maks'] = self::MAKS_PROMPT - $this->potongAnggaran;
             }
             $sebelum = $ib > 0 ? (string) ($bagian['klip'][$ib - 1]['kondisi_akhir'] ?? '') : '';
             $this->kabar("Menulis ulang Blok 3 klip {$kd}");
@@ -1205,11 +1245,13 @@ final class PackVideo
         $this->lapor = $lapor;
         $this->peringatan = [];
         self::$suntingGagal = null;
+        self::$cachePendek = [];
         $folder = rtrim($folder, '/\\');
         $cerita = $folder . DIRECTORY_SEPARATOR . (string) config('penulis.folder_cerita', 'CERITA');
         $riset = $this->bacaJson($cerita . '/riset.json');
         $alur = $this->bacaJson($cerita . '/alur.json');
         $bagian = $this->bacaJson($cerita . '/pack-bagian.json');
+        self::$cachePendek = (array) ($bagian['cache_pendek'] ?? []);
         foreach (['rencana', 'tetap', 'klip', 'tester', 'nai'] as $k) {
             if (! isset($bagian[$k])) {
                 throw new PenulisGalat("pack-bagian.json tidak memuat {$k}; jalankan penulis:pack.");
@@ -1274,7 +1316,7 @@ final class PackVideo
         // 'nai' = versi aman saja; versi topless tetap di 'uncensored' (sebelum
         // 2026-10-27 sore, gabungannya ikut tersimpan dan menimpa versi aman).
         File::put($cerita . DIRECTORY_SEPARATOR . 'pack-bagian.json', self::json(['tetap' => $tetap, 'klip' => $klip, 'tester' => $tester,
-            'uncensored' => $uncensored, 'nai' => $nai] + $bagian));
+            'uncensored' => $uncensored, 'nai' => $nai, 'cache_pendek' => array_slice(self::$cachePendek, -300, null, true)] + $bagian));
         $cek = $this->periksa($folder);
         if (self::$suntingGagal !== null) {
             $this->peringatan[] = 'Penyunting tidak bisa dipanggil (' . mb_substr(self::$suntingGagal, 0, 90) . '): pemendekan diganti pemangkasan mekanis; prompt di atas 4.800 dibiarkan selama di bawah batas Wan 5.000.';
@@ -1513,7 +1555,7 @@ final class PackVideo
             // lebih panjang (kalimat topless, isi tanpa sensor), jadi Blok 3
             // diberi cadangan.
             $budget = self::MAKS_PROMPT - mb_strlen(self::isiDurasi($tetap['blok1'], $k['durasi'])) - mb_strlen($tetap['blok2'][$k['jenis']]) - 4
-                - ($this->nsfw ? 200 : 0);
+                - ($this->nsfw ? 200 : 0) - $this->potongAnggaran;
             $tugas[] = "CLIP {$k['kode']} ({$k['jenis']}, {$k['durasi']} s) — Blok 3 HARD LIMIT {$budget} characters in total. " . self::anggaran($budget, (int) $k['durasi']) . "\n"
                 . 'Slots: ' . implode('; ', array_map(fn ($i, $g) => '@image' . ($i + 1) . " = {$g}", array_keys($slot), $slot)) . "\n"
                 . 'Plan: ' . self::json(array_diff_key($k, array_flip(['gambar']))) . "\n"
@@ -1785,26 +1827,28 @@ final class PackVideo
             $this->peringatan[] = "{$k['kode']}: Blok 3 menyebut \"{$t[0]}\" padahal pack NSFW memakai versi topless — tulis \"outfit exactly as @image1 / @image2\".";
         }
 
-        for ($coba = 0; $coba < 2 && mb_strlen($k['prompt']) > self::MAKS_PROMPT; $coba++) {
-            $sasaran = self::MAKS_PROMPT - (mb_strlen($k['prompt']) - mb_strlen($k['blok3'])) - $coba * 250;
+        for ($coba = 0; $coba < 2 && mb_strlen($k['prompt']) > self::maksKlip($k); $coba++) {
+            $sasaran = self::maksKlip($k) - (mb_strlen($k['prompt']) - mb_strlen($k['blok3'])) - $coba * 250;
             $this->kabar("Memendekkan Blok 3 {$k['kode']} ke ≤ {$sasaran} karakter");
             $k['blok3'] = $this->bersihB3(self::rapiSlot(self::pendekkan($this->venice, $k['blok3'], $sasaran)), (string) $k['jenis'], (string) $k['kode']);
             $k['prompt'] = $susun($k['blok3']);
         }
         // Lapis terakhir, mekanis dan gratis: model jarang menepati target
         // panjang, padahal di atas 5.000 Wan menolak.
-        if (mb_strlen($k['prompt']) > self::MAKS_PROMPT) {
+        if (mb_strlen($k['prompt']) > self::maksKlip($k)) {
             $k['blok3'] = self::padatkan($k['blok3']);
             $k['prompt'] = $susun($k['blok3']);
         }
-        if (mb_strlen($k['prompt']) > self::BATAS_WAN) {
-            $k['blok3'] = self::pangkas($k['blok3'], self::BATAS_WAN - 30 - (mb_strlen($k['prompt']) - mb_strlen($k['blok3'])));
+        // Klip ringkas: target per klip dijaga mekanis kalau penyunting meleset.
+        $batas = self::maksKlip($k) < self::MAKS_PROMPT ? self::maksKlip($k) : self::BATAS_WAN - 30;
+        if (mb_strlen($k['prompt']) > $batas) {
+            $k['blok3'] = self::pangkas($k['blok3'], $batas - (mb_strlen($k['prompt']) - mb_strlen($k['blok3'])));
             $k['prompt'] = $susun($k['blok3']);
         }
         if (mb_strlen($k['prompt']) > self::BATAS_WAN) {
             $this->peringatan[] = sprintf('%s %d karakter — di atas batas Wan %d, pendekkan sebelum kirim.', $k['kode'], mb_strlen($k['prompt']), self::BATAS_WAN);
-        } elseif (mb_strlen($k['prompt']) > self::MAKS_PROMPT) {
-            $this->peringatan[] = sprintf('%s %d karakter (target %d, masih di bawah batas Wan %d).', $k['kode'], mb_strlen($k['prompt']), self::MAKS_PROMPT, self::BATAS_WAN);
+        } elseif (mb_strlen($k['prompt']) > self::maksKlip($k)) {
+            $this->peringatan[] = sprintf('%s %d karakter (target %d, masih di bawah batas Wan %d).', $k['kode'], mb_strlen($k['prompt']), self::maksKlip($k), self::BATAS_WAN);
         }
 
         $k = $this->rapikanSlot($k, $susun);
@@ -1959,8 +2003,22 @@ final class PackVideo
     /** Galat penyunting pertama dalam satu proses; sesudahnya pemendekan lewat model dilewati. */
     public static ?string $suntingGagal = null;
 
+    /**
+     * Hasil pemendekan per (teks, sasaran), disimpan di pack-bagian.json
+     * ('cache_pendek'): rakit ulang tidak membayar pemendekan yang sama dua
+     * kali (2026-10-28: satu rakit 6 menit, $0,08, hampir semuanya ulangan).
+     *
+     * @var array<string,string>
+     */
+    public static array $cachePendek = [];
+
     public static function pendekkan(Venice $venice, string $teks, int $sasaran): string
     {
+        $kunci = sha1($teks . '|' . $sasaran);
+        if (isset(self::$cachePendek[$kunci])) {
+            return self::$cachePendek[$kunci];
+        }
+        $asli = $teks;
         for ($putaran = 1; $putaran <= 2 && mb_strlen($teks) > $sasaran && self::$suntingGagal === null; $putaran++) {
             $target = (int) ($sasaran * ($putaran === 1 ? 0.97 : 0.9));
             try {
@@ -1981,6 +2039,9 @@ final class PackVideo
                 break;
             }
             $teks = $baru;
+        }
+        if (self::$suntingGagal === null) {
+            self::$cachePendek[sha1($asli . '|' . $sasaran)] = $teks;
         }
 
         return $teks;
@@ -2216,6 +2277,14 @@ final class PackVideo
         }
 
         return $slot;
+    }
+
+    /** Target panjang satu klip: 4.800, atau lebih kecil untuk klip yang ditulis ulang --ringkas ('maks'). */
+    public static function maksKlip(array $k): int
+    {
+        $maks = (int) ($k['maks'] ?? 0);
+
+        return $maks >= 2000 && $maks < self::MAKS_PROMPT ? $maks : self::MAKS_PROMPT;
     }
 
     /** Kode klip baku: "2" / "Klip 02" → "02", "04a" → "04A" (sama dengan PackReader::kodeBaku). */
