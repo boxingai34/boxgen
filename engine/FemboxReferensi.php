@@ -216,7 +216,8 @@ final class FemboxReferensi
      * @param array $isian ['anime','nama','tema','catatan','tag'] dari halaman
      * @param array $opsi  ['pakaian','sarung','rambut','gaya' (id katalog),
      *                      'tata_letak','latar','nuansa','label',
-     *                      'segar' (token variasi dari tombol "Susun ulang")]
+     *                      'segar' (token variasi dari tombol "Susun ulang"),
+     *                      'bukan_dewasa' (paksa jalur atlet tertutup)]
      *
      * @throws InvalidArgumentException isiannya kurang
      * @throws RuntimeException         tidak ada model yang menjawab; kodenya
@@ -288,7 +289,10 @@ final class FemboxReferensi
         $label     = !empty($opsi['label']);
 
         // ---- 4. Pagar umur: keputusan akhirnya di kode, bukan di model.
-        $dewasa = self::dewasa($j);
+        // 'bukan_dewasa' datang dari pemanggil yang sudah tahu umurnya
+        // (PRODUKSI FEMBOX: tingkat 16-17 dari Scout/DeepSeek). Yang paling
+        // ketat menang: model yang bilang dewasa tidak bisa membatalkannya.
+        $dewasa = self::dewasa($j) && empty($opsi['bukan_dewasa']);
         if (!$dewasa) {
             $umur = self::rapi($j['umur_canon'] ?? '');
             $catatan[] = 'Karakter ini di canon belum dewasa' . ($umur !== '' ? ' (' . $umur . ')' : '')

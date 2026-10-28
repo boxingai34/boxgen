@@ -28,6 +28,7 @@ import {
     Replace,
     ShieldPlus,
     Settings2,
+    Shirt,
     Skull,
     Sparkles,
     Sun,
@@ -67,6 +68,8 @@ const user = computed(() => (halaman.props as any).auth?.user ?? null);
 const admin = computed(() => Boolean((halaman.props as any).auth?.user?.admin));
 /** Server hanya menyalakan ini di PC produksi (folder antrian ada) dan untuk admin. */
 const produksi = computed(() => Boolean((halaman.props as any).produksi));
+/** Sama, tapi syaratnya folder FEMBOX di Google Drive (komputer studio). */
+const produksiFembox = computed(() => Boolean((halaman.props as any).produksiFembox));
 
 type Menu = { nama: string; rute: string; ikon: Component; ket: string; persis: boolean; anak?: Menu[] };
 
@@ -163,6 +166,10 @@ const menu = computed<Menu[]>(() => {
             // Menulis cerita + pack lewat Venice; ikut syarat PRODUKSI
             // (admin, folder antrian ada) karena hasilnya masuk antrian itu.
             dasar.push({ nama: 'PENULIS', rute: 'penulis', ikon: Feather, ket: 'Cerita tinju + pack video dari dua nama petinju', persis: false });
+        }
+        // Referensi reward bulanan FEMBOX sampai diserahkan ke artist.
+        if (produksiFembox.value) {
+            dasar.push({ nama: 'PRODUKSI FEMBOX', rute: 'produksi-fembox', ikon: Shirt, ket: 'Karakter, kostum, pose, sampai diserahkan ke artist', persis: false });
         }
         dasar.push({ nama: 'Halaman depan', rute: 'cms', ikon: PenLine, ket: 'Sunting landing page', persis: false });
         dasar.push({ nama: 'Master Katalog', rute: 'cms.katalog', ikon: LibraryBig, ket: 'Ganti gambar dan tag modul', persis: false });

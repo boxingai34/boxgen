@@ -17,6 +17,7 @@ use App\Http\Controllers\MonthlyShowdownController;
 use App\Http\Controllers\MouthguardController;
 use App\Http\Controllers\PenulisController;
 use App\Http\Controllers\ProduksiController;
+use App\Http\Controllers\ProduksiFemboxController;
 use App\Http\Controllers\PromptController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
@@ -218,6 +219,40 @@ Route::prefix('generator')->group(function () {
             Route::post('mulai', [PenulisController::class, 'mulai'])->name('penulis.mulai');
             Route::post('aksi', [PenulisController::class, 'aksi'])->name('penulis.aksi');
             Route::get('cerita', [PenulisController::class, 'cerita'])->name('penulis.cerita');
+        });
+
+        // ---- PRODUKSI FEMBOX: karakter → kostum → pose → serah ke artist (komputer studio saja) ----
+        // Menulis ke folder FEMBOX di Drive dan memakai kunci NovelAI/Venice studio,
+        // jadi admin saja, dan 404 di tempat yang tidak punya folder itu (fembox.lokal).
+        Route::middleware(['admin', 'fembox.lokal'])->prefix('produksi-fembox')->group(function () {
+            $b = '20\d{2}-(0[1-9]|1[0-2])';
+            $p = '[a-z0-9-]{1,60}';
+            Route::get('/', [ProduksiFemboxController::class, 'papan'])->name('produksi-fembox');
+            Route::post('bulan', [ProduksiFemboxController::class, 'buatBulan'])->name('produksi-fembox.bulan');
+            Route::prefix('{bulan}')->where(['bulan' => $b])->group(function () use ($p) {
+                Route::get('kategori/{slug}', [ProduksiFemboxController::class, 'kategori'])
+                    ->where('slug', implode('|', array_keys(ProduksiFemboxController::SLUG)))->name('produksi-fembox.kategori');
+                Route::post('peserta', [ProduksiFemboxController::class, 'tambah'])->name('produksi-fembox.tambah');
+                Route::post('pemenang', [ProduksiFemboxController::class, 'pemenang'])->name('produksi-fembox.pemenang');
+                Route::prefix('peserta/{id}')->where(['id' => $p])->group(function () {
+                    Route::get('/', [ProduksiFemboxController::class, 'peserta'])->name('produksi-fembox.peserta');
+                    Route::post('hapus', [ProduksiFemboxController::class, 'hapus'])->name('produksi-fembox.hapus');
+                    Route::post('geser', [ProduksiFemboxController::class, 'geser'])->name('produksi-fembox.geser');
+                    Route::post('galeri', [ProduksiFemboxController::class, 'galeri'])->name('produksi-fembox.galeri');
+                    Route::post('acuan/danbooru', [ProduksiFemboxController::class, 'acuanDanbooru'])->name('produksi-fembox.acuan.danbooru');
+                    Route::post('acuan/unggah', [ProduksiFemboxController::class, 'acuanUnggah'])->name('produksi-fembox.acuan.unggah');
+                    Route::post('acuan/lepas', [ProduksiFemboxController::class, 'acuanLepas'])->name('produksi-fembox.acuan.lepas');
+                    Route::post('kostum/susun', [ProduksiFemboxController::class, 'susunSfw'])->name('produksi-fembox.kostum.susun');
+                    Route::post('kostum/nsfw/tulis', [ProduksiFemboxController::class, 'tulisNsfw'])->name('produksi-fembox.kostum.nsfw');
+                    Route::prefix('kostum/{versi}')->where(['versi' => 'sfw|nsfw'])->group(function () {
+                        Route::post('gambar', [ProduksiFemboxController::class, 'gambar'])->name('produksi-fembox.kostum.gambar');
+                        Route::post('unggah', [ProduksiFemboxController::class, 'unggahKostum'])->name('produksi-fembox.kostum.unggah');
+                        Route::post('pakai', [ProduksiFemboxController::class, 'pakai'])->name('produksi-fembox.kostum.pakai');
+                    });
+                    Route::get('berkas/{nama}', [ProduksiFemboxController::class, 'berkas'])
+                        ->where('nama', '(sfw|nsfw|acuan)-\d+\.(png|jpg|webp)')->name('produksi-fembox.berkas');
+                });
+            });
         });
 
         // ---- CMS halaman depan (admin) ----

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AlamatKanonis;
+use App\Http\Middleware\FemboxLokal;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HanyaAdmin;
 use App\Http\Middleware\ProduksiLokal;
@@ -20,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin'          => HanyaAdmin::class,
             // Rute PRODUKSI menjawab 404 kalau folder "1 - ANTRIAN" tidak ada (hosting).
             'produksi.lokal' => ProduksiLokal::class,
+            // Rute PRODUKSI FEMBOX menjawab 404 kalau folder FEMBOX di Drive tidak ada.
+            'fembox.lokal'   => FemboxLokal::class,
         ]);
 
         // Paling depan: pengalihan ke alamat kanonis tidak perlu menunggu

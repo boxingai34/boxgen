@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\ProduksiFembox\Bulan;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -46,6 +47,8 @@ class HandleInertiaRequests extends Middleware
             // Menu PRODUKSI: admin, dan hanya di PC yang punya folder antrian
             // (lihat ProduksiLokal). Cukup satu is_dir(), tanpa membaca isinya.
             'produksi' => $user !== null && $user->isAdmin() && is_dir((string) config('produksi.antrian', '')),
+            // Menu PRODUKSI FEMBOX: admin, dan hanya di komputer yang punya folder FEMBOX di Drive.
+            'produksiFembox' => $user !== null && $user->isAdmin() && Bulan::siap(),
             'flash' => [
                 'status' => fn () => $request->session()->get('status'),
             ],
