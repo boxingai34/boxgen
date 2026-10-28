@@ -22,19 +22,17 @@ final class CekUmur
     }
 
     /**
-     * @return array{tingkat:string, umur:string, bukti:string, tinggi:?int, jk:string, nama_resmi:string, franchise:string, usd:float}
+     * Riset mentah + tingkat PagarUmur, TANPA menolak. Request Patreon
+     * memakai ini karena di sana remaja/tak jelas masih boleh versi SFW
+     * olahraga; FEMBOX tetap lewat periksa() yang menolak.
      *
-     * @throws Galat ditolak (umur) atau gangguan Venice
+     * @return array<string,mixed> jawaban model + 'tingkat' (PagarUmur::DEWASA|REMAJA|TAK_JELAS|ANAK)
+     *
+     * @throws Galat gangguan Venice
      */
-    public function periksa(string $nama, string $sumber, string $catatan = ''): array
+    public function riset(string $nama, string $sumber, string $catatan = ''): array
     {
-        try {
-            PagarUmur::periksaIsian($nama, $sumber, $catatan);
-        } catch (PenulisGalat $e) {
-            throw Galat::ditolak($e->getMessage());
-        }
-
-        $sistem = 'You are a meticulous character researcher for anime, manga, manhwa, manhua, light novels, games and western comics. '
+        $sistem ='You are a meticulous character researcher for anime, manga, manhwa, manhua, light novels, games and western comics. '
             . 'Answer from official canon only. Return JSON.';
         $user = "Research this character for an adults-only boxing illustration studio:\n"
             . "- \"$nama\"" . ($sumber !== '' ? " from $sumber" : '') . ($catatan !== '' ? ". User notes: $catatan" : '') . "\n\n"
@@ -68,14 +66,32 @@ final class CekUmur
         } catch (PenulisGalat $e) {
             throw new Galat('Cek umur lewat DeepSeek gagal: ' . $e->getMessage());
         }
+        $r['tingkat'] = PagarUmur::tingkat($r);
 
+        return $r;
+    }
+
+    /**
+     * @return array{tingkat:string, umur:string, bukti:string, tinggi:?int, jk:string, nama_resmi:string, franchise:string, usd:float}
+     *
+     * @throws Galat ditolak (umur) atau gangguan Venice
+     */
+    public function periksa(string $nama, string $sumber, string $catatan = ''): array
+    {
+        try {
+            PagarUmur::periksaIsian($nama, $sumber, $catatan);
+        } catch (PenulisGalat $e) {
+            throw Galat::ditolak($e->getMessage());
+        }
+
+        $r = $this->riset($nama, $sumber, $catatan);
         $label = trim((string) ($r['nama_resmi'] ?? '')) ?: $nama;
         $umur = trim((string) ($r['umur_canon'] ?? ''));
         if (($r['tokoh_nyata'] ?? false) === true) {
             throw Galat::ditolak("Ditolak: $label orang sungguhan — FEMBOX hanya memakai karakter fiksi.");
         }
 
-        $t = PagarUmur::tingkat($r);
+        $t = $r['tingkat'];
         if ($t === PagarUmur::ANAK) {
             throw Galat::ditolak("Ditolak: $label ($umur) — umur canon di bawah 16 atau tampak anak. Tidak dipakai sama sekali.");
         }

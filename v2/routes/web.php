@@ -19,6 +19,7 @@ use App\Http\Controllers\PenulisController;
 use App\Http\Controllers\ProduksiController;
 use App\Http\Controllers\ProduksiFemboxController;
 use App\Http\Controllers\PromptController;
+use App\Http\Controllers\RequestPatreonController;
 use App\Http\Controllers\ReverseController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\UbahController;
@@ -210,6 +211,12 @@ Route::prefix('generator')->group(function () {
             Route::post('take/{id}/nilai', [ProduksiController::class, 'nilai'])->whereNumber('id')->name('produksi.take.nilai');
             Route::post('take/{id}/putuskan', [ProduksiController::class, 'putuskan'])->whereNumber('id')->name('produksi.take.putuskan');
             Route::post('take/{id}/periksa', [ProduksiController::class, 'periksaLagi'])->whereNumber('id')->name('produksi.take.periksa');
+
+            // Request Patreon: kartu request art member (Notion) sampai uploaded.
+            Route::get('request', [RequestPatreonController::class, 'papan'])->name('produksi.request');
+            Route::post('request/sinkron', [RequestPatreonController::class, 'sinkron'])->name('produksi.request.sinkron');
+            Route::get('request/{id}', [RequestPatreonController::class, 'kartu'])->where('id', '[0-9a-f]{32}')->name('produksi.request.kartu');
+            Route::post('request/{id}/status', [RequestPatreonController::class, 'status'])->where('id', '[0-9a-f]{32}')->name('produksi.request.status');
         });
 
         // ---- PENULIS: cerita + pack video dari dua nama petinju (PC produksi saja) ----

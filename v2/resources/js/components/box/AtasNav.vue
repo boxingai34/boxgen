@@ -18,6 +18,7 @@ import {
     History,
     IdCard,
     Image,
+    Inbox,
     LayoutDashboard,
     LibraryBig,
     ListVideo,
@@ -160,6 +161,7 @@ const menu = computed<Menu[]>(() => {
                     // /produksi itu sendiri Papan Produksi, jadi dicocokkan persis.
                     { nama: 'Papan Produksi', rute: 'produksi', ikon: MonitorPlay, ket: 'Pack yang sedang dikerjakan dan langkah berikutnya', persis: true },
                     { nama: 'Antrian Generate', rute: 'produksi.antrian', ikon: ListVideo, ket: 'Semua take yang dikirim ke Higgsfield', persis: false },
+                    { nama: 'Request Patreon', rute: 'produksi.request', ikon: Inbox, ket: 'Request art member dari Notion sampai uploaded', persis: false },
                     { nama: 'Pengaturan', rute: 'produksi.pengaturan', ikon: Settings2, ket: 'Kunci Higgsfield, folder, model dan tarif', persis: false },
                 ],
             });
