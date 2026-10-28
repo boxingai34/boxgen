@@ -19,8 +19,54 @@ final class Nsfw
     /** Keinginan bawaan kalau patron tidak menyebut apa-apa: topless, bawahan & perlengkapan tinju tetap. */
     public const IDE_BAWAAN = 'topless boxing: bare breasts with visible nipples, keep the boxing trunks, boxing gloves and boxing boots';
 
+    /**
+     * Resep pengguna, dibaca dari 223 pasangan SFW/NSFW di arsip 2026: komposisi
+     * dan base sama, prompt karakter NSFW = prompt SFW tanpa atasan + grup
+     * berbobot ini (tits 196×, nipples 189×, nsfw 182×, topless 176×).
+     */
+    public const RESEP_TOPLESS = 'topless, nsfw, tits, nipples';
+
+    /** Varian kalau patron minta naked/nude ("the usual naked one"). */
+    public const RESEP_BUGIL = 'completely nude, nude, nsfw, tits, nipples, pussy';
+
+    /** Segmen atasan di prompt SFW yang diganti grup resep. */
+    private const POLA_ATASAN = '/\b(sports bra|bra|crop ?top|tank top|tube top|bikini top|halter top|bikini|shirt|blouse|cleavage|swimsuit)\b/i';
+
+    /** Segmen bawahan yang ikut dibuang hanya untuk varian bugil. */
+    private const POLA_BAWAHAN = '/\b(trunks|shorts|skirt|miniskirt|bikini bottom|panties|pants|sash)\b/i';
+
     public function __construct(private Venice $venice)
     {
+    }
+
+    /**
+     * Versi NSFW dengan resep pengguna — mekanis, tanpa model, tanpa biaya.
+     * Pemanggil (Simpan) tetap yang menjaga: hanya untuk kartu dewasa.
+     *
+     * @param array{base:string, uc_base:string, karakter:list<array{nama?:string, prompt:string, uc:string}>} $g gambar SFW
+     * @return array{base:string, uc_base:string, karakter:list<array{nama?:string, prompt:string, uc:string}>}
+     */
+    public static function resep(array $g, string $ide = ''): array
+    {
+        $bugil = preg_match('/\b(nude|naked|telanjang|bugil|completely)\b/i', $ide) === 1;
+        $grup = '2::' . ($bugil ? self::RESEP_BUGIL : self::RESEP_TOPLESS) . '::';
+        $ucTambah = $bugil ? ['sports bra', 'bra', 'shirt', 'boxing trunks', 'shorts', 'panties', 'skirt'] : ['sports bra', 'bra', 'shirt', 'tank top'];
+
+        $hasil = ['base' => Aturan::didepan((string) $g['base'], 'nsfw'), 'uc_base' => (string) $g['uc_base'], 'karakter' => []];
+        foreach ($g['karakter'] as $k) {
+            $seg = array_values(array_filter(array_map('trim', explode(',', (string) $k['prompt'])), static fn ($s) => $s !== ''));
+            $tag = array_shift($seg) ?? '';
+            $sisa = array_filter($seg, static fn ($s) => preg_match(self::POLA_ATASAN, $s) !== 1
+                && (! $bugil || preg_match(self::POLA_BAWAHAN, $s) !== 1));
+            $hasil['karakter'][] = [
+                'nama'   => (string) ($k['nama'] ?? ''),
+                'prompt' => implode(', ', array_merge([$tag, $grup], $sisa)),
+                'uc'     => Aturan::pastikan((string) $k['uc'], $ucTambah),
+            ];
+        }
+        $sfwTeks = $g['base'] . ' ' . implode(' ', array_column($g['karakter'], 'prompt'));
+
+        return Aturan::rapikan($hasil, true, preg_match('/\b(barefoot|bare feet)\b/i', $sfwTeks) === 1);
     }
 
     /**

@@ -43,8 +43,15 @@ Kalau Notion belum tersambung (galat `NOTION_API_KEY`):
 - **Versi epilog hanya kalau rupanya memang dewasa.** Kalau tag Danbooru tetap menggambar versi remaja (Nagatoro dan
   Gamo-chan epilog, MHA epilog), kunci ke cerita utama: `"Hayase Nagatoro" "… (main story, high school)"`.
   Kode yang memutuskan dari versi itu.
+- **Selalu cek arsip Drive dulu** (`D:\My Drive\BOXINGENERATED\2026\<Bulan>\{input,output,original}`):
+  `ARTISAN request:arsip "<tag karakter 1>" "<tag karakter 2>"`. Isinya prompt SFW asli dari metadata PNG NovelAI
+  (base, karakter, UC); file NSFW hanya tercatat ada.
+  - Request berulang ("again", "Pt. 2", "same outfit"): pakai kostum, warna sarung, setting, dan gaya dari arsip itu.
+    Kalau prompt arsip tidak menyebut atasan (atasan hasil inpaint), lihat JPG di `output\` (perkecil dulu dengan
+    `magick … -resize 1200x`) dan tulis kostumnya dari gambar.
+  - Jalankan `request:arsip --pindai` kalau bulan berjalan baru diisi (inkremental; scan penuh ±10 menit karena Drive).
 - **Request lanjutan** ("Pt. 2", "same outfit as last one", "the usual naked one"):
-  - Cari dulu kartu lama patron yang sama di `…\request-patreon\prompt\*.json`. Kalau ada, pakai pakaian dan detailnya.
+  - Cari juga kartu lama patron yang sama di `…\request-patreon\prompt\*.json`. Kalau ada, pakai pakaian dan detailnya.
   - Kalau tidak ada, cari di Notion (judul serupa, status uploaded/Archived).
 - **Kartu kosong** (cuma nama karakter): buat **set bawaan** dua gambar (keputusan pengguna 2026-10-28):
   1. Pin-up petinju single, full body, pose percaya diri di ring.
@@ -142,9 +149,13 @@ Tulis `MASUK\<id>.json`, lalu jalankan `ARTISAN request:simpan "<berkas>"`.
 
 - **`keputusan`**: `buat` | `ditolak` | `perlu_info`. Untuk dua yang terakhir: isi `alasan` (Indonesia) dan `balasan`
   (draf Inggris untuk patron, sapa namanya, ramah, ajak kirim ide lain), tanpa `gambar`.
-- **`nsfw_ide`**: tulis kata-kata patron. Contoh: `"fully nude except boxing gloves and boots"` untuk naked/nude,
-  `"topless"` untuk topless. Kosong = bawaan topless (trunks, sarung, dan sepatu tetap). Versi NSFW selalu dibuat untuk
-  kartu `dewasa` (keputusan pengguna 2026-10-28).
+- **`nsfw_mode`**: `resep` (bawaan) = resep pengguna dari arsip — prompt NSFW sama persis dengan SFW, atasan dibuang
+  dan diganti `2::topless, nsfw, tits, nipples::` sesudah tag karakter; mekanis, gratis. `deepseek` hanya untuk ide
+  yang tidak bisa diresepkan (pose/adegan khusus).
+- **`nsfw_ide`**: tulis kata-kata patron. naked/nude/"the usual naked one" → resep bugil (bawahan ikut dibuang, sarung
+  dan sepatu tetap). Kosong = topless. Versi NSFW selalu dibuat untuk kartu `dewasa` (keputusan pengguna 2026-10-28).
+- **Jadi prompt SFW harus menulis atasan sebagai segmen sendiri** (`black sports bra with white trim`), supaya resep
+  bisa menggantinya dengan bersih.
 - **Hasilnya:** bagian "🥊 PROMPT NOVELAI" di ujung kartu (toggle per gambar, code block bertombol salin; simpan ulang
   mengganti bagian lama) dan status → Prompt Siap. Kartu yang statusnya sudah lebih jauh tidak dimundurkan.
 - **Galat tag seksual / UC kurang:** perbaiki JSON, lalu jalankan ulang. Biaya DeepSeek ±$0,002 per gambar.

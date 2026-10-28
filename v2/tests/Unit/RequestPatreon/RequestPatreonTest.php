@@ -239,7 +239,8 @@ class RequestPatreonTest extends TestCase
         $d = $this->simpan()->jalan([
             'kartu'    => 'https://app.notion.com/p/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1',
             'karakter' => [['nama' => 'Kukaku Shiba', 'sumber' => 'Bleach'], ['nama' => 'Rangiku Matsumoto', 'sumber' => 'Bleach']],
-            'gaya'     => 'artist:kubo taito, official art',
+            'gaya'     => 'artist:kubo tite, official art',
+            'nsfw_mode' => 'deepseek',
             'gambar'   => [self::gambar()],
         ]);
 
@@ -273,6 +274,73 @@ class RequestPatreonTest extends TestCase
         ]);
         $this->assertNotContains('cek_umur', $this->panggilan);
         $this->assertTrue(collect($this->notion)->contains(fn ($x) => $x['cara'] === 'DELETE' && $x['jalur'] === 'blocks/blok-0'));
+    }
+
+    public function test_resep_pengguna_mengganti_atasan_tanpa_deepseek(): void
+    {
+        $d = $this->simpan()->jalan([
+            'kartu' => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2', 'gambar' => [self::gambar()],
+            'karakter' => [['nama' => 'Kukaku Shiba', 'sumber' => 'Bleach'], ['nama' => 'Rangiku Matsumoto', 'sumber' => 'Bleach']],
+        ]);
+        $this->assertSame('resep', $d['nsfw_mode']);
+        $this->assertNotContains('request_nsfw', $this->panggilan, 'resep tidak memanggil DeepSeek');
+
+        $k = $d['gambar'][0]['nsfw']['karakter'][1]['prompt'];
+        $this->assertStringStartsWith('matsumoto rangiku, 2::topless, nsfw, tits, nipples::', $k);
+        $this->assertStringNotContainsString('sports bra', $k);
+        $this->assertStringContainsString('blue trunks', $k, 'bawahan tetap untuk topless');
+        $this->assertStringContainsString('boxing gloves', $k);
+        $this->assertStringContainsString('sports bra', $d['gambar'][0]['nsfw']['karakter'][1]['uc']);
+        $this->assertStringStartsWith('nsfw', $d['gambar'][0]['nsfw']['base']);
+
+        // Bugil ("the usual naked one"): bawahan ikut dibuang, sarung tetap; Muay Thai tetap tanpa alas kaki.
+        $g = ['base' => 'muay thai', 'uc_base' => '', 'karakter' => [['prompt' => 'shego, green sports bra, green shorts, black boxing gloves, barefoot', 'uc' => '']]];
+        $b = Nsfw::resep($g, 'the usual naked one')['karakter'][0]['prompt'];
+        $this->assertStringContainsString('completely nude', $b);
+        $this->assertStringNotContainsString('shorts', $b);
+        $this->assertStringContainsString('black boxing gloves', $b);
+        $this->assertStringContainsString('barefoot', $b);
+    }
+
+    public function test_arsip_membaca_prompt_novelai_dari_png_dan_menyimpan_sfw_saja(): void
+    {
+        $drive = $this->akar . DIRECTORY_SEPARATOR . 'drive';
+        $comment = fn (string $tambahan) => json_encode(['prompt' => 'x', 'uc' => 'y', 'request_type' => 'NativeInfillingRequest',
+            'v4_prompt' => ['caption' => ['base_caption' => '2girls, boxing ring, outdoor', 'char_captions' => [
+                ['char_caption' => "shiba_kuukaku, braided ponytail, brown boxing gloves$tambahan", 'centers' => [['x' => 0.5, 'y' => 0.5]]],
+                ['char_caption' => 'matsumoto rangiku, black sports bra, brown boxing gloves', 'centers' => [['x' => 0.5, 'y' => 0.5]]],
+            ]]],
+            'v4_negative_prompt' => ['caption' => ['base_caption' => 'lowres', 'char_captions' => [['char_caption' => 'shoes'], ['char_caption' => 'shoes']]]]]);
+        File::ensureDirectoryExists("$drive/July/ORIGINAL");
+        File::put("$drive/July/ORIGINAL/Rangiku vs Kuukaku SFW.png", self::png(['Source' => 'NovelAI Diffusion V4.5 1229B44F', 'Comment' => $comment(', red halter top')]));
+        File::put("$drive/July/ORIGINAL/Rangiku vs Kuukaku NSFW.png", self::png(['Source' => 'NovelAI Diffusion V4.5 1229B44F', 'Comment' => $comment(', 2::topless, nsfw, tits, nipples::')]));
+        File::put("$drive/July/ORIGINAL/Diedit.png", self::png([]));
+
+        $arsip = new \App\Services\RequestPatreon\Arsip(new Gudang(), $drive);
+        $h = $arsip->pindai();
+        $this->assertSame(['file' => 3, 'dibaca' => 3, 'berprompt' => 2, 'hilang' => 0], $h);
+        $this->assertSame(0, $arsip->pindai()['dibaca'], 'pindai kedua tidak membaca ulang file yang sama');
+
+        $g = $arsip->cari(['Shiba Kuukaku', 'rangiku'])[0];
+        $this->assertSame(['July', 'Rangiku vs Kuukaku', 2], [$g['bulan'], $g['judul'], $g['cocok']]);
+        $this->assertEqualsCanonicalizing(['SFW', 'NSFW'], $g['versi']);
+        $this->assertStringContainsString('red halter top', $g['sfw']['karakter'][0]['prompt']);
+        $this->assertSame('V4.5', substr($arsip->indeks()['file'][str_replace('\\', '/', "$drive/July/ORIGINAL/Rangiku vs Kuukaku SFW.png")]['model'], -4));
+
+        // Teks prompt NSFW tidak pernah disimpan di indeks.
+        $this->assertStringNotContainsString('nipples', json_encode($arsip->indeks()));
+    }
+
+    /** PNG minimal: signature + IHDR + iTXt per kunci + IDAT + IEND (cukup untuk pembaca potongan). */
+    private static function png(array $teks): string
+    {
+        $potong = fn (string $jenis, string $data) => pack('N', strlen($data)) . $jenis . $data . pack('N', crc32($jenis . $data));
+        $isi = "\x89PNG\r\n\x1a\n" . $potong('IHDR', pack('NN', 8, 8) . "\x08\x02\x00\x00\x00");
+        foreach ($teks as $k => $v) {
+            $isi .= $potong('iTXt', $k . "\0\0\0\0\0" . $v);
+        }
+
+        return $isi . $potong('IDAT', 'xx') . $potong('IEND', '');
     }
 
     public function test_kartu_remaja_sfw_saja_dan_tag_seksual_ditolak(): void

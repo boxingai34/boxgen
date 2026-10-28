@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\File;
  *   prompt/<id>.json    prompt yang disimpan per kartu (SFW, NSFW, putusan)
  *   umur.json           cache cek umur per "nama|sumber" — satu karakter
  *                       cukup dicek sekali (Rangiku muncul di banyak kartu)
+ *   arsip.json          indeks prompt NovelAI dari arsip Drive (Arsip)
  */
 final class Gudang
 {
@@ -97,6 +98,18 @@ final class Gudang
         $j[$kunci] = $data;
         ksort($j);
         $this->tulis('umur.json', $j);
+    }
+
+    /** @return array<string,mixed> indeks arsip Drive (lihat Arsip) */
+    public function arsip(): array
+    {
+        return $this->baca('arsip.json');
+    }
+
+    /** @param array<string,mixed> $data */
+    public function simpanArsip(array $data): void
+    {
+        $this->tulis('arsip.json', $data);
     }
 
     /** @return array<string,mixed> */

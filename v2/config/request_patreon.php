@@ -35,4 +35,8 @@ return [
 
     'kerja' => rtrim((string) env('REQUEST_PATREON_DIR', storage_path('app/request-patreon')), '/\\'),
 
+    // Arsip hasil generate (BOXINGENERATED\<tahun>\<Bulan>\{input,output,original}).
+    // Beberapa folder dipisah ";" (mis. tahun lama + tahun baru).
+    'arsip' => (string) env('REQUEST_ARSIP_DIR', 'D:\My Drive\BOXINGENERATED\2026'),
+
 ];

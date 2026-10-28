@@ -14,6 +14,7 @@ namespace App\Services\RequestPatreon;
  *   alasan, balasan   untuk ditolak/perlu_info (balasan = draf Inggris untuk patron)
  *   karakter    [{nama, sumber}] — SEMUA karakter yang digambar
  *   gaya, catatan, nsfw_ide
+ *   nsfw_mode   "resep" (bawaan: resep pengguna, mekanis) | "deepseek"
  *   gambar      [{judul, posisi, base, uc_base, karakter:[{nama, prompt, uc}]}] — versi SFW
  *
  * Putusan umur dari kode menang atas keputusan di masukan: kartu "buat"
@@ -59,6 +60,7 @@ final class Simpan
             'gaya'      => trim((string) ($m['gaya'] ?? '')),
             'catatan'   => trim((string) ($m['catatan'] ?? '')),
             'nsfw_ide'  => trim((string) ($m['nsfw_ide'] ?? '')),
+            'nsfw_mode' => ($m['nsfw_mode'] ?? 'resep') === 'deepseek' ? 'deepseek' : 'resep',
             'gambar'    => [],
             'disimpan'  => now()->toIso8601String(),
             'biaya_usd' => 0.0,
@@ -109,7 +111,13 @@ final class Simpan
                     $sfw = Aturan::rapikan($g);
                     $nsfw = null;
                     if ($p['putusan'] === Umur::DEWASA && ($m['nsfw'] ?? true) !== false) {
-                        $nsfw = $this->nsfw->ubah($sfw, $data['nsfw_ide'], (string) ($kartu['isi'] ?? ''));
+                        // Bawaan = resep pengguna (mekanis, gratis); DeepSeek hanya kalau diminta.
+                        $nsfw = $data['nsfw_mode'] === 'deepseek'
+                            ? $this->nsfw->ubah($sfw, $data['nsfw_ide'], (string) ($kartu['isi'] ?? ''))
+                            : Nsfw::resep($sfw, $data['nsfw_ide']);
+                        if (Aturan::adaPenandaAnak($nsfw)) {
+                            throw new RequestGalat('Versi NSFW gambar ' . ($i + 1) . ' memuat penanda anak; tidak disimpan.');
+                        }
                     }
                     $data['gambar'][] = [
                         'judul'  => (string) ($g['judul'] ?? ''),
