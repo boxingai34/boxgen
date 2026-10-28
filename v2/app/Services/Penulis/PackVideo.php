@@ -254,6 +254,91 @@ final class PackVideo
     /** Baris kedua Blok 1 laga tanpa penonton (pastikanTanpaPenonton). */
     public const BARIS_AUDIO = 'Audio: a silent, empty hall at night; only the sounds written in the shots are heard.';
 
+    /** Pembuka baris audio tunggal (rumus pack Maomao vs Pairin yang bebas suara penonton). */
+    public const AUDIO_TUNGGAL = 'Audio from this prompt only, no reference audio: raw location recording, diegetic only, in an empty, silent hall at night.';
+
+    /**
+     * Jumlah dan nama orang dari gambar yang benar-benar diunggah: "Exactly TWO
+     * people: Boxer A and Boxer B; …". Pack Maomao vs Pairin menulis jumlah
+     * orang secara konkret dan bebas penonton; "the ones written in the shots"
+     * tidak (Tsunade vs Mei NSFW, 2026-10-28).
+     *
+     * @param list<string> $gambar
+     */
+    public static function kalimatOrang(array $gambar): string
+    {
+        $peran = ['A' => 'Boxer A', 'B' => 'Boxer B', 'C' => 'the referee', 'D' => "Boxer A's cornerman", 'E' => "Boxer B's cornerman"];
+        $orang = [];
+        foreach ($gambar as $g) {
+            if (preg_match('/^([A-Z])-/', basename((string) $g), $m) === 1) {
+                $orang[$m[1]] = $peran[$m[1]] ?? 'one more person';
+            }
+        }
+        if ($orang === []) {
+            return self::KALIMAT_TANPA_PENONTON;
+        }
+        $angka = [1 => 'ONE person', 2 => 'TWO people', 3 => 'THREE people', 4 => 'FOUR people', 5 => 'FIVE people', 6 => 'SIX people'];
+        $nama = array_values($orang);
+        $daftar = count($nama) > 1 ? implode(', ', array_slice($nama, 0, -1)) . ' and ' . end($nama) : $nama[0];
+
+        return 'Exactly ' . ($angka[count($nama)] ?? count($nama) . ' people') . ": {$daftar}; the hall around them is completely empty.";
+    }
+
+    /**
+     * Laga tanpa penonton: semua bunyi jadi SATU baris audio di Blok 2 dengan
+     * rumus Maomao vs Pairin ("Audio from this prompt only … raw location
+     * recording, diegetic only … the only sounds are …; nothing else is
+     * heard"), dan Overall menyebut jumlah orang dari gambar. Tiga baris bunyi
+     * yang tersebar (Audio di Blok 1, Sound di Blok 3, "Foley" di Blok 2)
+     * tetap memunculkan suara penonton (klip 03 take 4, 2026-10-28).
+     *
+     * @param list<string> $gambar
+     * @return array{0:string,1:string,2:string} Blok 1, Blok 3, Blok 2
+     */
+    public static function audioTunggal(string $b1, string $b3, string $b2, string $jenis, array $gambar): array
+    {
+        $b1 = trim((string) preg_replace('/^' . preg_quote(self::BARIS_AUDIO, '/') . '\R?/mu', '', $b1));
+        $b1 = str_replace(self::KALIMAT_TANPA_PENONTON, self::kalimatOrang($gambar), $b1);
+        $b1 = (string) preg_replace('/Exactly [A-Z]+ (?:people|person):[^;\n]*; the hall around them is completely empty\./u', self::kalimatOrang($gambar), $b1);
+
+        if (str_contains($b2, self::AUDIO_TUNGGAL)) {
+            return [$b1, rtrim((string) preg_replace('/^Sound:.*(?:\R|$)/mu', '', $b3)), $b2];
+        }
+
+        // Daftar bunyi khusus klip dari baris Sound Blok 3 (atau bawaan per jenis).
+        $daftar = '';
+        $b3 = (string) preg_replace_callback('/^Sound:\s*(.*)(?:\R|$)/mu', function ($m) use (&$daftar) {
+            $daftar = $daftar !== '' ? $daftar : $m[1];
+
+            return '';
+        }, $b3);
+        $b3 = rtrim($b3);
+        if ($daftar === '' && isset(self::SUARA_TERTUTUP[$jenis])) {
+            $daftar = (string) preg_replace('/^Sound:\s*/u', '', self::SUARA_TERTUTUP[$jenis]);
+        }
+        $daftar = (string) preg_replace('/^(?:the only sounds are|only)\s+/iu', '', trim($daftar));
+        $daftar = (string) preg_replace('/\s*(?:over (?:the )?(?:quiet )?room tone(?: of the empty venue)?|;\s*nothing else(?: is)? heard\.?|;\s*nothing else\.?)/iu', '', $daftar);
+        $daftar = rtrim($daftar, ' .;');
+
+        // Kalimat soal "tss", pukulan berat, dan ucapan dari baris Sound Blok 2 tetap ikut.
+        $tambahan = [];
+        if (preg_match('/^Sound:\s*(.*)$/mu', $b2, $s) === 1) {
+            foreach (preg_split('/(?<=\.)\s+/u', $s[1]) ?: [] as $k) {
+                if (preg_match('/tss|thud|crack|grunt|spoken lines|audio only/i', $k) === 1) {
+                    $tambahan[] = ucfirst(trim($k));
+                }
+            }
+        }
+        $baris = self::AUDIO_TUNGGAL . ($daftar !== '' ? " The only sounds are {$daftar}; nothing else is heard." : ' Nothing else is heard.')
+            . ($tambahan !== [] ? ' ' . implode(' ', $tambahan) : '');
+        $b2 = preg_match('/^Sound:/mu', $b2) === 1
+            ? (string) preg_replace('/^Sound:.*$/mu', $baris, $b2, 1)
+            : (string) preg_replace('/^(Negative:)/mu', $baris . "\n$1", $b2, 1);
+        $b2 = (string) preg_replace('/^Sound:.*(?:\R|$)/mu', '', $b2);
+
+        return [$b1, $b3, rtrim($b2)];
+    }
+
     /**
      * Baris Sound Blok 2 laga tanpa penonton wajib menyebut nada ruang.
      * T03 take 2 (2026-10-27): "true silence between hits" keluar sebagai
@@ -896,9 +981,14 @@ final class PackVideo
             if (mb_strlen($susun($b3)) > $batas) {
                 $b3 = self::pangkas($b3, $batas - (mb_strlen($susun($b3)) - mb_strlen($b3)));
             }
-            $hasil[$k['kode']] = $susun($b3);
+            [$a1, $a3, $a2] = $this->tanpaPenonton
+                ? self::audioTunggal($b1, $b3, $b2, (string) $k['jenis'], (array) ($k['gambar'] ?? []))
+                : [$b1, $b3, $b2];
+            $hasil[$k['kode']] = self::isiDurasi($a1, (int) $k['durasi']) . "
+" . $a3 . "
+" . $a2;
             if (! str_starts_with((string) $k['kode'], 'T')) {
-                $this->ujiU[$k['kode']] = self::ujiKlip(['blok3' => $b3] + $k, $b1, $b2);
+                $this->ujiU[$k['kode']] = self::ujiKlip(['blok3' => $a3] + $k, $a1, $a2);
             }
             if (mb_strlen($hasil[$k['kode']]) > self::BATAS_WAN) {
                 $this->peringatan[] = sprintf('UNCENSORED %s %d karakter — di atas %d.', $k['kode'], mb_strlen($hasil[$k['kode']]), self::BATAS_WAN);
@@ -1881,8 +1971,18 @@ final class PackVideo
             $this->peringatan[] = "{$k['kode']}: kata \"{$t[0]}\" tidak boleh ada di pack Higgsfield — periksa sebelum kirim.";
         }
 
+        // Laga tanpa penonton: satu baris audio + jumlah orang (rumus Maomao vs Pairin).
+        // Blok 3 tersimpan tidak diubah; hanya prompt yang ditulis.
+        [$a1, $a3, $a2] = $this->tanpaPenonton
+            ? self::audioTunggal($b1, (string) $k['blok3'], $b2, (string) $k['jenis'], (array) $k['gambar'])
+            : [$b1, (string) $k['blok3'], $b2];
+        if ($this->tanpaPenonton) {
+            $k['prompt'] = self::isiDurasi($a1, (int) $k['durasi']) . "
+" . $a3 . "
+" . $a2;
+        }
         if (! str_starts_with((string) $k['kode'], 'T')) {
-            $k['uji'] = self::ujiKlip($k, $b1, $b2);
+            $k['uji'] = self::ujiKlip(['blok3' => $a3] + $k, $a1, $a2);
         }
 
         return $k;
@@ -2110,6 +2210,9 @@ final class PackVideo
             }
         }
         $prompt = (string) preg_replace_callback('/@image(\d+)\b/', fn ($x) => '@image' . ($peta[(int) $x[1]] ?? $x[1]), $prompt);
+        // Jumlah orang ikut gambar potongan ini (pendukung yang tidak muncul tidak dihitung).
+        $prompt = (string) preg_replace('/Exactly [A-Z]+ (?:people|person):[^;
+]*; the hall around them is completely empty\./u', self::kalimatOrang($gambarUji), $prompt);
 
         $kode = (string) $k['kode'];
         $rentang = $angka($a0) . '–' . $angka($a0 + $durasi);

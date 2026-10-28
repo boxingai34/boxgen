@@ -620,6 +620,29 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringContainsString('two boxers in private pavilion ring', PackVideo::pastikanTanpaPenonton("Overall: 30-second scene; two pro boxers in private pavilion ring at night."));
     }
 
+    public function test_audio_tunggal_rumus_maomao_dan_jumlah_orang(): void
+    {
+        // Tiga baris bunyi yang tersebar → satu baris audio (klip 03 take 4: penonton masih terdengar).
+        $b1 = "Overall: {DURASI}-second scene; two boxers in a private ring. " . PackVideo::KALIMAT_TANPA_PENONTON . "\n" . PackVideo::BARIS_AUDIO . "\nMaterials: Boxer A = @image1.";
+        $b3 = "Opening state: x.\nShot 1 [0-3s] jab.\nEnd state: y.\nSound: the only sounds are glove impacts and breathing over the quiet room tone; nothing else is heard.";
+        $b2 = "Tempo: fast.\nSound: crisp, dry Foley, only the quiet room tone between hits. Every jab carries a sharp \"tss\" breath. Heavy hooks: deep thud plus grunt. Rope creaks.\nNegative: none.";
+        [$a1, $a3, $a2] = PackVideo::audioTunggal($b1, $b3, $b2, 'laga', ['A-K1.png', 'B-K1.png', 'BG-01.png']);
+
+        $this->assertStringContainsString('Exactly TWO people: Boxer A and Boxer B; the hall around them is completely empty.', $a1);
+        $this->assertStringNotContainsString('Audio:', $a1);
+        $this->assertStringNotContainsString('Sound:', $a3);
+        $this->assertStringNotContainsString('Sound:', $a2);
+        $this->assertStringNotContainsString('Foley', $a2);
+        $this->assertStringContainsString(PackVideo::AUDIO_TUNGGAL . ' The only sounds are glove impacts and breathing; nothing else is heard. Every jab carries a sharp "tss" breath. Heavy hooks: deep thud plus grunt.', $a2);
+        $this->assertStringEndsWith('Negative: none.', $a2);
+        $this->assertSame([$a1, $a3, $a2], PackVideo::audioTunggal($a1, $a3, $a2, 'laga', ['A-K1.png', 'B-K1.png', 'BG-01.png']), 'idempoten');
+
+        // Jumlah orang dari gambar yang diunggah (klip satu sudut, epilog dengan dua cornerman).
+        $this->assertSame("Exactly TWO people: Boxer B and Boxer B's cornerman; the hall around them is completely empty.", PackVideo::kalimatOrang(['B-K1.png', 'BG-01.png', 'E-00.png']));
+        $this->assertSame("Exactly FOUR people: Boxer A, Boxer B, Boxer A's cornerman and Boxer B's cornerman; the hall around them is completely empty.",
+            PackVideo::kalimatOrang(['A-L3.png', 'B-L3.png', 'BG-02.png', 'D-00.png', 'E-00.png']));
+    }
+
     public function test_uji_klip_memilih_potongan_paling_berisiko(): void
     {
         $k = [
