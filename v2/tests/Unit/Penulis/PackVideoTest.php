@@ -628,7 +628,7 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $b2 = "Tempo: fast.\nSound: crisp, dry Foley, only the quiet room tone between hits. Every jab carries a sharp \"tss\" breath. Heavy hooks: deep thud plus grunt. Rope creaks.\nNegative: none.";
         [$a1, $a3, $a2] = PackVideo::audioTunggal($b1, $b3, $b2, 'laga', ['A-K1.png', 'B-K1.png', 'BG-01.png']);
 
-        $this->assertStringContainsString('Exactly TWO people: Boxer A and Boxer B; the hall around them is completely empty.', $a1);
+        $this->assertStringContainsString('Exactly TWO people: Boxer A and Boxer B; everything around them is completely empty.', $a1);
         $this->assertStringNotContainsString('Audio:', $a1);
         $this->assertStringNotContainsString('Sound:', $a3);
         $this->assertStringNotContainsString('Sound:', $a2);
@@ -637,9 +637,21 @@ A wide empty anime boxing ring", (string) file_get_contents($this->pack . '/REFE
         $this->assertStringEndsWith('Negative: none.', $a2);
         $this->assertSame([$a1, $a3, $a2], PackVideo::audioTunggal($a1, $a3, $a2, 'laga', ['A-K1.png', 'B-K1.png', 'BG-01.png']), 'idempoten');
 
+        // U03 take 2 (spektrogram: lapisan bising + dengung slow motion): baris Audio singkatan Qwen,
+        // "cinematic", "boxing scene", dan jam ronde ikut dibuang; slow motion diberi arahan suara.
+        [$c1, $c3, $c2] = PackVideo::audioTunggal("Overall: {DURASI}-second 16:9 boxing scene, anime, cinematic; two boxers. Only people written in shots present.
+Audio: silent, empty hall at night; only sounds written in shots heard.
+Materials: x.",
+            "Opening state: Round 1, 1:00. Mid-range.
+Shot 1 [0-4s] Slow motion, extreme close-up: glove lands.", "Negative: none.", 'laga', ['A-K1.png', 'B-K1.png', 'BG-01.png']);
+        $this->assertSame("Overall: {DURASI}-second 16:9 scene, anime; two boxers. Exactly TWO people: Boxer A and Boxer B; everything around them is completely empty.
+Materials: x.", $c1);
+        $this->assertStringStartsWith('Opening state: Mid-range.', $c3);
+        $this->assertStringContainsString(PackVideo::AUDIO_SLOWMO, $c2);
+
         // Jumlah orang dari gambar yang diunggah (klip satu sudut, epilog dengan dua cornerman).
-        $this->assertSame("Exactly TWO people: Boxer B and Boxer B's cornerman; the hall around them is completely empty.", PackVideo::kalimatOrang(['B-K1.png', 'BG-01.png', 'E-00.png']));
-        $this->assertSame("Exactly FOUR people: Boxer A, Boxer B, Boxer A's cornerman and Boxer B's cornerman; the hall around them is completely empty.",
+        $this->assertSame("Exactly TWO people: Boxer B and Boxer B's cornerman; everything around them is completely empty.", PackVideo::kalimatOrang(['B-K1.png', 'BG-01.png', 'E-00.png']));
+        $this->assertSame("Exactly FOUR people: Boxer A, Boxer B, Boxer A's cornerman and Boxer B's cornerman; everything around them is completely empty.",
             PackVideo::kalimatOrang(['A-L3.png', 'B-L3.png', 'BG-02.png', 'D-00.png', 'E-00.png']));
     }
 

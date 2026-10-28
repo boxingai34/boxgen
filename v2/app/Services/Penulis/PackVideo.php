@@ -255,7 +255,13 @@ final class PackVideo
     public const BARIS_AUDIO = 'Audio: a silent, empty hall at night; only the sounds written in the shots are heard.';
 
     /** Pembuka baris audio tunggal (rumus pack Maomao vs Pairin yang bebas suara penonton). */
-    public const AUDIO_TUNGGAL = 'Audio from this prompt only, no reference audio: raw location recording, diegetic only, in an empty, silent hall at night.';
+    public const AUDIO_TUNGGAL = 'Audio from this prompt only, no reference audio: raw location recording, diegetic only, quiet night air.';
+
+    /** Kalimat suara untuk klip ber-slow motion (U03 take 2: dengung ±300 Hz di bagian slow motion). */
+    public const AUDIO_SLOWMO = 'Slow-motion shots keep only the slowed diegetic sounds: the stretched impact thud and breathing.';
+
+    /** Penutup kalimat jumlah orang (kalimatOrang). */
+    public const SEKITAR_KOSONG = 'everything around them is completely empty.';
 
     /**
      * Jumlah dan nama orang dari gambar yang benar-benar diunggah: "Exactly TWO
@@ -281,8 +287,11 @@ final class PackVideo
         $nama = array_values($orang);
         $daftar = count($nama) > 1 ? implode(', ', array_slice($nama, 0, -1)) . ' and ' . end($nama) : $nama[0];
 
-        return 'Exactly ' . ($angka[count($nama)] ?? count($nama) . ' people') . ": {$daftar}; the hall around them is completely empty.";
+        return 'Exactly ' . ($angka[count($nama)] ?? count($nama) . ' people') . ": {$daftar}; " . self::SEKITAR_KOSONG;
     }
+
+    /** Pola kalimat jumlah orang buatan kalimatOrang (versi lama memakai "the hall around them"). */
+    public const POLA_ORANG = '/Exactly [A-Z]+ (?:people|person):[^;\n]*; (?:the hall around them is|everything around them is) completely empty\./u';
 
     /**
      * Laga tanpa penonton: semua bunyi jadi SATU baris audio di Blok 2 dengan
@@ -297,9 +306,20 @@ final class PackVideo
      */
     public static function audioTunggal(string $b1, string $b3, string $b2, string $jenis, array $gambar): array
     {
-        $b1 = trim((string) preg_replace('/^' . preg_quote(self::BARIS_AUDIO, '/') . '\R?/mu', '', $b1));
-        $b1 = str_replace(self::KALIMAT_TANPA_PENONTON, self::kalimatOrang($gambar), $b1);
-        $b1 = (string) preg_replace('/Exactly [A-Z]+ (?:people|person):[^;\n]*; the hall around them is completely empty\./u', self::kalimatOrang($gambar), $b1);
+        // Semua baris "Audio:" lama di Blok 1, apa pun bentuknya (Qwen sempat menyingkat
+        // BARIS_AUDIO jadi "Audio: silent, empty hall at night; …" dan baris itu lolos).
+        $b1 = trim((string) preg_replace('/^Audio:.*(?:\R|$)/mu', '', $b1));
+        // Kalimat "the only people … written …" dalam bentuk apa pun → satu kalimat jumlah orang.
+        $b1 = (string) preg_replace('/\s*\b(?:The )?only people (?:anywhere |present )?(?:are )?(?:the ones |those )?written(?: in (?:the )?shots)?(?: present| are present)?\.?/iu', '', $b1);
+        $b1 = (string) preg_replace(self::POLA_ORANG, '', $b1);
+        $b1 = (string) preg_replace_callback('/^(Overall:.*?)\s*$/mu', fn ($m) => rtrim($m[1], ' .;') . '. ' . self::kalimatOrang($gambar), $b1, 1);
+        // Ikut pack Maomao: tanpa "cinematic" dan "boxing scene" (cenderung memanggil
+        // audio film/siaran: dengung dan sorakan).
+        $b1 = (string) preg_replace('/,\s*cinematic(?=[;,.])/iu', '', $b1);
+        $b1 = (string) preg_replace('/\bboxing scene\b/iu', 'scene', $b1);
+        // Jam ronde ("Round 1, 1:00") bergaya siaran pertandingan; cerita tetap menyimpannya.
+        $b3 = (string) preg_replace('/\bRound \d+,\s*\d{1,2}:\d{2}\.?\s*/u', '', $b3);
+        $slowmo = preg_match('/^Shot \d+[^\n]*slow[- ]motion/imu', $b3) === 1;
 
         if (str_contains($b2, self::AUDIO_TUNGGAL)) {
             return [$b1, rtrim((string) preg_replace('/^Sound:.*(?:\R|$)/mu', '', $b3)), $b2];
@@ -330,7 +350,7 @@ final class PackVideo
             }
         }
         $baris = self::AUDIO_TUNGGAL . ($daftar !== '' ? " The only sounds are {$daftar}; nothing else is heard." : ' Nothing else is heard.')
-            . ($tambahan !== [] ? ' ' . implode(' ', $tambahan) : '');
+            . ($tambahan !== [] ? ' ' . implode(' ', $tambahan) : '') . ($slowmo ? ' ' . self::AUDIO_SLOWMO : '');
         $b2 = preg_match('/^Sound:/mu', $b2) === 1
             ? (string) preg_replace('/^Sound:.*$/mu', $baris, $b2, 1)
             : (string) preg_replace('/^(Negative:)/mu', $baris . "\n$1", $b2, 1);
@@ -2211,8 +2231,7 @@ final class PackVideo
         }
         $prompt = (string) preg_replace_callback('/@image(\d+)\b/', fn ($x) => '@image' . ($peta[(int) $x[1]] ?? $x[1]), $prompt);
         // Jumlah orang ikut gambar potongan ini (pendukung yang tidak muncul tidak dihitung).
-        $prompt = (string) preg_replace('/Exactly [A-Z]+ (?:people|person):[^;
-]*; the hall around them is completely empty\./u', self::kalimatOrang($gambarUji), $prompt);
+        $prompt = (string) preg_replace(self::POLA_ORANG, self::kalimatOrang($gambarUji), $prompt);
 
         $kode = (string) $k['kode'];
         $rentang = $angka($a0) . '–' . $angka($a0 + $durasi);
